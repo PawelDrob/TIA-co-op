@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.pointers.check_pointers import DOCUMENTS, bad_frontmatter, dangling
+from tools.pointers.check_pointers import DOCUMENTS, GIT_CONTEXT, bad_frontmatter, dangling
 
 SKILL = '.claude/skills/ticket/SKILL.md'
 TRACKED = {
@@ -212,6 +212,15 @@ class InARepo(unittest.TestCase):
         code, out = self.run_check({SKILL: '---\nname: ticket\ndescription: a map: start\n---\n'})
         self.assertEqual(code, 1)
         self.assertIn(SKILL + ':3:', out)
+
+
+class GitsOwnList(unittest.TestCase):
+    """GIT_CONTEXT holds every name git reads a repo from: a git that knows one more fails this."""
+
+    def test_every_name_of_git_is_dropped(self):
+        names = subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True, check=True).stdout.split()
+        self.assertIn('GIT_DIR', names)
+        self.assertEqual([name for name in names if name not in GIT_CONTEXT], [])
 
 
 if __name__ == '__main__':

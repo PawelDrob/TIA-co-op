@@ -31,6 +31,10 @@ PLANT_A, PLANT_B = os.path.join(SAMPLES, 'Plant_2026-09-01.zap20'), os.path.join
 PROTECTED = os.path.join(SAMPLES, 'Plant_protected.zap20')
 PASSWORD = 'Pw"x\\yä-42'       # a quote, a backslash and a non-ASCII character
 NO_WINDOW = subprocess.CREATE_NO_WINDOW
+# Started by a git-aware parent (a hook or an alias of another repo), the commits of the made-up repo would land in the
+# parent's: the names git reads a repo from leave this process.
+for _name in subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True, creationflags=NO_WINDOW).stdout.split():
+    os.environ.pop(_name, None)
 
 failed = 0
 

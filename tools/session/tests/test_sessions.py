@@ -21,7 +21,7 @@ from session import Sessions
 from store import SessionError, record_hook, write_state
 from terminals import NOT_READ, Herdr, HerdrFailed, report_resume
 
-GIT_ENV = {k: v for k, v in os.environ.items() if k not in ('GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX', 'GIT_COMMON_DIR')}
+GIT_ENV = {k: v for k, v in os.environ.items() if k not in session.GIT_CONTEXT}
 PUSH_RULES = ['Bash(git push:*)', 'Bash(git * push *)', 'Bash(git * push)',
               'PowerShell(git push:*)', 'PowerShell(git * push *)', 'PowerShell(git * push)']
 STILL_HELD = (5, 32)    # Windows errors: access denied (a program's file still mapped), in use by another process
@@ -1357,6 +1357,15 @@ class HookCommandTests(unittest.TestCase):
         done = subprocess.run([sys.executable, '-X', 'utf8', str(script), 'hook', r'C:\no\such\folder\nul\x'],
                               input='not json', capture_output=True, text=True)
         self.assertEqual(done.returncode, 0)
+
+
+class GitsOwnList(unittest.TestCase):
+    """GIT_CONTEXT holds every name git reads a repo from: a git that knows one more fails this."""
+
+    def test_every_name_of_git_is_dropped(self):
+        names = subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True, check=True).stdout.split()
+        self.assertIn('GIT_DIR', names)
+        self.assertEqual([name for name in names if name not in session.GIT_CONTEXT], [])
 
 
 if __name__ == '__main__':

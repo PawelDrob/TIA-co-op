@@ -38,7 +38,11 @@ CLOSED = {'done', 'resolved', 'wontfix'}
 BASE = 'main'
 READY_SECONDS = 900
 LOOK_SECONDS = 5
-GIT_CONTEXT = ('GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX', 'GIT_COMMON_DIR')
+# Every name git reads a repo from, as git rev-parse --local-env-vars lists them (a test holds this list to git's).
+# A parent's: git prefers them to -C
+GIT_CONTEXT = ('GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY',
+               'GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_GRAFT_FILE', 'GIT_INDEX_FILE', 'GIT_NO_REPLACE_OBJECTS',
+               'GIT_REPLACE_REF_BASE', 'GIT_PREFIX', 'GIT_SHALLOW_FILE', 'GIT_COMMON_DIR')
 ASK_BY_TURN_END = 'AskUserQuestion'
 BRIDGE = 'mcp__tia__*'
 BROWSER_SERVER = {'type': 'stdio', 'command': 'npx', 'args': ['@playwright/mcp@latest']}

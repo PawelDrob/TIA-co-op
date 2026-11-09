@@ -15,7 +15,7 @@ from TiaAgentStatus.tests import fakes
 HERE = Path(__file__).resolve().parent
 TOOL = HERE.parent
 REPO = TOOL.parents[1]
-GIT_ENV = {k: v for k, v in os.environ.items() if k not in ('GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX', 'GIT_COMMON_DIR')}
+GIT_ENV = dict(os.environ)    # without the names git reads a repo from: __init__.py of this package drops them
 PLUGIN = 'mattpocock-skills@claude-plugins-official'
 SYSTEM = os.path.join(os.environ['SystemRoot'], 'System32')
 IN_GROUP = r'MACHINE\Siemens TIA Openness'
@@ -840,6 +840,15 @@ class ProjectsRoot(SetupCase):
         self.assertEqual(code, 0, out)
         self.assertEqual(self.stored()['projectsRoot'], 'C:\\Users\\Zażółć\\Repos')
         self.assertIn('Read(//c/Users/Zażółć/Repos/**)', self.allow())
+
+
+class GitsOwnList(unittest.TestCase):
+    """GIT_CONTEXT holds every name git reads a repo from: a git that knows one more fails this."""
+
+    def test_every_name_of_git_is_dropped(self):
+        names = subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True, check=True).stdout.split()
+        self.assertIn('GIT_DIR', names)
+        self.assertEqual([name for name in names if name not in load_setup().GIT_CONTEXT], [])
 
 
 if __name__ == '__main__':

@@ -286,9 +286,16 @@ function Get-GitProblem {
 # A parent (a hook, another git-aware tool) can leave these in the environment, and git prefers them to -C: a commit of
 # the bridge would land in the parent's repo. Nothing here wants them, so they leave the whole process, children too.
 function Clear-GitContext {
-    foreach ($name in 'GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX', 'GIT_COMMON_DIR') {
+    foreach ($name in Get-GitContextNames) {
         [Environment]::SetEnvironmentVariable($name, $null)
     }
+}
+
+# Every name git reads a repo from, as git rev-parse --local-env-vars lists them: a test holds this list to git's.
+function Get-GitContextNames {
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY',
+        'GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_GRAFT_FILE', 'GIT_INDEX_FILE', 'GIT_NO_REPLACE_OBJECTS',
+        'GIT_REPLACE_REF_BASE', 'GIT_PREFIX', 'GIT_SHALLOW_FILE', 'GIT_COMMON_DIR'
 }
 
 function Invoke-GitRaw([string]$Repo, [string[]]$GitArgs) {

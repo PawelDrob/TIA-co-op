@@ -584,6 +584,63 @@ class TheFunctions(unittest.TestCase):
         self.assertEqual(found.stdout, '')
 
 
+class AParentsRepo(StubsOfEveryFolder):
+    """Started by a git-aware parent (a hook or an alias of another repo), which leaves GIT_DIR and its like in the
+    environment: with an argument no commit is going on, and the hook reads the repo it stands in."""
+    NO_NAME_OF_GITS = '''import os
+import subprocess
+import unittest
+
+
+class T(unittest.TestCase):
+    def test(self):
+        names = subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True, check=True).stdout.split()
+        self.assertEqual([name for name in names if name in os.environ], [])
+'''
+
+    def setUp(self):
+        super().setUp()
+        self.parent = self.folder / 'parent'
+        self.parent.mkdir()
+        init_repo(self.parent)
+        subprocess.run(['git', '-C', str(self.parent), 'commit', '-q', '--allow-empty', '-m', 'base'], check=True, env=CLEAN_ENV,
+                       capture_output=True)
+        self.context = {'GIT_DIR': str(self.parent / '.git'), 'GIT_WORK_TREE': str(self.parent)}
+
+    def assertParentUntouched(self):
+        left = [path.name for path in (self.parent / '.git').iterdir() if path.name.startswith('pre-commit') or path.suffix == '.log']
+        self.assertEqual(left, [])
+
+    def test_a_run_with_a_ref_reads_its_own_branch(self):
+        self.git('switch', '-q', '-c', 'feature')
+        self.put('tools/setup/a.py', '')
+        self.git('add', 'tools/setup')
+        self.commit_past_the_hooks('a change of first setup')
+        result = self.audit(**self.context)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('pre-commit: first setup tests', result.stdout)
+        self.assertTrue((self.repo / '.git' / 'setup-unittest.log').is_file())
+        self.assertParentUntouched()
+
+    def test_every_suite_is_of_its_own_tree(self):
+        result = self.sh('.githooks/pre-commit', '--all', **self.context)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('pre-commit: first setup tests', result.stdout)
+        self.assertParentUntouched()
+
+    def test_the_jobs_of_ci_are_of_its_own_tree(self):
+        result = self.sh('.githooks/pre-commit', '--groups', **self.context)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('setup_unittest', result.stdout)
+
+    def test_the_suites_of_a_commit_get_no_name_git_reads_a_repo_from(self):
+        self.suite('tools/setup', self.NO_NAME_OF_GITS)
+        self.git('add', 'tools/setup')
+        result = self.git('-c', 'core.abbrev=9', 'commit', '-m', 'a change', check=False)    # -c reaches a hook as GIT_CONFIG_PARAMETERS
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('pre-commit: first setup tests', result.stdout + result.stderr)
+
+
 class AnOuterRun(unittest.TestCase):
     """The hook runs these tests: its PRE_COMMIT_ variables, an audit's or a CI's, change no hook a test starts."""
 

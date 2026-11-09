@@ -58,7 +58,10 @@ ref=""
 stamp=""
 mode=""
 named_suites=""
-# all of this before the unset below: git commit -a stages in an index of its own, named by GIT_INDEX_FILE
+# With an argument no commit is going on, and none of the names git reads a repo from is this run's: left by a parent (a
+# hook or an alias of another repo), GIT_DIR would have it choose its suites from the parent's commits.
+[ -n "$1" ] && unset $(git rev-parse --local-env-vars)
+# In a commit, all of this before the unset below: git commit -a stages in an index of its own, named by GIT_INDEX_FILE
 if [ "$1" = "--all" ] || [ "$1" = "--groups" ]; then
     mode=$1
     shift
@@ -78,9 +81,10 @@ if [ -n "$changes" ]; then
     docs_deprecated=$(git diff "$changes" -U0 -- docs | grep -E "^\+status: *[\"']?deprecated")
 fi
 # git gives a hook GIT_DIR and GIT_INDEX_FILE (in a linked worktree too). The tests make their own fixture repos with
-# git -C <folder>; with these set, their commits and config would land in this repo instead.
+# git -C <folder>; with these set, their commits and config would land in this repo instead. Every name git reads a
+# repo from leaves, so a suite gets none.
 logdir=$(git rev-parse --git-dir)
-unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_COMMON_DIR
+unset $(git rev-parse --local-env-vars)
 
 # what the tree holds beyond HEAD: a change, staged or not, or a file git does not know, whatever git's config shows
 tree_changes() {
