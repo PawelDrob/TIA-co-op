@@ -20,7 +20,7 @@ LISTED, READERS = HMIPREVIEW, TESTS     # where the list's files are, and its re
 
 # The rule: these constants, functions and tests are the same in the other scan, which a test of each checks.
 RULE = ('RULE', 'rule_of', 'words', 'reads_flags', 'ASYNC_STARTS', 'STARTERS', 'NO_FLAGS', 'NO_WINDOW', 'takes_no_flags', 'dotted',
-        'enclosing_function', 'assigned', 'set_to', 'flag_names', 'other_names', 'console_starts', 'count_starts', 'RuleTest')
+        'enclosing_function', 'assigned', 'binds', 'set_to', 'flag_names', 'other_names', 'console_starts', 'count_starts', 'RuleTest')
 
 
 def rule_of(path):
@@ -44,11 +44,14 @@ def words(node):
 
 
 def reads_flags(tree, test):
-    """True when tree has the test class.method and it names what a reader of the flags names: creationflags,
-    CREATE_NO_WINDOW and DETACHED_PROCESS."""
+    """True when tree has the test class.method and its code names what a reader of the flags names: CREATE_NO_WINDOW
+    and DETACHED_PROCESS as names, creationflags as a name or a string. Its docstring is no code."""
+    def reads(method):
+        code = [n for s in method.body[ast.get_docstring(method) is not None:] for n in ast.walk(s)]
+        names = {getattr(n, 'id', None) or getattr(n, 'attr', None) for n in code}
+        return {'CREATE_NO_WINDOW', 'DETACHED_PROCESS'} <= names and any('creationflags' in words(n) for n in code)
     cls, method = test.split('.')
-    return any({'creationflags', 'CREATE_NO_WINDOW', 'DETACHED_PROCESS'} <= set(words(m))
-               for c in tree.body if isinstance(c, ast.ClassDef) and c.name == cls
+    return any(reads(m) for c in tree.body if isinstance(c, ast.ClassDef) and c.name == cls
                for m in c.body if isinstance(m, ast.FunctionDef) and m.name == method)
 
 
@@ -88,22 +91,40 @@ def assigned(node):
     return getattr(node, 'targets', None) or [node.target]
 
 
+def binds(node):
+    """The name a node gives a value in the scope it stands in, None of a node that gives none: a name stored to, an
+    argument, an import, a def or class, except ... as, a capture of match."""
+    if isinstance(node, ast.Name):
+        return node.id if isinstance(node.ctx, ast.Store) else None
+    if isinstance(node, ast.alias):
+        return node.asname or node.name.split('.')[0]
+    if isinstance(node, ast.MatchMapping):
+        return node.rest
+    for kind, field in ((ast.arg, 'arg'), ((ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.ExceptHandler,
+                                            ast.MatchAs, ast.MatchStar), 'name')):
+        if isinstance(node, kind):
+            return getattr(node, field)
+    return None
+
+
 def set_to(name, scope, inside, tree):
     """[(what name is set to, the scope that sets it)] of the nearest scope that binds it: scope (the function a call is
     in, None for the module), then each function around it, then the module; a class body is no scope of its methods.
-    Nothing when a scope on the way binds it where this cannot read a value (an argument, a loop, with, an import,
-    unpacking, :=), or when a global or nonlocal statement names it: another function sets it then."""
+    Nothing when a scope on the way binds it where this cannot read a value (binds, but for a plain assignment), or
+    when a global or nonlocal statement names it: another function sets it then."""
     if any(isinstance(n, (ast.Global, ast.Nonlocal)) and name in n.names for n in ast.walk(tree)):
         return []
-    of_a_class = {n for c in ast.walk(tree) if isinstance(c, ast.ClassDef) for s in c.body
-                  if not isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef)) for n in ast.walk(s)}
+
+    def outside_methods(nodes):
+        for n in nodes:
+            yield n
+            if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                yield from outside_methods(ast.iter_child_nodes(n))
+    of_a_class = {n for c in ast.walk(tree) if isinstance(c, ast.ClassDef) for n in outside_methods(c.body)}
     while True:
         here = [n for n in ast.walk(scope or tree) if inside.get(n) is scope and n not in of_a_class]
         values = [n.value for n in here if any(isinstance(t, ast.Name) and t.id == name for t in assigned(n))]
-        bound = sum(isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store) and n.id == name
-                    or isinstance(n, ast.arg) and n.arg == name
-                    or isinstance(n, ast.alias) and (n.asname or n.name) == name for n in here)
-        if bound > len(values):
+        if sum(binds(n) == name for n in here) > len(values):
             return []
         if values or scope is None:
             return [(value, scope) for value in values]
@@ -126,19 +147,20 @@ def flag_names(expr, scope, inside, tree):
 
 def other_names(tree, inside):
     """(line, what is wrong) of each place that gives a module of the rule another name by assignment, or one of
-    NO_WINDOW's names a value that is not the flag."""
-    plain = {t for n in ast.walk(tree) for t in assigned(n)}
+    NO_WINDOW's names a value that is not the flag: set with = to what names CREATE_NO_WINDOW and never
+    DETACHED_PROCESS, or imported from another file by that name."""
+    read = {t for n in ast.walk(tree) for t in assigned(n)}
+    read.update(a for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) for a in n.names if not a.asname)
     for node in ast.walk(tree):
         targets = assigned(node)
         if targets and (dotted(node.value) in STARTERS or dotted(node.value) in NO_FLAGS):
             yield node.lineno, '%s under another name: the scan reads %s.<name>' % (dotted(node.value), dotted(node.value))
         elif any(getattr(t, 'id', None) in NO_WINDOW or getattr(t, 'attr', None) in NO_WINDOW for t in targets):
             names = flag_names(node.value, inside.get(node), inside, tree)
-            if 'DETACHED_PROCESS' in names or not (isinstance(node, ast.AugAssign) or 'CREATE_NO_WINDOW' in names):
-                yield node.lineno, '%s set to %s: it names CREATE_NO_WINDOW and never DETACHED_PROCESS' \
-                    % (ast.unparse(targets[0]), ast.unparse(node.value))
-        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id in NO_WINDOW and node not in plain \
-                or isinstance(node, ast.arg) and node.arg in NO_WINDOW or isinstance(node, ast.alias) and node.asname in NO_WINDOW:
+            if isinstance(node, ast.AugAssign) or 'DETACHED_PROCESS' in names or 'CREATE_NO_WINDOW' not in names:
+                yield node.lineno, '%s: a name of the flag is set with = to what names CREATE_NO_WINDOW and never ' \
+                    'DETACHED_PROCESS' % ast.unparse(node)
+        elif binds(node) in NO_WINDOW and node not in read:
             yield node.lineno, 'a name of the flag bound where the scan cannot read its value: set it to CREATE_NO_WINDOW'
 
 
@@ -217,9 +239,12 @@ class RuleTest(unittest.TestCase):
     def test_a_reader_that_is_gone_or_reads_no_flags_is_seen(self):
         reads = "flags = started.call_args.kwargs['creationflags']\n        self.assertTrue(flags & subprocess.CREATE_NO_WINDOW)\n" \
                 "        self.assertFalse(flags & subprocess.DETACHED_PROCESS)"
-        tree = ast.parse('class T:\n    def test_reads(self):\n        %s\n    def test_starts(self):\n        server.detach()' % reads)
+        tree = ast.parse('class T:\n    def test_reads(self):\n        %s\n    def test_starts(self):\n        server.detach()\n'
+                         '    def test_says(self):\n        """creationflags: CREATE_NO_WINDOW, not DETACHED_PROCESS."""\n'
+                         '        "creationflags", "CREATE_NO_WINDOW", "DETACHED_PROCESS"\n        server.detach()' % reads)
         self.assertTrue(reads_flags(tree, 'T.test_reads'))
         self.assertFalse(reads_flags(tree, 'T.test_starts'))
+        self.assertFalse(reads_flags(tree, 'T.test_says'))     # its docstring and strings are no reading
         self.assertFalse(reads_flags(tree, 'T.test_no_such_test'))
         self.assertFalse(reads_flags(tree, 'NoSuchClass.test_reads'))
 
@@ -254,12 +279,17 @@ class RuleTest(unittest.TestCase):
                      'for NO_WINDOW in (0,): pass', 'if (NO_WINDOW := 0): pass', 'from signal import SIGTERM as NO_WINDOW',
                      'CREATE_NO_WINDOW = 0', 'NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)\nNO_WINDOW = 0'):
             self.assertEqual([len(code.splitlines())], self.found(code + start), code)
+        flag = 'NO_WINDOW = subprocess.CREATE_NO_WINDOW\n'
         for code in ('NO_WINDOW = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS', 'watch.NO_WINDOW = 0',
-                     'def f(NO_WINDOW=0): pass', 'NO_WINDOW = subprocess.CREATE_NO_WINDOW\nNO_WINDOW |= subprocess.DETACHED_PROCESS'):
+                     'def f(NO_WINDOW=0): pass', flag + 'NO_WINDOW |= subprocess.DETACHED_PROCESS', flag + 'NO_WINDOW &= 0',
+                     flag + 'NO_WINDOW |= subprocess.CREATE_NEW_PROCESS_GROUP', 'NO_WINDOW |= 0', flag + 'watch.NO_WINDOW ^= NO_WINDOW',
+                     'try: pass\nexcept E as NO_WINDOW: pass', 'def NO_WINDOW(): pass', 'class NO_WINDOW: pass', 'import NO_WINDOW',
+                     'import NO_WINDOW.x', 'match m:\n    case {"f": NO_WINDOW}: pass', 'match m:\n    case [*CREATE_NO_WINDOW]: pass',
+                     'match m:\n    case {**NO_WINDOW}: pass'):
             self.assertEqual([len(code.splitlines())], self.found(code), code)
         self.assertEqual([2], self.found('def f():\n    NO_WINDOW: int = 0'))
         for code in ('NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)', 'FLAG = subprocess.CREATE_NO_WINDOW\nNO_WINDOW = FLAG',
-                     'from board import NO_WINDOW', 'NO_WINDOW = subprocess.CREATE_NO_WINDOW\nNO_WINDOW |= subprocess.CREATE_NEW_PROCESS_GROUP'):
+                     'from board import NO_WINDOW', 'from subprocess import CREATE_NO_WINDOW', 'match m:\n    case _: pass'):
             self.assertEqual([], self.found(code + start), code)
 
     def test_a_flags_name_is_read_in_the_nearest_scope_that_sets_it(self):
@@ -275,6 +305,12 @@ class RuleTest(unittest.TestCase):
         self.assertEqual([4], self.found(module + 'def spawn():\n    flags = 0\n' + start))
         # nor a class's name of that spelling: a method reads the module's
         self.assertEqual([4], self.found('class C:\n    flags = subprocess.CREATE_NO_WINDOW\n    def spawn(self):\n    ' + start))
+        # a method below a statement of a class body is read like any other
+        method = 'class C:\n    if True:\n        def spawn(self):\n            flags = %s\n        ' + start
+        self.assertEqual([6], self.found(module + method % '0'))
+        self.assertEqual([], self.found(method % 'subprocess.CREATE_NO_WINDOW'))
+        self.assertEqual([6], self.found('class C:\n    try:\n        flags = subprocess.CREATE_NO_WINDOW\n    finally:\n'
+                                         '        def spawn(self):\n        ' + start))
         # a name in what it is set to is read where that stands
         self.assertEqual([6], self.found('x = 0\ndef detach():\n    flags = x\n    def start():\n'
                                          '        x = subprocess.CREATE_NO_WINDOW\n    ' + start))
@@ -285,7 +321,10 @@ class RuleTest(unittest.TestCase):
         self.assertEqual([3], self.found(module + 'def spawn(flags):\n' + start))
         self.assertEqual([4], self.found(module + 'def detach(*, flags=0):\n    def start():\n    ' + start))
         for bound in ('flags, x = 0, 1', 'for flags in (0,): pass', 'with f() as flags: pass', 'f(flags := 0)', 'from x import flags',
-                      'import x as flags', 'flags = subprocess.CREATE_NO_WINDOW\n    flags, x = 0, 1'):
+                      'import x as flags', 'flags = subprocess.CREATE_NO_WINDOW\n    flags, x = 0, 1', 'import flags.x',
+                      'try: pass\n    except E as flags: pass', 'def flags(): pass', 'class flags: pass',
+                      'match m:\n        case {"f": flags}: pass', 'match m:\n        case [*flags]: pass',
+                      'match m:\n        case {**flags}: pass', 'match m:\n        case C() as flags: pass'):
             code = module + 'def spawn():\n    %s\n' % bound + start
             self.assertEqual([len(code.splitlines())], self.found(code), bound)
         self.assertEqual([2], self.found(module + 'spawn = lambda flags: subprocess.Popen(a, creationflags=flags)'))
