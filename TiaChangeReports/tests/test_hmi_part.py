@@ -748,6 +748,19 @@ class DrawnOnThePage(unittest.TestCase):
         top = 'project/graphics/' + (folder + '/' if folder else '')
         return dict(self.SILO, **{top + 'Logo.xml': graphic('Logo'), top + 'Logo files/DefaultImageStream.png': 'one'})
 
+    # Writes data-placeholders on the body, once a section is drawn: the ::before content of each drawn section ('none'
+    # when nothing stands there, as the 'Drawing...' of hmi.css is a ::before, which the DOM does not hold).
+    PLACEHOLDERS_SCRIPT = """<script>(function () {
+      var wait = setInterval(function () {
+        var drawn = document.querySelectorAll('.hv[data-drawn]');
+        if (!drawn.length) return;
+        clearInterval(wait);
+        document.body.setAttribute('data-placeholders', JSON.stringify([].map.call(drawn, function (hv) {
+          return getComputedStyle(hv, '::before').content;
+        })));
+      }, 50);
+    })();</script>"""
+
     def test_an_object_of_no_change_rows_says_no_word_of_no_changes(self):
         empty = dict(self.SILO, **{'hmi/tags/Plant.xml': tag_table('Plant', [])})
         for name, before, after, url_end in (
@@ -756,11 +769,12 @@ class DrawnOnThePage(unittest.TestCase):
                 ('moved graphic', self.logo_in(''), self.logo_in('Icons'), '#graphic%3ALogo'),
                 ('deleted empty tag table', empty, self.SILO, '#tagtable%3APlant')):
             with self.subTest(name):
-                dom = self.page(before, after, url_end)
+                dom = self.page(before, after, url_end, self.PLACEHOLDERS_SCRIPT)
 
                 self.assertIn('class="hv" data-drawn="1"', dom)
                 self.assertNotIn('No changes', dom)
                 self.assertNotIn('class="hcl"', dom)
+                self.assertEqual(['none'], json_attribute(dom, 'data-placeholders'))
 
     # Writes data-scales on the body: per layout and mode the drawn scale and width of each side shown (toggle: the
     # first view and the one after Space); the width the scroll bars take; the width a pane has for a drawing.

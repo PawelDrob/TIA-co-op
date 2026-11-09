@@ -1,5 +1,5 @@
 .ldiff .hv{margin:6px 0 0}
-.ldiff .hv:empty::before{content:'Drawing...';color:var(--muted)}
+.ldiff .hv:empty:not([data-drawn])::before{content:'Drawing...';color:var(--muted)}
 .ldiff .htb{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 6px}
 .ldiff .htb button.on{background:#cce4f7;border-color:#3d8ee0}
 .ldiff .htb .hn{margin-left:10px}
