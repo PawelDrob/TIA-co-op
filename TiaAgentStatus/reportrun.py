@@ -349,13 +349,8 @@ class McpBridge:
     def __init__(self, root, folder, extra=()):
         os.makedirs(runs_dir(root), exist_ok=True)
         settings = os.path.join(runs_dir(root), 'settings.json')
-        try:
-            with open(os.path.join(TOOLS, 'TiaBridge', 'settings.json'), encoding='utf-8-sig') as f:
-                mine = json.load(f)
-        except (OSError, ValueError):
-            mine = {}
         with open(settings, 'w', encoding='utf-8') as f:      # the bridge's settings, with this run's projects root
-            json.dump({**(mine if isinstance(mine, dict) else {}), 'projectsRoot': root}, f)
+            json.dump({**st.bridge_settings(), 'projectsRoot': root}, f)
         self.err = open(os.path.join(runs_dir(root), folder + '.log'), 'w', encoding='utf-8')
         env = git_env()
         self.p = subprocess.Popen([POWERSHELL, '-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', BRIDGE_SCRIPT,

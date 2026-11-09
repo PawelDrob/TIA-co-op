@@ -2,10 +2,11 @@
 of TiaBridge\\settings.json), the group 'Siemens TIA Openness', disk and memory. Each problem is one sentence in plain
 words."""
 import ctypes
-import json
 import os
 import shutil
 import subprocess
+
+from . import powershell_json
 
 TIA_KEY = r'SOFTWARE\Siemens\Automation\_InstalledSW\TIAP20'
 NEED_DISK_GB = 2.0          # two copies, two exports, TIA's temporary files
@@ -20,8 +21,9 @@ _BOMS = ((b'\xef\xbb\xbf', 'utf-8'), (b'\xff\xfe\x00\x00', 'utf-32-le'), (b'\x00
          (b'\xff\xfe', 'utf-16-le'), (b'\xfe\xff', 'utf-16-be'))
 
 
-def _as_powershell_decodes(raw):
-    """Get-Content of Windows PowerShell 5.1: by the BOM, else ANSI (a UTF-8 file without a BOM too)."""
+def _as_windows_powershell_reads(raw):
+    """Get-Content of Windows PowerShell 5.1: by the BOM, else ANSI (a UTF-8 file without a BOM too). Its twins:
+    tools\\setup\\setup.py and TiaAgentStatus\\state.py."""
     for bom, encoding in _BOMS:
         if raw.startswith(bom):
             return raw[len(bom):].decode(encoding, 'replace')
@@ -29,10 +31,10 @@ def _as_powershell_decodes(raw):
 
 
 def _read_bridge_settings(settings_path=None):
-    """The settings by lower-case name, as Get-BridgeSettings (TiaBridge\\Repo.ps1) takes them: names in any case, and
-    an empty file or a JSON value that is no object holds none. Its tests hold the two together. One difference stays:
-    its parser also takes single quotes and unquoted names, here they are a JSON error."""
-    return _settings_in(_as_powershell_decodes(_settings_bytes(settings_path)))
+    """The settings by lower-case name, as Get-BridgeSettings (TiaBridge\\Repo.ps1) takes them: parsed as its parser
+    parses (powershell_json), names in any case, and an empty file or a value that is no object holds none. Its tests
+    hold the two together."""
+    return _settings_in(_as_windows_powershell_reads(_settings_bytes(settings_path)))
 
 
 def _settings_bytes(settings_path=None):
@@ -41,7 +43,7 @@ def _settings_bytes(settings_path=None):
 
 
 def _settings_in(text):
-    settings = json.loads(text) if text.strip() else None
+    settings = powershell_json.loads(text)
     return {k.lower(): v for k, v in settings.items()} if isinstance(settings, dict) else {}
 
 
@@ -67,7 +69,7 @@ def bridge_setting_readings(name, settings_path=None):
     except OSError:
         return []
     readings = []
-    for decode in (_as_powershell_decodes, lambda data: data.decode('utf-8-sig')):
+    for decode in (_as_windows_powershell_reads, lambda data: data.decode('utf-8-sig')):
         try:
             value = _text_of(_settings_in(decode(raw)), name)
         except ValueError:      # a decoding error too
@@ -79,8 +81,8 @@ def bridge_setting_readings(name, settings_path=None):
 
 def projects_roots(settings_path=None):
     """The folders of the project repos: projectsRoot of TiaBridge\\settings.json as the bridge reads it and as UTF-8
-    (they differ for a non-ASCII folder in a file without a BOM; TiaAgentStatus reads UTF-8 only), else the bridge's
-    default %USERPROFILE%\\TIA-Projects. The tool never writes into them; the window offers the repos it finds there."""
+    (they differ for a non-ASCII folder in a file without a BOM, and the folder as typed may hold repos too), else the
+    bridge's default %USERPROFILE%\\TIA-Projects. The tool never writes into them; the window offers the repos it finds there."""
     return (bridge_setting_readings('projectsRoot', settings_path)
             or [os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'TIA-Projects')])
 
@@ -92,7 +94,7 @@ def bridge_settings_problem():
         _read_bridge_settings()
     except FileNotFoundError:
         return None
-    except json.JSONDecodeError as ex:
+    except ValueError as ex:
         return ('%s is not valid JSON, so the tool does not know where TIA Portal is (%s). A path in it has each '
                 'backslash doubled.' % (BRIDGE_SETTINGS, ex))
     except OSError as ex:

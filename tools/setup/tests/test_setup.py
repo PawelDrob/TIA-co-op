@@ -819,6 +819,20 @@ class ProjectsRoot(SetupCase):
         self.assertEqual(code, 0, out)
         self.assertEqual(json.loads(self.user_settings.read_text())['model'], 'opus')
 
+    def test_bridge_settings_are_read_as_the_bridge_reads_them(self):
+        # Windows PowerShell 5.1 goes by the byte order mark, else ANSI: `>` writes UTF-16, Notepad's "ANSI" no mark
+        text = json.dumps({'tiaRoot': str(self.tia), 'projectsRoot': 'C:\\Users\\Müller\\Repos'}, ensure_ascii=False)
+        for written in ('utf-16', 'mbcs'):
+            with self.subTest(written):
+                self.bridge_settings.write_bytes(text.encode(written))
+
+                code, out = self.run_setup()
+
+                self.assertEqual(code, 0, out)
+                self.assertIn('projectsRoot C:\\Users\\Müller\\Repos. To change it', out)
+                self.assertIn(f'TIA Portal V20 with TIA Openness, {self.tia}', out)
+                self.assertEqual(self.bridge_settings.read_bytes(), text.encode(written))
+
     def test_a_name_outside_ascii_stays_readable_for_windows_powershell(self):
         # Windows PowerShell 5.1 reads a file with no byte order mark as ANSI, so the bridge's settings stay plain ASCII.
         code, out = self.run_setup('--projects-root', 'C:\\Users\\Zażółć\\Repos')

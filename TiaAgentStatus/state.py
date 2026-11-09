@@ -10,17 +10,36 @@ CLAUDE_NAMES = ('claude.exe', 'claude', 'node.exe', 'node')
 REUSE_SLACK = datetime.timedelta(seconds=5)
 
 
-def projects_root():
-    """projectsRoot of TiaBridge\\settings.json beside this folder, else the bridge's default."""
-    path = os.path.join(os.path.dirname(HERE), 'TiaBridge', 'settings.json')
+BRIDGE_SETTINGS = os.path.join(os.path.dirname(HERE), 'TiaBridge', 'settings.json')
+
+
+BOMS = ((b'\xef\xbb\xbf', 'utf-8'), (b'\xff\xfe\x00\x00', 'utf-32-le'), (b'\x00\x00\xfe\xff', 'utf-32-be'),
+        (b'\xff\xfe', 'utf-16-le'), (b'\xfe\xff', 'utf-16-be'))
+
+
+def as_windows_powershell_reads(raw):
+    """Get-Content of Windows PowerShell 5.1, which the bridge reads its settings with: by the BOM, else ANSI. Its
+    twins: tools\\setup\\setup.py and TiaArchiveCompare\\runner\\checks.py."""
+    for bom, encoding in BOMS:
+        if raw.startswith(bom):
+            return raw[len(bom):].decode(encoding, 'replace')
+    return raw.decode('mbcs' if os.name == 'nt' else 'latin-1', 'replace')
+
+
+def bridge_settings(settings_path=BRIDGE_SETTINGS):
+    """TiaBridge\\settings.json beside this folder, decoded as the bridge decodes it; {} without a file or an object."""
     try:
-        with open(path, encoding='utf-8-sig') as f:
-            root = json.load(f).get('projectsRoot')
-        if root:
-            return root
+        with open(settings_path, 'rb') as f:
+            settings = json.loads(as_windows_powershell_reads(f.read()))
     except (OSError, ValueError):
-        pass
-    return os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'TIA-Projects')
+        return {}
+    return settings if isinstance(settings, dict) else {}
+
+
+def projects_root(settings_path=BRIDGE_SETTINGS):
+    """projectsRoot of TiaBridge\\settings.json beside this folder, else the bridge's default."""
+    return (bridge_settings(settings_path).get('projectsRoot')
+            or os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'TIA-Projects'))
 
 
 def sessions_dir(root=None):

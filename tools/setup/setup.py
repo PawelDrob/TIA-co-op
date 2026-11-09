@@ -88,17 +88,35 @@ def claude_state_file():
     return Path(config) / '.claude.json' if config else Path.home() / '.claude.json'
 
 
-def read_json(path):
+BOMS = ((b'\xef\xbb\xbf', 'utf-8'), (b'\xff\xfe\x00\x00', 'utf-32-le'), (b'\x00\x00\xfe\xff', 'utf-32-be'),
+        (b'\xff\xfe', 'utf-16-le'), (b'\xfe\xff', 'utf-16-be'))
+
+
+def as_windows_powershell_reads(raw):
+    """Get-Content of Windows PowerShell 5.1, which the bridge reads its settings with: by the BOM, else ANSI. Its twins,
+    as setup runs before the Python environment: TiaAgentStatus\\state.py and TiaArchiveCompare\\runner\\checks.py."""
+    for bom, encoding in BOMS:
+        if raw.startswith(bom):
+            return raw[len(bom):].decode(encoding, 'replace')
+    return raw.decode('mbcs', 'replace')
+
+
+def read_json(path, decode=lambda raw: raw.decode('utf-8-sig')):
     """A file's object, {} when there is no file. A file that cannot be read raises ValueError, naming it: it stays as it is."""
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text(encoding='utf-8-sig'))
+        data = json.loads(decode(path.read_bytes()))
     except (OSError, ValueError) as e:
         raise ValueError(f'{path} cannot be read ({e}); fix the file, then run this again') from e
     if not isinstance(data, dict):
         raise ValueError(f'{path} is not a JSON object; fix the file, then run this again')
     return data
+
+
+def read_bridge_settings():
+    """The bridge's settings, decoded as the bridge decodes them; Claude Code's files are UTF-8 (read_json)."""
+    return read_json(BRIDGE_SETTINGS, as_windows_powershell_reads)
 
 
 def write_json(path, data, ascii_only):
@@ -325,7 +343,7 @@ def settle_projects_root(report, answer):
     """Stores the answer and keeps the allow rules on the folder. Reads all first: a file that cannot be read stops it with nothing written."""
     user_file = user_settings_file()
     try:
-        bridge = read_json(BRIDGE_SETTINGS)
+        bridge = read_bridge_settings()
         user = read_json(user_file)
         allow = ensure_allow_list(user, user_file)
         stored = bridge.get('projectsRoot')
@@ -368,7 +386,7 @@ def settle_projects_root(report, answer):
 def check_tia(report):
     """As the bridge finds it: tiaRoot of its settings, the Openness API of V20 under it (Import-Openness, TiaBridge\\Tia.ps1)."""
     try:
-        tia_root = read_json(BRIDGE_SETTINGS).get('tiaRoot') or DEFAULT_TIA_ROOT
+        tia_root = read_bridge_settings().get('tiaRoot') or DEFAULT_TIA_ROOT
     except ValueError:
         return  # settle_projects_root names the file
     if (Path(tia_root) / 'PublicAPI' / 'V20' / 'Siemens.Engineering.dll').exists():

@@ -4,7 +4,7 @@ title: TiaArchiveCompare internals
 description: The window and runner that export two TIA archives through background TIA sessions and write the change report, with their event contract, commands, steps, bridge seam and cache.
 tags: [dev, archive-compare, tia-bridge]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-09T00:27:39-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-09T14:17:06-05:00 }
 ---
 
 # TiaArchiveCompare internals
@@ -14,7 +14,7 @@ A person picks two versions of a project, presses one button, sees at every mome
 | Part | What | Code |
 |---|---|---|
 | Window | Python with tkinter, no build. Starts the runner, shows its events, sends it commands. Never talks to TIA | `window\`; [its README](../../../TiaArchiveCompare/window/README.md) lists the files and the check by hand |
-| Runner | One run: A, then B, then the report. Events on stdout, commands on stdin | `runner\run.py`, `events.py`, `inputs.py`, `checks.py`, `cache.py`, `errors.py` |
+| Runner | One run: A, then B, then the report. Events on stdout, commands on stdin | `runner\run.py`, `events.py`, `inputs.py`, `checks.py` (with `powershell_json.py`, which parses the bridge's settings as the bridge does), `cache.py`, `errors.py` |
 | Exporter | One TIA per input, behind `exporter.Exporter` | `runner\bridge.py` (TiaBridge as a child), `runner\fake.py` (no TIA) |
 | Report | TiaChangeReports on two folders | [Its page](tia-change-reports.md) |
 | Download | The zip on a GitHub release, to use with no clone | `package\`; [below](#download) |

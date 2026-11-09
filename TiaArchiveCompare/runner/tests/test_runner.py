@@ -58,6 +58,26 @@ def pc_ok(_root):
     return dict(PC_OK)
 
 
+def bridge_reads(folder, cases, setting):
+    """Writes each case, bytes, to folder as NN.json, and returns what Get-BridgeSettings (TiaBridge\\Repo.ps1,
+    dot-sourced: no bridge, no TIA) makes of the setting in each, by file name: '<refused>' where it stops."""
+    os.makedirs(folder)
+    for i, raw in enumerate(cases):
+        with open(os.path.join(folder, '%02d.json' % i), 'wb') as f:
+            f.write(raw)
+    repo = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(HERE))), 'TiaBridge', 'Repo.ps1')
+    script = ("$ErrorActionPreference = 'Stop'; . '%s'; [Console]::OutputEncoding = [Text.Encoding]::UTF8; "
+              "foreach ($f in Get-ChildItem -LiteralPath '%s' -Filter *.json) { "
+              "try { $v = (Get-BridgeSettings $f.FullName).%s } catch { $v = '<refused>' }; "
+              "[Console]::Out.WriteLine($f.Name + [char]9 + $v) }" % (repo, folder, setting))
+    out = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
+                         capture_output=True, timeout=120, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    lines = dict(x.split('\t', 1) for x in out.stdout.decode('utf-8-sig').splitlines())
+    if len(lines) != len(cases):
+        raise AssertionError('Get-BridgeSettings read %d of %d cases: %s' % (len(lines), len(cases), out.stderr))
+    return lines
+
+
 class Tmp(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory(prefix='tac-')     # it deletes git's read-only files, rmtree does not
@@ -878,6 +898,35 @@ class CliTest(Tmp):
                 f.write(raw)
             self.assertEqual([folder], cli.projects_roots(settings), raw)
 
+    def test_the_folder_is_the_one_the_bridge_reads(self):
+        """Its parser takes more than JSON and refuses some JSON: the guard goes by what it reads, so a run does not
+        write into the bridge's folder while the tool takes the default for it."""
+        values = ['007', '+1', '.5', '1.', '5-', '1.5-', 'NaN', 'Infinity', '-Infinity', '1E+5', '-0', '9' * 32,
+                  '79228162514264337593543950335-', 'null', 'false', '[]', "{'y': [1, {z: 'w'}]}", '0x10', '1e400',
+                  '9' * 309, 'undefined', 'True', 'infinity', '+Infinity', '-NaN', '1_000', '1-2', '+5-', '1e5-',
+                  '79228162514264337593543950336-', '.e5', '.', 'tr ue', '[1,2,]', '[,]', '[1 2]', '{"b": 1, "B": 2}',
+                  '{"": 1}', '{"a": 1, "": 2}', '{,}', '{"K": 1, "K": 2}', '{"İ": 1, "i̇": 2}',
+                  '{"ß": 1, "SS": 2}', '{"ı": 1, "I": 2}', '{"ſ": 1, "S": 2}', '{"é": 1, "É": 2}', '\u0663', "'\\x41'", "'\\q'", "'\\u00f'"]
+        texts = ['{"x": %s, "projectsRoot": "D:\\\\Value %d"}' % (v, i) for i, v in enumerate(values)]
+        texts += ["{'projectsRoot': 'D:\\\\Single'}", '{projectsRoot: "D:\\\\Unquoted"}',
+                  "{'projectsRoot': 'D:\\\\it\\'s \"here\"'}", '{"Projectsroot": "D:\\\\Any case"}',
+                  '{"projectsRoot": "D:\\\\First", "projectsRoot": "D:\\\\Last"}',
+                  '{"projectsRoot": "D:\\\\Case", "PROJECTSROOT": "D:\\\\Twice"}', '{"projectsRoot": "D:\\\\Comma",}',
+                  '{"projectsRoot": "D:\\\\Tail"} x', '{"projectsRoot": "D:\\\\Tab\there"}',
+                  '{"projectsRoot": "D:\\\\\\u00fc\\u 0fc"}', '\u00a0{"projectsRoot": "D:\\\\Space"}\u2028',
+                  '\x1c{"projectsRoot": "D:\\\\Separator"}', '{\u00fcber: 1, a-b.c+_1: 2, "projectsRoot": "D:\\\\Names"}',
+                  '{a$b: 1, "projectsRoot": "D:\\\\Dollar"}', '{" ": 1, "projectsRoot": "D:\\\\Blank"}',
+                  '{"x": %s%s, "projectsRoot": "D:\\\\Deep"}' % ('[' * 101, ']' * 101),
+                  '{"x": %s%s, "projectsRoot": "D:\\\\Too deep"}' % ('[' * 102, ']' * 102),
+                  '{}', '[{"projectsRoot": "D:\\\\Listed"}]', ' 5 ', '', '{"projectsRoot": "D:\\\\Open']
+        lines = bridge_reads(os.path.join(self.tmp, 'cases'), [t.encode('utf-8-sig') for t in texts], 'projectsRoot')
+        default = os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'TIA-Projects')
+        self.assertEqual('D:\\Single', lines['%02d.json' % len(values)])        # the reader did read
+        for name, read in sorted(lines.items()):
+            text = texts[int(name[:-len('.json')])]
+            path = os.path.join(self.tmp, 'cases', name)
+            self.assertEqual([default if read == '<refused>' else read], cli.projects_roots(path), (text[:80], read))
+
     def test_no_ask_stops_at_the_login_with_stdin_open(self):
         """As an agent's host may leave stdin: open, and nothing on it. Without --no-ask this run would not end."""
         r, w = os.pipe()
@@ -1021,12 +1070,14 @@ class TiaRootCheckTest(TiaRootCase):
         self.assertIn('A path in it has each backslash doubled.', problems[0])
         self.assertEqual('V20.00.00.07', checks.check_pc(self.tmp)['tia'])      # the cache still answers
 
-    def test_what_only_the_bridge_parses_stops_with_the_file_named(self):
-        """Single quotes and unquoted names: the one difference from Get-BridgeSettings. Named, not a silent default."""
-        for text in ("{'tiaRoot': 'D:\\\\TIA'}", '{tiaRoot: "D:\\\\TIA"}'):
+    def test_what_only_the_bridge_parses_is_read(self):
+        """Single quotes and unquoted names, which JSON has not and Get-BridgeSettings takes."""
+        root = self.tia_folder()
+        for text in ("{'tiaRoot': '%s'}", '{tiaRoot: "%s"}'):
             with open(self.settings, 'w', encoding='utf-8') as f:
-                f.write(text)
-            self.assertIn('%s is not valid JSON' % self.settings, self.tia_problems()[0], text)
+                f.write(text % root.replace('\\', '\\\\'))
+            self.assertEqual(root, checks.tia_root(), text)
+            self.assertEqual([], self.tia_problems(), text)
 
     def test_settings_that_cannot_be_opened_are_named_without_the_hint(self):
         self.patch(checks, 'DEFAULT_TIA_ROOT', self.tia_folder())
@@ -1054,27 +1105,15 @@ class TiaRootCheckTest(TiaRootCase):
                  ascii_text.replace('tiaRoot', 'TIAROOT').encode(), b'[]', b'5', b'null', b'', b'\xef\xbb\xbf', b'  \r\n',
                  b'not json', b'{"tiaRoot": "D:\\Siemens"}', b'{"tiaRoot": "D:\\\\TIA",}']
         folder_of_cases = os.path.join(self.tmp, 'cases')
-        os.makedirs(folder_of_cases)
-        for i, raw in enumerate(cases):
-            with open(os.path.join(folder_of_cases, '%02d.json' % i), 'wb') as f:
-                f.write(raw)
-        repo = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(HERE))), 'TiaBridge', 'Repo.ps1')
-        script = ("$ErrorActionPreference = 'Stop'; . '%s'; [Console]::OutputEncoding = [Text.Encoding]::UTF8; "
-                  "foreach ($f in Get-ChildItem -LiteralPath '%s' -Filter *.json) { "
-                  "try { $v = (Get-BridgeSettings $f.FullName).tiaRoot } catch { $v = '<refused>' }; "
-                  "[Console]::Out.WriteLine($f.Name + [char]9 + $v) }" % (repo, folder_of_cases))
-        out = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
-                             capture_output=True, timeout=120, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-        lines = dict(x.split('\t') for x in out.stdout.decode('utf-8-sig').splitlines())
-        self.assertEqual(len(cases), len(lines), out.stderr)
+        lines = bridge_reads(folder_of_cases, cases, 'tiaRoot')
         self.assertEqual(folder, lines['00.json'])                              # the reader did read: not all defaults
-        for name, bridge_reads in lines.items():
+        for name, read in lines.items():
             with mock.patch.object(checks, 'BRIDGE_SETTINGS', os.path.join(folder_of_cases, name)):
-                if bridge_reads == '<refused>':
+                if read == '<refused>':
                     self.assertIsNotNone(checks.bridge_settings_problem(), name)
                 else:
                     self.assertIsNone(checks.bridge_settings_problem(), name)
-                    self.assertEqual(bridge_reads, checks.tia_root(), name)
+                    self.assertEqual(read, checks.tia_root(), name)
 
     def test_the_version_is_the_registrys_only_for_the_folder_it_names(self):
         root = self.tia_folder()
