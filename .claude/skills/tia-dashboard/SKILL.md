@@ -7,7 +7,7 @@ The TIA dashboard is a local page, `http://127.0.0.1:<port>/`, port 8771 unless 
 
 ## Steps
 
-1. **Look first.** `curl.exe -s -m 10 http://127.0.0.1:<port>/`. A page holding `<h1>TIA CO-OP DASHBOARD</h1>`, or `<h1>TIA dashboard</h1>` of an older build, is one running: go to step 3, it is the user's and runs on. Another answer is some other program on that port: tell the user and offer another `--port`. No answer: step 2. Done when you know which of the three it is.
+1. **Look first.** `curl.exe -s -m 10 http://127.0.0.1:<port>/`. A page holding `<h1>TIA-co-op dashboard</h1>`, or `<h1>TIA CO-OP DASHBOARD</h1>` or `<h1>TIA dashboard</h1>` of an older build, is one running: go to step 3, it is the user's and runs on. Another answer is some other program on that port: tell the user and offer another `--port`. No answer: step 2. Done when you know which of the three it is.
 2. **Start it,** only when nothing answered. The same line in Git Bash and in PowerShell, there with `& ` before it:
    ```
    "<main>\.venv\Scripts\python.exe" -X utf8 -c "import os, subprocess as s; s.Popen([r'<main>\.venv\Scripts\pythonw.exe', '-X', 'utf8', r'<main>\TiaAgentStatus', 'dashboard', '--port', '<port>'], stdin=s.DEVNULL, stdout=s.DEVNULL, stderr=open(os.path.join(os.environ['TEMP'], 'tia-dashboard-<port>.err'), 'w'), creationflags=s.CREATE_NO_WINDOW)"

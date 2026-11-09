@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'tools' / 'dashb
 import live    # noqa: E402
 import tray    # noqa: E402
 
-TITLE = 'TIA CO-OP DASHBOARD'
+TITLE = 'TIA-co-op dashboard'
 TIA_EXE = 'siemens.automation.portal.exe'
 SEP = ' · '
 TIA_ASKS = 'TIA asks: '

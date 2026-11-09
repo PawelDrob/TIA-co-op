@@ -4,7 +4,7 @@ title: TIA agent status
 description: What the dashboard, the status line and the herdr watcher of TiaAgentStatus show, with an example of each and the limits of what they show, and how the dashboard's button makes a change report without an agent.
 tags: [tia-bridge, agents, herdr, status-line, dashboard, change-report]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-06T17:45:00-05:00 }
+generated: { by: claude-code/claude-fable-5-2, at: 2026-11-09T17:43:10-05:00 }
 sources:
   - id: code
     resource: ../../TiaAgentStatus/
@@ -104,7 +104,7 @@ The dashboard with one project chosen (the text of the page, made-up projects). 
 (`--every`) and updates by itself when something changed; **Live, updated** gives the time it last did:
 
 ```
-TIA CO-OP DASHBOARD                                          Live, updated 14:02:59
+TIA-CO-OP DASHBOARD                                          Live, updated 14:02:59
 
 2 need you
 Filler  ● TIA asks: Import: Overwrite the block? Answer it in TIA.

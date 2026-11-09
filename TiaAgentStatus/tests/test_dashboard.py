@@ -1066,6 +1066,7 @@ class Serving(Case):
         with open(skill, encoding='utf-8') as f:
             text = f.read()
         self.assertIn(f'`<h1>{dashboard.TITLE}</h1>`', text)
+        self.assertIn('`<h1>TIA CO-OP DASHBOARD</h1>`', text)
         self.assertIn('`<h1>TIA dashboard</h1>`', text)
         self.serve()
         status, body = self.get('/')
