@@ -1,4 +1,5 @@
-# Every suite of the hook on a Windows runner. None needs TIA.
+# Every suite of the hook on Windows runners, side by side: the hook names the jobs (each long suite one of its own, the
+# others one together), so the longest suite is the time of a run. None needs TIA.
 name: tests
 on:
   pull_request:
@@ -7,9 +8,25 @@ on:
 permissions:
   contents: read
 jobs:
+  groups:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.groups.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      # bash: the sh of Git for Windows, which the hook is written for, is bash. --groups runs no suite and needs no .venv.
+      - id: groups
+        run: |
+          matrix=$(bash .githooks/pre-commit --groups)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
   suites:
+    needs: groups
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.groups.outputs.matrix) }}
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       # setup-uv has no major tag since v8: pinned to an exact release, raised by hand.
@@ -21,15 +38,17 @@ jobs:
           if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -eq 3 })) {
               Install-Module Pester -RequiredVersion 3.4.0 -Scope CurrentUser -Force -SkipPublisherCheck
           }
-      - name: Every suite
+      - name: The suites of this job
         shell: bash
-        run: sh .githooks/pre-commit --all
+        env:
+          SUITES: ${{ matrix.suites }}
+        run: sh .githooks/pre-commit --all $SUITES
       # The log above holds the hook's summary only; each suite's full output is in .git/<suite>.log. Uploaded on a green
       # run too: a browser test that passed only on a run again says so there ("Tests.browser: run n of 3").
       - name: Logs of the suites
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: suite-logs
+          name: suite logs of ${{ matrix.name }}
           path: .git/*.log
           include-hidden-files: true

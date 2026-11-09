@@ -46,16 +46,23 @@
 # "pre-commit: passed, no stamp".
 # PRE_COMMIT_NO_SKIP=1 runs them whatever the stamp says, and stamps when they pass: the audit runs it so, as the gate
 # runs its own suites, and the merge after it skips.
-# sh .githooks/pre-commit --all runs every suite with nothing staged, no log check and no stamp: CI runs it so, and so
-# can you.
+# sh .githooks/pre-commit --all runs every suite with nothing staged, no log check and no stamp, and so can you;
+# --all <suite>... runs the suites named alone (their keys, the first word after "suite" below). CI runs a job for each
+# group that sh .githooks/pre-commit --groups prints, as a JSON matrix: each long suite a job of its own, the others one
+# job together. --groups needs no .venv.
 # Python runs on the .venv of this tree, by absolute path, never from PATH: a commit that needs it is refused without.
 fail=0
 docs_added_moved_removed=""
 docs_deprecated=""
 ref=""
 stamp=""
+mode=""
+only=""
 # all of this before the unset below: git commit -a stages in an index of its own, named by GIT_INDEX_FILE
-if [ "$1" = "--all" ]; then
+if [ "$1" = "--all" ] || [ "$1" = "--groups" ]; then
+    mode=$1
+    shift
+    [ "$mode" = --all ] && only="$*"
     staged=$(git ls-files)
     changes=""
 elif [ -n "$1" ]; then
@@ -96,7 +103,7 @@ if [ -n "$ref" ]; then
 fi
 
 py="$(pwd)/.venv/Scripts/python.exe"
-if echo "$staged" | grep -qE '^(TiaBridge|TiaChangeReports|TiaArchiveCompare|TiaAgentStatus|TiaHmiGenerator|tools/dashboard|tools/pointers|tools/session|tools/hooks|tools/setup|\.githooks|\.claude/skills)/|^(AGENTS|CODING_STANDARDS|CONTRIBUTING)\.md$' && [ ! -x "$py" ]; then
+if [ "$mode" != --groups ] && echo "$staged" | grep -qE '^(TiaBridge|TiaChangeReports|TiaArchiveCompare|TiaAgentStatus|TiaHmiGenerator|tools/dashboard|tools/pointers|tools/session|tools/hooks|tools/setup|\.githooks|\.claude/skills)/|^(AGENTS|CODING_STANDARDS|CONTRIBUTING)\.md$' && [ ! -x "$py" ]; then
     echo "pre-commit: no .venv in this tree: run uv sync here (once per clone and per worktree). Commit refused."
     exit 1
 fi
@@ -229,6 +236,35 @@ fi
 if echo "$staged" | grep -qE '^(tools/setup|TiaAgentStatus)/'; then
     run_setup_unittest() { unittest discover -s tools/setup/tests -t .; }
     suite setup_unittest unittest "first setup tests" "first setup tests failed"
+fi
+
+# Named suites: those alone, in the order above
+if [ -n "$only" ]; then
+    for key in $only; do
+        case " $suites " in
+            *" $key "*) ;;
+            *) echo "pre-commit: no suite $key in this hook, nothing run"; exit 1 ;;
+        esac
+    done
+    named() {
+        for key in $1; do
+            case " $only " in *" $key "*) printf ' %s' "$key" ;; esac
+        done
+    }
+    suites=$(named "$suites")
+    long_suites=$(named "$long_suites")
+    short_suites=$(named "$short_suites")
+fi
+
+# CI's jobs, as the matrix of a GitHub workflow: each long step a job of its own, the others one job together
+if [ "$mode" = --groups ]; then
+    groups=""
+    for key in $long_suites; do
+        eval "title=\$title_$key"
+        groups="$groups{\"name\":\"${title:-$key}\",\"suites\":\"$key\"},"
+    done
+    echo "{\"include\":[$groups{\"name\":\"the other suites\",\"suites\":\"$(echo $short_suites)\"}]}"
+    exit 0
 fi
 
 # The run. Each step runs in the background; its exit code lands in the run folder when it ends.

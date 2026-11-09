@@ -29,6 +29,7 @@ No suite needs TIA. The commit hook runs those a commit touches. From Git Bash:
 | What | Command |
 |---|---|
 | Every suite, as CI does | `sh .githooks/pre-commit --all` |
+| Some suites, by their keys | `sh .githooks/pre-commit --all <suite>...` |
 | What a branch touches, since a ref | `sh .githooks/pre-commit main` |
 
 The head of `.githooks/pre-commit` lists the suites and when each runs, and its body holds each command. To run one Python suite, from a Windows terminal in the clone:

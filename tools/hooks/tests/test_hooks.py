@@ -1,5 +1,6 @@
 """The real hook, run by git commit in a throwaway repo. The suites it runs are stubbed."""
 import ctypes
+import json
 import os
 import re
 import shutil
@@ -183,8 +184,8 @@ class DocumentsAndTheirLog(HookRepo):
         self.assertNeedsTheLog(self.audit())
 
 
-class EverySuite(HookRepo):
-    """sh .githooks/pre-commit --all: every suite the hook knows, with nothing staged, for CI and by hand."""
+class StubsOfEveryFolder(HookRepo):
+    """A repo with a passing stub suite in the folders of the suites below, committed."""
     PASSES = 'import unittest\n\nclass T(unittest.TestCase):\n    def test(self):\n        pass\n'
 
     def suite(self, folder, test=PASSES):
@@ -200,6 +201,13 @@ class EverySuite(HookRepo):
             self.suite(folder)
         self.git('add', '-A')
         self.commit_past_the_hooks('stubs')
+
+    def titles(self, output):
+        return [line for line in output.splitlines() if line.startswith('pre-commit: ')]
+
+
+class EverySuite(StubsOfEveryFolder):
+    """sh .githooks/pre-commit --all [<suite>...]: every suite the hook knows, or those named, with nothing staged, for CI and by hand."""
 
     def test_it_runs_the_suites_of_every_folder(self):
         result = self.sh('.githooks/pre-commit', '--all')
@@ -217,8 +225,45 @@ class EverySuite(HookRepo):
 
     def test_a_variable_of_the_environment_refuses_nothing(self):
         result = subprocess.run(['sh', '.githooks/pre-commit', '--all'], cwd=self.repo, capture_output=True, encoding='utf-8',
-                                env={**CLEAN_ENV, 'docs_added_moved_removed': 'x', 'docs_deprecated': 'x'})
+                                env={**CLEAN_ENV, 'docs_added_moved_removed': 'x', 'docs_deprecated': 'x', 'only': 'x',
+                                     'mode': '--groups'})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_named_suites_run_alone(self):
+        result = self.sh('.githooks/pre-commit', '--all', 'tiachangereports_unittest', 'pointer_check')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.titles(result.stdout), ['pre-commit: TiaChangeReports unit tests', 'pre-commit: pointer check'])
+
+    def test_a_name_of_no_suite_runs_nothing(self):
+        result = self.sh('.githooks/pre-commit', '--all', 'tiabridge_pester', 'no_such_suite')
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.stdout, 'pre-commit: no suite no_such_suite in this hook, nothing run\n')
+
+
+class TheJobsOfCI(StubsOfEveryFolder):
+    """sh .githooks/pre-commit --groups: the matrix of CI's jobs, each long suite in a job of its own, the others in one."""
+
+    def groups(self):
+        result = self.sh('.githooks/pre-commit', '--groups')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)['include']
+
+    def test_each_long_suite_has_a_job_and_the_others_share_one(self):
+        self.assertEqual(self.groups(), [
+            {'name': 'TiaBridge unit tests', 'suites': 'tiabridge_pester'},
+            {'name': 'TiaChangeReports unit tests', 'suites': 'tiachangereports_unittest'},
+            {'name': 'hook tests', 'suites': 'hooks_unittest'},
+            {'name': 'the other suites', 'suites': 'parse_check tiaagentstatus_unittest pointer_check pointers_unittest '
+                                                   'setup_unittest'}])
+
+    def test_the_jobs_run_every_suite_once(self):
+        every = self.titles(self.sh('.githooks/pre-commit', '--all').stdout)
+        in_jobs = []
+        for group in self.groups():
+            result = self.sh('.githooks/pre-commit', '--all', *group['suites'].split())
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            in_jobs += self.titles(result.stdout)
+        self.assertEqual(sorted(in_jobs), sorted(every))
 
 
 PASSES = 'import unittest\n\nclass T(unittest.TestCase):\n    def test(self):\n        pass\n'
@@ -545,6 +590,15 @@ class WithNoVenv(HookRepo):
         result = self.commit()
         self.assertCommitted(result)
         self.assertIn('no .venv in this tree, pointer check skipped', result.stdout + result.stderr)
+
+    def test_the_jobs_of_ci_need_none(self):
+        """CI asks for its jobs on a runner without the .venv."""
+        self.put('TiaBridge/a.ps1', '')
+        self.git('add', '-A')
+        self.commit_past_the_hooks('the bridge')
+        result = self.sh('.githooks/pre-commit', '--groups')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['include'][0], {'name': 'TiaBridge unit tests', 'suites': 'tiabridge_pester'})
 
 
 if __name__ == '__main__':
