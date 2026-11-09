@@ -57,12 +57,12 @@ docs_deprecated=""
 ref=""
 stamp=""
 mode=""
-only=""
+named_suites=""
 # all of this before the unset below: git commit -a stages in an index of its own, named by GIT_INDEX_FILE
 if [ "$1" = "--all" ] || [ "$1" = "--groups" ]; then
     mode=$1
     shift
-    [ "$mode" = --all ] && only="$*"
+    [ "$mode" = --all ] && named_suites="$*"
     staged=$(git ls-files)
     changes=""
 elif [ -n "$1" ]; then
@@ -239,31 +239,33 @@ if echo "$staged" | grep -qE '^(tools/setup|TiaAgentStatus)/'; then
 fi
 
 # Named suites: those alone, in the order above
-if [ -n "$only" ]; then
-    for key in $only; do
+if [ -n "$named_suites" ]; then
+    for key in $named_suites; do
         case " $suites " in
             *" $key "*) ;;
             *) echo "pre-commit: no suite $key in this hook, nothing run"; exit 1 ;;
         esac
     done
-    named() {
+    of_the_named() {
         for key in $1; do
-            case " $only " in *" $key "*) printf ' %s' "$key" ;; esac
+            case " $named_suites " in *" $key "*) printf ' %s' "$key" ;; esac
         done
     }
-    suites=$(named "$suites")
-    long_suites=$(named "$long_suites")
-    short_suites=$(named "$short_suites")
+    suites=$(of_the_named "$suites")
+    long_suites=$(of_the_named "$long_suites")
+    short_suites=$(of_the_named "$short_suites")
 fi
 
 # CI's jobs, as the matrix of a GitHub workflow: each long step a job of its own, the others one job together
 if [ "$mode" = --groups ]; then
     groups=""
+    add_group() { groups="$groups${groups:+,}{\"name\":\"$1\",\"suites\":\"$2\"}"; }
     for key in $long_suites; do
-        eval "title=\$title_$key"
-        groups="$groups{\"name\":\"${title:-$key}\",\"suites\":\"$key\"},"
+        eval "add_group \"\$title_$key\" $key"
     done
-    echo "{\"include\":[$groups{\"name\":\"the other suites\",\"suites\":\"$(echo $short_suites)\"}]}"
+    # no job without a suite: --all with no name runs every suite
+    [ -n "$short_suites" ] && add_group "the other suites" "$(echo $short_suites)"
+    echo "{\"include\":[$groups]}"
     exit 0
 fi
 
