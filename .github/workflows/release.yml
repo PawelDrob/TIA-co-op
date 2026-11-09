@@ -14,8 +14,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      # setup-uv publishes no major tag since v8: a release of its own, moved by hand.
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv sync --locked
       # A tag must name the version of the tools: build.py stops otherwise. The check's window opens on the runner's
       # desktop (--visible): no person's work is on it, and a desktop of its own is what a PC in use needs.
@@ -24,7 +25,7 @@ jobs:
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then tag="--tag $GITHUB_REF_NAME"; else tag=""; fi
           .venv/Scripts/python.exe -X utf8 -m TiaArchiveCompare.package.build --out dist --visible $tag
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tia-archive-compare
           path: dist/*.zip
@@ -36,7 +37,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: tia-archive-compare
           path: dist

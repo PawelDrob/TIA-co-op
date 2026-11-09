@@ -11,8 +11,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      # setup-uv publishes no major tag since v8: a release of its own, moved by hand.
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv sync
       - name: Pester 3
         shell: powershell
@@ -27,7 +28,7 @@ jobs:
       # run too: a browser test that passed only on a run again says so there ("Tests.browser: run n of 3").
       - name: Logs of the suites
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: suite-logs
           path: .git/*.log
