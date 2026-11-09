@@ -22,9 +22,6 @@ function Test-S7dclImportAllowed([string]$Path) {
     $null
 }
 
-# How an XML document is written for TIA, in the refusals of Get-XmlDocumentRefusal.
-$script:XmlWritingHint = "<?xml version=`"1.0`" encoding=`"utf-8`"?> and each namespace as the default (xmlns=`"...`") of the element that holds it, no prefix; $(Get-GuidePath 'openness-v20.md') section 1, Editing an OB's SimaticML"
-
 # Why TIA would refuse the SimaticML at Path for how it is written, or $null; every XML import asks it, before TIA does.
 # Seen refused, and rolled back (2026-11-05): a declaration of encoding utf-8-sig, "System does not support 'utf-8-sig'
 # encoding. Line 1, position 31."; an OB rewritten by Python's ElementTree, with its namespaces as prefixes (ns0:),
@@ -32,7 +29,7 @@ $script:XmlWritingHint = "<?xml version=`"1.0`" encoding=`"utf-8`"?> and each na
 # block document only: what other documents do with them has not been tried. A document that cannot be read past its
 # declaration is left to TIA.
 function Get-XmlDocumentRefusal([string]$Path) {
-    $how = "Write it as an export does: $($script:XmlWritingHint)."
+    $how = "Write it as an export does: <?xml version=`"1.0`" encoding=`"utf-8`"?> and each namespace as the default (xmlns=`"...`") of the element that holds it, no prefix; $(Get-GuidePath 'openness-v20.md') section 1, Editing an OB's SimaticML."
     $reader = New-Object System.IO.StreamReader($Path, $true)
     try { $head = $reader.ReadLine() } finally { $reader.Dispose() }
     $declaration = [regex]::Match([string]$head, '\A<\?xml\b[^?]*?\bencoding\s*=\s*(["''])(?<encoding>[^"'']*)\1')
@@ -44,18 +41,20 @@ function Get-XmlDocumentRefusal([string]$Path) {
     try {
         $xml.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
         $xml.XmlResolver = $null
-        while (-not ($block -and $prefixed) -and $xml.Read()) {
+        # the first prefix of the document, on an element or its attributes (xmlns:ns0 declares ns0; xml: is XML's own)
+        while ($xml.Read()) {
             if ($xml.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
             if ($xml.Depth -eq 1 -and $xml.LocalName -like 'SW.Blocks.*') { $block = $true }
-            if ($prefixed) { continue }
-            if ($xml.Prefix) { $prefixed = @{ line = $xml.LineNumber; prefix = $xml.Prefix } }
-            elseif ($xml.MoveToFirstAttribute()) {
-                do {
-                    $p = if ($xml.Prefix -eq 'xmlns') { $xml.LocalName } else { $xml.Prefix }
-                    if ($p -and $p -ne 'xml') { $prefixed = @{ line = $xml.LineNumber; prefix = $p }; break }
-                } while ($xml.MoveToNextAttribute())
+            if (-not $prefixed) {
+                $prefix = $xml.Prefix
+                if (-not $prefix -and $xml.MoveToFirstAttribute()) {
+                    do { $prefix = if ($xml.Prefix -eq 'xmlns') { $xml.LocalName } elseif ($xml.Prefix -ne 'xml') { $xml.Prefix } }
+                    while (-not $prefix -and $xml.MoveToNextAttribute())
+                }
+                if ($prefix) { $prefixed = @{ line = $xml.LineNumber; prefix = $prefix } }
                 [void]$xml.MoveToElement()
             }
+            if ($block -and $prefixed) { break }
         }
     } catch { } finally { $xml.Close() }
     if ($block -and $prefixed) {

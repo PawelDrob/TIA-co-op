@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-09T11:57:12-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-09T12:06:31-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -92,6 +92,7 @@ screen, template, pop-up and HMI tag folders of a Comfort panel):
 | Import order | With function keys: global screen, then templates, then screens (readme) | [8] |
 | Faceplate instances | Import and export inside the screen; object name and type name are mandatory; an unknown type, event or interface attribute aborts the import [22]. A type version missing from the project library crashed TIA `[IMPORT]`; grouped instances are refused `[IMPORT]` | [22] |
 | Faceplate types | Contents do not export or import: `Export` writes version metadata only, `ExportAsDocuments` refuses every format `[PROBE]`. Putting one in work with `Edit(LibraryTypeInstanceInfo)` ended TIA (`NonRecoverableException`) `[PROBE]`. A person builds the type in TIA | |
+| SimaticML written by a script | TIA refused a tag table declaring `encoding="utf-8-sig"` `[IMPORT]`; TiaBridge refuses any declared encoding other than `utf-8`, in every SimaticML. Section 1, Editing an OB's SimaticML | |
 | HMI tag tables | `Override` on an existing table deletes it first; it closed TIA once `[IMPORT]`, so TiaBridge refuses it. Broken tags block the export `[EXPORT]` | |
 | Alarms, recipes, logs, user administration | No objects in the V20 API (enums only): nothing to create, export or import [33] | [33] |
 | Styles | Objects with a style export the values stored before the style was switched on; toggle `UseDesignColorSchema` (off, export, on, export) to get the style values (readme) | [8] |
