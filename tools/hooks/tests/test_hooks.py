@@ -41,11 +41,12 @@ class HookRepo(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding='utf-8')
 
-    def git(self, *args, check=True):
-        return subprocess.run(['git', *args], cwd=self.repo, env=CLEAN_ENV, check=check, capture_output=True, encoding='utf-8')
+    def git(self, *args, check=True, **env):
+        return subprocess.run(['git', *args], cwd=self.repo, env={**CLEAN_ENV, **env}, check=check, capture_output=True,
+                              encoding='utf-8')
 
-    def commit(self):
-        return self.git('commit', '-m', 'a change', check=False)
+    def commit(self, **env):
+        return self.git('commit', '-m', 'a change', check=False, **env)
 
     def commit_past_the_hooks(self, message):
         self.git('-c', 'core.hooksPath=no-hooks-here', 'commit', '-q', '-m', message)
@@ -241,25 +242,28 @@ class EverySuite(StubsOfEveryFolder):
         self.assertEqual(result.stdout, 'pre-commit: no suite no_such_suite in this hook, nothing run\n')
 
 
-class TheJobsOfCI(StubsOfEveryFolder):
-    """sh .githooks/pre-commit --groups: the matrix of CI's jobs, each long suite in a job of its own, the others in one."""
+class APlainCommitIgnoresTheVariablesOfTheHook(StubsOfEveryFolder):
+    """The hook's own variables in the environment of a commit change nothing: it runs the suites of what is staged."""
 
-    def commit_with(self, **env):
+    def setUp(self):
+        super().setUp()
         self.put('tools/setup/a.py', '')
         self.git('add', 'tools/setup')
-        return subprocess.run(['git', 'commit', '-m', 'a change'], cwd=self.repo, env={**CLEAN_ENV, **env}, capture_output=True,
-                              encoding='utf-8')
 
-    def test_a_commit_runs_its_suites_with_the_mode_of_ci_in_the_environment(self):
-        result = self.commit_with(mode='--groups')
+    def test_the_mode_of_ci(self):
+        result = self.commit(mode='--groups')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('pre-commit: first setup tests', result.stdout + result.stderr)
         self.assertNotIn('"include"', result.stdout + result.stderr)
 
-    def test_a_commit_runs_its_suites_with_named_suites_in_the_environment(self):
-        result = self.commit_with(named_suites='parse_check')
+    def test_named_suites(self):
+        result = self.commit(named_suites='parse_check')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('pre-commit: first setup tests', result.stdout + result.stderr)
+
+
+class TheJobsOfCI(StubsOfEveryFolder):
+    """sh .githooks/pre-commit --groups: the matrix of CI's jobs, each long suite in a job of its own, the others in one."""
 
     def groups(self):
         result = self.sh('.githooks/pre-commit', '--groups')
