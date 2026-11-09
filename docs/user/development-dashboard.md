@@ -4,7 +4,7 @@ title: Development dashboard
 description: How to see what waits for you while agents change this repo, answer their questions on review pages and on a ticket's page, take a page down, and reach the dashboard from another machine through tailscale serve.
 tags: [dashboard, agents, tickets, review-pages]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-09T14:46:57-05:00 }
+generated: { by: claude-code/claude-fable-5-2, at: 2026-11-09T17:43:00-05:00 }
 sources:
   - id: code
     resource: ../../tools/dashboard/
@@ -220,7 +220,8 @@ Other folders of `.scratch\` and the rest of the repo stay out. Do not use `tail
 ## Limitations
 
 - Tested on Windows. The icon is Windows only.
-- A session with no desktop gets no icon; the server answers all the same.
+- Not supported where nobody sees the screen: a session with no desktop, a hidden desktop, a service, or a scheduled task with no one logged on. On a hidden desktop it gets no icon and the server answers all the same; started with the line under [Start it](#start-it), what stops it, such as a taken port, shows there in a box that nobody closes, and the process keeps running. A service and a scheduled task with no one logged on are not measured, for the icon or for the box.
+- The icon after a restart of Explorer is not measured.
 - A server ended by Task Manager leaves its icon behind until the mouse passes over it.
 - One server per port: a second one on the same port is refused. Two clones need two ports; pass `--port` to `review_page.py` too.
 - A browser holds about six connections per site. The start page keeps one; other pages drop theirs while their tab is hidden.

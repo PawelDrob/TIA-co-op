@@ -28,6 +28,11 @@ From the state files of [TiaBridge](../TiaBridge/README.md):
 - Answer other machines: `127.0.0.1` or `localhost` only, as it has no login; a proxy such as `tailscale serve` gets 403.
   Anyone on this machine can read it.
 - See a message box of a TIA with a window as such: only as no CPU, after `--quiet-minutes`.
+- Support a dashboard started where nobody sees the screen: a session with no desktop, a hidden desktop, a service, or a
+  scheduled task with no one logged on. On a hidden desktop it gets no icon and answers all the same; started with the line
+  under How to use, what stops it, such as a taken port or a wrong option, shows there in a box that nobody closes, and the
+  process keeps running. A service and a scheduled task with no one logged on are not measured, for the icon or for the
+  box; nor is the icon after a restart of Explorer.
 
 ## How to use
 
@@ -47,9 +52,8 @@ While it runs it has an icon in the notification area of the taskbar, a dark T o
 tooltip says **TIA-co-op: TIA dashboard** and its address. A left click on it opens the page in your default Windows browser. A
 right click opens a menu: **Open TIA-co-op: TIA dashboard** does the same, **Stop TIA-co-op: TIA dashboard** ends the dashboard.
 Windows 11 first puts a new icon behind the ^ button; drag it onto the taskbar to keep it in view. The
-[development dashboard](../docs/user/development-dashboard.md) has an icon of its own, a dark D on mauve. A session with no
-desktop gets no icon; the dashboard answers all the same. Ended by Task Manager, it leaves its icon behind until the mouse
-passes over it.
+[development dashboard](../docs/user/development-dashboard.md) has an icon of its own, a dark D on mauve. Ended by Task
+Manager, it leaves its icon behind until the mouse passes over it.
 
 Started a second time, it says in a box that the port is taken and ends; the first runs on with its one icon. A wrong option
 comes up in a box too. To read what stops it from starting, run the same line with `python.exe`: it then stays in that
