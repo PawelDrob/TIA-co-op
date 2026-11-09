@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      # setup-uv publishes no major tag since v8: a release of its own, moved by hand.
+      # setup-uv has no major tag since v8: pinned to an exact release, raised by hand.
       - uses: astral-sh/setup-uv@v10.3.3
       - run: uv sync
       - name: Pester 3
