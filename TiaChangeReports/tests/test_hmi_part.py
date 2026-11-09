@@ -740,6 +740,26 @@ class DrawnOnThePage(unittest.TestCase):
         self.assertRegex(dom, r'(?s)class="sum hlt".*>Manual<')
         self.assertNotRegex(dom, r'>\s*null\s*<')
 
+    LOGO = ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Hmi.Globalization.MultiLingualGraphic ID="0">'
+            '<AttributeList><DefaultImageStream external="path">Logo files\\DefaultImageStream.png'
+            '</DefaultImageStream><Name>Logo</Name></AttributeList></Hmi.Globalization.MultiLingualGraphic></Document>\n')
+
+    def logo_in(self, folder):
+        """The graphic Logo in that folder of the project graphics, beside a screen."""
+        top = 'project/graphics/' + (folder + '/' if folder else '')
+        return {'hmi/screens/Silo.xml': screen('Silo', 1), top + 'Logo.xml': self.LOGO,
+                top + 'Logo files/DefaultImageStream.png': 'one'}
+
+    def test_a_graphic_deleted_added_or_only_moved_says_no_word_of_no_changes(self):
+        silo = {'hmi/screens/Silo.xml': screen('Silo', 1)}
+        for name, before, after in (('deleted', self.logo_in(''), silo), ('added', silo, self.logo_in('')),
+                                    ('moved', self.logo_in(''), self.logo_in('Icons'))):
+            with self.subTest(name):
+                dom = self.page(before, after, '#graphic%3ALogo')
+
+                self.assertIn('class="hv" data-drawn="1"', dom)
+                self.assertNotIn('No changes', dom)
+
     # Writes data-scales on the body: per layout and mode the drawn scale and width of each side shown (toggle: the
     # first view and the one after Space); the width the scroll bars take; the width a pane has for a drawing.
     SCALES_SCRIPT = """<script>(function () {
