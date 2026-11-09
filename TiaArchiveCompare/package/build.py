@@ -32,6 +32,11 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 LAUNCHER = shortcut.LAUNCHER
 PYTHON_DIR = os.path.join('TiaArchiveCompare', 'window', 'python')
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+# Every name git reads a repo from, as git rev-parse --local-env-vars lists them (a test holds this list to git's).
+# Left by a parent, git prefers them to -C: the download would be of the parent's repo.
+GIT_CONTEXT = ('GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY',
+               'GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_GRAFT_FILE', 'GIT_INDEX_FILE', 'GIT_NO_REPLACE_OBJECTS',
+               'GIT_REPLACE_REF_BASE', 'GIT_PREFIX', 'GIT_SHALLOW_FILE', 'GIT_COMMON_DIR')
 
 # What the runner and the window call, as tracked: folders by prefix, files by name
 INCLUDE = ('LICENSE', 'NOTICE', 'TiaArchiveCompare/README.md', 'TiaArchiveCompare/runner/', 'TiaArchiveCompare/window/',
@@ -82,8 +87,9 @@ def package_name(number):
 
 
 def _run(cmd, **kw):
+    env = {k: v for k, v in os.environ.items() if k not in GIT_CONTEXT}
     done = subprocess.run(cmd, capture_output=True, encoding='utf-8', errors='replace', stdin=subprocess.DEVNULL,
-                          creationflags=NO_WINDOW, **kw)
+                          creationflags=NO_WINDOW, env=env, **kw)
     if done.returncode:
         raise BuildError('%s failed (exit code %d): %s' % (' '.join(cmd[:3]), done.returncode,
                                                           (done.stderr or done.stdout).strip()[-2000:]))

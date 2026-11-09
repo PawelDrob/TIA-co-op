@@ -54,6 +54,18 @@ Describe 'Assert-NoBoundBridge' {
             { Assert-NoBoundBridge $treeSettings } | Should Throw "bridge $($bridge.Id) on ProjectA"
         }
 
+        It 'finds the main working tree with the git context of a parent inherited, and clears it for the script' {
+            $parent = Join-Path $TestDrive 'parent'
+            New-Item -ItemType Directory -Force -Path $parent | Out-Null
+            git -C $parent init -q 2>&1 | Out-Null
+            try {
+                $env:GIT_DIR = Join-Path $parent '.git'
+                $env:GIT_WORK_TREE = $parent
+                Get-MainTreeSettingsPath (Split-Path -Parent $treeSettings) | Should Be $mainSettings
+                $env:GIT_DIR | Should BeNullOrEmpty
+            } finally { foreach ($n in 'GIT_DIR', 'GIT_WORK_TREE') { Remove-Item "Env:$n" -ErrorAction SilentlyContinue } }
+        }
+
         It 'refuses there too when the worktree has a root of its own' {
             Set-Content $mainSettings (ConvertTo-Json @{ projectsRoot = $root })
             Set-Content $treeSettings (ConvertTo-Json @{ projectsRoot = (Join-Path $TestDrive 'another') })

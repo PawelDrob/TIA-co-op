@@ -7,6 +7,7 @@
 # TiaBridge\settings.json of the main working tree of the clone that holds Folder; nothing outside git.
 function Get-MainTreeSettingsPath([string]$Folder) {
     $ErrorActionPreference = 'Continue'    # a smoke script runs under Stop, where git's message outside a repo would end it
+    Clear-GitContext    # a parent's GIT_DIR would name the parent's clone here, and take a smoke script's own commits later
     $common = git -C $Folder rev-parse --path-format=absolute --git-common-dir 2>$null
     if ($LASTEXITCODE -eq 0 -and $common) { Join-Path (Split-Path -Parent $common) 'TiaBridge\settings.json' }
 }

@@ -587,7 +587,7 @@ class TheFunctions(unittest.TestCase):
 class AParentsRepo(StubsOfEveryFolder):
     """Started by a git-aware parent (a hook or an alias of another repo), which leaves GIT_DIR and its like in the
     environment: with an argument no commit is going on, and the hook reads the repo it stands in."""
-    NO_NAME_OF_GITS = '''import os
+    FAILS_ON_A_NAME_OF_GITS = '''import os
 import subprocess
 import unittest
 
@@ -607,7 +607,7 @@ class T(unittest.TestCase):
                        capture_output=True)
         self.context = {'GIT_DIR': str(self.parent / '.git'), 'GIT_WORK_TREE': str(self.parent)}
 
-    def assertParentUntouched(self):
+    def assertNoLogInTheParent(self):
         left = [path.name for path in (self.parent / '.git').iterdir() if path.name.startswith('pre-commit') or path.suffix == '.log']
         self.assertEqual(left, [])
 
@@ -620,13 +620,13 @@ class T(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('pre-commit: first setup tests', result.stdout)
         self.assertTrue((self.repo / '.git' / 'setup-unittest.log').is_file())
-        self.assertParentUntouched()
+        self.assertNoLogInTheParent()
 
     def test_every_suite_is_of_its_own_tree(self):
         result = self.sh('.githooks/pre-commit', '--all', **self.context)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('pre-commit: first setup tests', result.stdout)
-        self.assertParentUntouched()
+        self.assertNoLogInTheParent()
 
     def test_the_jobs_of_ci_are_of_its_own_tree(self):
         result = self.sh('.githooks/pre-commit', '--groups', **self.context)
@@ -634,7 +634,7 @@ class T(unittest.TestCase):
         self.assertIn('setup_unittest', result.stdout)
 
     def test_the_suites_of_a_commit_get_no_name_git_reads_a_repo_from(self):
-        self.suite('tools/setup', self.NO_NAME_OF_GITS)
+        self.suite('tools/setup', self.FAILS_ON_A_NAME_OF_GITS)
         self.git('add', 'tools/setup')
         result = self.git('-c', 'core.abbrev=9', 'commit', '-m', 'a change', check=False)    # -c reaches a hook as GIT_CONFIG_PARAMETERS
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

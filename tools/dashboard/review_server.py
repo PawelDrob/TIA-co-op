@@ -322,7 +322,7 @@ def who_answers():
     """The name the answers carry: git's user.name in the repo of SCRATCH, else a word for the person at the dashboard."""
     try:
         out = subprocess.run(['git', '-C', str(SCRATCH.parent), 'config', 'user.name'], capture_output=True, text=True,
-                             timeout=10, creationflags=board.NO_WINDOW)
+                             timeout=10, env=board.git_env(), creationflags=board.NO_WINDOW)
         return out.stdout.strip() or 'Dashboard user'
     except (OSError, subprocess.SubprocessError):
         return 'Dashboard user'

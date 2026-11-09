@@ -309,10 +309,10 @@ Register-McpTool -Name 'full_export' -Description 'x' -Schema @{ type = 'object'
 """
 
 
-class GitsOwnList(unittest.TestCase):
+class TheListOfGitsNames(unittest.TestCase):
     """GIT_CONTEXT holds every name git reads a repo from: a git that knows one more fails this."""
 
-    def test_every_name_of_git_is_dropped(self):
+    def test_it_holds_every_name_git_gives(self):
         names = subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True, check=True).stdout.split()
         self.assertIn('GIT_DIR', names)
         self.assertEqual([name for name in names if name not in reportrun.GIT_CONTEXT], [])

@@ -233,7 +233,7 @@ Describe 'generated.at drift' {
         } finally { foreach ($n in 'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE') { Remove-Item "Env:$n" -ErrorAction SilentlyContinue } }
     }
 
-    It 'clears every name git reads a repo from' {
+    It 'holds every name git gives in its list' {
         $names = @(& git rev-parse --local-env-vars)
         $names -contains 'GIT_DIR' | Should Be $true
         @($names | Where-Object { (Get-GitContextNames) -notcontains $_ }).Count | Should Be 0

@@ -53,19 +53,23 @@ RUNNING_MARK, CLOSED_MARK, READ_MARK, POSTPONED_MARK = '▸', '✓', '–', '‖
 
 
 # Every name git reads a repo from, as git rev-parse --local-env-vars lists them (a test holds this list to git's).
-# A parent's: git prefers them to -C
+# Left by a parent, git prefers them to -C: it would act on the parent's repo.
 GIT_CONTEXT = ('GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY',
                'GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_GRAFT_FILE', 'GIT_INDEX_FILE', 'GIT_NO_REPLACE_OBJECTS',
                'GIT_REPLACE_REF_BASE', 'GIT_PREFIX', 'GIT_SHALLOW_FILE', 'GIT_COMMON_DIR')
 
 
+def git_env():
+    """The environment without a parent git's context, which git would prefer to -C."""
+    return {k: v for k, v in os.environ.items() if k not in GIT_CONTEXT}
+
+
 def default_scratch(start=HERE):
     """The .scratch of the main working tree, which every worktree of the repo shares. Outside git: of the folder two
     levels above start, where this repo holds its tools."""
-    env = {k: v for k, v in os.environ.items() if k not in GIT_CONTEXT}
     try:
         out = subprocess.run(['git', '-C', str(start), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
-                             capture_output=True, text=True, timeout=10, env=env, creationflags=NO_WINDOW)
+                             capture_output=True, text=True, timeout=10, env=git_env(), creationflags=NO_WINDOW)
         if out.returncode == 0:
             return Path(out.stdout.strip()).parent / '.scratch'
     except (OSError, subprocess.SubprocessError):

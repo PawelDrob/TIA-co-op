@@ -50,6 +50,8 @@
 # --all <suite>... runs the suites named alone (their keys, the first word after "suite" below). CI runs a job for each
 # group that sh .githooks/pre-commit --groups prints, as a JSON matrix: each long suite a job of its own, the others one
 # job together. --groups needs no .venv.
+# With any of these arguments no commit is going on, and the hook reads the repo it stands in, whatever GIT_DIR and its
+# like a parent left in the environment. A suite gets none of them, in a commit either.
 # Python runs on the .venv of this tree, by absolute path, never from PATH: a commit that needs it is refused without.
 fail=0
 docs_added_moved_removed=""

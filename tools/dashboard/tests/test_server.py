@@ -693,5 +693,17 @@ class AnswerIntoTicketTest(unittest.TestCase):
         self.assertEqual(self.left_behind(), ['alpha-05-a.json'])
 
 
+class WhoAnswersTest(unittest.TestCase):
+    def test_the_name_is_of_the_repo_of_the_scratch_with_a_parents_git_context_inherited(self):
+        base = made_up_repo(self).resolve()
+        for name in ('parent', 'clone'):
+            (base / name).mkdir()
+            for args in (['init', '-q'], ['config', 'user.name', 'Of the ' + name]):
+                subprocess.run(['git', '-C', str(base / name), *args], check=True, capture_output=True)
+        context = {'GIT_DIR': str(base / 'parent' / '.git'), 'GIT_WORK_TREE': str(base / 'parent')}
+        with mock.patch.object(review_server, 'SCRATCH', base / 'clone' / '.scratch'), mock.patch.dict(os.environ, context):
+            self.assertEqual(review_server.who_answers(), 'Of the clone')
+
+
 if __name__ == '__main__':
     unittest.main()

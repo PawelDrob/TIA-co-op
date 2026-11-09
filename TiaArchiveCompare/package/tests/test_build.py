@@ -2,8 +2,10 @@
 build itself runs by hand or in the release workflow, and its check (check.py) proves the zip."""
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from TiaArchiveCompare.package import build
 
@@ -57,6 +59,37 @@ class TheVersion(unittest.TestCase):
 
     def test_this_repo_agrees_with_itself(self):
         build.version()
+
+
+class AParentsRepo(unittest.TestCase):
+    """Started by a git-aware parent, which leaves GIT_DIR and its like in the environment: the build reads the repo it was given."""
+
+    def git(self, folder, *args):
+        env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+        subprocess.run(['git', '-C', folder, '-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false',
+                        *args], check=True, capture_output=True, env=env)
+
+    def repo(self, top, name):
+        folder = os.path.join(top, name)
+        os.makedirs(folder)
+        self.git(folder, 'init', '-q')
+        with open(os.path.join(folder, name + '.txt'), 'w') as f:
+            f.write('x\n')
+        self.git(folder, 'add', '-A')
+        self.git(folder, 'commit', '-q', '-m', 'in ' + name)
+        return folder
+
+    def test_the_tracked_files_are_of_the_repo_given(self):
+        top = tempfile.TemporaryDirectory(prefix='tia-compare-parent-')
+        self.addCleanup(top.cleanup)
+        parent, given = self.repo(top.name, 'parent'), self.repo(top.name, 'given')
+        with mock.patch.dict(os.environ, {'GIT_DIR': os.path.join(parent, '.git'), 'GIT_WORK_TREE': parent}):
+            self.assertEqual(build._tracked(given), ['given.txt'])
+
+    def test_the_list_holds_every_name_git_gives(self):
+        names = subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True, check=True).stdout.split()
+        self.assertIn('GIT_DIR', names)
+        self.assertEqual([name for name in names if name not in build.GIT_CONTEXT], [])
 
 
 if __name__ == '__main__':
