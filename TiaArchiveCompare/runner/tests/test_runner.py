@@ -1091,6 +1091,21 @@ class TiaRootCheckTest(TiaRootCase):
         self.assertIn('%s is not valid JSON, so the tool does not know where TIA Portal is' % self.settings, problems[0])
         self.assertNotIn('backslash', problems[0])
 
+    def test_a_single_backslash_gets_the_hint_wherever_the_text_stops(self):
+        """The bridge checks names only once the whole text is parsed, and a backslash before a closing quote escapes
+        it: in both, the single backslash is what stops it."""
+        root = self.tia_folder()
+        self.patch(checks, 'DEFAULT_TIA_ROOT', root)
+        self.registry({'version': 'V20.00.00.07', 'path': root, 'openness': True})
+        for text in ('{"": "x", "tiaRoot": "D:\\TIA"}', '{"x": {"a": 1, "A": 2}, "tiaRoot": "D:\\TIA"}',
+                     '{"projectsRoot": "E:\\"}', '{"projectsRoot": "E:\\", "archivesKept": 3}'):
+            with open(self.settings, 'w', encoding='utf-8') as f:
+                f.write(text)                                                   # single backslashes in the file
+            problems = self.tia_problems()
+            self.assertEqual(1, len(problems), text)
+            self.assertIn('%s is not valid JSON' % self.settings, problems[0], text)
+            self.assertTrue(problems[0].endswith('A path in it has each backslash doubled.'), (text, problems[0]))
+
     def test_what_only_the_bridge_parses_is_read(self):
         """Single quotes and unquoted names, which JSON has not and Get-BridgeSettings takes."""
         root = self.tia_folder()

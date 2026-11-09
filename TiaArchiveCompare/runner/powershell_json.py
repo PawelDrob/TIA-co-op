@@ -20,21 +20,41 @@ _JSON_NUMBER = re.compile(r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?
 
 
 class Refused(ValueError):
-    """JSON, valid as such, that ConvertFrom-Json refuses; its text says why in plain words."""
+    """What JSON allows and ConvertFrom-Json refuses, where that is what stops it; its text says why in plain words."""
 
 
 class BadEscape(ValueError):
-    """A backslash in a text that starts no escape, as a path with single backslashes has."""
+    """What stops the parser where a backslash in a text may be a single one of a path: a backslash that starts no
+    escape, or any error after one that escaped a quote, as "E:\\" has."""
 
 
 def loads(text):
-    """The value of text, None for none. ValueError where ConvertFrom-Json refuses the text: Refused for valid JSON,
-    BadEscape for a backslash that starts no escape."""
+    """The value of text, None for none. ValueError where ConvertFrom-Json refuses the text, with Refused and BadEscape
+    for those two kinds. The names come last, as PowerShell checks them once .NET has parsed the whole text."""
     reader = _Reader(text)
     value = reader.value(0)
     if reader.next_char() is not None:
-        raise ValueError('text after the value at %d' % (reader.pos - 1))
+        reader.pos -= 1
+        reader.fail('text after the value')
+    _check_names(value)
     return value
+
+
+def _check_names(value):
+    """PowerShell's objects, made member by member and into each member's value: an empty name, or two that differ in
+    case only, refused."""
+    if isinstance(value, list):
+        for item in value:
+            _check_names(item)
+    elif isinstance(value, dict):
+        seen = {}
+        for name, member in value.items():
+            first = seen.setdefault(_folded(name), name)
+            if first != name:
+                raise Refused('two names that differ in case only: %s and %s' % (first, name))
+            if name == '':
+                raise Refused('an empty name')
+            _check_names(member)
 
 
 def _is_white(c):
@@ -70,14 +90,15 @@ def _number(token):
 
 
 class _Reader:
-    """JavaScriptObjectDeserializer of .NET Framework 4, step by step, and PowerShell's check of the names."""
+    """JavaScriptObjectDeserializer of .NET Framework 4, step by step."""
 
     def __init__(self, text):
         self.source = text
         self.pos = 0
+        self.quote_escaped = False
 
     def fail(self, what, kind=ValueError):
-        raise kind('%s at %d' % (what, self.pos))
+        raise (BadEscape if self.quote_escaped else kind)('%s at %d' % (what, self.pos))
 
     def next_char(self):
         while self.pos < len(self.source):
@@ -120,8 +141,6 @@ class _Reader:
                     self.fail('no colon after a name')
             if members is None:
                 members = {}
-                if name == '':
-                    raise Refused('an empty name')
                 if name is None:            # .NET takes a first member without a name for an empty object
                     c = self.next_char()
                     break
@@ -133,13 +152,6 @@ class _Reader:
                 self.fail('no comma or } after a member')
         if c != '}':
             self.fail('an object without its }')
-        seen = {}
-        for name in members:
-            if name == '':
-                raise Refused('an empty name')
-            first = seen.setdefault(_folded(name), name)
-            if first != name:
-                raise Refused('two names that differ in case only: %s and %s' % (first, name))
         return members
 
     def member_name(self):
@@ -187,6 +199,7 @@ class _Reader:
                 if escaped == 'u':
                     out.append(self.code_unit())
                 elif escaped in _ESCAPES:
+                    self.quote_escaped = self.quote_escaped or escaped == quote
                     out.append(_ESCAPES[escaped])
                 else:
                     self.fail('an unknown escape', BadEscape)
