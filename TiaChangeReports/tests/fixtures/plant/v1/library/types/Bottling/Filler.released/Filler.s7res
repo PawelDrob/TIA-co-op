@@ -1,0 +1,23 @@
+MultiLingualTexts:
+  - id: MLC_bt
+    en-US: Filler
+  - id: MLC_bc
+    en-US: 'Fills one container. '
+  - id: MLC_i1
+    en-US: Auto mode chosen at the panel
+  - id: MLC_i2
+    en-US: Recipe checked by the line
+  - id: MLC_hw
+    en-US: Sensors of the filling head
+  - id: MLC_n1
+    en-US: Ready to fill
+  - id: MLC_n2
+    en-US: Lower the filling head
+  - id: MLC_n3
+    en-US: Fine valve by recipe (water / syrup)
+  - id: MLC_n4
+    en-US: Coarse valve shut at the coarse weight
+  - id: MLC_n5
+    en-US: Close the coarse valve at the high probe
+  - id: MLC_n6
+    en-US: Outputs

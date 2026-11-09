@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <Engineering version="V20" />
+  <Hmi.Screen.Screen ID="0">
+    <AttributeList>
+      <Name>5056 - G05 Pumps</Name>
+      <Number>5056</Number>
+    </AttributeList>
+    <ObjectList>
+      <Hmi.Screen.ScreenLayer ID="1" CompositionName="Layers">
+        <AttributeList><Index>0</Index><Name>Layer_0</Name></AttributeList>
+        <ObjectList>
+          <Hmi.Screen.FaceplateInstance ID="2" CompositionName="ScreenItems">
+            <AttributeList>
+              <FaceplateTypeName>_Library@$@Redesign@$@Faceplate@$@faceplatePump20Operate V 0.0.2</FaceplateTypeName>
+              <Left>10</Left><ObjectName>Faceplate_1</ObjectName><Resizing>None</Resizing><TabIndex>-1</TabIndex><Top>90</Top>
+            </AttributeList>
+          </Hmi.Screen.FaceplateInstance>
+          <Hmi.Screen.FaceplateInstance ID="3" CompositionName="ScreenItems">
+            <AttributeList>
+              <FaceplateTypeName>_Library@$@Redesign@$@Faceplate@$@faceplateSafetyDevice V 1.0.0</FaceplateTypeName>
+              <Left>200</Left><ObjectName>Faceplate_2</ObjectName><Resizing>None</Resizing><TabIndex>-1</TabIndex><Top>90</Top>
+            </AttributeList>
+          </Hmi.Screen.FaceplateInstance>
+          <Hmi.Screen.FaceplateInstance ID="4" CompositionName="ScreenItems">
+            <AttributeList>
+              <FaceplateTypeName>_Library@$@faceplateMissing V 0.1.0</FaceplateTypeName>
+              <Left>400</Left><ObjectName>Faceplate_3</ObjectName><Top>90</Top>
+            </AttributeList>
+          </Hmi.Screen.FaceplateInstance>
+        </ObjectList>
+      </Hmi.Screen.ScreenLayer>
+    </ObjectList>
+  </Hmi.Screen.Screen>
+</Document>

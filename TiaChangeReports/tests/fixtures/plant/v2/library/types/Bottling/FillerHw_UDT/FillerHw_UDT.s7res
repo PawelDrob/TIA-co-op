@@ -1,0 +1,5 @@
+MultiLingualTexts:
+  - id: MLC_p
+    en-US: high level probe, top of the neck
+  - id: MLC_f
+    en-US: Infeed sensors in front of the filling head

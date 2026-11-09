@@ -1,0 +1,34 @@
+name: Question
+description: How something works, or whether it can do what you need.
+body:
+  - type: markdown
+    attributes:
+      value: "**No customer projects.** Take real project, plant, company and person names out of everything you paste or attach, logs too."
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Tool
+      options:
+        - TiaBridge
+        - TIA Archive Compare
+        - TiaChangeReports
+        - TiaHmiGenerator or the HMI preview
+        - TIA dashboard or the agent status
+        - First setup
+        - Development dashboard or session tool
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you want to know, and what you have tried or read so far.
+    validations:
+      required: true
+  - type: input
+    id: tia-version-and-update
+    attributes:
+      label: TIA version and Update
+      description: If the answer may depend on them.
+      placeholder: V20 Update 3

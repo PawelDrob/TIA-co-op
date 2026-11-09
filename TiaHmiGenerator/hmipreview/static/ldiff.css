@@ -1,0 +1,4 @@
+.ldiff{--line:#c8c8c8;--grid:#e1e1e1;--band:#d9d9d9;--field:#e1e1e1;--row:#f0f0f0;--muted:#5a5a5a;--add:#3a9a4f;
+  --add-bg:#e3f4e6;--add-word:#b5e2bf;--del:#c0392b;--del-bg:#f9e3e7;--del-word:#f0b9c4;--chg:#c99700;--chg-bg:#fff3c2;--mov:#7a9cc6;--mov-bg:#dfe9f5;
+  font:13px/1.45 "Segoe UI",Arial,Helvetica,sans-serif;color:#000;background:#fff}
+.ldiff,.ldiff *{box-sizing:border-box}

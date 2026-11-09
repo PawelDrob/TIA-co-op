@@ -1,0 +1,7 @@
+viz.html, viz.js and viz.css are the OKF bundle viewer of the Open Knowledge Format reference implementation,
+copied unchanged from https://github.com/GoogleCloudPlatform/open-knowledge-format
+(src/reference_agent/viewer, commit 25461dbcdd5b2f3fc9aef99c19fb7d8a94ef6149).
+Copyright 2026 Google LLC, licensed under the Apache License 2.0 (LICENSE.txt).
+
+viz.html is the template; ../OkfViz.ps1, derived from reference_agent/viewer/generator.py, fills it.
+The viewer loads Cytoscape.js and marked from cdn.jsdelivr.net, so it needs internet access to render.

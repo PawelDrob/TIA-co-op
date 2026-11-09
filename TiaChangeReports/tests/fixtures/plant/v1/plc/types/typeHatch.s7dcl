@@ -1,0 +1,7 @@
+TYPE
+    typeHatch : STRUCT
+        { S7_MLC := "MLC_q" }
+        q : Bool;
+        ack : Bool;
+    END_STRUCT;
+END_TYPE

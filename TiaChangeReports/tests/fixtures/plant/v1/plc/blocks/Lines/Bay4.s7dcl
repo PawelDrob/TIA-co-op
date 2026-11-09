@@ -1,0 +1,88 @@
+{
+    S7_BlockNumber := "351";
+    S7_Optimized := "TRUE"
+}
+FUNCTION_BLOCK "Bay4"
+    VAR_IN_OUT
+        ioOrder : Array[1..4] of _.FillerCmd_UDT;
+        ioAlarms : Array[0..15] of Bool;
+    END_VAR
+    VAR
+        instFiller : _.Filler;
+        "instFiller+P1" : _.PumpCtl;
+        "instFiller+P2" : _.PumpCtl;
+        statPresent : Bool;
+        statOn : Bool;
+        statService : Array[1..2] of STRUCT
+            Jog : Bool;
+            Ack : Bool;
+        END_STRUCT;
+    END_VAR
+    VAR_TEMP
+        tmpBay : Int;
+        tmpPhase : Int;
+        tmpSettle : Time;
+    END_VAR
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n1"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Move(
+                in := 4,
+                out1 => #tmpBay
+            )
+        END_RUNG
+        RUNG wire#powerrail
+            Contact( #statPresent )
+            #instFiller(
+                iAutoMode := TRUE,
+                iRecipeValid := wire#w1,
+                iCapperReady := "BayIo".Capper[#tmpBay].Ready,
+                iRinse := ,
+                iAirOK := TRUE,
+                iJog := wire#w2,
+                iQuit := #statService[2].Ack,
+                iSettleTime := #tmpSettle,
+                iBottleIn := "BayIo".Infeed.Bottle,
+                iCapPresent := ,
+                ioBay := #tmpBay,
+                ioOrder := #ioOrder[#tmpBay],
+                ioAlarms := #ioAlarms,
+                oValve => "BayIo".Heads[#tmpBay, 1].Valve,
+                oPump => "BayIo".Heads[#tmpBay, 1].Pump,
+                oPhase => #tmpPhase
+            )
+        END_RUNG
+        RUNG wire#powerrail
+            Contact( "Recipes".Active.Checked )
+        END_RUNG wire#w1
+        RUNG wire#powerrail
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := "Recipes".Active.Bay,
+                in2 := 4
+            )
+        END_RUNG wire#w1
+        RUNG wire#powerrail
+            Contact( #statService[2].Jog )
+        END_RUNG wire#w2
+        RUNG wire#powerrail
+            Contact( #statOn )
+            #"instFiller+P1"(
+                iCurve := "PUMP_CURVE",
+                iQuit := #statService[2].Ack,
+                oRunState => #ioOrder[#tmpBay].PumpState
+            )
+        END_RUNG
+        RUNG wire#powerrail
+            Contact( #statPresent )
+            Contact( #statOn )
+            #"instFiller+P2"(
+                iCurve := "PUMP_CURVE",
+                oRunState => #tmpPhase
+            )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK

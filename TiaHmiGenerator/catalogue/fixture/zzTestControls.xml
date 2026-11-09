@@ -1,0 +1,137 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <Engineering version="V20" />
+  <DocumentInfo>
+    <Created>2026-10-31T19:03:51.7054379Z</Created>
+    <ExportSetting>WithDefaults, WithReadOnly</ExportSetting>
+  </DocumentInfo>
+  <Hmi.Screen.Screen ID="0">
+    <AttributeList>
+      <ActiveLayer>0</ActiveLayer>
+      <BackColor>182, 182, 182</BackColor>
+      <GridColor>0, 0, 0</GridColor>
+      <Height>800</Height>
+      <Name>zzTestControls</Name>
+      <Number>3</Number>
+      <Visible>true</Visible>
+      <Width>1280</Width>
+    </AttributeList>
+    <ObjectList>
+      <MultilingualText ID="1" CompositionName="HelpText">
+        <ObjectList>
+          <MultilingualTextItem ID="2" CompositionName="Items">
+            <AttributeList>
+              <Culture>de-DE</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="3" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+      <Hmi.Screen.ScreenLayer ID="4" CompositionName="Layers">
+        <AttributeList>
+          <Index>0</Index>
+          <Name />
+          <VisibleES>true</VisibleES>
+        </AttributeList>
+        <ObjectList>
+          <Hmi.Screen.UserView ID="5" CompositionName="ScreenItems">
+            <AttributeList>
+              <Appearance>AppearanceFlat</Appearance>
+              <BackColor>241, 241, 242</BackColor>
+              <BorderBackColor>102, 104, 115</BorderBackColor>
+              <BorderColor>107, 113, 123</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <Columns>﻿&lt;Item&gt;0&lt;/Item&gt;&lt;Item&gt;156&lt;/Item&gt;&lt;Item&gt;1&lt;/Item&gt;&lt;Item&gt;120&lt;/Item&gt;&lt;Item&gt;2&lt;/Item&gt;&lt;Item&gt;80&lt;/Item&gt;&lt;Item&gt;3&lt;/Item&gt;&lt;Item&gt;120&lt;/Item&gt;</Columns>
+              <ColumnsMoveable>true</ColumnsMoveable>
+              <CornerRadius>4</CornerRadius>
+              <CountVisibleItems>8</CountVisibleItems>
+              <EdgeStyle>Solid</EdgeStyle>
+              <Enabled>true</Enabled>
+              <FitToSize>false</FitToSize>
+              <Flashing>None</Flashing>
+              <Height>240</Height>
+              <Left>13</Left>
+              <ObjectName>User view_1</ObjectName>
+              <SelectionBackColor>148, 182, 231</SelectionBackColor>
+              <SelectionForeColor>255, 255, 255</SelectionForeColor>
+              <ShowTableGridlines>true</ShowTableGridlines>
+              <TabIndex>3</TabIndex>
+              <TableBackColor>255, 255, 255</TableBackColor>
+              <TableEvenRowBackColor>230, 230, 232</TableEvenRowBackColor>
+              <TableForeColor>71, 73, 87</TableForeColor>
+              <TableGridlineColor>255, 255, 255</TableGridlineColor>
+              <TableHeaderBackColor>131, 132, 142</TableHeaderBackColor>
+              <TableHeaderBackFillStyle>GradientVertical</TableHeaderBackFillStyle>
+              <TableHeaderBorderBackColor>98, 96, 110</TableHeaderBorderBackColor>
+              <TableHeaderBorderColor>98, 96, 110</TableHeaderBorderColor>
+              <TableHeaderBorderWidth>1</TableHeaderBorderWidth>
+              <TableHeaderCornerRadius>2</TableHeaderCornerRadius>
+              <TableHeaderEdgeStyle>Solid</TableHeaderEdgeStyle>
+              <TableHeaderFirstGradientColor>127, 128, 138</TableHeaderFirstGradientColor>
+              <TableHeaderFirstGradientOffset>15</TableHeaderFirstGradientOffset>
+              <TableHeaderForeColor>255, 255, 255</TableHeaderForeColor>
+              <TableHeaderMiddleGradientColor>131, 132, 142</TableHeaderMiddleGradientColor>
+              <TableHeaderSecondGradientColor>88, 90, 103</TableHeaderSecondGradientColor>
+              <TableHeaderSecondGradientOffset>15</TableHeaderSecondGradientOffset>
+              <Top>309</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <UseTableHeaderFirstGradient>false</UseTableHeaderFirstGradient>
+              <UseTableHeaderSecondGradient>true</UseTableHeaderSecondGradient>
+              <VerticalScrolling>false</VerticalScrolling>
+              <ViewType>ViewTypeComplex</ViewType>
+              <Width>480</Width>
+            </AttributeList>
+            <ObjectList>
+              <Hmi.Globalization.MultiLingualFont ID="6" CompositionName="TableFont">
+                <ObjectList>
+                  <Hmi.Globalization.FontItem ID="7" CompositionName="Items">
+                    <AttributeList>
+                      <Culture>de-DE</Culture>
+                      <FontFamily>Tahoma</FontFamily>
+                      <FontSize>13</FontSize>
+                      <FontStyle>Regular</FontStyle>
+                    </AttributeList>
+                  </Hmi.Globalization.FontItem>
+                  <Hmi.Globalization.FontItem ID="8" CompositionName="Items">
+                    <AttributeList>
+                      <Culture>en-US</Culture>
+                      <FontFamily>Tahoma</FontFamily>
+                      <FontSize>13</FontSize>
+                      <FontStyle>Regular</FontStyle>
+                    </AttributeList>
+                  </Hmi.Globalization.FontItem>
+                </ObjectList>
+              </Hmi.Globalization.MultiLingualFont>
+              <Hmi.Globalization.MultiLingualFont ID="9" CompositionName="TableHeaderFont">
+                <ObjectList>
+                  <Hmi.Globalization.FontItem ID="A" CompositionName="Items">
+                    <AttributeList>
+                      <Culture>de-DE</Culture>
+                      <FontFamily>Tahoma</FontFamily>
+                      <FontSize>13</FontSize>
+                      <FontStyle>Bold</FontStyle>
+                    </AttributeList>
+                  </Hmi.Globalization.FontItem>
+                  <Hmi.Globalization.FontItem ID="B" CompositionName="Items">
+                    <AttributeList>
+                      <Culture>en-US</Culture>
+                      <FontFamily>Tahoma</FontFamily>
+                      <FontSize>13</FontSize>
+                      <FontStyle>Bold</FontStyle>
+                    </AttributeList>
+                  </Hmi.Globalization.FontItem>
+                </ObjectList>
+              </Hmi.Globalization.MultiLingualFont>
+            </ObjectList>
+          </Hmi.Screen.UserView>
+        </ObjectList>
+      </Hmi.Screen.ScreenLayer>
+    </ObjectList>
+  </Hmi.Screen.Screen>
+</Document>

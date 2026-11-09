@@ -1,0 +1,6 @@
+LibraryType:
+  Guid: 00000000-0000-4000-8000-000000000742
+LibraryVersion:
+  VersionNumber: 1.0.5
+  Author: author1
+  IsDefault: true

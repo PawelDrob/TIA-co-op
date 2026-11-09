@@ -1,0 +1,91 @@
+﻿{
+    S7_IECCheck := "TRUE";
+    S7_Optimized := "TRUE";
+    S7_PreferredLanguage := "LAD";
+    S7_Version := "0.1"
+}
+FUNCTION_BLOCK "Jumps"
+    VAR_TEMP 
+        valA : DInt;
+        valB : DInt;
+        valC : DInt;
+        result : DInt;
+        selector : USInt;
+        caseA : USInt;
+        caseB : USInt;
+        done : Bool;
+    END_VAR
+
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_J1"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            {
+                S7_Templates := "SrcType := USInt"; 
+                CASE0 := "=="; 
+                CASE1 := "=="; 
+            }
+            Switch(
+                k := #selector, 
+                case0 := #caseA, 
+                case1 := #caseB, 
+                else => stepA, 
+                dst0 => stepA, 
+                dst1 => stepB
+            )
+        END_RUNG
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_J2"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            {
+                S7_Templates := "SrcType := DInt"; 
+                S7_Expression := "(IN1 + IN2) * (IN1 - IN2)"
+            }
+            Calculate(
+                in1 := #valA, 
+                in2 := #valB, 
+                in3 := #valC, 
+                out => #result
+            )
+        END_RUNG
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_J3"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            JumpList(
+                k := #selector, 
+                dst0 => stepA, 
+                dst1 => stepB
+            )
+        END_RUNG
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_J4"
+    }
+    NETWORK
+        Label(stepA)
+        RUNG wire#powerrail
+            Coil( #done )
+        END_RUNG
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_J5"
+    }
+    NETWORK
+        Label(stepB)
+        RUNG wire#powerrail
+            Coil( #done )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK

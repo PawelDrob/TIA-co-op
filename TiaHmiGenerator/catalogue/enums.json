@@ -1,0 +1,1164 @@
+{
+ "about": "TIA's enum types of the Comfort screen objects: member names (the export spellings) and numbers, read by reflection from TIA's HMI library (names and numbers only).",
+ "source": "Siemens.Simatic.Hmi.Global.dll",
+ "enums": {
+  "GraphX.AdaptType": {
+   "None": 0,
+   "StretchPicture": 1,
+   "AdaptBorder": 2,
+   "AdaptBorderWithoutStretching": 3
+  },
+  "GraphX.AppearanceAnalysisId": {
+   "AsItIs": 0,
+   "UseLSB": 1,
+   "UseMSB": 2
+  },
+  "GraphX.AreaStyle": {
+   "EntireDesktop": 0,
+   "CurrentWindow": 1,
+   "SelectedSection": 2
+  },
+  "GraphX.AuditTrailBackStyle": {
+   "Transparent": 0,
+   "Solid": 1
+  },
+  "GraphX.AuditTrailBorderStyle": {
+   "None": 0,
+   "Solid": 1
+  },
+  "GraphX.AutoSizingType": {
+   "None": 0,
+   "StretchPicture": 1
+  },
+  "GraphX.AxisScalingType": {
+   "Linear": 0,
+   "Logarithmic": 1,
+   "NegativeLogarithmic": 2
+  },
+  "GraphX.BackPictureAlignment": {
+   "Normal": 0,
+   "StretchedToWindow": 1,
+   "Tiled": 2,
+   "StretchedToScreen": 3
+  },
+  "GraphX.BarAxisPosition": {
+   "LeftUp": 0,
+   "RightDown": 1
+  },
+  "GraphX.BarOrientation": {
+   "Up": 0,
+   "Down": 1,
+   "Left": 2,
+   "Right": 3,
+   "UpDown": 4,
+   "LeftRight": 5
+  },
+  "GraphX.BarScaleLabelHorizontalAlignment": {
+   "Left": 0,
+   "Center": 1,
+   "Right": 2
+  },
+  "GraphX.BarScaleStart": {
+   "Minimum": 0,
+   "Zero": 1
+  },
+  "GraphX.BarScalingType": {
+   "Linear": 0,
+   "Logarithmic": 1,
+   "NegativLogarithmic": 2,
+   "Automatic": 3,
+   "Tangent": 4,
+   "Quadratic": 5,
+   "Cubic": 6
+  },
+  "GraphX.BarSegmentColoring": {
+   "Entire": 0,
+   "Segmented": 1
+  },
+  "GraphX.BarType": {
+   "Normal": 0,
+   "Bar3D": 1
+  },
+  "GraphX.BitTextListsAnalysisId": {
+   "AsItIs": 0,
+   "UseLSB": 1,
+   "UseMSB": 2
+  },
+  "GraphX.BorderStyle": {
+   "None": 0,
+   "Solid": 1
+  },
+  "GraphX.ButtonType": {
+   "Text": 0,
+   "Graphic": 1,
+   "TextList": 2,
+   "GraphicList": 3,
+   "TextCheckBack": 4,
+   "GraphicCheckBack": 5,
+   "Invisible": 6,
+   "GraphicOrText": 7,
+   "GraphicAndText": 8
+  },
+  "GraphX.CheckmarkAlignment": {
+   "Left": 0,
+   "Right": 1
+  },
+  "GraphX.ClockFillStyle": {
+   "Solid": 0,
+   "FrameTransparent": 1,
+   "Transparent": 2
+  },
+  "GraphX.ClockHandType": {
+   "Transparent": 0,
+   "Solid": 1
+  },
+  "GraphX.ClockNumberStyle": {
+   "NoNumber": 0,
+   "Arabic": 1,
+   "Roman": 2
+  },
+  "GraphX.ClockTickStyle": {
+   "Circle": 0,
+   "Line": 1
+  },
+  "GraphX.ClockType": {
+   "Analog": 0,
+   "Digital": 1
+  },
+  "GraphX.ConnectorConnectionType": {
+   "Automatic": 0,
+   "Simple": 1
+  },
+  "GraphX.Controls.AlarmControlActions": {
+   "None": 0,
+   "LoopInAlarm": 1,
+   "CommentsDialog": 2,
+   "InfoTextDialog": 3,
+   "ColumnBased": 4
+  },
+  "GraphX.Controls.AlarmControlDefaultToolbarButtons": {
+   "None": 0,
+   "Help": 1,
+   "ConfigurationDialog": 2,
+   "MessageList": 3,
+   "ShortTermArchiveList": 4,
+   "LongTermArchiveList": 5,
+   "LockList": 6,
+   "Hitlist": 7,
+   "ListOfMessagesToBeHidden": 8,
+   "AcknowledgeCentralSignalingDevices": 9,
+   "SingleAcknowledgment": 10,
+   "GroupAcknowledgment": 11,
+   "Autoscroll": 12,
+   "SelectionDialog": 13,
+   "DisplayOptionsDialog": 14,
+   "LockDialog": 15,
+   "Print": 17,
+   "EmergencyAcknowledgment": 18,
+   "FirstMessage": 19,
+   "PreviousMessage": 20,
+   "NextMessage": 21,
+   "LastMessage": 22,
+   "InfotextDialog": 23,
+   "CommentsDialog": 24,
+   "LoopInAlarm": 25,
+   "LockMessage": 26,
+   "EnableMessage": 27,
+   "HideMessage": 28,
+   "UnhideMessages": 29,
+   "SortDialog": 30,
+   "TimeBaseDialog": 31,
+   "CopyRows": 32,
+   "ConnectBackup": 33,
+   "DisconnectBackup": 34,
+   "ExportData": 35,
+   "FirstPage": 36,
+   "PreviousPage": 37,
+   "NextPage": 38,
+   "LastPage": 39
+  },
+  "GraphX.Controls.AlarmControlTimeUnit": {
+   "Minute": 0,
+   "Hour": 1,
+   "Day": 2,
+   "Week": 3,
+   "Month": 4
+  },
+  "GraphX.Controls.AlarmDisplayOptions": {
+   "All": 0,
+   "Visible": 1,
+   "Hidden": 2
+  },
+  "GraphX.Controls.AlarmListType": {
+   "Online": 0,
+   "ShortTermArchive": 1,
+   "LongTermArchive": 2,
+   "LockedAlarms": 3,
+   "Hitlist": 4,
+   "HiddenAlarms": 5
+  },
+  "GraphX.Controls.AlarmRTStatus": {
+   "Coming": 0,
+   "Going": 1,
+   "AcknowledgedBySystem": 2,
+   "AcknowledgedByEmergency": 3,
+   "AcknowledgedByCentralSignalingDevice": 4
+  },
+  "GraphX.Controls.AutorangeSourceType": {
+   "DisplayedData": 0,
+   "StaticValues": 1,
+   "OnlineTags": 2
+  },
+  "GraphX.Controls.AxisAlignment": {
+   "Standard": 0,
+   "Opposite": 1
+  },
+  "GraphX.Controls.AxisScalingType": {
+   "Linear": 0,
+   "Logarithmic": 1,
+   "NegativeLogarithmic": 2
+  },
+  "GraphX.Controls.ColumnFieldFormatingType": {
+   "Unknown": 0,
+   "IntegerNumber": 1,
+   "FloatNumber": 2,
+   "DoubleNumber": 3,
+   "StringText": 4,
+   "DateTimeStamp": 5,
+   "DateTimeTimeStamp": 6,
+   "DurationTimeStamp": 7,
+   "ByteType": 8,
+   "BooleanType": 9,
+   "LongType": 10,
+   "ShortType": 11,
+   "UByteType": 12,
+   "UShortType": 13,
+   "ULongType": 14,
+   "ValueSet": 15,
+   "ObjectSet": 16,
+   "Polymorph": 17
+  },
+  "GraphX.Controls.ControlFilterExpressionOperand": {
+   "None": 0,
+   "EqualTo": 1,
+   "GreaterThan": 2,
+   "GreaterThanEqualTo": 3,
+   "LessThan": 4,
+   "LessThanEqualTo": 5,
+   "ExactText": 6,
+   "Contains": 7
+  },
+  "GraphX.Controls.ControlFilterLogicalOperand": {
+   "LogicalAnd": 0,
+   "LogicalOr": 1
+  },
+  "GraphX.Controls.CoreGridAlignment": {
+   "Left": 0,
+   "Centered": 1,
+   "Right": 2
+  },
+  "GraphX.Controls.CoreSortMode": {
+   "None": 0,
+   "Ascending": 1,
+   "Descending": 2
+  },
+  "GraphX.Controls.DataSourceType": {
+   "None": 0,
+   "LoggingTags": 1,
+   "OnlineTags": 2,
+   "Recipe": 3,
+   "UserDefined": 4
+  },
+  "GraphX.Controls.ExportFormatType": {
+   "Ansi": 0,
+   "Utf8": 1,
+   "Unicode": 2
+  },
+  "GraphX.Controls.ExportRange": {
+   "All": 0,
+   "Selection": 1
+  },
+  "GraphX.Controls.FunctionTrendControlDefaultToolbarButtons": {
+   "None": 0,
+   "Help": 1,
+   "ConfigurationDialog": 2,
+   "Ruler": 3,
+   "ZoomArea": 4,
+   "ZoomPlusMinus": 5,
+   "ZoomXAxisPlusMinus": 6,
+   "ZoomYAxisPlusMinus": 7,
+   "MoveTrendArea": 8,
+   "MoveAxesArea": 9,
+   "OriginalView": 10,
+   "SelectDataConnection": 11,
+   "SelectTrends": 12,
+   "SelectTimeRange": 13,
+   "PreviousTrend": 14,
+   "NextTrend": 15,
+   "StartStop": 16,
+   "Print": 17,
+   "ConnectBackup": 18,
+   "DisconnectBackup": 19,
+   "ExportData": 20
+  },
+  "GraphX.Controls.GraphDirection": {
+   "FromRight": 0,
+   "FromLeft": 1,
+   "FromTop": 2,
+   "FromBottom": 3
+  },
+  "GraphX.Controls.GridColumnHeaderHorizontalAlignment": {
+   "Left": 0,
+   "Center": 1,
+   "Right": 2,
+   "LikeBody": 3
+  },
+  "GraphX.Controls.GridHeaderStyle": {
+   "Flat": 0,
+   "Button": 1
+  },
+  "GraphX.Controls.GridSelectionBorder": {
+   "None": 0,
+   "Cell": 1,
+   "Row": 2
+  },
+  "GraphX.Controls.GridSelectionColoring": {
+   "None": 0,
+   "Cell": 1,
+   "Row": 2,
+   "CellAndRow": 3
+  },
+  "GraphX.Controls.GridSelectionType": {
+   "None": 0,
+   "Single": 1,
+   "Multi": 2
+  },
+  "GraphX.Controls.GridSortSequence": {
+   "Ascending_Descending_None": 0,
+   "Ascending_Descending": 1
+  },
+  "GraphX.Controls.GridSortTrigger": {
+   "None": 0,
+   "MouseClick": 1,
+   "MouseDoubleClick": 2
+  },
+  "GraphX.Controls.OnlineTableControlDefaultToolbarButtons": {
+   "None": 0,
+   "Help": 1,
+   "ConfigurationDialog": 2,
+   "FirstDataRecord": 3,
+   "PreviousDataRecord": 4,
+   "NextDataRecord": 5,
+   "LastDataRecord": 6,
+   "Edit": 7,
+   "CopyLines": 8,
+   "SelectDataConnection": 9,
+   "SelectColumns": 10,
+   "SelectTimeRange": 11,
+   "PreviousColumn": 12,
+   "NextColumn": 13,
+   "StartStop": 14,
+   "Print": 15,
+   "DefineStatisticsArea": 16,
+   "CalculateStatistics": 17,
+   "ConnectBackup": 18,
+   "DisconnectBackup": 19,
+   "ExportData": 20,
+   "CreateArchiveValue": 21
+  },
+  "GraphX.Controls.OnlineTrendControlDefaultToolbarButtons": {
+   "None": 0,
+   "Help": 1,
+   "ConfigurationDialog": 2,
+   "FirstDataRecord": 3,
+   "PreviousDataRecord": 4,
+   "NextDataRecord": 5,
+   "LastDataRecord": 6,
+   "Ruler": 7,
+   "ZoomArea": 8,
+   "ZoomPlusMinus": 9,
+   "ZoomTimeAxisPlusMinus": 10,
+   "ZoomValueAxisPlusMinus": 11,
+   "MoveTrendArea": 12,
+   "MoveAxesArea": 13,
+   "OriginalView": 14,
+   "SelectDataConnection": 15,
+   "SelectTrends": 16,
+   "SelectTimeRange": 17,
+   "PreviousTrend": 18,
+   "NextTrend": 19,
+   "StartStop": 20,
+   "Print": 21,
+   "DefineStatisticsArea": 22,
+   "CalculateStatistics": 23,
+   "ConnectBackup": 24,
+   "DisconnectBackup": 25,
+   "ExportData": 26,
+   "RelativeAxis": 27
+  },
+  "GraphX.Controls.PLCCodeViewerColumnIds": {
+   "Empty": 0,
+   "Symbolname": 1,
+   "Operand": 2,
+   "Comment": 3
+  },
+  "GraphX.Controls.PLCCodeViewerDefaultToolbarButtons": {
+   "None": 0,
+   "Symbols": 20,
+   "PreviousNetwork": 21,
+   "NextNetwork": 22,
+   "ZoomIn": 23,
+   "ZoomOut": 24,
+   "Details": 25,
+   "StepMode": 26,
+   "TransitionInterlock": 27,
+   "ActualOrTriggerValue": 28,
+   "SingleNetworkOrWholeFb": 29
+  },
+  "GraphX.Controls.RTPersistence": {
+   "Discard": 0,
+   "Retain": 1,
+   "Reset": 2
+  },
+  "GraphX.Controls.RTPersistenceType": {
+   "No": 0,
+   "Session": 1,
+   "Permanent": 2
+  },
+  "GraphX.Controls.RangeDefinitionType": {
+   "Auto": 0,
+   "Static": 1,
+   "Dynamic": 2
+  },
+  "GraphX.Controls.RecipeControlDataSourceType": {
+   "Unknown": 0,
+   "Recipe": 1,
+   "RecipeView": 2
+  },
+  "GraphX.Controls.RulerLayer": {
+   "Layer_0": 0,
+   "Layer_1": 1,
+   "Layer_2": 2
+  },
+  "GraphX.Controls.RulerStyle": {
+   "Simple": 0,
+   "Graphic": 1
+  },
+  "GraphX.Controls.ScrollbarVisibility": {
+   "No": 0,
+   "OnDemand": 1,
+   "Always": 2
+  },
+  "GraphX.Controls.SortMode": {
+   "None": 0,
+   "Ascending": 1,
+   "Descending": 2
+  },
+  "GraphX.Controls.StartModeSysDiag": {
+   "DiagnosticOverview": 0,
+   "DistributedOverview": 1
+  },
+  "GraphX.Controls.SystemDiagnosticColumnIds": {
+   "Empty": 0,
+   "State": 1,
+   "Name": 2,
+   "OperationState": 3,
+   "Rack": 4,
+   "Slot": 5,
+   "Type": 6,
+   "OrderID": 7,
+   "LADDR": 8,
+   "AKZ": 9,
+   "OKZ": 10,
+   "SubSystem": 11,
+   "Station": 12,
+   "SubSlot": 13,
+   "SubAddress": 14,
+   "SoftwareRevision": 15,
+   "InstallationDate": 16,
+   "Descriptor": 17,
+   "ErrorText": 18,
+   "EventState": 19,
+   "Number": 20,
+   "Date": 21,
+   "Time": 22,
+   "Event": 23,
+   "EventSeverity": 24,
+   "ManufacturerID": 25,
+   "HardwareRevision": 26,
+   "ProfileID": 27,
+   "SpecificProfileData": 28,
+   "IMDataVersion": 29,
+   "SerialNumber": 30,
+   "RevisionCounter": 31
+  },
+  "GraphX.Controls.SystemDiagnosticPreviewType": {
+   "UnitView": 0,
+   "BufferView": 1
+  },
+  "GraphX.Controls.SystemDiagnosticToolbarButtons": {
+   "Home": 1,
+   "Esc": 2,
+   "Enter": 4,
+   "SysDiagBuff": 8,
+   "Update": 16,
+   "Up": 32,
+   "Down": 64,
+   "PageUp": 128,
+   "PageDown": 256
+  },
+  "GraphX.Controls.SystemDiagnosticViewType": {
+   "Complex": 0,
+   "Simple": 1
+  },
+  "GraphX.Controls.TagLoggingTimeUnit": {
+   "None": 0,
+   "Millisecond": 1,
+   "HalfSecond": 500,
+   "Second": 1000,
+   "Minute": 60000,
+   "Hour": 3600000,
+   "Day": 86400000
+  },
+  "GraphX.Controls.TimeRangeMode": {
+   "TimeSpan": 0,
+   "EndTime": 1,
+   "MeasurePoints": 2
+  },
+  "GraphX.Controls.TimeStepBase": {
+   "Exact": 0,
+   "Base100ms": 100,
+   "Base250ms": 250,
+   "Base500ms": 500,
+   "Base1s": 1000
+  },
+  "GraphX.Controls.ToolbarPosition": {
+   "Top": 0,
+   "Bottom": 1,
+   "Left": 2,
+   "Right": 3
+  },
+  "GraphX.Controls.TrendLineType": {
+   "None": 0,
+   "Interpolated": 1,
+   "Bars": 2,
+   "Points": 3,
+   "Stepped": 4,
+   "TimeStamps": 5
+  },
+  "GraphX.Controls.TrendRulerControlBlockId": {
+   "Unknown": 0,
+   "Name": 1,
+   "Index": 2,
+   "Label": 3,
+   "Visible": 4,
+   "DataSourceY": 5,
+   "DataSourceX": 6,
+   "ValueY": 7,
+   "ValueX": 8,
+   "ValueYLL": 9,
+   "ValueXLL": 10,
+   "ValueYUL": 11,
+   "ValueXUL": 12,
+   "MinValue": 13,
+   "MinValueTime": 14,
+   "MaxValue": 15,
+   "MaxValueTime": 16,
+   "Average": 17,
+   "StandardDevation": 18,
+   "Integral": 19,
+   "WeightedAverage": 20,
+   "Duration": 21,
+   "Count": 22,
+   "AreaNameY": 23,
+   "AreaNameYLL": 24,
+   "AreaNameYUL": 25
+  },
+  "GraphX.Controls.TrendRulerControlDefaultToolbarButtons": {
+   "None": 0,
+   "Help": 1,
+   "ConfigurationDialog": 2,
+   "RulerWindow": 3,
+   "DefineStatisticsArea": 4,
+   "CalculateStatistics": 5,
+   "Print": 6,
+   "ExportData": 7
+  },
+  "GraphX.Controls.TrendRulerControlSourceControlType": {
+   "Unknown": 0,
+   "OnlineTrend": 1,
+   "OnlineTable": 2,
+   "FunctionTrend": 3
+  },
+  "GraphX.Controls.TrendRulerControlType": {
+   "Standard": 0,
+   "StatisticArea": 1,
+   "StatisticResult": 2
+  },
+  "GraphX.Controls.TrendValueAlignment": {
+   "Normal": 0,
+   "Center": 1,
+   "Opposite": 2
+  },
+  "GraphX.Controls.UserArchiveControlDefaultToolbarButtons": {
+   "None": 0,
+   "Help": 1,
+   "ConfigurationDialog": 2,
+   "SelectDataConnection": 3,
+   "FirstLine": 4,
+   "PreviousLine": 5,
+   "NextLine": 6,
+   "LastLine": 7,
+   "DeleteLines": 8,
+   "CutLines": 9,
+   "CopyLines": 10,
+   "InsertLines": 11,
+   "ReadTags": 12,
+   "WriteTags": 13,
+   "ImportArchive": 14,
+   "ExportArchive": 15,
+   "SortDialog": 16,
+   "SelectionDialog": 17,
+   "Print": 18,
+   "TimeBaseDialog": 19,
+   "ExportData": 20
+  },
+  "GraphX.Controls.WindowHeaderStyle": {
+   "None": 0,
+   "Standard": 1,
+   "Narrow": 2
+  },
+  "GraphX.ControlsBackStyle": {
+   "Solid": 0,
+   "FrameTransparent": 1,
+   "Transparent": 2
+  },
+  "GraphX.CoreBrowserTypeUsedTypes": {
+   "Explorer": 0,
+   "Webkit": 1,
+   "IEFrame": 2,
+   "CEFFrame": 3
+  },
+  "GraphX.CoreColorDepthTypes": {
+   "ColorDepth16bit": 0,
+   "ColorDepth32bit": 1
+  },
+  "GraphX.CoreCursorBehaviourInTablesTypes": {
+   "Normal": 0,
+   "NormalWithoutRollback": 1,
+   "Extended": 2
+  },
+  "GraphX.CornerStyle": {
+   "Round": 0,
+   "Flat": 4096,
+   "Pointed": 8192
+  },
+  "GraphX.CurveWriterOrientation": {
+   "Right": 0,
+   "Left": 1,
+   "Top": 2,
+   "Bottom": 3
+  },
+  "GraphX.DateTimeBorderStyle": {
+   "None": 0,
+   "FixedSingle": 1
+  },
+  "GraphX.DateTimeDataSources": {
+   "SystemTime": 0,
+   "Tag": 1,
+   "PrintStart": 2
+  },
+  "GraphX.DateTimeType": {
+   "Output": 0,
+   "InOutput": 1
+  },
+  "GraphX.DrawingContextType": {
+   "ComplexDrawingRenderer": 0,
+   "ExtendedDrawingRenderer": 1,
+   "ThemingDrawingRenderer": 2,
+   "SimpleGdiDrawingRenderer": 3
+  },
+  "GraphX.FanucResolutionsType": {
+   "Resolution640x480": 0,
+   "Resolution800x600": 1,
+   "Resolution1024x768": 2,
+   "Resolution1280x768": 3,
+   "Resolution1280x960": 4
+  },
+  "GraphX.FillDirection": {
+   "BottomToTop": 0,
+   "TopToBottom": 1,
+   "LeftToRight": 2,
+   "RightToLeft": 3
+  },
+  "GraphX.FillStyle": {
+   "Solid": 0,
+   "Transparent": 65536,
+   "Horizontal": 131072,
+   "Vertical": 131073,
+   "ForwardDiagonal": 131074,
+   "BackwardDiagonal": 131075,
+   "Cross": 131076,
+   "DiagonalCross": 131077,
+   "Pattern1": 196608,
+   "Pattern2": 196609,
+   "Pattern3": 196610,
+   "Pattern4": 196611,
+   "Pattern5": 196612,
+   "Pattern6": 196613,
+   "Pattern7": 196614,
+   "Pattern8": 196615,
+   "Pattern9": 196616,
+   "Pattern10": 196617,
+   "Pattern11": 196618,
+   "Pattern12": 196619,
+   "Pattern13": 196620,
+   "Pattern14": 196621,
+   "Pattern15": 196622,
+   "Pattern16": 196623,
+   "Pattern17": 196624,
+   "Pattern18": 196625,
+   "Pattern19": 196626,
+   "Pattern20": 196627,
+   "Pattern21": 196628,
+   "Pattern22": 196629,
+   "Pattern23": 196630,
+   "Pattern24": 196631,
+   "Pattern25": 196632,
+   "Pattern26": 196633,
+   "Pattern27": 196634,
+   "Pattern28": 196635,
+   "Pattern29": 196636,
+   "Pattern30": 196637,
+   "Pattern31": 196638,
+   "Pattern32": 196639,
+   "Pattern33": 196640,
+   "Pattern34": 196641,
+   "Pattern35": 196642,
+   "Pattern36": 196643,
+   "Pattern37": 196644,
+   "GradientHorizontal": 1048576,
+   "GradientVertical": 1048577,
+   "GradientForwardDiagonal": 1048578,
+   "GradientBackwardDiagonal": 1048579,
+   "GradientHorizontalTriColor": 1048832,
+   "GradientVerticalTriColor": 1048833,
+   "GradientForwardDiagonalTriColor": 1048834,
+   "GradientBackwardDiagonalTriColor": 1048835
+  },
+  "GraphX.FillStyleAlignment": {
+   "Normal": 0,
+   "Stretched": 1
+  },
+  "GraphX.FlashingRate": {
+   "Slow": 0,
+   "Medium": 1,
+   "Fast": 2
+  },
+  "GraphX.FlashingType": {
+   "None": 0,
+   "Standard": 1,
+   "Advanced": 2
+  },
+  "GraphX.GaugeBorder3DStyle": {
+   "None": 0,
+   "Recessed": 1,
+   "Raised": 2,
+   "Gray": 3,
+   "Colored": 4
+  },
+  "GraphX.GaugeFillStyle": {
+   "Solid": 0,
+   "FrameTransparent": 1,
+   "Transparent": 2
+  },
+  "GraphX.GraphicIOFieldType": {
+   "Output": 0,
+   "Input": 1,
+   "InOutput": 2,
+   "TwoState": 3
+  },
+  "GraphX.GridlinesStyles": {
+   "Lines": 0,
+   "FilledArea": 1,
+   "LinesAndFilledArea": 2
+  },
+  "GraphX.HorizontalAlignment": {
+   "Left": 0,
+   "Center": 1,
+   "Right": 2
+  },
+  "GraphX.IOFieldDataFormat": {
+   "Binary": 0,
+   "Decimal": 1,
+   "String": 2,
+   "Hexadecimal": 3,
+   "Date": 4,
+   "Time": 5,
+   "DateTime": 6,
+   "IPAddress": 7,
+   "MACAddress": 8,
+   "DateTimeMilliseconds": 9,
+   "TimeMilliseconds": 10,
+   "TimeSpanMilliseconds": 11
+  },
+  "GraphX.IOFieldType": {
+   "Output": 0,
+   "Input": 1,
+   "InOutput": 2
+  },
+  "GraphX.KeyboardStyle": {
+   "StyleFlat": 0,
+   "Style3D": 1
+  },
+  "GraphX.KeyboardType": {
+   "Qwerty": 0,
+   "Abc": 1,
+   "Numeric": 2
+  },
+  "GraphX.LineEndShapeStyle": {
+   "Round": 0,
+   "Square": 256,
+   "InnerSquare": 512,
+   "InnerRound": 4096
+  },
+  "GraphX.LineEndStyle": {
+   "NoEnd": 0,
+   "Arrow": 1,
+   "FilledArrow": 2,
+   "FilledArrowReversed": 3,
+   "Line": 4,
+   "Circle": 5,
+   "FilledCircle": 6
+  },
+  "GraphX.LineFillStyle": {
+   "Transparent": 0,
+   "Solid": 1
+  },
+  "GraphX.LineJoinStyle": {
+   "Round": 0,
+   "Pointed": 1
+  },
+  "GraphX.LineStyle": {
+   "None": -1,
+   "Solid": 0,
+   "Dash": 1,
+   "Dot": 2,
+   "DashDot": 3,
+   "DashDotDot": 4,
+   "AreaFilled": 5,
+   "Double": 6,
+   "Style3D": 7
+  },
+  "GraphX.NCPartProgramViewAppearance": {
+   "AppearanceFlat": 0,
+   "Appearance3D": 1
+  },
+  "GraphX.NeedleFillStyle": {
+   "Solid": 0,
+   "Transparent": 1
+  },
+  "GraphX.OperateResolutionsType": {
+   "Resolution640x480": 0,
+   "Resolution800x480": 1,
+   "Resolution800x600": 2,
+   "Resolution1024x768": 3,
+   "Resolution1080x810": 4,
+   "Resolution1280x768": 5,
+   "Resolution1280x800": 6,
+   "Resolution1280x1024": 7,
+   "Resolution1366x768": 8,
+   "Resolution1440x1080": 9,
+   "Resolution1920x1080": 10
+  },
+  "GraphX.PasswordViewType": {
+   "fwViewTypeComplex": 0,
+   "fwViewTypeSimple": 16
+  },
+  "GraphX.PictureAlignment": {
+   "Centered": 0,
+   "Left": 1,
+   "Right": 2,
+   "Stretched": 3,
+   "Top": 4,
+   "Bottom": 5
+  },
+  "GraphX.PictureSizeMode": {
+   "FitContentToSize": 0,
+   "FitSizeToContent": 1
+  },
+  "GraphX.PointStyle": {
+   "None": 0,
+   "Point": 1,
+   "Rectangle": 2,
+   "Circle": 3
+  },
+  "GraphX.PositionMode": {
+   "AsConfigured": 0,
+   "Centered": 1,
+   "Maximized": 2
+  },
+  "GraphX.RecipeBackStyle": {
+   "Transparent": 0,
+   "Solid": 1
+  },
+  "GraphX.RecipeBorderStyle": {
+   "None": 0,
+   "Solid": 1
+  },
+  "GraphX.RecipeColumns": {
+   "RecipeNumber": 1,
+   "RecipeName": 2,
+   "RecordNumber": 3,
+   "RecordName": 4,
+   "VariableName": 5,
+   "VariableType": 6,
+   "EntryName": 7
+  },
+  "GraphX.RecipeDrawMode": {
+   "Line": 0,
+   "Column": 1
+  },
+  "GraphX.RecipeSelection": {
+   "ByName": 0,
+   "ByNumber": 1,
+   "All": 2
+  },
+  "GraphX.RecipeViewBasicEntryValuePos": {
+   "Top": 0,
+   "Bottom": 16
+  },
+  "GraphX.RecipeViewBasicViewType": {
+   "AdvancedView": 0,
+   "SimpleView": 16
+  },
+  "GraphX.RecordSelection": {
+   "ByName": 0,
+   "ByNumber": 1,
+   "All": 2
+  },
+  "GraphX.ScalePosition": {
+   "LeftUp": 0,
+   "RightDown": 1
+  },
+  "GraphX.ScreenControlViewTextContent": {
+   "WindowHeader": 0,
+   "ObjectName": 1,
+   "ScreenName": 2
+  },
+  "GraphX.ScreenControlViewType": {
+   "Ruler": 0,
+   "OtherControl": 1
+  },
+  "GraphX.ScreenScaleModeType": {
+   "Uniform": 0,
+   "UniformToFill": 1
+  },
+  "GraphX.ScrollBarOrientation": {
+   "Horizontal": 0,
+   "Vertical": 1
+  },
+  "GraphX.ScrollBarType": {
+   "NoScrollBar": 0,
+   "Permanent": 1,
+   "VisibleAfterClicking": 2
+  },
+  "GraphX.ScrollbarMode": {
+   "Scrollbar": 0,
+   "ScrollIndicator": 1
+  },
+  "GraphX.SlideinType": {
+   "Top": 0,
+   "Left": 1,
+   "Bottom": 2,
+   "Right": 3
+  },
+  "GraphX.SliderBorder3DStyle": {
+   "None": 0,
+   "Recessed": 1,
+   "Raised": 2,
+   "Colored": 3
+  },
+  "GraphX.SliderFillStyle": {
+   "Solid": 0,
+   "Transparent": 1
+  },
+  "GraphX.SliderTickStyle": {
+   "None": 0,
+   "Effect1": 1,
+   "Effect2": 2,
+   "Normal": 3
+  },
+  "GraphX.SnapModes": {
+   "None": 0,
+   "SnapToLine": 1,
+   "SnapToGrid": 2
+  },
+  "GraphX.StateButtonType": {
+   "Switch": 0,
+   "TextSwitchButton": 1,
+   "GraphicSwitchButton": 2
+  },
+  "GraphX.StatusForceAppearance": {
+   "AppearanceFlat": 0,
+   "Appearance3D": 1
+  },
+  "GraphX.StatusForceType": {
+   "S7_300": 0,
+   "S5_AS511": 1,
+   "S7_WinLC": 2,
+   "S5_DP": 3
+  },
+  "GraphX.SwitchDirection": {
+   "LeftToRight": 0,
+   "RightToLeft": 1,
+   "TopToBottom": 2,
+   "BottomToTop": 3
+  },
+  "GraphX.SwitchType": {
+   "Switch": 0,
+   "TextSwitchButton": 1,
+   "GraphicSwitchButton": 2
+  },
+  "GraphX.SymbolLibraryBlinkMode": {
+   "NoFlashing": 0,
+   "Invisible": 1,
+   "Shaded": 2,
+   "Solid": 3
+  },
+  "GraphX.SymbolLibraryColorMode": {
+   "Original": 0,
+   "Shaded": 1,
+   "Solid": 2,
+   "Hollow": 3
+  },
+  "GraphX.SymbolLibraryFillStyle": {
+   "Transparent": 0,
+   "Solid": 1
+  },
+  "GraphX.SymbolLibraryFlip": {
+   "None": 0,
+   "Horizontal": 1,
+   "Vertical": 2,
+   "Both": 3
+  },
+  "GraphX.SymbolLibraryRotation": {
+   "Angle0": 0,
+   "Angle90": 90,
+   "Angle180": 180,
+   "Angle270": 270
+  },
+  "GraphX.SymbolicIOFieldType": {
+   "Output": 0,
+   "Input": 1,
+   "InOutput": 2,
+   "TwoState": 3
+  },
+  "GraphX.TabObjectType": {
+   "None": 0,
+   "MouseAction": 1,
+   "KeyboardAction": 2,
+   "MouseAndKeyboard": 3,
+   "OtherAction": 4,
+   "OtherAndMouse": 5,
+   "OtherAndKeyboard": 6,
+   "OtherAndMouseAndKeyboard": 7,
+   "AllObjects": 8
+  },
+  "GraphX.TabSequence": {
+   "TabOrder": 0,
+   "AlphaCursor": 1
+  },
+  "GraphX.TemplateType": {
+   "GSCDiagnostics": 0,
+   "GSCRunTime": 1,
+   "AllJobs": 2,
+   "AllJobsContextMenu": 3,
+   "JobDetailView": 4,
+   "SelectedJobsContextMe": 5
+  },
+  "GraphX.TextOrientation": {
+   "Rotated270Degree": -1,
+   "Horizontal": 0,
+   "Rotated90Degree": 1
+  },
+  "GraphX.TimeBase": {
+   "LocalTime": 0,
+   "ServerTime": 1,
+   "UTC": 2,
+   "DeviceSetting": 3
+  },
+  "GraphX.TrendViewButtonBarStyle": {
+   "None": 0,
+   "Button": 16,
+   "Toolbar": 32
+  },
+  "GraphX.TrendViewTimeAxisMode": {
+   "Time": 1,
+   "Samples": 2,
+   "Tags": 3,
+   "Const": 4
+  },
+  "GraphX.TrendViewToolbarButtonType": {
+   "Separator": -1,
+   "None": 0,
+   "StartStop": 1,
+   "GoToStart": 2,
+   "GoBackward": 3,
+   "GoForward": 4,
+   "ZoomIn": 5,
+   "ZoomOut": 6,
+   "RulerOnOff": 7,
+   "RulerBackward": 8,
+   "RulerForward": 9
+  },
+  "GraphX.UserViewAppearance": {
+   "AppearanceFlat": 0,
+   "Appearance3D": 1
+  },
+  "GraphX.VNCConnectionType": {
+   "Default": 1,
+   "Lan": 2,
+   "Medium": 3,
+   "Modem": 4,
+   "Slow": 5
+  },
+  "GraphX.VerticalAlignment": {
+   "Top": 0,
+   "Middle": 1,
+   "Bottom": 2
+  },
+  "GraphX.ViewTypeEs": {
+   "UnknownView": 0,
+   "AdvancedView": 1,
+   "SimpleView": 2
+  },
+  "GraphX.VisibilityModes": {
+   "FadeOut": 0,
+   "ShowAlways": 1,
+   "ShowNever": 2
+  },
+  "GraphX.WinCCStyle": {
+   "UserDefined": 0,
+   "GlobalDesign": 1,
+   "WindowsStyle": 2
+  },
+  "GraphX.WindowContent": {
+   "GlobalScript": 0,
+   "PrintJobs": 1
+  },
+  "Modules.ScreenModules.CorePropertyDirection": {
+   "Locked": 0,
+   "In": 1,
+   "Out": 2,
+   "InOut": 4
+  },
+  "Modules.ScreenModules.ResizeRules": {
+   "None": 0,
+   "KeepRatio": 1,
+   "FixedSize": 2,
+   "FixedMembers": 3,
+   "Proportional": 4
+  }
+ }
+}

@@ -1,0 +1,66 @@
+/* The property panel (props.js), in the look of TIA's Properties window: a title bar "name [type]", the
+   tabs Properties / Animations / Events / Texts, a table view with grey group rows. */
+.tia-props { font: 12px "Segoe UI", Arial, sans-serif; color: #000; }
+.tia-props .ptitle { padding: 4px 8px; background: #c8c8c8; border-bottom: 1px solid #a0a0a0; font-size: 12.5px;
+  overflow-wrap: anywhere; }
+.tia-props .ptype { color: #333; }
+.tia-props .muted, .tia-props .none { color: #707070; }
+.tia-props .phead { width: 100%; border-collapse: collapse; margin: 2px 0; }
+.tia-props .phead td { padding: 1px 8px; vertical-align: top; overflow-wrap: anywhere; }
+.tia-props .phead td:first-child { width: 96px; color: #606060; white-space: nowrap; }
+.tia-props h3 { font-size: 12px; margin: 6px 8px 2px; font-weight: 600; }
+.tia-props ul { margin: 2px 0 6px; padding-left: 22px; padding-right: 8px; }
+.tia-props li { margin: 1px 0; overflow-wrap: anywhere; }
+
+.tia-props .tabs { display: flex; gap: 2px; padding: 6px 6px 0; background: #e6e6e6; border-top: 1px solid #c8c8c8;
+  border-bottom: 1px solid #a0a0a0; }
+.tia-props .tab { font: 12.5px "Segoe UI", Arial, sans-serif; padding: 3px 12px; border: 1px solid #a0a0a0;
+  border-bottom: 0; background: #d4d4d4; color: #333; cursor: pointer; margin-bottom: -1px; }
+.tia-props .tab.on { background: #fff; color: #000; font-weight: 600; border-bottom: 1px solid #fff; }
+.tia-props .pane { padding: 0 0 8px; }
+
+/* table view */
+.tia-props table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.tia-props table.grid th, .tia-props table.grid td { padding: 1px 6px; height: 19px; border-bottom: 1px solid #e4e4e4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-weight: normal; }
+.tia-props table.grid tr.colhead th { background: #f0f0f0; border-bottom: 1px solid #c8c8c8; color: #333; }
+.tia-props tr.grp th { background: #dcdcdc; font-weight: normal; cursor: pointer; user-select: none; }
+.tia-props tr.grp th::before { content: ''; display: inline-block; margin: 0 6px 1px 0; border: 4px solid transparent;
+  border-top: 5px solid #333; border-bottom: 0; vertical-align: middle; }
+.tia-props tr.grp.shut th::before { border: 4px solid transparent; border-left: 5px solid #333; border-right: 0; }
+.tia-props tr.row td.n { padding-left: 22px; }
+.tia-props td.n.export { font-style: italic; }
+.tia-props tr.row:hover { background: #e5f1fb; }
+.tia-props tr.grey td.v { color: #a0a0a0; }
+.tia-props tr.grey .sw { opacity: .45; }
+.tia-props td.v.unset::after { content: 'not set'; color: #a0a0a0; font-style: italic; }
+.tia-props .sw { display: inline-block; width: 16px; height: 12px; margin: 0 5px -2px 0; border: 1px solid #707070; }
+.tia-props .cb { display: inline-block; width: 12px; height: 12px; margin: 0 0 -2px; border: 1px solid #707070;
+  background: #fff; }
+.tia-props .cb.on { background: #3d8ee0; border-color: #1f5f9e; box-shadow: inset 0 0 0 2px #fff; }
+.tia-props .cbt { position: absolute; left: -9999px; }
+.tia-props td.v.state-planned { color: var(--planned, #6a3fb5); }
+.tia-props td.v.state-unknown { color: var(--error, #b00020); }
+
+/* Animations, Events, Texts */
+.tia-props .anim, .tia-props .ev { border-bottom: 1px solid #e4e4e4; }
+.tia-props .anim h4, .tia-props .ev h4 { margin: 0; padding: 2px 8px; background: #dcdcdc; font-size: 12px;
+  font-weight: normal; }
+.tia-props .anim.off h4, .tia-props .ev.off h4 { color: #707070; }
+.tia-props .anim p, .tia-props .ev p { margin: 3px 8px 3px 22px; }
+.tia-props table.small td.n { padding-left: 22px; }
+.tia-props table.ranges, .tia-props table.texts { table-layout: auto; }
+.tia-props table.ranges th, .tia-props table.ranges td { white-space: nowrap; }
+.tia-props ol.fns { margin: 3px 0 6px; padding-left: 30px; }
+.tia-props li.fn .fname { font-weight: 600; }
+.tia-props table.texts td { white-space: normal; overflow-wrap: anywhere; }
+
+/* the search over the names in every tab (the maintainer, 2026-11-05), the matched letters as the project tree marks
+   them, each tab's hits beside its name */
+.tia-props .psearchbar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; background: #fff; border-bottom: 1px solid #e4e4e4; }
+.tia-props .psearch { flex: 1; min-width: 0; font: 12px "Segoe UI", Arial, sans-serif; padding: 2px 6px;
+  border: 1px solid #adadad; }
+.tia-props .pcount { color: #707070; white-space: nowrap; }
+.tia-props mark { background: none; color: #0a4f9e; font-weight: 700; padding: 0; }
+.tia-props .tcount:not(:empty) { margin-left: 5px; color: #0a4f9e; font-weight: 600; }

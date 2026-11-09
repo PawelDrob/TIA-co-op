@@ -1,0 +1,1 @@
+{"export": "v2", "fsystem": ["F_Main_Safety_FOB"], "protected": ["SiloSecret"], "uncompiled": ["F_SiloGuard"], "safety": "safe-1", "prompts": [{"phase": "open", "text": "Project update: Do you want to update the project now?", "answer": "No"}]}

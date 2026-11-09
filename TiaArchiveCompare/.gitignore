@@ -1,0 +1,4 @@
+# Caches, and a Python placed beside the window (window\README.md)
+__pycache__/
+*.pyc
+window/python/

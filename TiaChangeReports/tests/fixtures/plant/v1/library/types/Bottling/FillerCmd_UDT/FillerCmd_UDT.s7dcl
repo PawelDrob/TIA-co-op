@@ -1,0 +1,7 @@
+TYPE
+    FillerCmd_UDT : STRUCT
+        Start : Bool;
+        Abort : Bool;
+        PumpState : Int;
+    END_STRUCT;
+END_TYPE

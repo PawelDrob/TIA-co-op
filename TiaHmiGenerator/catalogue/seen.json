@@ -1,0 +1,1705 @@
+{
+ "about": "Element types, attribute kinds, enum spellings, links, compositions, events and animations seen in full exports of project repos (names and spellings only).",
+ "documents": 465,
+ "elements": {
+  "Hmi.Dynamic.Range": {
+   "attributes": {
+    "BackColor": "colour",
+    "FlashingType": "enum",
+    "ForeColor": "colour",
+    "LowerLimit": "number",
+    "UpperLimit": "number"
+   },
+   "values": {
+    "FlashingType": [
+     "Medium",
+     "No"
+    ]
+   },
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Dynamic.RangeAppearanceAnimation": {
+   "attributes": {
+    "Name": "text"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "RangeTag Hmi.Dynamic.TagElementTrigger",
+    "RangeValues Hmi.Dynamic.Range"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Dynamic.SingleBitVisibilityAnimation": {
+   "attributes": {
+    "BitPosition": "number",
+    "Name": "text",
+    "Visible": "bool"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "VisibilityTag Hmi.Dynamic.TagElementTrigger"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Dynamic.TagConnectionDynamic": {
+   "attributes": {
+    "Indirect": "bool"
+   },
+   "values": {},
+   "links": [
+    "Tag"
+   ],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Dynamic.VisibilityAnimation": {
+   "attributes": {
+    "Name": "text",
+    "RangeEnd": "number",
+    "RangeStart": "number",
+    "Visible": "bool"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "VisibilityTag Hmi.Dynamic.TagElementTrigger"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Event.Event": {
+   "attributes": {
+    "Name": "text"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "EventHandler Hmi.Event.FunctionListEventHandler"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Event.FunctionListEntry": {
+   "attributes": {
+    "Name": "text",
+    "Type": "enum"
+   },
+   "values": {
+    "Type": [
+     "SystemFunction"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Parameters Hmi.Event.FunctionListEntryParameter"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Event.FunctionListEntryParameter": {
+   "attributes": {
+    "Name": "text",
+    "Value": "text"
+   },
+   "values": {},
+   "links": [
+    "Value"
+   ],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Globalization.FontItem": {
+   "attributes": {
+    "Culture": "text",
+    "FontFamily": "text",
+    "FontSize": "number",
+    "FontStyle": "text"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Bar": {
+   "attributes": {
+    "BackColor": "colour",
+    "BarBackColor": "colour",
+    "BarEdgeStyle": "enum",
+    "BarOrientation": "enum",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "CompatibilityMode": "bool",
+    "CornerRadius": "number",
+    "CountSubDivisions": "number",
+    "EdgeStyle": "enum",
+    "Flashing": "enum",
+    "FlashingOnLimitViolation": "bool",
+    "ForeColor": "colour",
+    "Height": "number",
+    "IntegerDigits": "number",
+    "LargeTickLabelingStep": "number",
+    "Left": "number",
+    "MaximumValue": "number",
+    "MinimumValue": "number",
+    "ObjectName": "text",
+    "Precision": "number",
+    "RangeLower1Color": "colour",
+    "RangeLower1Enabled": "bool",
+    "RangeLower2Color": "colour",
+    "RangeLower2Enabled": "bool",
+    "RangeNormalColor": "colour",
+    "RangeNormalEnabled": "bool",
+    "RangeUpper1Color": "colour",
+    "RangeUpper1Enabled": "bool",
+    "RangeUpper2Color": "colour",
+    "RangeUpper2Enabled": "bool",
+    "ScaleColor": "colour",
+    "ScaleGradation": "number",
+    "ScaleLabelingDoubleLined": "bool",
+    "ScalePosition": "enum",
+    "SegmentColoring": "enum",
+    "ShowLimitLines": "bool",
+    "ShowLimitMarkers": "bool",
+    "ShowLimitRanges": "bool",
+    "ShowProcessValue": "bool",
+    "ShowScale": "bool",
+    "ShowTickLabels": "bool",
+    "TabIndex": "number",
+    "Top": "number",
+    "Unit": "text",
+    "UseAutoScaling": "bool",
+    "UseDesignColorSchema": "bool",
+    "UseExponentialFormat": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "BarEdgeStyle": [
+     "Solid"
+    ],
+    "BarOrientation": [
+     "Right",
+     "Up"
+    ],
+    "EdgeStyle": [
+     "Double"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "ScalePosition": [
+     "LeftUp"
+    ],
+    "SegmentColoring": [
+     "Entire"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Font Hmi.Globalization.MultiLingualFont",
+    "Properties Hmi.Screen.Property"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Button": {
+   "attributes": {
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BitNumber": "number",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "CornerRadius": "number",
+    "CornerStyle": "enum",
+    "EdgeStyle": "enum",
+    "Enabled": "bool",
+    "FirstGradientColor": "colour",
+    "FirstGradientOffset": "number",
+    "FitToLargest": "bool",
+    "Flashing": "enum",
+    "FocusColor": "colour",
+    "FocusWidth": "number",
+    "ForeColor": "colour",
+    "Height": "number",
+    "HorizontalAlignment": "enum",
+    "HorizontalPictureAlignment": "enum",
+    "HotKey": "number",
+    "Left": "number",
+    "MiddleGradientColor": "colour",
+    "Mode": "enum",
+    "ObjectName": "text",
+    "PictureAreaBottomMargin": "number",
+    "PictureAreaLeftMargin": "number",
+    "PictureAreaRightMargin": "number",
+    "PictureAreaTopMargin": "number",
+    "PictureAutoSizing": "enum",
+    "SecondGradientColor": "colour",
+    "SecondGradientOffset": "number",
+    "TabIndex": "number",
+    "TextAreaBottomMargin": "number",
+    "TextAreaLeftMargin": "number",
+    "TextAreaRightMargin": "number",
+    "TextAreaTopMargin": "number",
+    "TextOrientation": "enum",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "UseFirstGradient": "bool",
+    "UseSecondGradient": "bool",
+    "UseTwoHandOperation": "bool",
+    "VerticalAlignment": "enum",
+    "VerticalPictureAlignment": "enum",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "GradientVertical",
+     "Solid",
+     "Transparent"
+    ],
+    "CornerStyle": [
+     "Pointed",
+     "Round"
+    ],
+    "EdgeStyle": [
+     "Double",
+     "Solid",
+     "Style3D"
+    ],
+    "Flashing": [
+     "None",
+     "Standard"
+    ],
+    "HorizontalAlignment": [
+     "Center",
+     "Left"
+    ],
+    "HorizontalPictureAlignment": [
+     "Center"
+    ],
+    "Mode": [
+     "Graphic",
+     "Invisible",
+     "Text"
+    ],
+    "PictureAutoSizing": [
+     "StretchPicture"
+    ],
+    "TextOrientation": [
+     "Horizontal"
+    ],
+    "VerticalAlignment": [
+     "Middle",
+     "Top"
+    ],
+    "VerticalPictureAlignment": [
+     "Middle"
+    ]
+   },
+   "links": [
+    "Authorization",
+    "PictureOff",
+    "StyleItem"
+   ],
+   "compositions": [
+    "Animations Hmi.Dynamic.RangeAppearanceAnimation",
+    "Animations Hmi.Dynamic.VisibilityAnimation",
+    "Events Hmi.Event.Event",
+    "Font Hmi.Globalization.MultiLingualFont",
+    "HelpText MultilingualText",
+    "TextOff MultilingualText",
+    "TextOn MultilingualText"
+   ],
+   "events": [
+    "Click",
+    "Press",
+    "Release"
+   ],
+   "animations": [
+    "Hmi.Dynamic.RangeAppearanceAnimation",
+    "Hmi.Dynamic.VisibilityAnimation"
+   ]
+  },
+  "Hmi.Screen.Circle": {
+   "attributes": {
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "EdgeStyle": "enum",
+    "Flashing": "enum",
+    "Height": "number",
+    "Left": "number",
+    "ObjectName": "text",
+    "Radius": "number",
+    "TabIndex": "number",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid"
+    ],
+    "EdgeStyle": [
+     "Solid"
+    ],
+    "Flashing": [
+     "None",
+     "Standard"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Animations Hmi.Dynamic.RangeAppearanceAnimation",
+    "Animations Hmi.Dynamic.VisibilityAnimation"
+   ],
+   "events": [],
+   "animations": [
+    "Hmi.Dynamic.RangeAppearanceAnimation",
+    "Hmi.Dynamic.VisibilityAnimation"
+   ]
+  },
+  "Hmi.Screen.Clock": {
+   "attributes": {
+    "Analog": "bool",
+    "BackFillStyle": "enum",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "CornerRadius": "number",
+    "DialColor": "colour",
+    "EdgeStyle": "enum",
+    "Flashing": "enum",
+    "Height": "number",
+    "HourNeedleHeight": "number",
+    "HourNeedleWidth": "number",
+    "Left": "number",
+    "LockSquaredExtent": "bool",
+    "MinuteNeedleHeight": "number",
+    "MinuteNeedleWidth": "number",
+    "NeedleBorderColor": "colour",
+    "NeedleColor": "colour",
+    "NeedleFillStyle": "enum",
+    "NumberStyle": "enum",
+    "ObjectName": "text",
+    "SecondNeedleHeight": "number",
+    "SecondNeedleWidth": "number",
+    "ShowTicks": "bool",
+    "TabIndex": "number",
+    "TickDistance": "number",
+    "TickStyle": "enum",
+    "TicksColor": "colour",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "FrameTransparent",
+     "Solid"
+    ],
+    "EdgeStyle": [
+     "Double"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "NeedleFillStyle": [
+     "Solid"
+    ],
+    "NumberStyle": [
+     "Arabic"
+    ],
+    "TickStyle": [
+     "Line"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Font Hmi.Globalization.MultiLingualFont"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.DateTimeField": {
+   "attributes": {
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "BottomMargin": "number",
+    "CornerRadius": "number",
+    "DisplaySystemTime": "bool",
+    "EdgeStyle": "enum",
+    "Enabled": "bool",
+    "FitToLargest": "bool",
+    "Flashing": "enum",
+    "ForeColor": "colour",
+    "Height": "number",
+    "HorizontalAlignment": "enum",
+    "Left": "number",
+    "LeftMargin": "number",
+    "LongDateTimeFormat": "bool",
+    "Mode": "enum",
+    "ObjectName": "text",
+    "RightMargin": "number",
+    "ShowDate": "bool",
+    "ShowTime": "bool",
+    "TabIndex": "number",
+    "TextOrientation": "enum",
+    "Top": "number",
+    "TopMargin": "number",
+    "UseDesignColorSchema": "bool",
+    "UseTwoHandOperation": "bool",
+    "VerticalAlignment": "enum",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid"
+    ],
+    "EdgeStyle": [
+     "Double",
+     "Solid"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "HorizontalAlignment": [
+     "Left"
+    ],
+    "Mode": [
+     "Output"
+    ],
+    "TextOrientation": [
+     "Horizontal"
+    ],
+    "VerticalAlignment": [
+     "Middle"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Font Hmi.Globalization.MultiLingualFont",
+    "HelpText MultilingualText"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Ellipse": {
+   "attributes": {
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "EdgeStyle": "enum",
+    "Flashing": "enum",
+    "Height": "number",
+    "Left": "number",
+    "ObjectName": "text",
+    "RadiusHeight": "number",
+    "RadiusWidth": "number",
+    "TabIndex": "number",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid"
+    ],
+    "EdgeStyle": [
+     "Solid"
+    ],
+    "Flashing": [
+     "None"
+    ]
+   },
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.FaceplateInstance": {
+   "attributes": {
+    "FaceplateTypeName": "text",
+    "Height": "number",
+    "Left": "number",
+    "ObjectName": "text",
+    "Resizing": "enum",
+    "TabIndex": "number",
+    "Top": "number",
+    "Width": "number"
+   },
+   "values": {
+    "Resizing": [
+     "KeepRatio",
+     "None"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Events Hmi.Event.Event",
+    "Interface Hmi.Screen.InterfacePropertySimple"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Gauge": {
+   "attributes": {
+    "AngleMax": "number",
+    "AngleMin": "number",
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "CaptionColor": "colour",
+    "CaptionTop": "number",
+    "CenterColor": "colour",
+    "CenterSize": "number",
+    "CompatibilityMode": "bool",
+    "CornerRadius": "number",
+    "DialColor": "colour",
+    "DialFillStyle": "enum",
+    "DialSize": "number",
+    "EdgeStyle": "enum",
+    "Gradation": "number",
+    "Height": "number",
+    "InnerDialColor": "colour",
+    "InnerDialInnerDistance": "number",
+    "InnerDialOuterDistance": "number",
+    "Left": "number",
+    "LockSquaredExtent": "bool",
+    "MaximumValue": "number",
+    "MinimumValue": "number",
+    "NeedleHeight": "number",
+    "ObjectName": "text",
+    "PointerColor": "colour",
+    "RangeLower1Color": "colour",
+    "RangeLower1Enabled": "bool",
+    "RangeLower2Color": "colour",
+    "RangeLower2Enabled": "bool",
+    "RangeNormalColor": "colour",
+    "RangeNormalEnabled": "bool",
+    "RangeUpper1Color": "colour",
+    "RangeUpper1Enabled": "bool",
+    "RangeUpper1Start": "number",
+    "RangeUpper2Color": "colour",
+    "RangeUpper2Enabled": "bool",
+    "RangeUpper2Start": "number",
+    "ScaleLabelColor": "colour",
+    "ScaleTickColor": "colour",
+    "ScaleTickLabelPosition": "number",
+    "ScaleTickLength": "number",
+    "ScaleTickPosition": "number",
+    "ShowDecimalPoint": "bool",
+    "ShowInnerDial": "bool",
+    "ShowLimitRanges": "bool",
+    "ShowPeakValuePointer": "bool",
+    "TabIndex": "number",
+    "Top": "number",
+    "UnitColor": "colour",
+    "UnitTop": "number",
+    "UseDesignColorSchema": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "FrameTransparent"
+    ],
+    "DialFillStyle": [
+     "Solid"
+    ],
+    "EdgeStyle": [
+     "Solid"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "CaptionFont Hmi.Globalization.MultiLingualFont",
+    "CaptionText MultilingualText",
+    "ScaleLabelFont Hmi.Globalization.MultiLingualFont",
+    "UnitFont Hmi.Globalization.MultiLingualFont",
+    "UnitText MultilingualText"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.GraphicIOField": {
+   "attributes": {
+    "AboveUpperLimitColor": "colour",
+    "AutoSizing": "enum",
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BelowLowerLimitColor": "colour",
+    "BitNumber": "number",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "EdgeStyle": "enum",
+    "Enabled": "bool",
+    "FitToLargest": "bool",
+    "Flashing": "enum",
+    "FlashingOnLimitViolation": "bool",
+    "FocusColor": "colour",
+    "FocusWidth": "number",
+    "Height": "number",
+    "Left": "number",
+    "Mode": "enum",
+    "ObjectName": "text",
+    "OnValue": "number",
+    "ScrollBarOrientation": "enum",
+    "ShowScrollBar": "enum",
+    "TabIndex": "number",
+    "Top": "number",
+    "TransparentColor": "colour",
+    "UseTransparentColor": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "AutoSizing": [
+     "StretchPicture"
+    ],
+    "BackFillStyle": [
+     "Solid"
+    ],
+    "EdgeStyle": [
+     "Style3D"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "Mode": [
+     "InOutput"
+    ],
+    "ScrollBarOrientation": [
+     "Vertical"
+    ],
+    "ShowScrollBar": [
+     "NoScrollBar"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "HelpText MultilingualText"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.GraphicView": {
+   "attributes": {
+    "AutoSizing": "enum",
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "EdgeStyle": "enum",
+    "FitToLargest": "bool",
+    "Flashing": "enum",
+    "Height": "number",
+    "Left": "number",
+    "ObjectName": "text",
+    "TabIndex": "number",
+    "Top": "number",
+    "TransparentColor": "colour",
+    "UseTransparentColor": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "AutoSizing": [
+     "StretchPicture"
+    ],
+    "BackFillStyle": [
+     "Solid",
+     "Transparent"
+    ],
+    "EdgeStyle": [
+     "Solid"
+    ],
+    "Flashing": [
+     "None"
+    ]
+   },
+   "links": [
+    "Picture"
+   ],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Group": {
+   "attributes": {
+    "ObjectName": "text",
+    "TabIndex": "number"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "ScreenItems Hmi.Screen.Bar",
+    "ScreenItems Hmi.Screen.Button",
+    "ScreenItems Hmi.Screen.Circle",
+    "ScreenItems Hmi.Screen.GraphicView",
+    "ScreenItems Hmi.Screen.Group",
+    "ScreenItems Hmi.Screen.IOField",
+    "ScreenItems Hmi.Screen.Line",
+    "ScreenItems Hmi.Screen.Polygon",
+    "ScreenItems Hmi.Screen.Rectangle",
+    "ScreenItems Hmi.Screen.SymbolicIOField",
+    "ScreenItems Hmi.Screen.TextField"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.IOField": {
+   "attributes": {
+    "AboveUpperLimitColor": "colour",
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BelowLowerLimitColor": "colour",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "BottomMargin": "number",
+    "CornerRadius": "number",
+    "DataFormat": "enum",
+    "EdgeStyle": "enum",
+    "Enabled": "bool",
+    "FieldLength": "number",
+    "FitToLargest": "bool",
+    "Flashing": "enum",
+    "ForeColor": "colour",
+    "FormatPattern": "text",
+    "Height": "number",
+    "HiddenInput": "bool",
+    "HorizontalAlignment": "enum",
+    "Left": "number",
+    "LeftMargin": "number",
+    "Mode": "enum",
+    "ObjectName": "text",
+    "RightMargin": "number",
+    "ShiftDecimalPoint": "number",
+    "ShowLeadingZeros": "bool",
+    "TabIndex": "number",
+    "TextOrientation": "enum",
+    "Top": "number",
+    "TopMargin": "number",
+    "Unit": "text",
+    "UseDesignColorSchema": "bool",
+    "UseTwoHandOperation": "bool",
+    "VerticalAlignment": "enum",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid"
+    ],
+    "DataFormat": [
+     "Decimal",
+     "Hexadecimal",
+     "String"
+    ],
+    "EdgeStyle": [
+     "Double",
+     "Solid"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "HorizontalAlignment": [
+     "Center",
+     "Left",
+     "Right"
+    ],
+    "Mode": [
+     "InOutput",
+     "Output"
+    ],
+    "TextOrientation": [
+     "Horizontal"
+    ],
+    "VerticalAlignment": [
+     "Middle"
+    ]
+   },
+   "links": [
+    "StyleItem"
+   ],
+   "compositions": [
+    "Animations Hmi.Dynamic.SingleBitVisibilityAnimation",
+    "Font Hmi.Globalization.MultiLingualFont",
+    "HelpText MultilingualText",
+    "Properties Hmi.Screen.Property"
+   ],
+   "events": [],
+   "animations": [
+    "Hmi.Dynamic.SingleBitVisibilityAnimation"
+   ]
+  },
+  "Hmi.Screen.InterfacePropertySimple": {
+   "attributes": {
+    "Name": "text"
+   },
+   "values": {},
+   "links": [
+    "Value"
+   ],
+   "compositions": [
+    "Dynamic Hmi.Dynamic.TagConnectionDynamic"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Line": {
+   "attributes": {
+    "BackColor": "colour",
+    "Color": "colour",
+    "EndLeft": "number",
+    "EndStyle": "enum",
+    "EndTop": "number",
+    "FillStyle": "enum",
+    "Flashing": "enum",
+    "Height": "number",
+    "Left": "number",
+    "LineEndShapeStyle": "enum",
+    "LineWidth": "number",
+    "ObjectName": "text",
+    "StartLeft": "number",
+    "StartStyle": "enum",
+    "StartTop": "number",
+    "Style": "enum",
+    "TabIndex": "number",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "EndStyle": [
+     "FilledArrow",
+     "NoEnd"
+    ],
+    "FillStyle": [
+     "Transparent"
+    ],
+    "Flashing": [
+     "None",
+     "Standard"
+    ],
+    "LineEndShapeStyle": [
+     "InnerSquare",
+     "Round"
+    ],
+    "StartStyle": [
+     "FilledArrow",
+     "NoEnd"
+    ],
+    "Style": [
+     "Solid"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Animations Hmi.Dynamic.VisibilityAnimation"
+   ],
+   "events": [],
+   "animations": [
+    "Hmi.Dynamic.VisibilityAnimation"
+   ]
+  },
+  "Hmi.Screen.Polygon": {
+   "attributes": {
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "EdgeStyle": "enum",
+    "Flashing": "enum",
+    "Height": "number",
+    "Left": "number",
+    "ObjectName": "text",
+    "Points": "list",
+    "TabIndex": "number",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid"
+    ],
+    "EdgeStyle": [
+     "Solid"
+    ],
+    "Flashing": [
+     "None",
+     "Standard"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Animations Hmi.Dynamic.VisibilityAnimation"
+   ],
+   "events": [],
+   "animations": [
+    "Hmi.Dynamic.VisibilityAnimation"
+   ]
+  },
+  "Hmi.Screen.Polyline": {
+   "attributes": {
+    "BackColor": "colour",
+    "Color": "colour",
+    "EndStyle": "enum",
+    "FillStyle": "enum",
+    "Flashing": "enum",
+    "Height": "number",
+    "Left": "number",
+    "LineEndShapeStyle": "enum",
+    "LineWidth": "number",
+    "ObjectName": "text",
+    "Points": "list",
+    "StartStyle": "enum",
+    "Style": "enum",
+    "TabIndex": "number",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "EndStyle": [
+     "NoEnd"
+    ],
+    "FillStyle": [
+     "Transparent"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "LineEndShapeStyle": [
+     "Round"
+    ],
+    "StartStyle": [
+     "NoEnd"
+    ],
+    "Style": [
+     "Solid"
+    ]
+   },
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Property": {
+   "attributes": {
+    "Name": "text"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "Dynamic Hmi.Dynamic.TagConnectionDynamic"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Rectangle": {
+   "attributes": {
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "EdgeStyle": "enum",
+    "Flashing": "enum",
+    "Height": "number",
+    "Left": "number",
+    "ObjectName": "text",
+    "RoundCornerHeight": "number",
+    "RoundCornerWidth": "number",
+    "TabIndex": "number",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid",
+     "Transparent"
+    ],
+    "EdgeStyle": [
+     "Dash",
+     "Solid"
+    ],
+    "Flashing": [
+     "None"
+    ]
+   },
+   "links": [
+    "StyleItem"
+   ],
+   "compositions": [
+    "Animations Hmi.Dynamic.RangeAppearanceAnimation",
+    "Animations Hmi.Dynamic.SingleBitVisibilityAnimation",
+    "Animations Hmi.Dynamic.VisibilityAnimation"
+   ],
+   "events": [],
+   "animations": [
+    "Hmi.Dynamic.RangeAppearanceAnimation",
+    "Hmi.Dynamic.SingleBitVisibilityAnimation",
+    "Hmi.Dynamic.VisibilityAnimation"
+   ]
+  },
+  "Hmi.Screen.Screen": {
+   "attributes": {
+    "ActiveLayer": "number",
+    "BackColor": "colour",
+    "GridColor": "colour",
+    "Height": "number",
+    "Name": "text",
+    "Number": "number",
+    "Visible": "bool",
+    "Width": "number"
+   },
+   "values": {},
+   "links": [
+    "Template"
+   ],
+   "compositions": [
+    "Events Hmi.Event.Event",
+    "HelpText MultilingualText",
+    "Layers Hmi.Screen.ScreenLayer",
+    "SoftKeys Hmi.Screen.SoftKey"
+   ],
+   "events": [
+    "ClearScreen",
+    "GenerateScreen"
+   ],
+   "animations": []
+  },
+  "Hmi.Screen.ScreenGlobalElements": {
+   "attributes": {
+    "BackColor": "colour",
+    "GridColor": "colour",
+    "Height": "number",
+    "Width": "number"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.ScreenLayer": {
+   "attributes": {
+    "Index": "number",
+    "Name": "text",
+    "VisibleES": "bool"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "ScreenItems Hmi.Screen.Bar",
+    "ScreenItems Hmi.Screen.Button",
+    "ScreenItems Hmi.Screen.Circle",
+    "ScreenItems Hmi.Screen.Clock",
+    "ScreenItems Hmi.Screen.DateTimeField",
+    "ScreenItems Hmi.Screen.Ellipse",
+    "ScreenItems Hmi.Screen.FaceplateInstance",
+    "ScreenItems Hmi.Screen.Gauge",
+    "ScreenItems Hmi.Screen.GraphicIOField",
+    "ScreenItems Hmi.Screen.GraphicView",
+    "ScreenItems Hmi.Screen.Group",
+    "ScreenItems Hmi.Screen.IOField",
+    "ScreenItems Hmi.Screen.Line",
+    "ScreenItems Hmi.Screen.Polygon",
+    "ScreenItems Hmi.Screen.Polyline",
+    "ScreenItems Hmi.Screen.Rectangle",
+    "ScreenItems Hmi.Screen.Slider",
+    "ScreenItems Hmi.Screen.Switch",
+    "ScreenItems Hmi.Screen.SymbolLibrary",
+    "ScreenItems Hmi.Screen.SymbolicIOField",
+    "ScreenItems Hmi.Screen.TextField",
+    "ScreenItems Hmi.Screen.UserView"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.ScreenOverview": {
+   "attributes": {
+    "ActiveLayer": "number",
+    "BackColor": "colour",
+    "GridColor": "colour",
+    "Height": "number",
+    "Width": "number"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.ScreenPopup": {
+   "attributes": {
+    "ActiveLayer": "number",
+    "BackColor": "colour",
+    "GridColor": "colour",
+    "Height": "number",
+    "Name": "text",
+    "ScrollbarBackgroundColor": "colour",
+    "ScrollbarForegroundColor": "colour",
+    "Width": "number"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "Layers Hmi.Screen.ScreenLayer"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.ScreenSlidein": {
+   "attributes": {
+    "Activate": "bool",
+    "ActiveLayer": "number",
+    "BackColor": "colour",
+    "Dimension": "number",
+    "Enabled": "bool",
+    "GridColor": "colour",
+    "LineColor1": "colour",
+    "LineColor2": "colour",
+    "OperatableAreaColor": "colour",
+    "SlideinType": "enum",
+    "Visibility": "enum"
+   },
+   "values": {
+    "SlideinType": [
+     "Right"
+    ],
+    "Visibility": [
+     "FadeOut"
+    ]
+   },
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.ScreenTemplate": {
+   "attributes": {
+    "ActiveLayer": "number",
+    "BackColor": "colour",
+    "GridColor": "colour",
+    "Height": "number",
+    "Name": "text",
+    "SetTabOrderInFront": "bool",
+    "Width": "number"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [
+    "Layers Hmi.Screen.ScreenLayer",
+    "SoftKeys Hmi.Screen.SoftKey"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Slider": {
+   "attributes": {
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BarBackColor": "colour",
+    "BarColor": "colour",
+    "BarOrientation": "enum",
+    "BorderBackColor": "colour",
+    "BorderBrightColor3D": "colour",
+    "BorderColor": "colour",
+    "BorderInnerStyle3D": "enum",
+    "BorderInnerWidth3D": "number",
+    "BorderOuterStyle3D": "enum",
+    "BorderOuterWidth3D": "number",
+    "BorderShadeColor3D": "colour",
+    "BorderWidth": "number",
+    "CompatibilityMode": "bool",
+    "ContinousChange": "bool",
+    "CornerRadius": "number",
+    "EdgeStyle": "enum",
+    "Enabled": "bool",
+    "Flashing": "enum",
+    "FocusColor": "colour",
+    "FocusWidth": "number",
+    "ForeColor": "colour",
+    "Height": "number",
+    "LabelColor": "colour",
+    "Left": "number",
+    "MaximumValue": "number",
+    "MinimumValue": "number",
+    "ObjectName": "text",
+    "RangeLower1Color": "colour",
+    "RangeLower1Enabled": "bool",
+    "RangeLower2Color": "colour",
+    "RangeLower2Enabled": "bool",
+    "RangeNormalColor": "colour",
+    "RangeNormalEnabled": "bool",
+    "RangeUpper1Color": "colour",
+    "RangeUpper1Enabled": "bool",
+    "RangeUpper2Color": "colour",
+    "RangeUpper2Enabled": "bool",
+    "ScalePosition": "enum",
+    "ShowBar": "bool",
+    "ShowLimitLines": "bool",
+    "ShowLimitMarkers": "bool",
+    "ShowLimitRanges": "bool",
+    "ShowPosition": "bool",
+    "ShowScale": "bool",
+    "ShowThumb": "bool",
+    "ShowTickLabels": "bool",
+    "ShowTicks": "bool",
+    "TabIndex": "number",
+    "ThumbBackColor": "colour",
+    "TickStyle": "enum",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "UseTwoHandOperation": "bool",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid"
+    ],
+    "BarOrientation": [
+     "Up"
+    ],
+    "BorderInnerStyle3D": [
+     "Recessed"
+    ],
+    "BorderOuterStyle3D": [
+     "Raised"
+    ],
+    "EdgeStyle": [
+     "Double"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "ScalePosition": [
+     "LeftUp"
+    ],
+    "TickStyle": [
+     "Normal"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Caption MultilingualText",
+    "Font Hmi.Globalization.MultiLingualFont",
+    "PositionFont Hmi.Globalization.MultiLingualFont"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.SoftKey": {
+   "attributes": {
+    "GlobalAssignment": "bool",
+    "KeyCode": "number",
+    "LEDTagBitNumber": "number",
+    "ObjectName": "text"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.Switch": {
+   "attributes": {
+    "AboveUpperLimitColor": "colour",
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BelowLowerLimitColor": "colour",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "CaptionColor": "colour",
+    "CornerRadius": "number",
+    "EdgeStyle": "enum",
+    "Enabled": "bool",
+    "FirstGradientColor": "colour",
+    "FirstGradientOffset": "number",
+    "FitToLargest": "bool",
+    "Flashing": "enum",
+    "FlashingOnLimitViolation": "bool",
+    "FocusColor": "colour",
+    "FocusWidth": "number",
+    "ForeColor": "colour",
+    "Height": "number",
+    "HorizontalAlignment": "enum",
+    "HorizontalPictureAlignment": "enum",
+    "InnerBackColorOff": "colour",
+    "InnerBackColorOn": "colour",
+    "Left": "number",
+    "MiddleGradientColor": "colour",
+    "Mode": "enum",
+    "ObjectName": "text",
+    "OnValue": "number",
+    "PictureAreaBottomMargin": "number",
+    "PictureAreaLeftMargin": "number",
+    "PictureAreaRightMargin": "number",
+    "PictureAreaTopMargin": "number",
+    "PictureAutoSizing": "enum",
+    "SecondGradientColor": "colour",
+    "SecondGradientOffset": "number",
+    "ShowCaption": "bool",
+    "SwitchOrientation": "enum",
+    "TabIndex": "number",
+    "TextAreaBottomMargin": "number",
+    "TextAreaLeftMargin": "number",
+    "TextAreaRightMargin": "number",
+    "TextAreaTopMargin": "number",
+    "TextOrientation": "enum",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "UseFirstGradient": "bool",
+    "UseSecondGradient": "bool",
+    "VerticalAlignment": "enum",
+    "VerticalPictureAlignment": "enum",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "GradientVertical"
+    ],
+    "EdgeStyle": [
+     "Solid"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "HorizontalAlignment": [
+     "Center"
+    ],
+    "HorizontalPictureAlignment": [
+     "Center"
+    ],
+    "Mode": [
+     "Switch"
+    ],
+    "PictureAutoSizing": [
+     "StretchPicture"
+    ],
+    "SwitchOrientation": [
+     "LeftToRight"
+    ],
+    "TextOrientation": [
+     "Horizontal"
+    ],
+    "VerticalAlignment": [
+     "Middle"
+    ],
+    "VerticalPictureAlignment": [
+     "Middle"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "CaptionFont Hmi.Globalization.MultiLingualFont",
+    "CaptionText MultilingualText",
+    "Font Hmi.Globalization.MultiLingualFont",
+    "HelpText MultilingualText",
+    "TextOff MultilingualText",
+    "TextOn MultilingualText"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.SymbolLibrary": {
+   "attributes": {
+    "AboveUpperLimitColor": "colour",
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BelowLowerLimitColor": "colour",
+    "BlinkColor": "colour",
+    "Enabled": "bool",
+    "FillColorMode": "enum",
+    "FixedAspectRatio": "bool",
+    "Flashing": "enum",
+    "FlashingOnLimitViolation": "bool",
+    "Flip": "enum",
+    "ForeColor": "colour",
+    "Height": "number",
+    "Left": "number",
+    "ObjectName": "text",
+    "OcxState": "blob",
+    "Rotation": "enum",
+    "TabIndex": "number",
+    "Top": "number",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Transparent"
+    ],
+    "FillColorMode": [
+     "Original"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "Flip": [
+     "None"
+    ],
+    "Rotation": [
+     "Angle0"
+    ]
+   },
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.SymbolicIOField": {
+   "attributes": {
+    "AboveUpperLimitColor": "colour",
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BelowLowerLimitColor": "colour",
+    "BitNumber": "number",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "BottomMargin": "number",
+    "CornerRadius": "number",
+    "CountVisibleItems": "number",
+    "EdgeStyle": "enum",
+    "Enabled": "bool",
+    "EvenRowBackColor": "colour",
+    "FitToLargest": "bool",
+    "Flashing": "enum",
+    "FlashingOnLimitViolation": "bool",
+    "ForeColor": "colour",
+    "Height": "number",
+    "HorizontalAlignment": "enum",
+    "Left": "number",
+    "LeftMargin": "number",
+    "Mode": "enum",
+    "ObjectName": "text",
+    "OnValue": "number",
+    "RightMargin": "number",
+    "SelectBackColor": "colour",
+    "SelectForeColor": "colour",
+    "ShowDropDownButton": "bool",
+    "ShowDropDownList": "bool",
+    "TabIndex": "number",
+    "TextOrientation": "enum",
+    "Top": "number",
+    "TopMargin": "number",
+    "UseDesignColorSchema": "bool",
+    "VerticalAlignment": "enum",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid",
+     "Transparent"
+    ],
+    "EdgeStyle": [
+     "Double"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "HorizontalAlignment": [
+     "Center",
+     "Left",
+     "Right"
+    ],
+    "Mode": [
+     "InOutput",
+     "Output"
+    ],
+    "TextOrientation": [
+     "Horizontal"
+    ],
+    "VerticalAlignment": [
+     "Middle"
+    ]
+   },
+   "links": [
+    "TextList"
+   ],
+   "compositions": [
+    "Font Hmi.Globalization.MultiLingualFont",
+    "HelpText MultilingualText",
+    "Properties Hmi.Screen.Property",
+    "TextOff MultilingualText",
+    "TextOn MultilingualText"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "Hmi.Screen.TextField": {
+   "attributes": {
+    "BackColor": "colour",
+    "BackFillStyle": "enum",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "BottomMargin": "number",
+    "CornerRadius": "number",
+    "EdgeStyle": "enum",
+    "FitToLargest": "bool",
+    "Flashing": "enum",
+    "ForeColor": "colour",
+    "Height": "number",
+    "HorizontalAlignment": "enum",
+    "Left": "number",
+    "LeftMargin": "number",
+    "ObjectName": "text",
+    "RightMargin": "number",
+    "TabIndex": "number",
+    "TextOrientation": "enum",
+    "Top": "number",
+    "TopMargin": "number",
+    "UseDesignColorSchema": "bool",
+    "VerticalAlignment": "enum",
+    "Width": "number"
+   },
+   "values": {
+    "BackFillStyle": [
+     "Solid",
+     "Transparent"
+    ],
+    "EdgeStyle": [
+     "Double",
+     "Solid"
+    ],
+    "Flashing": [
+     "None",
+     "Standard"
+    ],
+    "HorizontalAlignment": [
+     "Center",
+     "Left",
+     "Right"
+    ],
+    "TextOrientation": [
+     "Horizontal",
+     "Rotated90Degree"
+    ],
+    "VerticalAlignment": [
+     "Bottom",
+     "Middle",
+     "Top"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "Animations Hmi.Dynamic.RangeAppearanceAnimation",
+    "Animations Hmi.Dynamic.SingleBitVisibilityAnimation",
+    "Animations Hmi.Dynamic.VisibilityAnimation",
+    "Font Hmi.Globalization.MultiLingualFont",
+    "Text MultilingualText"
+   ],
+   "events": [],
+   "animations": [
+    "Hmi.Dynamic.RangeAppearanceAnimation",
+    "Hmi.Dynamic.SingleBitVisibilityAnimation",
+    "Hmi.Dynamic.VisibilityAnimation"
+   ]
+  },
+  "Hmi.Screen.UserView": {
+   "attributes": {
+    "Appearance": "enum",
+    "BackColor": "colour",
+    "BorderBackColor": "colour",
+    "BorderColor": "colour",
+    "BorderWidth": "number",
+    "Columns": "list",
+    "ColumnsMoveable": "bool",
+    "CornerRadius": "number",
+    "CountVisibleItems": "number",
+    "EdgeStyle": "enum",
+    "Enabled": "bool",
+    "FitToSize": "bool",
+    "Flashing": "enum",
+    "Height": "number",
+    "Left": "number",
+    "ObjectName": "text",
+    "SelectionBackColor": "colour",
+    "SelectionForeColor": "colour",
+    "ShowTableGridlines": "bool",
+    "TabIndex": "number",
+    "TableBackColor": "colour",
+    "TableEvenRowBackColor": "colour",
+    "TableForeColor": "colour",
+    "TableGridlineColor": "colour",
+    "TableHeaderBackColor": "colour",
+    "TableHeaderBackFillStyle": "enum",
+    "TableHeaderBorderBackColor": "colour",
+    "TableHeaderBorderColor": "colour",
+    "TableHeaderBorderWidth": "number",
+    "TableHeaderCornerRadius": "number",
+    "TableHeaderEdgeStyle": "enum",
+    "TableHeaderFirstGradientColor": "colour",
+    "TableHeaderFirstGradientOffset": "number",
+    "TableHeaderForeColor": "colour",
+    "TableHeaderMiddleGradientColor": "colour",
+    "TableHeaderSecondGradientColor": "colour",
+    "TableHeaderSecondGradientOffset": "number",
+    "Top": "number",
+    "UseDesignColorSchema": "bool",
+    "UseTableHeaderFirstGradient": "bool",
+    "UseTableHeaderSecondGradient": "bool",
+    "VerticalScrolling": "bool",
+    "ViewType": "enum",
+    "Width": "number"
+   },
+   "values": {
+    "Appearance": [
+     "AppearanceFlat"
+    ],
+    "EdgeStyle": [
+     "Solid"
+    ],
+    "Flashing": [
+     "None"
+    ],
+    "TableHeaderBackFillStyle": [
+     "GradientVertical"
+    ],
+    "TableHeaderEdgeStyle": [
+     "Solid"
+    ],
+    "ViewType": [
+     "ViewTypeComplex"
+    ]
+   },
+   "links": [],
+   "compositions": [
+    "TableFont Hmi.Globalization.MultiLingualFont",
+    "TableHeaderFont Hmi.Globalization.MultiLingualFont"
+   ],
+   "events": [],
+   "animations": []
+  },
+  "MultilingualTextItem": {
+   "attributes": {
+    "Culture": "text",
+    "Text": "text"
+   },
+   "values": {},
+   "links": [],
+   "compositions": [],
+   "events": [],
+   "animations": []
+  }
+ }
+}

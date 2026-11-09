@@ -1,0 +1,36 @@
+FUNCTION_BLOCK "HatchLogic"
+    VAR
+        "instK02+FS01-BG03" : ESTOP1;
+        "instK02+FS01-SF09" : ESTOP1;
+        statAckDesk : Bool;
+        statAckPanel : Bool;
+    END_VAR
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            #"instK02+FS01-BG03".ESTOP1(
+                E_STOP := "K02+FS01-BG03",
+                ACK_NEC := false,
+                ACK := #statAckDesk,
+                TIME_DEL := T#0MS,
+                Q => "HatchDb"."K02+FS01-BG03".q,
+                ACK_REQ => "HatchDb"."K02+FS01-BG03".ack,
+                DIAG =>
+            )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            #"instK02+FS01-SF09".ESTOP1(
+                E_STOP := "K02+FS01-SF09",
+                ACK_NEC := false,
+                ACK := #statAckDesk,
+                TIME_DEL := T#0MS,
+                Q => "HatchDb"."K02+FS01-SF09".q,
+                ACK_REQ => "HatchDb"."K02+FS01-SF09".ack,
+                DIAG =>
+            )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK

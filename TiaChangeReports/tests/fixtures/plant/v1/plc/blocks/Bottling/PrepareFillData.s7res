@@ -1,0 +1,11 @@
+MultiLingualTexts:
+  - id: MLC_c
+    en-US: Syrup
+  - id: MLC_n1
+    en-US: Air pressure low
+  - id: MLC_n2
+    en-US: Detect head down
+  - id: MLC_n3
+    en-US: Set/Reset "AtNeck"
+  - id: MLC_n4
+    en-US: Settle delay
