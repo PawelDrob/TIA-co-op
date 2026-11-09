@@ -10,7 +10,7 @@ The gate into `main`. Run it in a session that wrote nothing of this branch, in 
 ## Steps
 
 1. **Read.** The ticket, the tickets it names, `git log main..<branch>` and `git diff main...<branch>` whole. Done when you have read every hunk.
-2. **Rebase** onto the current `main`, in the worktree; the ticket session is idle. Resolve conflicts yourself, keeping both sides' intent, and note each for the report. A branch older than the removal of `docs\viz.html` stops on it, deleted against changed: `git rm` it and go on, it stays out of git. Then `uv sync`. Done when `git merge-base --is-ancestor main HEAD` succeeds.
+2. **Rebase** onto the current `main`, in the worktree; the ticket session is idle. Resolve conflicts yourself, keeping both sides' intent, and note each for the report. Then `uv sync`. Done when `git merge-base --is-ancestor main HEAD` succeeds.
 3. **Run the suites.** `PRE_COMMIT_NO_SKIP=1 sh .githooks/pre-commit main` from Git Bash runs what the hook runs for every folder the branch touches, though an earlier run passed on the same commits: the gate sees its own run. Its pass leaves the stamp by which the merge's run skips. Done when it exits 0 after the rebase and the docs check, when it ran, counts 0 warnings: a warning does not fail it.
 4. **Review.** Call the Skill tool with `mattpocock-skills:code-review` (plain `code-review` can reach another skill), fixed point `main`, and the ticket's absolute path as the spec: a worktree has no `.scratch\`. Then what its two axes leave to you. Done when each is checked, every finding with file and line:
    - **Correctness:** read the changed logic for bugs and for cases the tests miss.
