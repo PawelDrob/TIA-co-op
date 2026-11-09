@@ -165,6 +165,12 @@ Describe 'Get-XmlDocumentRefusal' {
         Test-Text "<?xml version='1.0' encoding='UTF-16'?><Document />" | Should Match "'UTF-16'"
     }
 
+    It 'reads a declaration split over lines up to its end, naming the line of its encoding' {
+        $r = Test-Text "<?xml version=`"1.0`"`r`n      encoding=`"utf-8-sig`"?>`r`n<Document />"
+        $r | Should Match "line 2 declares encoding 'utf-8-sig'"
+        Test-Text "<?xml version=`"1.0`"`n encoding=`"utf-8`"`n standalone=`"yes`"?>`n<Document />" | Should BeNullOrEmpty
+    }
+
     It 'passes utf-8 in any case, with or without a byte order mark, and a document with no encoding or no declaration' {
         Test-Text $exportOb | Should BeNullOrEmpty
         Test-Text $exportOb $true | Should BeNullOrEmpty

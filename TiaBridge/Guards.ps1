@@ -30,11 +30,15 @@ function Test-S7dclImportAllowed([string]$Path) {
 # declaration is left to TIA.
 function Get-XmlDocumentRefusal([string]$Path) {
     $how = "Write it as an export does: <?xml version=`"1.0`" encoding=`"utf-8`"?> and each namespace as the default (xmlns=`"...`") of the element that holds it, no prefix; $(Get-GuidePath 'openness-v20.md') section 1, Editing an OB's SimaticML."
+    # the declaration up to its ?>, which XML lets run over several lines: the head of the file is enough for it
     $reader = New-Object System.IO.StreamReader($Path, $true)
-    try { $head = $reader.ReadLine() } finally { $reader.Dispose() }
-    $declaration = [regex]::Match([string]$head, '\A<\?xml\b[^?]*?\bencoding\s*=\s*(["''])(?<encoding>[^"'']*)\1')
-    if ($declaration.Success -and $declaration.Groups['encoding'].Value -ne 'utf-8') {
-        return "$Path line 1 declares encoding '$($declaration.Groups['encoding'].Value)': TIA takes a declaration of utf-8 only: it refused utf-8-sig. $how"
+    $buffer = New-Object char[] 4096
+    try { $head = New-Object string($buffer, 0, $reader.ReadBlock($buffer, 0, $buffer.Length)) } finally { $reader.Dispose() }
+    $declaration = [regex]::Match($head, '\A<\?xml\b(?:[^?]|\?(?!>))*?\bencoding\s*=\s*(["''])(?<encoding>[^"'']*)\1')
+    $encoding = $declaration.Groups['encoding']
+    if ($declaration.Success -and $encoding.Value -ne 'utf-8') {
+        $line = 1 + ([regex]::Matches($head.Substring(0, $encoding.Index), '\n')).Count
+        return "$Path line $line declares encoding '$($encoding.Value)': TiaBridge takes utf-8 only, as an export writes it; TIA refused utf-8-sig. $how"
     }
     $block = $false; $prefixed = $null
     $xml = New-Object System.Xml.XmlTextReader($Path)
