@@ -55,6 +55,14 @@ def tag_table(name, tags):
                 '</Hmi.Tag.Tag>' % (i + 1, t, c) for i, (t, c) in enumerate(tags))))
 
 
+def graphic(name):
+    """A project graphic's .xml, its default image in '<name> files/'."""
+    return ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Hmi.Globalization.MultiLingualGraphic ID="0">'
+            '<AttributeList><DefaultImageStream external="path">%s files\\DefaultImageStream.png'
+            '</DefaultImageStream><Name>%s</Name></AttributeList></Hmi.Globalization.MultiLingualGraphic>'
+            '</Document>\n' % (name, name))
+
+
 def hmi_data(html):
     """The page's HMI data (gzip + base64 JSON)."""
     m = re.search(r'<script type="application/octet-stream" class="hmidata">([^<]*)</script>', html)
@@ -185,11 +193,7 @@ class HmiPart(unittest.TestCase):
 
     def test_changed_graphic_in_the_project_graphics_with_its_images(self):
         img = os.path.join('project', 'graphics', 'Logo files', 'DefaultImageStream.png')
-        xml = ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Hmi.Globalization.MultiLingualGraphic ID="0">'
-               '<AttributeList><DefaultImageStream external="path">Logo files\\DefaultImageStream.png'
-               '</DefaultImageStream><Name>Logo</Name></AttributeList></Hmi.Globalization.MultiLingualGraphic>'
-               '</Document>\n')
-        _put(self.repo, {'project/graphics/Logo.xml': xml, img: 'one'})
+        _put(self.repo, {'project/graphics/Logo.xml': graphic('Logo'), img: 'one'})
         _git(self.repo, 'add', '-A')
         _git(self.repo, 'commit', '-q', '-m', 'logo')
         _put(self.repo, {img: 'two'})
@@ -205,11 +209,7 @@ class HmiPart(unittest.TestCase):
                          [data['docs'][logo['bimg']], data['docs'][logo['aimg']]])
 
     def test_unchanged_graphics_with_all(self):
-        xml = ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Hmi.Globalization.MultiLingualGraphic ID="0">'
-               '<AttributeList><DefaultImageStream external="path">Fan files\\DefaultImageStream.png'
-               '</DefaultImageStream><Name>Fan</Name></AttributeList></Hmi.Globalization.MultiLingualGraphic>'
-               '</Document>\n')
-        _put(self.repo, {'project/graphics/Fan.xml': xml,
+        _put(self.repo, {'project/graphics/Fan.xml': graphic('Fan'),
                          os.path.join('project', 'graphics', 'Fan files', 'DefaultImageStream.png'): 'fan'})
         _git(self.repo, 'add', '-A')
         _git(self.repo, 'commit', '-q', '-m', 'fan')
@@ -721,6 +721,7 @@ class DrawnOnThePage(unittest.TestCase):
 
         dom = self.page(dict(same, **{'hmi/textlists/Modes.xml': self.text_list('Auto')}), same, '#textlist%3AModes')
 
+        self.assertIn('<div class="hh">1 change</div>', dom)
         self.assertRegex(re.sub(r'</?span>', '', dom), r'>removed<.*?<td class="o">Auto</td><td class=""></td>')
         self.assertNotIn('class="sum hlt"', dom)
         self.assertNotRegex(dom, r'>\s*null\s*<')
@@ -740,22 +741,22 @@ class DrawnOnThePage(unittest.TestCase):
         self.assertRegex(dom, r'(?s)class="sum hlt".*>Manual<')
         self.assertNotRegex(dom, r'>\s*null\s*<')
 
-    LOGO = ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Hmi.Globalization.MultiLingualGraphic ID="0">'
-            '<AttributeList><DefaultImageStream external="path">Logo files\\DefaultImageStream.png'
-            '</DefaultImageStream><Name>Logo</Name></AttributeList></Hmi.Globalization.MultiLingualGraphic></Document>\n')
+    SILO = {'hmi/screens/Silo.xml': screen('Silo', 1)}
 
     def logo_in(self, folder):
-        """The graphic Logo in that folder of the project graphics, beside a screen."""
+        """The graphic Logo in that folder of the project graphics, beside the screen Silo."""
         top = 'project/graphics/' + (folder + '/' if folder else '')
-        return {'hmi/screens/Silo.xml': screen('Silo', 1), top + 'Logo.xml': self.LOGO,
-                top + 'Logo files/DefaultImageStream.png': 'one'}
+        return dict(self.SILO, **{top + 'Logo.xml': graphic('Logo'), top + 'Logo files/DefaultImageStream.png': 'one'})
 
-    def test_a_graphic_deleted_added_or_only_moved_says_no_word_of_no_changes(self):
-        silo = {'hmi/screens/Silo.xml': screen('Silo', 1)}
-        for name, before, after in (('deleted', self.logo_in(''), silo), ('added', silo, self.logo_in('')),
-                                    ('moved', self.logo_in(''), self.logo_in('Icons'))):
+    def test_an_object_of_no_change_rows_says_no_word_of_no_changes(self):
+        empty = dict(self.SILO, **{'hmi/tags/Plant.xml': tag_table('Plant', [])})
+        for name, before, after, url_end in (
+                ('deleted graphic', self.logo_in(''), self.SILO, '#graphic%3ALogo'),
+                ('added graphic', self.SILO, self.logo_in(''), '#graphic%3ALogo'),
+                ('moved graphic', self.logo_in(''), self.logo_in('Icons'), '#graphic%3ALogo'),
+                ('deleted empty tag table', empty, self.SILO, '#tagtable%3APlant')):
             with self.subTest(name):
-                dom = self.page(before, after, '#graphic%3ALogo')
+                dom = self.page(before, after, url_end)
 
                 self.assertIn('class="hv" data-drawn="1"', dom)
                 self.assertNotIn('No changes', dom)
