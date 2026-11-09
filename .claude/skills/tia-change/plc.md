@@ -2,6 +2,10 @@
 
 The guide: s7dcl-format.md. Its section 9 checklist runs before every import.
 
+## An OB
+
+SimaticML only. Edit it per openness-v20.md section 1, "Editing an OB's SimaticML": keep the declaration `encoding="utf-8"` and every namespace without a prefix, so no Python ElementTree round trip.
+
 ## The middle
 
 1. Edit the exported file per the guide. A new block: write its files in the repo. Done when the section 9 checklist passes.

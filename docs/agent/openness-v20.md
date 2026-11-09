@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-05T23:20:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-09T11:57:12-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -39,6 +39,20 @@ seen in an export / import, `[INFERRED]` follows from those, not verified by a r
 transaction [6]. A password-protected safety program needs the safety login first, or the compile fails at once:
 "permission to modify the safety program is missing either on F-CPU or project level" `[PROBE]` [19]. The result is a
 tree (`State`, `ErrorCount`, `WarningCount`, `Messages` with `Path` and `Description`) [19].
+
+**Editing an OB's SimaticML.** An OB goes in as SimaticML only (the row OBs). Edit its export as text, or with an XML
+library that writes the namespaces back as it read them. Two writes TIA V20 refused, and rolled back (2026-11-05)
+`[IMPORT]`:
+
+- An OB rewritten by Python's ElementTree, which writes every namespace with a prefix (`<ns0:Sections>`, `xmlns:ns0`
+  declared on `Document`): "Cannot create the 'SW.Blocks.CompileUnit' object ... error in network ''", no inner exception.
+- A tag table declaring `encoding="utf-8-sig"`, as Python names UTF-8 with a byte order mark: "System does not support
+  'utf-8-sig' encoding. Line 1, position 31."
+
+So keep the export's `<?xml version="1.0" encoding="utf-8"?>`, and each namespace as the default of the element that
+holds it, `<Sections xmlns="...">`, `<FlgNet xmlns="...">`, with no prefix. ElementTree cannot write several default
+namespaces. TiaBridge refuses both before TIA sees the file, naming the line: a declared encoding other than utf-8 in any
+SimaticML, a namespace prefix in a block's. Whether TIA takes prefixes in other SimaticML was not tried.
 
 **Dates.** The agent's own import moves every date of the object (`CreationDate` included), and its compile moves
 them again. A block changed by a person after the agent's last import and compile shows a newer `ModifiedDate`

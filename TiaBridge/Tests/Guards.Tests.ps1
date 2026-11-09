@@ -138,3 +138,56 @@ Describe 'Faceplate guard' {
         @(Test-FaceplateRefs -Refs $refs -LibraryTypes $library).Count | Should Be 0
     }
 }
+
+Describe 'Get-XmlDocumentRefusal' {
+    $iface = 'http://www.siemens.com/automation/Openness/SW/Interface/v5'
+    $flg = 'http://www.siemens.com/automation/Openness/SW/NetworkSource/FlgNet/v5'
+    function Test-Text([string]$Text, [bool]$Bom = $false) {
+        $p = Join-Path $TestDrive 'Doc.xml'
+        [System.IO.File]::WriteAllText($p, $Text, (New-Object System.Text.UTF8Encoding $Bom))
+        Get-XmlDocumentRefusal $p
+    }
+    # an OB as Python's ElementTree writes it back: every namespace a prefix, declared on the root
+    $treeOb = "<?xml version='1.0' encoding='utf-8'?>`n<Document xmlns:ns0=`"$iface`" xmlns:ns1=`"$flg`">`n" +
+              "  <Engineering version=`"V20`" />`n  <SW.Blocks.OB ID=`"0`">`n    <AttributeList>`n      <Interface>`n" +
+              "        <ns0:Sections><ns0:Section Name=`"Input`" /></ns0:Sections>`n      </Interface>`n" +
+              "      <Name>Main</Name>`n    </AttributeList>`n  </SW.Blocks.OB>`n</Document>"
+    # the same OB as TIA exports it: each namespace the default of its element
+    $exportOb = "<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document>`r`n  <Engineering version=`"V20`" />`r`n" +
+                "  <SW.Blocks.OB ID=`"0`">`r`n    <AttributeList>`r`n      <Interface><Sections xmlns=`"$iface`"><Section Name=`"Input`" /></Sections></Interface>`r`n" +
+                "      <Name>Main</Name>`r`n    </AttributeList>`r`n  </SW.Blocks.OB>`r`n</Document>"
+
+    It 'refuses a declaration of another encoding than utf-8, naming it and the line' {
+        $r = Test-Text "<?xml version=`"1.0`" encoding=`"utf-8-sig`"?>`r`n<Document />"
+        $r | Should Match 'line 1'
+        $r | Should Match "'utf-8-sig'"
+        $r | Should Match 'encoding="utf-8"'
+        Test-Text "<?xml version='1.0' encoding='UTF-16'?><Document />" | Should Match "'UTF-16'"
+    }
+
+    It 'passes utf-8 in any case, with or without a byte order mark, and a document with no encoding or no declaration' {
+        Test-Text $exportOb | Should BeNullOrEmpty
+        Test-Text $exportOb $true | Should BeNullOrEmpty
+        Test-Text "<?xml version='1.0' encoding='UTF-8'?><Document />" | Should BeNullOrEmpty
+        Test-Text '<?xml version="1.0"?><Document />' | Should BeNullOrEmpty
+        Test-Text '<Document />' | Should BeNullOrEmpty
+    }
+
+    It 'refuses prefixed namespaces in a block document, naming the line and the prefix' {
+        $r = Test-Text $treeOb
+        $r | Should Match 'line 2'
+        $r | Should Match "'ns0'"
+    }
+
+    It 'refuses a prefix declared on the element that uses it, on its line' {
+        Test-Text $exportOb.Replace("<Sections xmlns=`"$iface`">", "<p:Sections xmlns:p=`"$iface`">").Replace('</Sections>', '</p:Sections>') | Should Match "line 6.*'p'"
+    }
+
+    It 'refuses the encoding before it reads further' {
+        Test-Text $treeOb.Replace("encoding='utf-8'", "encoding='utf-8-sig'") | Should Match "'utf-8-sig'"
+    }
+
+    It 'leaves a document it cannot read past its declaration to TIA' {
+        Test-Text '<?xml version="1.0" encoding="utf-8"?><Document><SW.Blocks.FB>' | Should BeNullOrEmpty
+    }
+}

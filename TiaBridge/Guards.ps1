@@ -22,6 +22,48 @@ function Test-S7dclImportAllowed([string]$Path) {
     $null
 }
 
+# How an XML document is written for TIA, in the refusals of Get-XmlDocumentRefusal.
+$script:XmlWritingHint = "<?xml version=`"1.0`" encoding=`"utf-8`"?> and each namespace as the default (xmlns=`"...`") of the element that holds it, no prefix; $(Get-GuidePath 'openness-v20.md') section 1, Editing an OB's SimaticML"
+
+# Why TIA would refuse the SimaticML at Path for how it is written, or $null; every XML import asks it, before TIA does.
+# Seen refused, and rolled back (2026-11-05): a declaration of encoding utf-8-sig, "System does not support 'utf-8-sig'
+# encoding. Line 1, position 31."; an OB rewritten by Python's ElementTree, with its namespaces as prefixes (ns0:),
+# "Cannot create the 'SW.Blocks.CompileUnit' object ... error in network ''" with no inner exception. Prefixes count in a
+# block document only: what other documents do with them has not been tried. A document that cannot be read past its
+# declaration is left to TIA.
+function Get-XmlDocumentRefusal([string]$Path) {
+    $how = "Write it as an export does: $($script:XmlWritingHint)."
+    $reader = New-Object System.IO.StreamReader($Path, $true)
+    try { $head = $reader.ReadLine() } finally { $reader.Dispose() }
+    $declaration = [regex]::Match([string]$head, '\A<\?xml\b[^?]*?\bencoding\s*=\s*(["''])(?<encoding>[^"'']*)\1')
+    if ($declaration.Success -and $declaration.Groups['encoding'].Value -ne 'utf-8') {
+        return "$Path line 1 declares encoding '$($declaration.Groups['encoding'].Value)': TIA takes a declaration of utf-8 only: it refused utf-8-sig. $how"
+    }
+    $block = $false; $prefixed = $null
+    $xml = New-Object System.Xml.XmlTextReader($Path)
+    try {
+        $xml.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+        $xml.XmlResolver = $null
+        while (-not ($block -and $prefixed) -and $xml.Read()) {
+            if ($xml.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
+            if ($xml.Depth -eq 1 -and $xml.LocalName -like 'SW.Blocks.*') { $block = $true }
+            if ($prefixed) { continue }
+            if ($xml.Prefix) { $prefixed = @{ line = $xml.LineNumber; prefix = $xml.Prefix } }
+            elseif ($xml.MoveToFirstAttribute()) {
+                do {
+                    $p = if ($xml.Prefix -eq 'xmlns') { $xml.LocalName } else { $xml.Prefix }
+                    if ($p -and $p -ne 'xml') { $prefixed = @{ line = $xml.LineNumber; prefix = $p }; break }
+                } while ($xml.MoveToNextAttribute())
+                [void]$xml.MoveToElement()
+            }
+        }
+    } catch { } finally { $xml.Close() }
+    if ($block -and $prefixed) {
+        return "$Path line $($prefixed.line) holds the namespace prefix '$($prefixed.prefix)': TIA refuses a block's SimaticML whose namespaces carry a prefix, as Python's ElementTree writes them. $how"
+    }
+    $null
+}
+
 # Which kind takes a document of each class of Get-DocumentObjectClass.
 $script:DocumentClassKinds = @{
     block = @{ kind = 'block'; what = 'an FB or FC' }
@@ -34,10 +76,11 @@ $script:DocumentClassKinds = @{
 
 # Why the document at Path must not reach TIA under this kind, or $null. Each kind lists its own objects only, and TIA goes
 # by the document: under the wrong kind no guard sees the object, and the test instance of a type in work holds TIA on a
-# modal message. So refused: a file that is no document (Import reads any file as SimaticML, the guards by its extension); a
-# .s7dcl with a keyword whose object cannot be read, which would go by its file name; a second declaration; an OB's .s7dcl;
-# and the document of another kind, under a kind of one class of documents. A document with no keyword or class passes: TIA
-# judges it. A library type's path may be its .libinfo: then the documents beside it.
+# modal message. So refused: a file that is no document (Import reads any file as SimaticML, the guards by its extension);
+# SimaticML TIA would refuse for how it is written (Get-XmlDocumentRefusal); a .s7dcl with a keyword whose object cannot be
+# read, which would go by its file name; a second declaration; an OB's .s7dcl; and the document of another kind, under a
+# kind of one class of documents. A document with no keyword or class passes: TIA judges it. A library type's path may be
+# its .libinfo: then the documents beside it.
 function Get-DocumentRefusal([string]$KindName, [string]$Path) {
     $base = Join-Path ([System.IO.Path]::GetDirectoryName($Path)) ([System.IO.Path]::GetFileNameWithoutExtension($Path))
     $extension = [System.IO.Path]::GetExtension($Path)
@@ -47,6 +90,7 @@ function Get-DocumentRefusal([string]$KindName, [string]$Path) {
     foreach ($doc in $docs) {
         if (-not (Test-Path -LiteralPath $doc)) { continue }
         $isSd = [System.IO.Path]::GetExtension($doc) -eq '.s7dcl'
+        if (-not $isSd -and ($why = Get-XmlDocumentRefusal $doc)) { return $why }
         $name = Get-DocumentDeclaredName $doc
         if ($isSd -and -not $name -and (Select-String -LiteralPath $doc -Pattern "\b($script:S7dclKeywords)\b" -Quiet)) {
             return "$doc holds a block keyword, but the bridge cannot read the object it declares, so the guards would go by the file name. Write its head as an export does: at most comments and one pragma block in front of the keyword, then the name."

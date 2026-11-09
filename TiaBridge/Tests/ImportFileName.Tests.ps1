@@ -534,6 +534,11 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
     Write-TextFile (Join-Path $script:repo 'plc\tags\Screen1.xml') $screenXml
     Write-TextFile (Join-Path $script:repo 'library\types\Table\Lib1.xml') $tableXml.Replace('Tags1', 'Lib1')
     Write-TextFile (Join-Path $script:repo 'library\types\Screen\Lib1.xml') $screenXml.Replace('Screen1', 'Lib1')
+    # as Python's ElementTree writes them back: a tag table declaring utf-8-sig, an OB with its namespaces as prefixes
+    Write-TextFile (Join-Path $script:repo 'plc\tags\SigTags.xml') "<?xml version=`"1.0`" encoding=`"utf-8-sig`"?>`r`n$tableXml"
+    Write-TextFile (Join-Path $script:repo 'plc\blocks\TreeOb.xml') ("<?xml version='1.0' encoding='utf-8'?>`n<Document xmlns:ns0=`"http://www.siemens.com/automation/Openness/SW/Interface/v5`">`n" +
+        '<SW.Blocks.OB ID="0"><AttributeList><Interface><ns0:Sections /></Interface><Name>Ob1</Name></AttributeList></SW.Blocks.OB></Document>')
+    Write-TextFile (Join-Path $script:repo 'library\types\Sig\Lib1.xml') ('<?xml version="1.0" encoding="utf-8-sig"?>' + (Get-Content (Join-Path $script:repo 'plc\blocks\Fb1Xml.xml') -Raw).Replace('Fb1', 'Lib1'))
 
     function Invoke-KindImport([string]$Kind, [string]$Path, [object[]]$Objects) {
         $list = New-Object System.Collections.ArrayList
@@ -607,6 +612,20 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
         (Invoke-KindImport 'type' 'plc\types\Udt1.s7dcl' @(New-Block 'Udt1')).ok | Should Be $true
         (Invoke-KindImport 'block' 'plc\blocks\Fresh.s7dcl' @(New-Block 'Fb1')).ok | Should Be $true
         (Invoke-KindImport 'db' 'plc\blocks\FreshDb.s7dcl' @(New-Block 'Fb1')).ok | Should Be $true
+    }
+
+    It 'refuses SimaticML TIA would refuse for how it is written, naming the line, and imports nothing' {
+        $r = Invoke-KindImport 'plc_tag_table' 'plc\tags\SigTags.xml' @()
+        $r.ok | Should Be $false
+        $r.items[0].refused | Should Match "line 1 declares encoding 'utf-8-sig'"
+        $r = Invoke-KindImport 'block' 'plc\blocks\TreeOb.xml' @()
+        $r.items[0].refused | Should Match "line 2 holds the namespace prefix 'ns0'"
+        @($script:imported).Count | Should Be 0
+        $r = Invoke-LibraryImport @('Lib1') @('library\types\Sig\Lib1.xml')
+        $r.items[0].refused | Should Match 'utf-8-sig'
+        @($script:created).Count | Should Be 0
+        $file = @(Resolve-ImportFiles -Repo $script:repo -KindDir 'library\types' -Paths @('library\types\Sig\Lib1.xml'))[0]
+        (Get-NewTypeDocument $file $false).refused | Should Match 'utf-8-sig'
     }
 
     It 'leaves a document it cannot read to TIA, by its file name' {

@@ -318,6 +318,18 @@ Describe 'import of an HMI object that is no SimaticML' {
         @(Test-SaveAllowed (Get-BridgeSession)).Count | Should Be 0
     }
 
+    It 'refuses SimaticML TIA would refuse for how it is written: <kind>' -TestCases @(
+        @{ kind = 'hmi_tag_table' }
+        @{ kind = 'hmi_textlist' }
+        @{ kind = 'hmi_screen' }
+    ) {
+        param($kind)
+        $p = Join-Path $TestDrive "Sig$kind.xml"
+        Write-TextFile $p "<?xml version=`"1.0`" encoding=`"utf-8-sig`"?>`r`n<Document />"
+        $r = & (Get-ObjectKind $kind).precheck @{ file = $p; name = "Sig$kind"; format = 'xml' } @{}
+        $r.refused | Should Match "line 1 declares encoding 'utf-8-sig'"
+    }
+
     It 'refuses a screen by its format before the faceplate guard reads it' {
         function Get-FaceplateRefs { throw 'read the file' }
         $r = & (Get-ObjectKind 'hmi_screen').precheck @{ file = 'C:\x\New.s7dcl'; name = 'New'; format = 's7dcl' } @{}

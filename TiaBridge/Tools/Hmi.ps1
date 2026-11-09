@@ -118,9 +118,12 @@ function Test-HmiImportGuard([string]$Repo, [object[]]$Files, [bool]$OverrideSta
 # Length 1 ended TIA on import (the validator's rules\tagtable.py).
 $script:HmiImportGuard = { param($repo, $files, $a) Test-HmiImportGuard $repo $files (Get-OptionalBool $a 'override' $false) }
 
-# The precheck of the HMI kinds: before the write, as the folder of a new object is made on the way into it.
+# The precheck of the HMI kinds: before the write, as the folder of a new object is made on the way into it. SimaticML
+# only, and none TIA would refuse for how it is written (Get-XmlDocumentRefusal).
 function Test-HmiFileFormat($File) {
-    if ($File.format -ne 'xml') { @{ ok = $false; refused = 'HMI objects are SimaticML (.xml) only.' } }
+    if ($File.format -ne 'xml') { return @{ ok = $false; refused = 'HMI objects are SimaticML (.xml) only.' } }
+    $why = Get-XmlDocumentRefusal $File.file
+    if ($why) { @{ ok = $false; refused = $why } }
 }
 
 function Test-HmiScreenFile($File, [hashtable]$Cache) {
