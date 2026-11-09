@@ -1,0 +1,54 @@
+# The download of TIA Archive Compare (TiaArchiveCompare/package/build.py). A pushed tag v* builds the zip, checks it and
+# attaches it to the release of that tag; with no release of the tag yet, a draft one is made, to fill in and publish.
+# Run by hand (Actions, release, Run workflow) it is a dry run, also when started on a tag: it builds and checks the zip
+# and keeps it as the run's artifact, and touches no release. None of it needs TIA.
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      # A tag must name the version of the tools: build.py stops otherwise. The check's window opens on the runner's
+      # desktop (--visible): no person's work is on it, and a desktop of its own is what a PC in use needs.
+      - name: Build and check the zip
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then tag="--tag $GITHUB_REF_NAME"; else tag=""; fi
+          .venv/Scripts/python.exe -X utf8 -m TiaArchiveCompare.package.build --out dist --visible $tag
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tia-archive-compare
+          path: dist/*.zip
+          if-no-files-found: error
+  attach:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tia-archive-compare
+          path: dist
+      - name: Attach the zip to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # a draft is listed, not found by its tag
+          if [ -z "$(gh release list --limit 100 --json tagName --jq ".[] | select(.tagName == \"$TAG\") | .tagName")" ]; then
+              gh release create "$TAG" --draft --verify-tag --title "$TAG" \
+                  --notes "TIA Archive Compare: unpack the zip and start TIA Archive Compare.exe. Requirements: TiaArchiveCompare/README.md."
+          fi
+          gh release upload "$TAG" dist/*.zip --clobber

@@ -1,0 +1,854 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <Engineering version="V20" />
+  <DocumentInfo>
+    <Created>2026-11-01T02:06:17.2487755Z</Created>
+    <ExportSetting>WithDefaults, WithReadOnly</ExportSetting>
+  </DocumentInfo>
+  <Hmi.Screen.Screen ID="0">
+    <AttributeList>
+      <ActiveLayer>0</ActiveLayer>
+      <BackColor>182, 182, 182</BackColor>
+      <GridColor>0, 0, 0</GridColor>
+      <Height>800</Height>
+      <Name>zzTestSpellings2</Name>
+      <Number>24</Number>
+      <Visible>true</Visible>
+      <Width>1280</Width>
+    </AttributeList>
+    <ObjectList>
+      <MultilingualText ID="1" CompositionName="HelpText">
+        <ObjectList>
+          <MultilingualTextItem ID="2" CompositionName="Items">
+            <AttributeList>
+              <Culture>de-DE</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="3" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+      <Hmi.Screen.ScreenLayer ID="4" CompositionName="Layers">
+        <AttributeList>
+          <Index>0</Index>
+          <Name />
+          <VisibleES>true</VisibleES>
+        </AttributeList>
+        <ObjectList>
+          <Hmi.Screen.Line ID="5" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>90</EndLeft>
+              <EndStyle>NoEnd</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>8</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine3</ObjectName>
+              <StartLeft>8</StartLeft>
+              <StartStyle>NoEnd</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Dot</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="6" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>180</EndLeft>
+              <EndStyle>NoEnd</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>98</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine4</ObjectName>
+              <StartLeft>98</StartLeft>
+              <StartStyle>NoEnd</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>DashDot</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="7" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>270</EndLeft>
+              <EndStyle>NoEnd</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>188</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine5</ObjectName>
+              <StartLeft>188</StartLeft>
+              <StartStyle>NoEnd</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>DashDotDot</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="8" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>360</EndLeft>
+              <EndStyle>Arrow</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>278</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine6</ObjectName>
+              <StartLeft>278</StartLeft>
+              <StartStyle>NoEnd</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="9" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>450</EndLeft>
+              <EndStyle>FilledArrowReversed</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>368</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine7</ObjectName>
+              <StartLeft>368</StartLeft>
+              <StartStyle>NoEnd</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="A" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>540</EndLeft>
+              <EndStyle>Line</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>458</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine8</ObjectName>
+              <StartLeft>458</StartLeft>
+              <StartStyle>NoEnd</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="B" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>630</EndLeft>
+              <EndStyle>Circle</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>548</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine9</ObjectName>
+              <StartLeft>548</StartLeft>
+              <StartStyle>NoEnd</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="C" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>720</EndLeft>
+              <EndStyle>FilledCircle</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>638</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine10</ObjectName>
+              <StartLeft>638</StartLeft>
+              <StartStyle>NoEnd</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="D" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>810</EndLeft>
+              <EndStyle>NoEnd</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>728</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine11</ObjectName>
+              <StartLeft>728</StartLeft>
+              <StartStyle>Arrow</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="E" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>900</EndLeft>
+              <EndStyle>NoEnd</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>818</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine12</ObjectName>
+              <StartLeft>818</StartLeft>
+              <StartStyle>FilledArrowReversed</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="F" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>990</EndLeft>
+              <EndStyle>NoEnd</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>908</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine13</ObjectName>
+              <StartLeft>908</StartLeft>
+              <StartStyle>Line</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="10" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>1080</EndLeft>
+              <EndStyle>NoEnd</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>998</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine14</ObjectName>
+              <StartLeft>998</StartLeft>
+              <StartStyle>Circle</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Line ID="11" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndLeft>1170</EndLeft>
+              <EndStyle>NoEnd</EndStyle>
+              <EndTop>90</EndTop>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>1088</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzLine15</ObjectName>
+              <StartLeft>1088</StartLeft>
+              <StartStyle>FilledCircle</StartStyle>
+              <StartTop>8</StartTop>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Line>
+          <Hmi.Screen.Polyline ID="12" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>NoEnd</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>1178</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline3</ObjectName>
+              <Points>﻿&lt;Item&gt;1178, 8&lt;/Item&gt;&lt;Item&gt;1260, 8&lt;/Item&gt;&lt;Item&gt;1260, 90&lt;/Item&gt;</Points>
+              <StartStyle>NoEnd</StartStyle>
+              <Style>Dot</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>8</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="13" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>NoEnd</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>8</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline4</ObjectName>
+              <Points>﻿&lt;Item&gt;8, 98&lt;/Item&gt;&lt;Item&gt;90, 98&lt;/Item&gt;&lt;Item&gt;90, 180&lt;/Item&gt;</Points>
+              <StartStyle>NoEnd</StartStyle>
+              <Style>DashDot</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="14" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>NoEnd</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>98</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline5</ObjectName>
+              <Points>﻿&lt;Item&gt;98, 98&lt;/Item&gt;&lt;Item&gt;180, 98&lt;/Item&gt;&lt;Item&gt;180, 180&lt;/Item&gt;</Points>
+              <StartStyle>NoEnd</StartStyle>
+              <Style>DashDotDot</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="15" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>Arrow</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>188</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline6</ObjectName>
+              <Points>﻿&lt;Item&gt;188, 98&lt;/Item&gt;&lt;Item&gt;270, 98&lt;/Item&gt;&lt;Item&gt;270, 180&lt;/Item&gt;</Points>
+              <StartStyle>NoEnd</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="16" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>FilledArrowReversed</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>278</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline8</ObjectName>
+              <Points>﻿&lt;Item&gt;278, 98&lt;/Item&gt;&lt;Item&gt;360, 98&lt;/Item&gt;&lt;Item&gt;360, 180&lt;/Item&gt;</Points>
+              <StartStyle>NoEnd</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="17" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>Line</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>368</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline9</ObjectName>
+              <Points>﻿&lt;Item&gt;368, 98&lt;/Item&gt;&lt;Item&gt;450, 98&lt;/Item&gt;&lt;Item&gt;450, 180&lt;/Item&gt;</Points>
+              <StartStyle>NoEnd</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="18" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>Circle</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>458</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline10</ObjectName>
+              <Points>﻿&lt;Item&gt;458, 98&lt;/Item&gt;&lt;Item&gt;540, 98&lt;/Item&gt;&lt;Item&gt;540, 180&lt;/Item&gt;</Points>
+              <StartStyle>NoEnd</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="19" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>FilledCircle</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>548</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline11</ObjectName>
+              <Points>﻿&lt;Item&gt;548, 98&lt;/Item&gt;&lt;Item&gt;630, 98&lt;/Item&gt;&lt;Item&gt;630, 180&lt;/Item&gt;</Points>
+              <StartStyle>NoEnd</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="1A" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>NoEnd</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>638</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline12</ObjectName>
+              <Points>﻿&lt;Item&gt;638, 98&lt;/Item&gt;&lt;Item&gt;720, 98&lt;/Item&gt;&lt;Item&gt;720, 180&lt;/Item&gt;</Points>
+              <StartStyle>Arrow</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="1B" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>NoEnd</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>728</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline14</ObjectName>
+              <Points>﻿&lt;Item&gt;728, 98&lt;/Item&gt;&lt;Item&gt;810, 98&lt;/Item&gt;&lt;Item&gt;810, 180&lt;/Item&gt;</Points>
+              <StartStyle>FilledArrowReversed</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="1C" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>NoEnd</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>818</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline15</ObjectName>
+              <Points>﻿&lt;Item&gt;818, 98&lt;/Item&gt;&lt;Item&gt;900, 98&lt;/Item&gt;&lt;Item&gt;900, 180&lt;/Item&gt;</Points>
+              <StartStyle>Line</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="1D" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>NoEnd</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>908</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline16</ObjectName>
+              <Points>﻿&lt;Item&gt;908, 98&lt;/Item&gt;&lt;Item&gt;990, 98&lt;/Item&gt;&lt;Item&gt;990, 180&lt;/Item&gt;</Points>
+              <StartStyle>Circle</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polyline ID="1E" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>255, 255, 255</BackColor>
+              <Color>24, 28, 49</Color>
+              <EndStyle>NoEnd</EndStyle>
+              <FillStyle>Transparent</FillStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>998</Left>
+              <LineEndShapeStyle>Round</LineEndShapeStyle>
+              <LineWidth>1</LineWidth>
+              <ObjectName>zzPolyline17</ObjectName>
+              <Points>﻿&lt;Item&gt;998, 98&lt;/Item&gt;&lt;Item&gt;1080, 98&lt;/Item&gt;&lt;Item&gt;1080, 180&lt;/Item&gt;</Points>
+              <StartStyle>FilledCircle</StartStyle>
+              <Style>Solid</Style>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polyline>
+          <Hmi.Screen.Polygon ID="1F" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>Dot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>1088</Left>
+              <ObjectName>zzPolygon3</ObjectName>
+              <Points>﻿&lt;Item&gt;1088, 98&lt;/Item&gt;&lt;Item&gt;1170, 98&lt;/Item&gt;&lt;Item&gt;1170, 180&lt;/Item&gt;</Points>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polygon>
+          <Hmi.Screen.Polygon ID="20" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>DashDot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>1178</Left>
+              <ObjectName>zzPolygon4</ObjectName>
+              <Points>﻿&lt;Item&gt;1178, 98&lt;/Item&gt;&lt;Item&gt;1260, 98&lt;/Item&gt;&lt;Item&gt;1260, 180&lt;/Item&gt;</Points>
+              <TabIndex>-1</TabIndex>
+              <Top>98</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polygon>
+          <Hmi.Screen.Polygon ID="21" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>DashDotDot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>8</Left>
+              <ObjectName>zzPolygon5</ObjectName>
+              <Points>﻿&lt;Item&gt;8, 188&lt;/Item&gt;&lt;Item&gt;90, 188&lt;/Item&gt;&lt;Item&gt;90, 270&lt;/Item&gt;</Points>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Polygon>
+          <Hmi.Screen.Ellipse ID="22" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>Dot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>98</Left>
+              <ObjectName>zzEllipse3</ObjectName>
+              <RadiusHeight>41</RadiusHeight>
+              <RadiusWidth>41</RadiusWidth>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Ellipse>
+          <Hmi.Screen.Ellipse ID="23" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>DashDot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>188</Left>
+              <ObjectName>zzEllipse4</ObjectName>
+              <RadiusHeight>41</RadiusHeight>
+              <RadiusWidth>41</RadiusWidth>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Ellipse>
+          <Hmi.Screen.Ellipse ID="24" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>DashDotDot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>278</Left>
+              <ObjectName>zzEllipse5</ObjectName>
+              <RadiusHeight>41</RadiusHeight>
+              <RadiusWidth>41</RadiusWidth>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Ellipse>
+          <Hmi.Screen.Circle ID="25" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>Dot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>368</Left>
+              <ObjectName>zzCircle3</ObjectName>
+              <Radius>41</Radius>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Circle>
+          <Hmi.Screen.Circle ID="26" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>DashDot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>458</Left>
+              <ObjectName>zzCircle4</ObjectName>
+              <Radius>41</Radius>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Circle>
+          <Hmi.Screen.Circle ID="27" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>DashDotDot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>548</Left>
+              <ObjectName>zzCircle5</ObjectName>
+              <Radius>41</Radius>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Circle>
+          <Hmi.Screen.Rectangle ID="28" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>Dot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>638</Left>
+              <ObjectName>zzRectangle1</ObjectName>
+              <RoundCornerHeight>0</RoundCornerHeight>
+              <RoundCornerWidth>0</RoundCornerWidth>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Rectangle>
+          <Hmi.Screen.Rectangle ID="29" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>DashDot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>728</Left>
+              <ObjectName>zzRectangle2</ObjectName>
+              <RoundCornerHeight>0</RoundCornerHeight>
+              <RoundCornerWidth>0</RoundCornerWidth>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Rectangle>
+          <Hmi.Screen.Rectangle ID="2A" CompositionName="ScreenItems">
+            <AttributeList>
+              <BackColor>217, 217, 217</BackColor>
+              <BackFillStyle>Solid</BackFillStyle>
+              <BorderColor>24, 28, 49</BorderColor>
+              <BorderWidth>1</BorderWidth>
+              <EdgeStyle>DashDotDot</EdgeStyle>
+              <Flashing>None</Flashing>
+              <Height>82</Height>
+              <Left>818</Left>
+              <ObjectName>zzRectangle3</ObjectName>
+              <RoundCornerHeight>0</RoundCornerHeight>
+              <RoundCornerWidth>0</RoundCornerWidth>
+              <TabIndex>-1</TabIndex>
+              <Top>188</Top>
+              <UseDesignColorSchema>false</UseDesignColorSchema>
+              <Width>82</Width>
+            </AttributeList>
+          </Hmi.Screen.Rectangle>
+        </ObjectList>
+      </Hmi.Screen.ScreenLayer>
+    </ObjectList>
+  </Hmi.Screen.Screen>
+</Document>

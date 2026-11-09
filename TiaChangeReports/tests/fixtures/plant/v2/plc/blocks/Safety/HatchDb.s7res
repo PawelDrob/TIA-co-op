@@ -1,0 +1,7 @@
+MultiLingualTexts:
+  - id: MLC_1
+    en-US: Filler hatch locked
+  - id: MLC_2
+    en-US: Emergency stop at the outlet
+  - id: MLC_3
+    en-US: Emergency stop 1=Free

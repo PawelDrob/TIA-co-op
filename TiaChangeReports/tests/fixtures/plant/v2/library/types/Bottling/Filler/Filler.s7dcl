@@ -1,0 +1,304 @@
+{
+    S7_BlockComment := "MLC_bc";
+    S7_BlockNumber := "742";
+    S7_BlockTitle := "MLC_bt";
+    S7_Optimized := "TRUE";
+    S7_PreferredLanguage := "LAD";
+    S7_Version := "0.1"
+}
+FUNCTION_BLOCK "Filler"
+    VAR_INPUT
+        { S7_MLC := "MLC_i1" }
+        iAutoMode : Bool;
+        { S7_MLC := "MLC_i2" }
+        iRecipeValid : Bool;
+        iCapperReady : Bool;
+        iRinse : Bool;
+        iAirOK : Bool;
+        iJog : Bool;
+        iQuit : Bool;
+        iSettleTime : Time;
+        iBottleIn : Bool;
+        iCapPresent : Bool;
+    END_VAR
+    VAR_OUTPUT
+        oValve : Int;
+        oPump : Int;
+        oPhase : Int;
+    END_VAR
+    VAR_IN_OUT
+        ioBay : Int;
+        ioOrder : _.FillerCmd_UDT;
+        ioAlarms : Array[0..15] of Bool;
+    END_VAR
+    VAR
+        statPhase : Int;
+        statRecipe : Int;
+        { S7_MLC := "MLC_hw" }
+        statHead : _.FillerHw_UDT;
+        statFlow : STRUCT
+            Coarse : Int;
+            Fine : Int;
+            Pump : Int;
+        END_STRUCT;
+        statHeadDown : Bool;
+        statCapOn : Bool;
+        statBatchDone : Bool;
+        statTank : STRUCT
+            Buffer : STRUCT
+                Empty : Bool;
+            END_STRUCT;
+            Supply : STRUCT
+                Empty : Bool;
+            END_STRUCT;
+        END_STRUCT;
+        statDrip : STRUCT
+            Count : Int;
+        END_STRUCT;
+        statDripLate : Bool;
+        statOverfill : Bool;
+        statWeighed : STRUCT
+            Gross : Bool;
+            Net : Bool;
+        END_STRUCT;
+        instBatchStart : R_TRIG;
+        statFilling : Bool;
+        statAlarm : Bool;
+        statSettled : Bool;
+        statTopUp : Bool;
+    END_VAR
+    VAR_TEMP
+        tmpReady : Bool;
+        tmpAllowed : Bool;
+        tmpTankEmpty : Bool;
+    END_VAR
+    VAR CONSTANT
+        PH_IDLE : Int := 0;
+        PH_DOWN : Int := 1;
+        PH_COARSE : Int := 2;
+        PH_FINE : Int := 3;
+        PH_UP : Int := 4;
+        R_WATER : Int := 1;
+        R_SYRUP : Int := 2;
+        "OIL" : Int := 3;
+        FLOW_OFF : Int := 0;
+        FLOW_FINE : Int := 20;
+        FLOW_BACK : Int := -10;
+    END_VAR
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n1"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #iAirOK )
+            Contact( #iRecipeValid )
+            wire#w1
+            I_Contact( #statAlarm )
+            Coil( #tmpReady )
+        END_RUNG
+        RUNG wire#powerrail
+            Contact( #iJog )
+        END_RUNG wire#w1
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n2"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #tmpReady )
+            wire#w1
+            Contact( #statHead.Infeed.Bottle )
+            I_Contact( #statHead.Infeed.Cap )
+            S_Coil( #statHeadDown )
+        END_RUNG
+        RUNG wire#w1
+            Contact( #statHead.Infeed.Cap )
+            Contact( #iCapperReady )
+            Coil( #statCapOn )
+        END_RUNG
+        RUNG wire#powerrail
+            I_Contact( #statHead.Infeed.Bottle )
+            wire#w2
+            R_Coil( #statHeadDown )
+        END_RUNG
+        RUNG wire#powerrail
+            Contact( #statBatchDone )
+        END_RUNG wire#w2
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n3"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #statFilling )
+            wire#w1
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #statRecipe,
+                in2 := #R_WATER
+            )
+            wire#w2
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #ioOrder.PumpState,
+                in2 := #FLOW_OFF
+            )
+            S_Coil( #statTopUp )
+        END_RUNG
+        RUNG wire#powerrail
+            Contact( #iRinse )
+        END_RUNG wire#w1
+        RUNG wire#w2
+            R_Coil( #statTopUp )
+            Move(
+                in := #FLOW_BACK,
+                out1 => #statFlow.Pump
+            )
+        END_RUNG
+        RUNG wire#w1
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #statRecipe,
+                in2 := #R_SYRUP
+            )
+            S_Coil( #statTopUp )
+            Move(
+                in := #FLOW_FINE,
+                out1 => #statFlow.Fine
+            )
+        END_RUNG
+        RUNG wire#w1
+            I_Contact( #statHead.Probe.Low )
+            wire#w3
+            Move(
+                in := #FLOW_FINE,
+                out1 => #statFlow.Fine
+            )
+        END_RUNG
+        RUNG wire#w1
+            I_Contact( #statHead.Probe.Mid )
+        END_RUNG wire#w3
+        RUNG wire#w1
+            Contact( #statTank.Buffer.Empty )
+            wire#w6
+            Contact( #statTank.Supply.Empty )
+            S_Coil( #tmpTankEmpty )
+        END_RUNG
+        RUNG wire#w1
+            I_Contact( #statTank.Supply.Empty )
+        END_RUNG wire#w6
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n7"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #statHead.Scale.Stable )
+            wire#w1
+            Contact( #statHead.Scale.AtCoarse )
+            Coil( #statWeighed.Gross )
+        END_RUNG
+        RUNG wire#w1
+            Contact( #statHead.Scale.AtFill )
+            Coil( #statWeighed.Net )
+        END_RUNG
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n4"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #tmpReady )
+            Contact( #statHeadDown )
+            wire#w1
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #statRecipe,
+                in2 := #R_WATER
+            )
+            wire#w2
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #statPhase,
+                in2 := #PH_COARSE
+            )
+            Contact( #statHead.Scale.AtCoarse )
+            Contact( #statWeighed.Gross )
+            wire#w3
+            Contact( #statSettled )
+            Move(
+                in := #FLOW_OFF,
+                out1 => #statFlow.Coarse
+            )
+        END_RUNG
+        RUNG wire#w1
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #statRecipe,
+                in2 := #"OIL"
+            )
+        END_RUNG wire#w2
+        RUNG wire#w2
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #statPhase,
+                in2 := #PH_FINE
+            )
+            Contact( #statHead.Scale.AtFill )
+        END_RUNG wire#w3
+        RUNG wire#powerrail
+            Contact( #ioOrder.Abort )
+        END_RUNG wire#w3
+        RUNG wire#powerrail
+            I_Contact( #tmpReady )
+            wire#w4
+            Move(
+                in := #PH_IDLE,
+                out1 => #statPhase
+            )
+        END_RUNG
+        RUNG wire#powerrail
+            I_Contact( #statHeadDown )
+        END_RUNG wire#w4
+    END_NETWORK
+    {
+        S7_Language := "SCL";
+        S7_NetworkTitle := "MLC_n5"
+    }
+    NETWORK
+        // the high probe is wet before the scale reports the fill weight
+        IF #statHead.Probe.High AND NOT #statHead.Scale.AtFill AND #statFlow.Coarse <> #FLOW_OFF THEN
+            #statFlow.Coarse := #FLOW_OFF;
+            #statTopUp := TRUE;
+        END_IF;
+        #statAlarm := #statHead.Probe.High AND #statPhase = #PH_DOWN;
+    END_NETWORK
+    {
+        S7_Language := "SCL";
+        S7_NetworkTitle := "MLC_n6"
+    }
+    NETWORK
+        #ioAlarms[3] := #statAlarm;
+        #ioAlarms[4] := #statDripLate;
+        #ioAlarms[5] := #statOverfill;
+        #oValve := #statFlow.Coarse + #statFlow.Fine;
+        #oPump := #statFlow.Pump;
+        #oPhase := #statPhase;
+    END_NETWORK
+    {
+        S7_Language := "SCL";
+        S7_NetworkTitle := "MLC_n8"
+    }
+    NETWORK
+        #instBatchStart(CLK := #statPhase = #PH_DOWN);
+        IF #instBatchStart.Q THEN
+            #statOverfill := FALSE;
+        END_IF;
+        #statOverfill := #statOverfill OR (#statHead.Probe.High AND #statWeighed.Net);
+    END_NETWORK
+END_FUNCTION_BLOCK

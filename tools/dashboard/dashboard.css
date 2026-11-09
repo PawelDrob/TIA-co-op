@@ -1,0 +1,248 @@
+/* The one stylesheet of the dashboards: start page, review pages, document pages, TIA dashboard.
+
+   Look: black on white, or in dark mode the text of Catppuccin Mocha on its base; no decoration.
+   Theme: the system setting until the viewer picks one with the icon in the top bar (dashboard.js sets data-theme on
+   <html>). Each colour below is light-dark(light, dark), and color-scheme decides which of the two counts.
+
+   Colour standard: colour means the viewer has to act or something broke. Everything else is the theme's background, text,
+   muted text and hairline: in dark mode Catppuccin's base, text, subtext0 and surface0. No other accent of Catppuccin.
+   --hint is the placeholder of an answer box: the browser's own grey in light mode, too dim on the base, so muted in dark.
+     Amber  --you   waits for you                        dark: Catppuccin's peach
+     Red    --fail  failed, not readable, disconnected   dark: Catppuccin's red
+   Status, the mark comes first so a status never rests on colour alone:
+     ●  Waits for you        amber, bold
+     ▸  Running now          ink, bold
+     …  With the coordinator ink
+     ◇  Yours to start       ink
+     ○  Ready for an agent   ink
+     –  To read              ink
+     ?  Needs triage         ink
+     ×  Blocked              muted
+     !  Not readable         red
+     ✓  Closed               muted
+     ‖  Postponed            muted
+   No other colours. A new status takes a mark, not a colour. Images and frames keep white behind them in both themes:
+   what they show was made for a white page. */
+@font-face { font-family: 'Inter'; font-weight: 400; font-display: swap; src: url('/vendor/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 600; font-display: swap; src: url('/vendor/inter-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-display: swap; src: url('/vendor/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 700; font-display: swap; src: url('/vendor/jetbrains-mono-latin-700-normal.woff2') format('woff2'); }
+
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#fff, #1e1e2e); --ink: light-dark(#000, #cdd6f4); --muted: light-dark(#666, #a6adc8);
+  --hint: light-dark(#757575, #a6adc8); --hair: light-dark(#e0e0e0, #313244); --you: light-dark(#a85b00, #fab387); --fail: light-dark(#c00000, #f38ba8);
+  --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --prose: Inter, system-ui, sans-serif;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 .875rem/1.6 var(--mono); }
+main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+a { color: inherit; text-underline-offset: .15em; }
+a:hover { color: var(--muted); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+p { margin: .25rem 0; }
+
+h1, h2, h3 { font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin: 0; }
+h1 { font-size: 1.125rem; }
+h2 { font-size: .875rem; border-top: 1px solid var(--ink); padding-top: .75rem; margin: 2.5rem 0 .5rem; }
+h3 { font-size: .8125rem; margin: 1.5rem 0 .25rem; }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem; }
+.live { color: var(--muted); font-size: .8125rem; }
+.live.fail { color: var(--fail); font-weight: 700; }
+/* The theme switch, last in the top bar. A larger target than its icon, without making the bar taller. */
+.top .live { margin-left: auto; }
+.theme { flex: none; align-self: center; display: inline-flex; align-items: center; justify-content: center;
+  width: 2.5rem; height: 2.5rem; margin: -.5rem -.625rem -.5rem 0; padding: 0; color: inherit; background: none; border: 0; cursor: pointer; }
+.theme:hover { color: var(--muted); }
+.theme svg { width: 1.25rem; height: 1.25rem; }
+@media (max-width: 36rem) {     /* the icon stays on the first row, the live text goes under it */
+  .top .live { order: 1; flex-basis: 100%; margin-left: 0; }
+  .top .theme { margin-left: auto; }
+}
+
+/* The one loud thing on the start page: what waits for you. */
+.summary { font-size: 1.5rem; line-height: 1.25; font-weight: 700; margin: 1.5rem 0 0; }
+.summary.you { color: var(--you); }
+.summary small { display: block; font-size: .875rem; line-height: 1.6; color: var(--fail); margin-top: .25rem; }
+
+.goal { color: var(--muted); }
+.fail { color: var(--fail); }
+
+/* The topics of the start page: a compact list under the headline, a column that stays in view where there is room.
+   The tickets keep the 40rem of text every page has. */
+.topics ul { list-style: none; display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; margin: 1.5rem 0 0; padding: .5rem 0;
+  border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); }
+.topics a { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; text-decoration: none; }
+.topics a:hover { color: inherit; }
+.topics a:hover .name { text-decoration: underline; }
+.topics .you { color: var(--you); font-weight: 700; }
+.topics .open { color: var(--muted); font-size: .8125rem; }
+.topic, #reviews { scroll-margin-top: 1rem; }
+@media (min-width: 58rem) {
+  .board { max-width: 58rem; display: grid; grid-template-columns: 14rem minmax(0, 40rem); column-gap: 2rem; align-items: start; }
+  .board > * { grid-column: 2; }
+  .board > nav { grid-column: 1; grid-row: 1 / span 99; position: sticky; top: 1rem; max-height: calc(100vh - 2rem);
+    overflow: auto; padding: 0 .25rem; }
+  .topics ul { display: block; margin: 0; padding: 0; border-bottom: 0; border-top: 1px solid var(--ink); }
+  .topics li { padding: .3rem 0; border-bottom: 1px solid var(--hair); }
+  .topics a { justify-content: space-between; }
+  .topics .name { flex: 1 1 100%; overflow-wrap: anywhere; }
+  .topics .open { margin-left: auto; }
+}
+
+/* A folder with tickets and no map, under the topic No map */
+.folder > h3 { text-transform: none; letter-spacing: 0; font-size: .875rem; border-top: 1px solid var(--hair);
+  padding-top: .5rem; margin-top: 1.5rem; }
+.folder details summary { margin-top: .25rem; }
+
+.row { display: flex; flex-wrap: wrap; gap: 0 .75rem; padding: .3rem 0; border-top: 1px solid var(--hair); }
+.row .id { flex: none; min-width: 2.5rem; color: var(--muted); }
+.row .title { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+.row .title a { text-decoration: none; }
+.row .title a:hover { text-decoration: underline; color: inherit; }
+.row .doc { color: var(--muted); font-size: .8125rem; margin-left: .5rem; }
+.row .state { flex: 0 1 auto; margin-left: auto; text-align: right; color: var(--muted); font-size: .8125rem; }
+
+.status.you h3 { color: var(--you); }
+.status.you .title a { text-decoration: underline; }
+.status.dim h3, .status.dim .title { color: var(--muted); }
+.status.fail h3 { color: var(--fail); }
+.status.run .state { color: var(--ink); }
+
+details summary { cursor: pointer; font-size: .8125rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--muted); margin-top: 1.5rem; }
+details .title { color: var(--muted); }
+
+/* The TIA dashboard (TiaAgentStatus): what needs you above everything, a list of projects on the left, the chosen one on
+   the right. On a narrow screen the chosen one takes the place of the list. */
+.tia { max-width: 90rem; }
+.tia .summary { margin-bottom: 1rem; }
+.needs { list-style: none; margin: 0 0 1.25rem; padding: 0; }
+.needs li { padding: .4rem 0; border-top: 1px solid var(--hair); overflow-wrap: anywhere; }
+.needs li:last-child { border-bottom: 1px solid var(--hair); }
+.needs a { font-weight: 700; margin-right: .5rem; }
+.needs .what { font-weight: 700; }
+.needs .need .what { color: var(--you); }
+.needs .fail .what { color: var(--fail); }
+.needs .do { color: var(--ink); }
+.columns { display: grid; grid-template-columns: 24rem minmax(0, 1fr); gap: 0 2rem; align-items: start; }
+.side { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding-right: .25rem; }
+.list-head { display: flex; justify-content: space-between; padding: 0 .5rem .25rem; color: var(--muted); font-size: .8125rem;
+  border-bottom: 1px solid var(--ink); }
+.tia a.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 .75rem; align-items: baseline; padding: .5rem;
+  border-top: 0; border-bottom: 1px solid var(--ink); text-decoration: none; }
+.tia a.row:hover { color: inherit; }
+.tia a.row:hover .name { text-decoration: underline; }
+.tia .row .name { font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.tia .row .when { color: var(--muted); font-size: .8125rem; white-space: nowrap; }
+.tia .row .state { grid-column: 1 / -1; margin: 0; text-align: left; font-size: inherit; }
+.tia .state { color: var(--muted); overflow-wrap: anywhere; }
+.tia .state .mark { display: inline-block; min-width: 1em; }
+.tia .state.run { color: var(--ink); }
+.tia .state.need { color: var(--you); font-weight: 700; }
+.tia .state.fail { color: var(--fail); font-weight: 700; }
+.tia a.row[aria-current="true"] { background: var(--ink); color: var(--bg); }
+.tia .row[aria-current="true"] .when, .tia .row[aria-current="true"] .state { color: var(--bg); }
+.other { padding: .3rem .5rem; border-top: 1px solid var(--hair); }
+.other p { margin: 0; }
+.plain { color: var(--muted); }
+#pane h2 { text-transform: none; letter-spacing: 0; font-size: 1.125rem; }
+#pane h2:focus { outline: 0; }
+.nothing-chosen { padding-top: .5rem; border-top: 1px solid var(--ink); }
+.chosen:not([hidden]) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.5rem; }
+.chosen h2, .chosen .back { grid-column: 1 / -1; margin: 0; }
+.chosen h2 { padding-top: .25rem; border-top: 1px solid var(--ink); }
+.chosen .part:nth-of-type(n + 3) { grid-column: 1 / -1; }
+.part h3 { margin: 0 0 .4rem; padding-bottom: .25rem; border-bottom: 1px solid var(--ink); }
+.part.optional:empty { display: none; }
+.part p { margin: .1rem 0; }
+.part .doing { font-weight: 700; overflow-wrap: anywhere; }
+.part .doing .time { font-weight: 400; }
+.back { display: none; }
+.scroll { overflow-y: auto; overscroll-behavior: contain; }
+.chosen .scroll { max-height: 13rem; }
+.chosen .part:last-child .scroll { max-height: max(12rem, calc(100vh - 32rem)); }
+@media (max-width: 52rem) {
+  .columns { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; max-height: none; overflow: visible; padding-right: 0; }
+  .one-chosen .side { display: none; }
+  .nothing-chosen { display: none; }
+  .chosen:not([hidden]) { grid-template-columns: minmax(0, 1fr); }
+  .chosen .back { display: inline-block; }
+  .chosen .part:last-child .scroll { max-height: 18rem; }
+}
+.facts { color: var(--muted); font-size: .8125rem; overflow-wrap: anywhere; }
+.call, .report { display: flex; flex-wrap: wrap; gap: 0 .75rem; padding: .15rem 0; border-top: 1px solid var(--hair); }
+.call .at { flex: none; min-width: 4.5rem; color: var(--muted); }
+.report .at { flex: none; min-width: 8.5rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.call .what, .report .what { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+.call .ms, .report .ms { margin-left: auto; color: var(--muted); font-size: .8125rem; }
+.call .tool { font-weight: 700; }
+.call.quiet .what { color: var(--muted); }
+.call.quiet .tool { font-weight: 400; }
+.day { color: var(--muted); font-weight: 700; margin-top: .75rem; }
+/* The TIA dashboard's one button, which starts a report run, and the lines of that run above the change reports */
+.act { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--ink); padding: .2rem .6rem; cursor: pointer; }
+.act:hover:not([disabled]) { background: var(--ink); color: var(--bg); }
+.act[disabled] { color: var(--muted); border-color: var(--hair); cursor: default; }
+.run-slot { margin-bottom: .5rem; overflow-wrap: anywhere; }
+.run-said:empty { display: none; }
+
+/* Document pages */
+#doc { font: 400 1rem/1.65 var(--prose); overflow-wrap: anywhere; }
+#doc h1, #doc h2, #doc h3 { font-family: var(--mono); text-transform: none; letter-spacing: 0; border: 0;
+  padding: 0; margin: 1.75rem 0 .5rem; }
+#doc h1 { font-size: 1.25rem; margin-top: 1rem; }
+#doc h2 { font-size: 1rem; }
+#doc h3 { font-size: .9375rem; }
+pre, code { font-family: var(--mono); font-size: .8125rem; }
+pre { overflow: auto; border: 1px solid var(--hair); padding: .75rem; }
+#doc :not(pre) > code { border: 1px solid var(--hair); padding: 0 .25rem; }
+#doc table { border-collapse: collapse; display: block; overflow-x: auto; font-size: .875rem; }
+#doc td, #doc th { border: 1px solid var(--hair); padding: .25rem .5rem; text-align: left; vertical-align: top; }
+
+/* Review pages: the questions stay beside the pictures on a wide screen */
+.review section { margin: 0 0 2rem; }
+.review h1 { margin-top: 1rem; }
+.review h2 { margin-top: 0; }
+.review .when { color: var(--muted); margin-bottom: 1.5rem; }
+.review ul { margin: 0; padding-left: 1.25rem; font-family: var(--prose); }
+.review .ask h2 { color: var(--you); border-color: var(--you); }
+.review .ask li { margin-bottom: 1rem; }
+.review .ask li span { font-weight: 600; }
+.review:has(figure) { max-width: 100rem; }
+figure { margin: 0; }
+figcaption { font-weight: 700; margin-bottom: .5rem; }
+figcaption small { display: block; font-weight: 400; color: var(--muted); word-break: break-all; }
+img { max-width: 100%; height: auto; display: block; border: 1px solid var(--hair); background: #fff; }
+iframe { width: 100%; height: 80vh; border: 1px solid var(--hair); background: #fff; }
+@media (min-width: 72rem) {
+  .review:has(figure) { display: grid; grid-template-columns: minmax(0, 1fr) 26rem; column-gap: 2rem; align-items: start; }
+  .review:has(figure) > * { grid-column: 1; }
+  .review:has(figure) > .ask { grid-column: 2; grid-row: 1 / span 99; position: sticky; top: 1rem;
+    max-height: calc(100vh - 2rem); overflow: auto; padding: 0 .25rem; }
+}
+
+.answer { display: block; width: 100%; min-height: 4.5rem; margin: .5rem 0 0; padding: .5rem; resize: vertical;
+  font: 400 .9375rem/1.5 var(--prose); color: var(--ink); background: var(--bg); border: 1px solid var(--muted); border-radius: .25rem; }
+.answer::placeholder { color: var(--hint); opacity: 1; }
+.answer:focus { outline: 2px solid var(--ink); outline-offset: -1px; }
+#review-submit { font: 700 .875rem var(--mono); margin-top: .75rem; padding: .5rem 1rem; cursor: pointer;
+  color: var(--bg); background: var(--ink); border: 1px solid var(--ink); border-radius: .25rem;
+  transition: background-color .15s, color .15s; }
+#review-submit:hover { color: var(--ink); background: var(--bg); }
+#review-state { display: block; margin-top: .5rem; color: var(--muted); }
+/* A ticket's page: what it asks you, above the ticket, and its review page */
+#ticket-ask { margin: 1.5rem 0 2rem; padding: .75rem 1rem 1rem; border: 1px solid var(--you); }
+#ticket-ask h2 { color: var(--you); border: 0; padding: 0; margin: 0 0 .5rem; }
+#ticket-ask .question { font: 400 1rem/1.65 var(--prose); overflow-wrap: anywhere; }
+#ticket-ask .question > :first-child { margin-top: 0; }
+.ticket-page { margin: 1.5rem 0; }
+.ticket-page.you { color: var(--you); font-weight: 700; }
+#review-updated { padding: .5rem .75rem; margin: 0 0 1rem; border: 1px solid var(--you); color: var(--you); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

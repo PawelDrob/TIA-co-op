@@ -1,0 +1,63 @@
+NOTICE
+
+This repository is licensed under the MIT License (LICENSE), except for the
+third-party parts listed below.
+
+
+DISCLAIMERS
+
+No warranty. The software is provided as is, without warranty of any kind and
+without liability, as the LICENSE says. You use it at your own risk.
+
+Functional safety. These tools are not certified for functional safety
+(IEC 61508 / IEC 62061). They can change F-programs (safety_login). Every change
+to a safety program must be reviewed, validated and accepted by a qualified
+person.
+
+Backups. Keep your own archives and backups of your projects. The session
+archive gate is a convenience, not a guarantee.
+
+No affiliation. This project is not affiliated with or endorsed by Siemens AG.
+TIA Portal, SIMATIC, WinCC and Openness are trademarks of Siemens AG. "TIA" in
+the tool names only says which product they work with.
+
+Licenses for TIA Portal. Each user needs their own TIA Portal and Openness
+licenses. None are included here.
+
+
+THIRD-PARTY PARTS
+
+OKF Bundle Viewer
+  tools/okf/viz/viz.html, viz.js and viz.css, and a docs/viz.html made from
+  them with -WriteViz (git ignores it).
+  Copyright 2026 Google LLC. Apache License 2.0: tools/okf/viz/LICENSE.txt,
+  details in tools/okf/viz/NOTICE.txt.
+  https://github.com/GoogleCloudPlatform/open-knowledge-format
+
+  tools/okf/OkfViz.ps1 is derived from reference_agent/viewer/generator.py of
+  the same project, same copyright and license; its header lists what changed.
+
+Loaded by the viewer from cdn.jsdelivr.net when it is opened, not held in this
+repository:
+  Cytoscape.js 3.28.1, Copyright (c) 2016-2023, The Cytoscape Consortium. MIT.
+  marked 12.0.0, Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018,
+  Christopher Jeffrey. MIT.
+
+Development dashboard, tools/dashboard/vendor/, each with its license file there:
+  marked 12.0.0, Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018,
+  Christopher Jeffrey. MIT.
+  Inter (latin subset, weights 400 and 600), Copyright 2020 The Inter Project
+  Authors. SIL Open Font License 1.1.
+  JetBrains Mono (latin subset, weights 400 and 700), Copyright 2020 The
+  JetBrains Mono Project Authors. SIL Open Font License 1.1.
+  Catppuccin palette (the dark colours of tools/dashboard/dashboard.css and
+  the icons in tools/dashboard/icons), Copyright (c) 2021 Catppuccin. MIT.
+
+
+FACTS ABOUT TIA PORTAL
+
+TiaHmiGenerator/catalogue/ holds interface facts about TIA Portal: enum names and
+numbers read by reflection from an installed TIA Portal, property names and values
+from its exports and help, UI labels from its Properties window, and its exports
+of test screens made for this project. In dependent.json, each rule says what TIA
+Portal was seen to do with it.

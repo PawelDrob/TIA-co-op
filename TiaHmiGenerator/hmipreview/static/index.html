@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HMI preview</title>
+<link rel="stylesheet" href="ldiff.css">
+<link rel="stylesheet" href="rail.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="props.css">
+<script src="rail.js"></script>
+</head>
+<body>
+<!-- The change report's project tree (/api/tree, rail.js) goes first into #app; the header and the screen beside it,
+     the findings list below the screen (findings.js). The panel on the right: the selected object
+     (props.js), else the diff's change list while the diff is on, else the view's own properties. The
+     event log is the strip along the bottom. -->
+<div class="ldiff" id="app">
+  <div class="app">
+    <header class="hd" role="toolbar" aria-label="Preview">
+      <span class="ttl"><b id="view-title"></b><span id="origin"></span><span id="view-device"></span></span>
+      <span class="grp"><button id="mode-run" class="active" title="Click buttons as on the panel (R)">Run</button><button id="mode-inspect" title="Click an object to see what it is and links to (I)">Inspect</button></span>
+      <span class="grp"><button id="zoom" title="1:1 or fit to the window (F)">Fit</button><button id="back" title="ActivatePreviousScreen (Backspace)">Back</button></span>
+      <span class="grp"><span class="lb">Diff</span><span id="diff-controls" class="grp"></span></span>
+      <span id="comparing"></span>
+      <span class="sp"></span>
+      <span class="info">
+        <span id="device"></span>
+        <span id="start">Start screen <a id="start-screen" href="#"></a></span>
+        <span id="status">loading...</span>
+        <button id="findings-count" class="fc" title="Findings of every HMI device: the list below the screen"></button>
+      </span>
+    </header>
+    <div id="notice"></div>
+    <div class="body">
+      <main id="main">
+        <div id="canvas"><svg id="screen" xmlns="http://www.w3.org/2000/svg" data-state="loading"></svg><div id="textlist" hidden></div></div>
+        <section id="findings" aria-label="Findings and open planned items"></section>
+      </main>
+      <aside id="side" aria-label="Properties, diff">
+        <section id="inspect-section" hidden>
+          <div id="inspect"></div>
+        </section>
+        <section id="view-section" hidden>
+          <div id="view-props"></div>
+        </section>
+        <!-- Change list (diff.js); the outlines go into the SVG layer g#diff-layer -->
+        <section id="diff-slot" data-ticket="12">
+          <h2>Changes</h2>
+          <ul id="diff-list"></ul>
+        </section>
+      </aside>
+    </div>
+    <!-- The event log, in Run mode: newest first; open or closed (L), kept in the browser -->
+    <section id="events" aria-label="Event log">
+      <div class="ebar">
+        <button id="events-toggle" class="et" title="Show or hide the event log (L)">Events <span id="events-n"></span></button>
+        <span id="events-last"></span>
+        <button id="log-clear" class="small" title="Empty the event log">Clear</button>
+      </div>
+      <ol id="event-log"></ol>
+    </section>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+<script type="module" src="diff.js"></script>
+</body>
+</html>

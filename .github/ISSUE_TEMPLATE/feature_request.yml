@@ -1,0 +1,33 @@
+name: Feature request
+description: Something a tool does not do yet that you need.
+body:
+  - type: markdown
+    attributes:
+      value: "**No customer projects.** Take real project, plant, company and person names out of everything you paste or attach, logs too."
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Tool
+      options:
+        - TiaBridge
+        - TIA Archive Compare
+        - TiaChangeReports
+        - TiaHmiGenerator or the HMI preview
+        - TIA dashboard or the agent status
+        - First setup
+        - Development dashboard or session tool
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what-you-need
+    attributes:
+      label: What you need
+      description: What you want to get done, and how you would know it worked.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do today
+      description: How you get it done now, or why you cannot.

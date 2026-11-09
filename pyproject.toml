@@ -1,0 +1,12 @@
+# The one Python environment of every TIA-co-op tool. Setup, once per clone and per worktree: uv sync
+[project]
+name = "tia-co-op"
+version = "0"
+requires-python = ">=3.12"
+dependencies = [
+    "pillow",
+    "pyyaml",
+]
+
+[tool.uv]
+package = false

@@ -1,0 +1,4 @@
+ORGANIZATION_BLOCK "CyclicInterrupt"
+{ S7_Version := "0.1" }
+BEGIN
+END_ORGANIZATION_BLOCK

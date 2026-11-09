@@ -1,0 +1,34 @@
+# Every suite of the hook on a Windows runner. None needs TIA.
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  suites:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - name: Pester 3
+        shell: powershell
+        run: |
+          if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -eq 3 })) {
+              Install-Module Pester -RequiredVersion 3.4.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          }
+      - name: Every suite
+        shell: bash
+        run: sh .githooks/pre-commit --all
+      # The log above holds the hook's summary only; each suite's full output is in .git/<suite>.log. Uploaded on a green
+      # run too: a browser test that passed only on a run again says so there ("Tests.browser: run n of 3").
+      - name: Logs of the suites
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-logs
+          path: .git/*.log
+          include-hidden-files: true

@@ -1,0 +1,19 @@
+TYPE
+    FillerHw_UDT : STRUCT
+        HeadDownEdge : Bool;
+        AtNeck : Bool;
+        Settled : Bool;
+        AirLow : Bool;
+        Probe : STRUCT
+            Low : Bool;
+            Mid : Bool;
+            { S7_MLC := "MLC_p" }
+            High : Bool;
+        END_STRUCT;
+        Scale : STRUCT
+            Stable : Bool;
+            AtCoarse : Bool;
+            AtFill : Bool;
+        END_STRUCT;
+    END_STRUCT;
+END_TYPE

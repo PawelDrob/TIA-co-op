@@ -1,0 +1,15 @@
+TiaBridge/settings.json
+TiaBridge/Tests/smoke_*.jsonl
+.obsidian/
+.scratch/
+__pycache__/
+# Of .claude/ only the skills and the shared settings are tracked
+**/.claude/*
+!/.claude/skills/
+!/.claude/settings.json
+.playwright-mcp/
+.venv/
+# Made when wanted: Test-OkfBundle.ps1 -WriteViz
+/docs/viz.html
+# The download of TIA Archive Compare: TiaArchiveCompare/package/build.py
+/dist/

@@ -1,0 +1,78 @@
+.ldiff .rail{position:fixed;left:0;top:0;bottom:0;z-index:30;width:260px;display:flex;flex-direction:column;
+  background:#fff;border-right:1px solid #b2b2b2;font-size:12.5px}
+.ldiff .rail .rh{display:flex;align-items:center;gap:6px;min-height:42px;background:var(--band);
+  border-bottom:1px solid #b2b2b2;padding:2px 4px 2px 8px}
+.ldiff .rail .rh b{flex:1 1 auto;font-weight:600;white-space:nowrap;overflow:hidden}
+.ldiff .rail .rq{flex:none;width:22px;height:20px;padding:0;font-weight:600}
+.ldiff .rail .rt{position:relative;flex:none;width:22px;height:20px;padding:0}
+.ldiff .rail .rt::before{content:'';position:absolute;left:7px;top:4px;border:5px solid transparent;
+  border-right:6px solid #222;border-left:0}
+.ldiff.rail-off .rail{width:28px;background:var(--row);cursor:pointer}
+.ldiff.rail-off .rail>:not(.rh),.ldiff.rail-off .rail .rh b{display:none}
+.ldiff.rail-off .rail .rh{flex-direction:column;padding:2px;background:none;border-bottom:0}
+.ldiff.rail-off .rail .rq{order:1}
+.ldiff.rail-off .rail .rt::before{left:9px;border:5px solid transparent;border-left:6px solid #222;border-right:0}
+.ldiff .rail .rs{flex:none;padding:5px 6px;border-bottom:1px solid #d9d9d9}
+.ldiff .rail .rs input{box-sizing:border-box;width:100%;height:24px;margin:0;padding:2px 6px;border:1px solid #b2b2b2;
+  border-radius:0;background:#fff;font:inherit;color:#000}
+.ldiff .rail .rs input:focus{outline:none;border-color:#3d8ee0}
+.ldiff .rail .nf{display:none;flex:none;padding:6px 10px;color:var(--muted)}
+.ldiff .rail.none .nf{display:block}
+.ldiff .tree{position:relative;flex:1 1 auto;overflow:auto;list-style:none;margin:0;padding:3px 0 16px}
+.ldiff .tree ul{list-style:none;margin:0;padding:0 0 0 14px}
+.ldiff .tree,.ldiff .tree ul{display:flex;flex-direction:column} .ldiff .tree li{flex:none}
+.ldiff .tree.find li.miss{display:none} .ldiff .tree.find .shut>ul{display:flex}
+.ldiff .tree.find .shut>.fn::before{margin:0 2px;border:4px solid transparent;border-top:5px solid #444;border-bottom:0}
+.ldiff .tree mark,.ldiff .lch mark{background:none;color:#0a4f9e;font-weight:700}
+.ldiff .tree a.obj.act{outline:1px solid #3d8ee0;outline-offset:-1px}
+.ldiff .tree .fn,.ldiff .tree a.obj{display:flex;align-items:center;gap:5px;padding:1px 8px 1px 4px;white-space:nowrap;
+  color:#000;text-decoration:none;cursor:pointer;user-select:none}
+.ldiff .tree .fn::before{content:'';flex:none;margin:0 2px;border:4px solid transparent;border-top:5px solid #444;border-bottom:0}
+.ldiff .tree .shut>.fn::before{margin:0 3px;border:4px solid transparent;border-left:5px solid #444;border-right:0}
+.ldiff .tree .shut>ul{display:none}
+.ldiff .tree .nm{overflow:hidden;text-overflow:ellipsis}
+.ldiff .tree .n{margin-left:auto;padding-left:6px;color:var(--muted);font-size:11.5px}
+.ldiff .tree .k{color:var(--muted);font-size:11.5px}
+.ldiff .tree a.obj{padding-left:14px}
+.ldiff .tree a.obj .mk,.ldiff .lch .mk{flex:none;width:9px;height:9px;border:1px solid #8c8c8c;background:var(--chg)}
+.ldiff .tree a.obj.new .mk,.ldiff .lch .new .mk{background:var(--add)}
+.ldiff .tree a.obj.deleted .mk,.ldiff .lch .deleted .mk{background:var(--del)}
+.ldiff .tree a.obj.version .mk,.ldiff .lch .version .mk{background:#6b6b6b}
+.ldiff .tree a.obj.moved .mk,.ldiff .lch .moved .mk{background:var(--mov)}
+.ldiff .tree a.obj.same .mk,.ldiff .lch .same .mk{background:#fff}
+.ldiff .tree .fn:hover,.ldiff .tree a.obj:hover{background:#e5f1fb}
+.ldiff .tree a.obj.sel{background:#cce4f7}
+.ldiff.one section.blk{display:none} .ldiff.one section.blk.on{display:block}
+.ldiff.one table.sum{display:none} .ldiff.one details.mvd{display:none}
+.ldiff .bh .pn{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
+.ldiff .bh .pn button{padding:0 7px;font-size:10px;line-height:16px}
+.ldiff .bh .pn button:disabled{color:#a0a0a0;cursor:default;background:#f0f0f0}
+.ldiff.flat .rail{display:none}
+.ldiff .lch{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.18)}
+.ldiff .lch[hidden]{display:none}
+.ldiff .lch .lb{box-sizing:border-box;width:min(640px,calc(100vw - 32px));margin:12vh auto 0;display:flex;
+  flex-direction:column;max-height:70vh;background:#fff;border:1px solid #8c8c8c;box-shadow:0 6px 24px rgba(0,0,0,.25);
+  font-size:13px}
+.ldiff .lch input{flex:none;box-sizing:border-box;width:100%;height:36px;margin:0;padding:4px 10px;border:0;
+  border-bottom:1px solid #b2b2b2;border-radius:0;font:inherit;font-size:15px;color:#000;background:#fff}
+.ldiff .lch input:focus{outline:none}
+.ldiff .lch ul{flex:1 1 auto;overflow:auto;list-style:none;margin:0;padding:2px 0}
+.ldiff .lch li{display:grid;grid-template-columns:9px minmax(0,max-content) 1fr auto;column-gap:6px;align-items:center;
+  padding:3px 10px;cursor:pointer;white-space:nowrap}
+.ldiff .lch li:hover{background:#e5f1fb} .ldiff .lch li.act{background:#cce4f7}
+.ldiff .lch .nm{overflow:hidden;text-overflow:ellipsis} .ldiff .lch .nm i{color:var(--muted)}
+.ldiff .lch .k{color:var(--muted);font-size:11.5px}
+.ldiff .lch .pt{grid-column:2/5;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11px}
+.ldiff .lch .net .mk,.ldiff .lch .key .mk{visibility:hidden}
+.ldiff .lch li.key{grid-template-columns:9px minmax(0,1fr) auto}
+.ldiff .lch .key .k{font:12px Consolas,"Courier New",monospace;color:#000}
+.ldiff .lch .st{font:bold 11px/1.4 Arial;padding:0 6px;border:1px solid #8c8c8c;border-radius:2px;background:var(--chg-bg)}
+.ldiff .lch .st.new{background:var(--add-bg)} .ldiff .lch .st.deleted{background:var(--del-bg)}
+.ldiff .lch .st.moved{background:var(--mov-bg)}
+.ldiff .lch li.more{display:block;cursor:default;color:var(--muted);font-size:11.5px}
+.ldiff .lch li.more:hover{background:none}
+.ldiff .ld{display:none}
+.ldiff.wait .ld{display:block;position:fixed;left:50%;bottom:16px;z-index:25;transform:translateX(-50%);padding:4px 14px;
+  background:#fff;border:1px solid #8c8c8c;box-shadow:0 1px 4px rgba(0,0,0,.25);color:var(--muted)}
+@media print{.ldiff .rail,.ldiff .bh .pn,.ldiff .top,.ldiff .lch,.ldiff .ld{display:none!important}
+  .ldiff.one section.blk{display:block} .ldiff.one table.sum{display:table} .ldiff.one details.mvd{display:block}}

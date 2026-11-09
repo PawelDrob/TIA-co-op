@@ -1,0 +1,10 @@
+{ S7_Optimized := "TRUE" }
+DATA_BLOCK HatchDb
+    VAR
+        { S7_MLC := "MLC_1" }
+        "K02+FS01-BG03" : _.typeHatch;
+        { S7_MLC := "MLC_2" }
+        "K02+FS01-SF09" : _.typeHatch;
+    END_VAR
+
+END_DATA_BLOCK

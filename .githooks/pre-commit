@@ -1,0 +1,335 @@
+#!/bin/sh
+# Pre-commit checks of this repo. First setup (tools/setup/) turns them on: git config core.hooksPath .githooks
+# Times are of a full run (--all) on the maintainer's PC, two suites at once, 2026-11-06: about 8 min in all, where one
+# suite after another took about 15.
+#   1. parse check of every TiaBridge script (always)
+#   2. TiaBridge unit tests (about 2 min), when the commit touches TiaBridge/
+#   3. TiaChangeReports unit tests (about 4 min), when the commit touches TiaChangeReports/. A commit that touches
+#      TiaBridge/ alone runs the one of them that holds the report's list of export folders to the bridge's
+#      (BridgeFolders, about 2 s)
+#   4. TiaArchiveCompare runner tests (about 30 s) and window model tests (about 3 s, no window), when the commit
+#      touches TiaArchiveCompare/; its package tests (under a second: what the download holds, its version), also when
+#      it touches TiaBridge/Mcp.ps1, whose version the download's must equal
+#   5. TiaAgentStatus unit tests (about 12 s, one starts a bridge without TIA), when the commit touches
+#      TiaAgentStatus/, TiaBridge/ (it reads the bridge's state files), tools/dashboard/ (its page runs on that core) or
+#      .claude/skills/tia-dashboard/ (a test holds its page to the string the skill looks for)
+#   6. TiaHmiGenerator unit tests (about 4 min, run from the folder) and the catalogue check (build.py --check), when
+#      the commit touches TiaHmiGenerator/, with the bridge's validator guard tests (HmiImport.Tests.ps1, about 5 s)
+#      when step 2 does not run. A TiaBridge/ change alone does not need them: the generator tests use no bridge
+#      code, and step 2 runs the guard tests on the real validator
+#   7. OKF check of docs/ (check only, tools/okf/), when the commit touches docs/ or tools/okf/, and the checker's
+#      own tests (about 2 s) when it touches tools/okf/. A document added, moved, removed or deprecated needs a line in
+#      docs/log.md in the same commit
+#   8. Development dashboard tests (about 40 s), when the commit touches tools/dashboard/
+#   9. Pointer check (tools/pointers/): a skill, AGENTS.md, CODING_STANDARDS.md, CONTRIBUTING.md or the README.md of the
+#      repo or of a top-level folder naming a file that is gone, or a skill whose frontmatter does not parse, on every
+#      commit that has the .venv (it says so when skipped), and the check's own tests when the commit touches
+#      tools/pointers/
+#  10. Session tool tests (about 40 s, on temp git repos, with no claude or herdr), when the commit touches tools/session/,
+#      tools/setup/setup.py, whose command for the bridge a session starts too, or tools/dashboard/board.py or review_page.py,
+#      which its merge reads a ticket's head and takes a page down with
+#  11. The hook's own tests (tools/hooks/tests/, about 3 min, on temp git repos with the suites stubbed), when the commit
+#      touches .githooks/ or tools/hooks/
+#  12. First setup tests (about 15 s, on temp clones, with a fake claude), when the commit touches tools/setup/ or
+#      TiaAgentStatus/ (a test runs the status line setup writes, with its fakes)
+# The checks and tests run side by side, at most PRE_COMMIT_JOBS at once (default 2: the maintainer's PC runs at most two
+# heavy jobs at once, as more ran it out of memory; CI may set more), the long suites first. Each writes its own log in
+# the git dir of the tree (<suite>.log), and the summary comes in the order above, each step as soon as the steps before
+# it have ended. PRE_COMMIT_JOBS=1 runs them one after another. Stopped, the hook ends the steps still running.
+# With a ref, sh .githooks/pre-commit <ref> runs the same choice for what HEAD changed since it, not for what is staged:
+# the audit of a branch runs it so. A run with a ref that passes on a clean tree leaves a stamp, pre-commit-passed in the
+# git dir: the commit tested and the commit of the ref. The next run with the same pair on a clean tree runs nothing and
+# says in one line, starting "pre-commit: suites skipped", that the suites passed already. A rebase that moves nothing
+# keeps the pair; a commit, a change in the tree, staged or not, a new file or a moved ref runs the suites.
+# A run on a clean tree that does not skip takes the stamp away first, so a failure leaves none; a run on a changed tree
+# keeps the stamp of the clean one. A pass that cannot stamp, as the tree held or got a change, says so in a line starting
+# "pre-commit: passed, no stamp".
+# PRE_COMMIT_NO_SKIP=1 runs them whatever the stamp says, and stamps when they pass: the audit runs it so, as the gate
+# runs its own suites, and the merge after it skips.
+# sh .githooks/pre-commit --all runs every suite with nothing staged, no log check and no stamp: CI runs it so, and so
+# can you.
+# Python runs on the .venv of this tree, by absolute path, never from PATH: a commit that needs it is refused without.
+fail=0
+docs_added_moved_removed=""
+docs_deprecated=""
+ref=""
+stamp=""
+# all of this before the unset below: git commit -a stages in an index of its own, named by GIT_INDEX_FILE
+if [ "$1" = "--all" ]; then
+    staged=$(git ls-files)
+    changes=""
+elif [ -n "$1" ]; then
+    ref=$1
+    staged=$(git diff --name-only "$ref...HEAD") || exit 1
+    changes="$ref...HEAD"
+else
+    staged=$(git diff --cached --name-only)
+    changes="--cached"
+fi
+if [ -n "$changes" ]; then
+    docs_added_moved_removed=$(git -c core.quotepath=off diff "$changes" --name-status -M -- docs | grep -E '^[ADR]' | grep -E '\.md$' | grep -vE '/(index|log)\.md$')
+    docs_deprecated=$(git diff "$changes" -U0 -- docs | grep -E "^\+status: *[\"']?deprecated")
+fi
+# git gives a hook GIT_DIR and GIT_INDEX_FILE (in a linked worktree too). The tests make their own fixture repos with
+# git -C <folder>; with these set, their commits and config would land in this repo instead.
+logdir=$(git rev-parse --git-dir)
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_COMMON_DIR
+
+# what the tree holds beyond HEAD: a change, staged or not, or a file git does not know, whatever git's config shows
+tree_changes() {
+    git status --porcelain --untracked-files=all --ignore-submodules=none
+}
+
+# the commit tested and the commit of the ref, or nothing when the tree holds a change
+tested_pair() {
+    [ -z "$(tree_changes)" ] && echo "$(git rev-parse HEAD) $(git rev-parse --verify --quiet "$ref^{commit}")"
+}
+
+if [ -n "$ref" ]; then
+    stamp="$logdir/pre-commit-passed"
+    tested=$(tested_pair)
+    if [ -z "$PRE_COMMIT_NO_SKIP" ] && [ -n "$tested" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$tested" ]; then
+        echo "pre-commit: suites skipped, they passed on $(git rev-parse --short HEAD) against $ref $(git rev-parse --short "$ref^{commit}") and nothing changed since"
+        exit 0
+    fi
+    [ -n "$tested" ] && rm -f "$stamp"  # this run decides the pair: a failure leaves no earlier pass behind
+fi
+
+py="$(pwd)/.venv/Scripts/python.exe"
+if echo "$staged" | grep -qE '^(TiaBridge|TiaChangeReports|TiaArchiveCompare|TiaAgentStatus|TiaHmiGenerator|tools/dashboard|tools/pointers|tools/session|tools/hooks|tools/setup|\.githooks|\.claude/skills)/|^(AGENTS|CODING_STANDARDS|CONTRIBUTING)\.md$' && [ ! -x "$py" ]; then
+    echo "pre-commit: no .venv in this tree: run uv sync here (once per clone and per worktree). Commit refused."
+    exit 1
+fi
+
+# The steps. suite <key> <kind> <title> <failure> [long] adds one; its command is the function run_<key>, its log
+# <key with - for _>.log in the git dir. Kind unittest or pester: the summary greps the log, and on failure says
+# "pre-commit: <failure>, full output in <log>". Kind text: the summary is the whole log, which says itself what failed.
+# An empty title prints no "pre-commit: <title>" line. A long step starts before the others.
+suites=""
+long_suites=""
+short_suites=""
+suite() {
+    suites="$suites $1"
+    eval "kind_$1=\$2 title_$1=\$3 failure_$1=\$4"
+    if [ "$5" = long ]; then long_suites="$long_suites $1"; else short_suites="$short_suites $1"; fi
+}
+
+unittest() {
+    "$py" -X utf8 -m unittest "$@"
+}
+
+powershell_file() {
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$@"
+}
+
+pester() {
+    powershell_file TiaBridge/Tests/run.ps1 "$@"
+}
+
+run_parse_check() { powershell_file TiaBridge/Tests/parse.ps1; }
+suite parse_check text "parse check"
+
+if echo "$staged" | grep -q '^TiaBridge/'; then
+    run_tiabridge_pester() { pester; }
+    suite tiabridge_pester pester "TiaBridge unit tests" "unit tests failed" long
+fi
+
+if echo "$staged" | grep -q '^TiaChangeReports/'; then
+    run_tiachangereports_unittest() { unittest discover -s TiaChangeReports/tests -t .; }
+    suite tiachangereports_unittest unittest "TiaChangeReports unit tests" "TiaChangeReports tests failed" long
+fi
+
+if echo "$staged" | grep -q '^TiaBridge/' && ! echo "$staged" | grep -q '^TiaChangeReports/'; then
+    run_tiachangereports_bridgefolders() { unittest TiaChangeReports.tests.test_export_roots.BridgeFolders; }
+    suite tiachangereports_bridgefolders unittest "the report reads the bridge's export folders" \
+        "an export folder outside EXPORT_ROOTS of TiaChangeReports/source.py"
+fi
+
+if echo "$staged" | grep -q '^TiaArchiveCompare/'; then
+    run_tiaarchivecompare_unittest() { unittest discover -s TiaArchiveCompare/runner/tests -t .; }
+    suite tiaarchivecompare_unittest unittest "TiaArchiveCompare runner tests" "TiaArchiveCompare runner tests failed"
+    run_tiaarchivecompare_window() { unittest discover -s TiaArchiveCompare/window/tests -t .; }
+    suite tiaarchivecompare_window unittest "TiaArchiveCompare window model tests" "TiaArchiveCompare window model tests failed"
+fi
+
+if echo "$staged" | grep -qE '^(TiaArchiveCompare/|TiaBridge/Mcp\.ps1$)'; then
+    run_tiaarchivecompare_package() { unittest discover -s TiaArchiveCompare/package/tests -t .; }
+    suite tiaarchivecompare_package unittest "TiaArchiveCompare package tests" "TiaArchiveCompare package tests failed"
+fi
+
+if echo "$staged" | grep -qE '^(TiaAgentStatus|TiaBridge|tools/dashboard|\.claude/skills/tia-dashboard)/'; then
+    run_tiaagentstatus_unittest() { unittest discover -s TiaAgentStatus/tests -t .; }
+    suite tiaagentstatus_unittest unittest "TiaAgentStatus unit tests" "TiaAgentStatus tests failed"
+fi
+
+if echo "$staged" | grep -q '^TiaHmiGenerator/'; then
+    run_tiahmigenerator_unittest() { (cd TiaHmiGenerator && unittest discover -s Tests -t .); }
+    suite tiahmigenerator_unittest unittest "TiaHmiGenerator unit tests" "TiaHmiGenerator tests failed" long
+    run_tiahmigenerator_catalogue() {
+        if "$py" -X utf8 TiaHmiGenerator/catalogue/build.py --check; then
+            echo "catalogue current"
+        else
+            echo "pre-commit: TiaHmiGenerator catalogue not current, run .venv/Scripts/python.exe -X utf8 TiaHmiGenerator/catalogue/build.py"
+            return 1
+        fi
+    }
+    suite tiahmigenerator_catalogue text "TiaHmiGenerator catalogue check"
+    if ! echo "$staged" | grep -q '^TiaBridge/'; then
+        run_tiabridge_hmiimport() { pester HmiImport.Tests.ps1; }
+        suite tiabridge_hmiimport pester "TiaBridge validator guard tests" "TiaBridge validator guard tests failed"
+    fi
+fi
+
+if echo "$staged" | grep -q -E '^(docs|tools/okf)/'; then
+    run_docs_check() { powershell_file tools/okf/Test-OkfBundle.ps1 -Path docs -Quiet; }
+    suite docs_check text "docs check"
+fi
+
+if [ -n "$docs_added_moved_removed$docs_deprecated" ] && ! echo "$staged" | grep -q '^docs/log\.md$'; then
+    run_docs_log() {
+        echo "pre-commit: a document added, moved, removed or deprecated needs a line in docs/log.md"
+        return 1
+    }
+    suite docs_log text ""
+fi
+
+if echo "$staged" | grep -q '^tools/okf/'; then
+    run_okf_pester() { powershell_file tools/okf/tests/run.ps1; }
+    suite okf_pester pester "docs checker tests" "docs checker tests failed"
+fi
+
+if echo "$staged" | grep -q '^tools/dashboard/'; then
+    run_dashboard_unittest() { unittest discover -s tools/dashboard/tests -t .; }
+    suite dashboard_unittest unittest "development dashboard tests" "development dashboard tests failed"
+fi
+
+if [ -x "$py" ]; then
+    run_pointer_check() { "$py" -X utf8 tools/pointers/check_pointers.py; }
+    suite pointer_check text "pointer check"
+else
+    run_pointer_check() { echo "pre-commit: no .venv in this tree, pointer check skipped"; }
+    suite pointer_check text ""
+fi
+
+if echo "$staged" | grep -q '^tools/pointers/'; then
+    run_pointers_unittest() { unittest discover -s tools/pointers/tests -t .; }
+    suite pointers_unittest unittest "pointer check tests" "pointer check tests failed"
+fi
+
+if echo "$staged" | grep -qE '^tools/session/|^tools/setup/setup\.py$|^tools/dashboard/(board|review_page)\.py$'; then
+    run_session_unittest() { unittest discover -s tools/session/tests -t .; }
+    suite session_unittest unittest "session tool tests" "session tool tests failed"
+fi
+
+if echo "$staged" | grep -qE '^(\.githooks|tools/hooks)/'; then
+    run_hooks_unittest() { unittest discover -s tools/hooks/tests -t .; }
+    suite hooks_unittest unittest "hook tests" "hook tests failed" long
+fi
+
+if echo "$staged" | grep -qE '^(tools/setup|TiaAgentStatus)/'; then
+    run_setup_unittest() { unittest discover -s tools/setup/tests -t .; }
+    suite setup_unittest unittest "first setup tests" "first setup tests failed"
+fi
+
+# The run. Each step runs in the background; its exit code lands in the run folder when it ends.
+jobs_at_once=${PRE_COMMIT_JOBS:-2}
+case $jobs_at_once in
+    '' | *[!0-9]*) jobs_known=no ;;
+    *) [ "$jobs_at_once" -gt 0 ] 2> /dev/null && jobs_known=yes || jobs_known=no ;;  # no for 0, 00, or too big a number
+esac
+if [ "$jobs_known" = no ]; then
+    echo "pre-commit: PRE_COMMIT_JOBS is $PRE_COMMIT_JOBS, not a number above 0: 2 at once"
+    jobs_at_once=2
+fi
+rundir="$logdir/pre-commit-run.$$"
+rm -rf "$rundir"
+mkdir -p "$rundir"
+
+log_of() {
+    echo "$logdir/$(echo "$1" | tr _ -).log"
+}
+
+start_step() {
+    ("run_$1" > "$(log_of "$1")" 2>&1; echo $? > "$rundir/$1.part"; mv "$rundir/$1.part" "$rundir/$1") &
+    eval "pid_$1=\$!"
+}
+
+# Stopped (Ctrl+C or kill): end the steps still running with all they started, by the number Windows gives the step's
+# shell; a background step would ignore Ctrl+C and run on.
+stop_steps() {
+    for key in $started; do
+        [ -f "$rundir/$key" ] && continue
+        eval "pid=\$pid_$key"
+        if [ -r "/proc/$pid/winpid" ]; then
+            taskkill //T //F //PID "$(cat "/proc/$pid/winpid")" > /dev/null 2>&1
+        else
+            kill "$pid" 2> /dev/null
+        fi
+    done
+    rm -rf "$rundir"
+    echo "pre-commit: stopped, the steps still running ended"
+    exit 130
+}
+started=""
+trap stop_steps INT TERM
+
+report_step() {
+    eval "kind=\$kind_$1 title=\$title_$1 failure=\$failure_$1"
+    log=$(log_of "$1")
+    code=$(cat "$rundir/$1")
+    [ -n "$title" ] && echo "pre-commit: $title"
+    case $kind in
+        unittest)
+            if [ "$code" = 0 ]; then grep -E '^Ran |^OK' "$log"; else grep -E '^(FAIL|ERROR):|^Ran |^FAILED' "$log"; fi ;;
+        pester)
+            if [ "$code" = 0 ]; then grep -E 'Passed:' "$log"; else grep -E '\[-\]|Passed:' "$log"; fi ;;
+        text)
+            cat "$log" ;;
+    esac
+    if [ "$code" != 0 ]; then
+        fail=1
+        [ "$kind" != text ] && echo "pre-commit: $failure, full output in $log"
+    fi
+}
+
+waiting="$long_suites $short_suites"
+unreported=$suites
+while [ -n "$unreported" ]; do
+    running=0
+    for key in $started; do
+        [ -f "$rundir/$key" ] || running=$((running + 1))
+    done
+    while [ -n "$waiting" ] && [ "$running" -lt "$jobs_at_once" ]; do
+        set -- $waiting
+        start_step "$1"
+        started="$started $1"
+        running=$((running + 1))
+        shift
+        waiting="$*"
+    done
+    while [ -n "$unreported" ]; do
+        set -- $unreported
+        [ -f "$rundir/$1" ] || break
+        report_step "$1"
+        shift
+        unreported="$*"
+    done
+    [ -n "$unreported" ] && sleep 0.5
+done
+wait
+rm -rf "$rundir"
+
+if [ $fail -ne 0 ]; then
+    echo "pre-commit: checks failed, commit refused"
+    exit 1
+fi
+
+if [ -n "$ref" ]; then
+    if [ -z "$tested" ]; then
+        echo "pre-commit: passed, no stamp: the tree held a change before the run ($(tree_changes | head -n 1 | cut -c4-))"
+    elif [ "$(tested_pair)" != "$tested" ]; then
+        echo "pre-commit: passed, no stamp: the tree or a commit changed during the run ($(tree_changes | head -n 1 | cut -c4-))"
+    else
+        echo "$tested" > "$stamp"
+    fi
+fi

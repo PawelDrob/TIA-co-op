@@ -1,0 +1,11 @@
+﻿MultiLingualTexts:
+  - id: MLC_J1
+    en-US: Switch
+  - id: MLC_J2
+    en-US: Calculate
+  - id: MLC_J3
+    en-US: Jump list
+  - id: MLC_J4
+    en-US: Step label
+  - id: MLC_J5
+    en-US: Step label

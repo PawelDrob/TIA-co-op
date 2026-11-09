@@ -1,0 +1,948 @@
+{
+ "about": "Values the spelling round trip screens set, one per object (roundtrip.py).",
+ "values": [
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine1",
+   "attribute": "FillStyle",
+   "value": "Solid"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine2",
+   "attribute": "Style",
+   "value": "Dash"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine3",
+   "attribute": "Style",
+   "value": "Dot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine4",
+   "attribute": "Style",
+   "value": "DashDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine5",
+   "attribute": "Style",
+   "value": "DashDotDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine6",
+   "attribute": "EndStyle",
+   "value": "Arrow"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine7",
+   "attribute": "EndStyle",
+   "value": "FilledArrowReversed"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine8",
+   "attribute": "EndStyle",
+   "value": "Line"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine9",
+   "attribute": "EndStyle",
+   "value": "Circle"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine10",
+   "attribute": "EndStyle",
+   "value": "FilledCircle"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine11",
+   "attribute": "StartStyle",
+   "value": "Arrow"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine12",
+   "attribute": "StartStyle",
+   "value": "FilledArrowReversed"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine13",
+   "attribute": "StartStyle",
+   "value": "Line"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine14",
+   "attribute": "StartStyle",
+   "value": "Circle"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Line",
+   "object": "zzLine15",
+   "attribute": "StartStyle",
+   "value": "FilledCircle"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline1",
+   "attribute": "FillStyle",
+   "value": "Solid"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline2",
+   "attribute": "Style",
+   "value": "Dash"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline3",
+   "attribute": "Style",
+   "value": "Dot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline4",
+   "attribute": "Style",
+   "value": "DashDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline5",
+   "attribute": "Style",
+   "value": "DashDotDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline6",
+   "attribute": "EndStyle",
+   "value": "Arrow"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline7",
+   "attribute": "EndStyle",
+   "value": "FilledArrow"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline8",
+   "attribute": "EndStyle",
+   "value": "FilledArrowReversed"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline9",
+   "attribute": "EndStyle",
+   "value": "Line"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline10",
+   "attribute": "EndStyle",
+   "value": "Circle"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline11",
+   "attribute": "EndStyle",
+   "value": "FilledCircle"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline12",
+   "attribute": "StartStyle",
+   "value": "Arrow"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline13",
+   "attribute": "StartStyle",
+   "value": "FilledArrow"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline14",
+   "attribute": "StartStyle",
+   "value": "FilledArrowReversed"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline15",
+   "attribute": "StartStyle",
+   "value": "Line"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline16",
+   "attribute": "StartStyle",
+   "value": "Circle"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline17",
+   "attribute": "StartStyle",
+   "value": "FilledCircle"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Polyline",
+   "object": "zzPolyline18",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Polygon",
+   "object": "zzPolygon1",
+   "attribute": "BackFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Polygon",
+   "object": "zzPolygon2",
+   "attribute": "EdgeStyle",
+   "value": "Dash"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polygon",
+   "object": "zzPolygon3",
+   "attribute": "EdgeStyle",
+   "value": "Dot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polygon",
+   "object": "zzPolygon4",
+   "attribute": "EdgeStyle",
+   "value": "DashDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Polygon",
+   "object": "zzPolygon5",
+   "attribute": "EdgeStyle",
+   "value": "DashDotDot"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Ellipse",
+   "object": "zzEllipse1",
+   "attribute": "BackFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Ellipse",
+   "object": "zzEllipse2",
+   "attribute": "EdgeStyle",
+   "value": "Dash"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Ellipse",
+   "object": "zzEllipse3",
+   "attribute": "EdgeStyle",
+   "value": "Dot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Ellipse",
+   "object": "zzEllipse4",
+   "attribute": "EdgeStyle",
+   "value": "DashDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Ellipse",
+   "object": "zzEllipse5",
+   "attribute": "EdgeStyle",
+   "value": "DashDotDot"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Ellipse",
+   "object": "zzEllipse6",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Circle",
+   "object": "zzCircle1",
+   "attribute": "BackFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Circle",
+   "object": "zzCircle2",
+   "attribute": "EdgeStyle",
+   "value": "Dash"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Circle",
+   "object": "zzCircle3",
+   "attribute": "EdgeStyle",
+   "value": "Dot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Circle",
+   "object": "zzCircle4",
+   "attribute": "EdgeStyle",
+   "value": "DashDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Circle",
+   "object": "zzCircle5",
+   "attribute": "EdgeStyle",
+   "value": "DashDotDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Rectangle",
+   "object": "zzRectangle1",
+   "attribute": "EdgeStyle",
+   "value": "Dot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Rectangle",
+   "object": "zzRectangle2",
+   "attribute": "EdgeStyle",
+   "value": "DashDot"
+  },
+  {
+   "screen": "zzTestSpellings2",
+   "element": "Hmi.Screen.Rectangle",
+   "object": "zzRectangle3",
+   "attribute": "EdgeStyle",
+   "value": "DashDotDot"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Rectangle",
+   "object": "zzRectangle4",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.TextField",
+   "object": "zzTextField1",
+   "attribute": "TextOrientation",
+   "value": "Rotated270Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.GraphicView",
+   "object": "zzGraphicView1",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.IOField",
+   "object": "zzIOField1",
+   "attribute": "BackFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.IOField",
+   "object": "zzIOField2",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.IOField",
+   "object": "zzIOField3",
+   "attribute": "DataFormat",
+   "value": "Binary",
+   "also": {
+    "FormatPattern": "1111",
+    "FieldLength": "4",
+    "ShiftDecimalPoint": "0"
+   }
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.IOField",
+   "object": "zzIOField4",
+   "attribute": "Mode",
+   "value": "Input"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.IOField",
+   "object": "zzIOField5",
+   "attribute": "TextOrientation",
+   "value": "Rotated90Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.IOField",
+   "object": "zzIOField6",
+   "attribute": "TextOrientation",
+   "value": "Rotated270Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.IOField",
+   "object": "zzIOField7",
+   "attribute": "VerticalAlignment",
+   "value": "Top"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.IOField",
+   "object": "zzIOField8",
+   "attribute": "VerticalAlignment",
+   "value": "Bottom"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Button",
+   "object": "zzButton1",
+   "attribute": "HorizontalAlignment",
+   "value": "Right"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Button",
+   "object": "zzButton2",
+   "attribute": "TextOrientation",
+   "value": "Rotated90Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Button",
+   "object": "zzButton3",
+   "attribute": "TextOrientation",
+   "value": "Rotated270Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Button",
+   "object": "zzButton4",
+   "attribute": "VerticalAlignment",
+   "value": "Bottom"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolicIOField",
+   "object": "zzSymbolicIOField1",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolicIOField",
+   "object": "zzSymbolicIOField2",
+   "attribute": "Mode",
+   "value": "Input",
+   "also": {
+    "TextOrientation": "Horizontal"
+   }
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolicIOField",
+   "object": "zzSymbolicIOField3",
+   "attribute": "TextOrientation",
+   "value": "Rotated90Degree",
+   "also": {
+    "Mode": "Output"
+   }
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolicIOField",
+   "object": "zzSymbolicIOField4",
+   "attribute": "TextOrientation",
+   "value": "Rotated270Degree",
+   "also": {
+    "Mode": "Output"
+   }
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolicIOField",
+   "object": "zzSymbolicIOField5",
+   "attribute": "VerticalAlignment",
+   "value": "Top"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolicIOField",
+   "object": "zzSymbolicIOField6",
+   "attribute": "VerticalAlignment",
+   "value": "Bottom"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.GraphicIOField",
+   "object": "zzGraphicIOField1",
+   "attribute": "BackFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.GraphicIOField",
+   "object": "zzGraphicIOField2",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.GraphicIOField",
+   "object": "zzGraphicIOField3",
+   "attribute": "Mode",
+   "value": "Output"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.GraphicIOField",
+   "object": "zzGraphicIOField4",
+   "attribute": "Mode",
+   "value": "Input"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField1",
+   "attribute": "BackFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField2",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField3",
+   "attribute": "Mode",
+   "value": "InOutput",
+   "also": {
+    "LongDateTimeFormat": "false"
+   }
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField4",
+   "attribute": "HorizontalAlignment",
+   "value": "Center"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField5",
+   "attribute": "HorizontalAlignment",
+   "value": "Right"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField6",
+   "attribute": "TextOrientation",
+   "value": "Rotated90Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField7",
+   "attribute": "TextOrientation",
+   "value": "Rotated270Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField8",
+   "attribute": "VerticalAlignment",
+   "value": "Top"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.DateTimeField",
+   "object": "zzDateTimeField9",
+   "attribute": "VerticalAlignment",
+   "value": "Bottom"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Bar",
+   "object": "zzBar1",
+   "attribute": "SegmentColoring",
+   "value": "Segmented"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Bar",
+   "object": "zzBar2",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Bar",
+   "object": "zzBar3",
+   "attribute": "BarOrientation",
+   "value": "Down"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Bar",
+   "object": "zzBar4",
+   "attribute": "BarOrientation",
+   "value": "Left"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Bar",
+   "object": "zzBar5",
+   "attribute": "ScalePosition",
+   "value": "RightDown"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Switch",
+   "object": "zzSwitch1",
+   "attribute": "BackFillStyle",
+   "value": "Solid"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Switch",
+   "object": "zzSwitch2",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Switch",
+   "object": "zzSwitch3",
+   "attribute": "HorizontalAlignment",
+   "value": "Left"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Switch",
+   "object": "zzSwitch4",
+   "attribute": "HorizontalAlignment",
+   "value": "Right"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Switch",
+   "object": "zzSwitch5",
+   "attribute": "TextOrientation",
+   "value": "Rotated90Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Switch",
+   "object": "zzSwitch6",
+   "attribute": "TextOrientation",
+   "value": "Rotated270Degree"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Switch",
+   "object": "zzSwitch7",
+   "attribute": "VerticalAlignment",
+   "value": "Top"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Switch",
+   "object": "zzSwitch8",
+   "attribute": "VerticalAlignment",
+   "value": "Bottom"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary1",
+   "attribute": "BackFillStyle",
+   "value": "Solid"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary2",
+   "attribute": "FillColorMode",
+   "value": "Shaded"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary3",
+   "attribute": "FillColorMode",
+   "value": "Solid"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary4",
+   "attribute": "FillColorMode",
+   "value": "Hollow"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary5",
+   "attribute": "Flashing",
+   "value": "Standard",
+   "also": {
+    "FlashingOnLimitViolation": "false"
+   }
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary6",
+   "attribute": "Flip",
+   "value": "Horizontal"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary7",
+   "attribute": "Flip",
+   "value": "Vertical"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary8",
+   "attribute": "Flip",
+   "value": "Both"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary9",
+   "attribute": "Rotation",
+   "value": "Angle90"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary10",
+   "attribute": "Rotation",
+   "value": "Angle180"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.SymbolLibrary",
+   "object": "zzSymbolLibrary11",
+   "attribute": "Rotation",
+   "value": "Angle270"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider1",
+   "attribute": "BackFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider2",
+   "attribute": "TickStyle",
+   "value": "None"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider3",
+   "attribute": "TickStyle",
+   "value": "Effect1"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider4",
+   "attribute": "TickStyle",
+   "value": "Effect2"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider5",
+   "attribute": "BorderInnerStyle3D",
+   "value": "None"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider6",
+   "attribute": "BorderInnerStyle3D",
+   "value": "Raised"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider7",
+   "attribute": "BorderInnerStyle3D",
+   "value": "Colored"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider8",
+   "attribute": "BorderOuterStyle3D",
+   "value": "None"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider9",
+   "attribute": "BorderOuterStyle3D",
+   "value": "Recessed"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider10",
+   "attribute": "BorderOuterStyle3D",
+   "value": "Colored"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider11",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider12",
+   "attribute": "BarOrientation",
+   "value": "Down"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider13",
+   "attribute": "BarOrientation",
+   "value": "Left"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider14",
+   "attribute": "BarOrientation",
+   "value": "Right"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Slider",
+   "object": "zzSlider15",
+   "attribute": "ScalePosition",
+   "value": "RightDown"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Gauge",
+   "object": "zzGauge1",
+   "attribute": "BackFillStyle",
+   "value": "Solid",
+   "also": {
+    "DialFillStyle": "Solid"
+   }
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Gauge",
+   "object": "zzGauge2",
+   "attribute": "DialFillStyle",
+   "value": "Transparent",
+   "also": {
+    "BackFillStyle": "FrameTransparent"
+   }
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Clock",
+   "object": "zzClock1",
+   "attribute": "NeedleFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Clock",
+   "object": "zzClock2",
+   "attribute": "Flashing",
+   "value": "Standard"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.Clock",
+   "object": "zzClock3",
+   "attribute": "BackFillStyle",
+   "value": "Transparent"
+  },
+  {
+   "screen": "zzTestSpellings",
+   "element": "Hmi.Screen.UserView",
+   "object": "zzUserView1",
+   "attribute": "Flashing",
+   "value": "Standard"
+  }
+ ]
+}

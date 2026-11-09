@@ -1,0 +1,112 @@
+{
+    S7_BlockNumber := "743";
+    S7_Optimized := "TRUE"
+}
+FUNCTION_BLOCK "PrepareFillData"
+    VAR_INPUT
+        iPhase : Int;
+    END_VAR
+    VAR_IN_OUT
+        ioFillData : _.FillData_UDT;
+        ioHw : _.FillerHw_UDT;
+    END_VAR
+    VAR
+        instHeadDown : R_TRIG;
+        instSettle : TON_TIME;
+    END_VAR
+    VAR CONSTANT
+        R_WATER : Int := 1;
+        { S7_MLC := "MLC_c" }
+        R_SYRUP : Int := 2;
+        "OIL" : Int := 3;
+        FLOW_OFF : Int := 0;
+        "IDLE" : Int := 0;
+    END_VAR
+    {
+        S7_Language := "SCL";
+        S7_NetworkTitle := "MLC_n1"
+    }
+    NETWORK
+        #ioHw.AirLow := NOT #ioFillData.Supply.AirOK;
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n2"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            #instHeadDown.R_TRIG(
+                clk := wire#w1,
+                q => #ioHw.HeadDownEdge
+            )
+        END_RUNG
+        RUNG wire#powerrail
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #ioFillData.Config."Type",
+                in2 := #R_SYRUP
+            )
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #ioFillData.Valves.FineState,
+                in2 := #FLOW_OFF
+            )
+            Contact( #ioFillData.Head.LowerLimit )
+        END_RUNG wire#w1
+        RUNG wire#powerrail
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #ioFillData.Config."Type",
+                in2 := #R_WATER
+            )
+            Contact( #ioFillData.Head.LowerLimit )
+        END_RUNG wire#w1
+        RUNG wire#powerrail
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #ioFillData.Config."Type",
+                in2 := #"OIL"
+            )
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #ioFillData.Valves.CoarseState,
+                in2 := #FLOW_OFF
+            )
+        END_RUNG wire#w1
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n3"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #ioHw.HeadDownEdge )
+            S_SR(
+                operand := #ioHw.AtNeck,
+                r1 := wire#w1
+            )
+        END_RUNG
+        RUNG wire#powerrail
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #iPhase,
+                in2 := #"IDLE"
+            )
+        END_RUNG wire#w1
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_n4"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #ioHw.AtNeck )
+            { S7_Templates := "time_type := Time" }
+            #instSettle.TON(
+                pt := t#800ms,
+                et =>
+            )
+            Coil( #ioHw.Settled )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK
