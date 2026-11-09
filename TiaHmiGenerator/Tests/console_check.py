@@ -150,9 +150,12 @@ def answers(port):
 
 
 def fixture():
+    """Screen Silo generated, then exported and committed after: the staleness rule asks git log for the commit."""
     repo = FixtureRepo()
-    repo.generated('screen', 'Silo', document('screen', 'Silo', [rect('r1')], Number=2))
-    repo.commit()
+    path = repo.generated('screen', 'Silo', document('screen', 'Silo', [rect('r1')], Number=2))
+    repo.write('hmi/generated/generated.json', json.dumps({path: {'generated': '2026-10-06T10:00:00+00:00'}}))
+    repo.export('screen', 'Silo', document('screen', 'Silo', [rect('r1', left=40)], Number=2))
+    repo.commit(date='2026-10-06T12:00:00+00:00')
     repo.generated('screen', 'Silo', document('screen', 'Silo', [rect('r1', left=20)], Number=2))
     return repo
 
@@ -167,8 +170,8 @@ def requests(repo, port):
     diff = json.loads(get(port, '/api/diff', name='Silo'))
     check(diff['lines'] == ['Rectangle r1: moved (10, 90) 100x50 -> (30, 90) 100x50'], 'the diff after a reload: %s' % diff['lines'])
     check('changed' in get(port, '/api/tree', against='commit'), 'the tree with the diff on after a reload')
-    get(port, '/api/findings')
-    check(True, 'the findings (git log of the staleness rule)')
+    stale = [f['document'] for f in json.loads(get(port, '/api/findings')) if f['rule'] == 'staleness.export-newer']
+    check(stale == ['hmi/generated/screens/Silo.xml'], 'the findings, the export newer by git log: %s' % stale)
 
 
 def detach(desktop_name, repo, port, lines_file):
@@ -202,10 +205,11 @@ def stop(pid):
 
 def main():
     from hmipreview import server
-    names = {n.attr for n in ast.walk(ast.parse(inspect.getsource(server.detach))) if isinstance(n, ast.Attribute)}
+    names = {n.attr if isinstance(n, ast.Attribute) else n.value for n in ast.walk(ast.parse(inspect.getsource(server.detach)))
+             if isinstance(n, ast.Attribute) or isinstance(n, ast.Constant) and isinstance(n.value, str)}     # getattr's too
     if 'DETACHED_PROCESS' in names:
         print('server.detach still starts the server with DETACHED_PROCESS, and a console window may open on your desktop: '
-              'not run (ticket 264 drops it)')
+              'not run')
         return 2
     repo = fixture()
     name = 'zz-hmipreview-%d' % os.getpid()

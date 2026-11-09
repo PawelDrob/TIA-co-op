@@ -417,7 +417,8 @@ def folder_of(repo):
 def spawn_run(root):
     """What starts a report run of a repo: a process of its own, with no window, that outlives the dashboard."""
     def start(repo):
-        flags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+        # Not DETACHED_PROCESS: the python.exe of a venv is a launcher, and a child it starts with no console gets a window of its own.
+        flags = watch.NO_WINDOW | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
         subprocess.Popen([sys.executable, '-X', 'utf8', '-m', 'TiaAgentStatus', 'report-run', '--repo', repo, '--root', root],
                          cwd=reportrun.TOOLS, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          creationflags=flags, close_fds=True)
