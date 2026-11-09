@@ -760,6 +760,7 @@ class DrawnOnThePage(unittest.TestCase):
 
                 self.assertIn('class="hv" data-drawn="1"', dom)
                 self.assertNotIn('No changes', dom)
+                self.assertNotIn('class="hcl"', dom)
 
     # Writes data-scales on the body: per layout and mode the drawn scale and width of each side shown (toggle: the
     # first view and the one after Space); the width the scroll bars take; the width a pane has for a drawing.
