@@ -12,7 +12,8 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
 - Archives the project before the first write, and names at each save what stays uncompiled or not consistent.
 - Creates and edits library types. You approve each release, level by level.
 - Makes master copies of project objects or PLC folders, in the project library or a global library, and creates project
-  objects from master copies. It cannot read what a master copy holds: see [Limitations](../README.md#limitations).
+  objects from master copies. It lists what a master copy holds, but cannot export those objects' contents: see
+  [Limitations](../README.md#limitations).
 - Exports a whole project into its repo, and writes a [change report](../TiaChangeReports/README.md) for a commit.
 - Opens a project in a TIA with a window when you name it. When you ask, works in a TIA without a window: on a copy, or on
   a project closed in your TIA.
