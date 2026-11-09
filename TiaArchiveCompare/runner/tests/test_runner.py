@@ -1070,6 +1070,27 @@ class TiaRootCheckTest(TiaRootCase):
         self.assertIn('A path in it has each backslash doubled.', problems[0])
         self.assertEqual('V20.00.00.07', checks.check_pc(self.tmp)['tia'])      # the cache still answers
 
+    def test_json_the_bridge_refuses_is_named_with_its_reason(self):
+        """Valid JSON that Get-BridgeSettings refuses: the reason, and no hint about backslashes, which are not it."""
+        root = self.tia_folder()
+        self.patch(checks, 'DEFAULT_TIA_ROOT', root)
+        self.registry({'version': 'V20.00.00.07', 'path': root, 'openness': True})
+        for text, reason in (('{"tiaRoot": "D:\\\\TIA", "TIAROOT": "D:\\\\Other"}',
+                              'two names that differ in case only: tiaRoot and TIAROOT'),
+                             ('{"": 1}', 'an empty name'), ('{"x": {"a": 1, "": 2}}', 'an empty name'),
+                             ('{"archivesKept": 1e400}', 'the number 1e400, too large for it'),
+                             ('{"x": %s%s}' % ('[' * 102, ']' * 102), 'nesting over 102 levels')):
+            with open(self.settings, 'w', encoding='utf-8') as f:
+                f.write(text)
+            problems = self.tia_problems()
+            self.assertEqual(['The bridge refuses %s (%s), so the tool does not know where TIA Portal is.'
+                              % (self.settings, reason)], problems, text[:60])
+        with open(self.settings, 'w', encoding='utf-8') as f:
+            f.write('{"tiaRoot": "D:\\\\TIA" "archivesKept": 3}')                # a comma left out: not the backslashes
+        problems = self.tia_problems()
+        self.assertIn('%s is not valid JSON, so the tool does not know where TIA Portal is' % self.settings, problems[0])
+        self.assertNotIn('backslash', problems[0])
+
     def test_what_only_the_bridge_parses_is_read(self):
         """Single quotes and unquoted names, which JSON has not and Get-BridgeSettings takes."""
         root = self.tia_folder()

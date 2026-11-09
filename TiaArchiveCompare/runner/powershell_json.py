@@ -16,10 +16,20 @@ _SYMBOLS = {'Infinity': math.inf, '-Infinity': -math.inf, 'NaN': math.nan}
 _ESCAPES = {'"': '"', "'": "'", '/': '/', '\\': '\\', 'b': '\b', 'f': '\f', 'n': '\n', 'r': '\r', 't': '\t'}
 _HEX = frozenset('0123456789abcdefABCDEF')
 _NUMBER_WHITE = ' \t\n\v\f\r'
+_JSON_NUMBER = re.compile(r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?')
+
+
+class Refused(ValueError):
+    """JSON, valid as such, that ConvertFrom-Json refuses; its text says why in plain words."""
+
+
+class BadEscape(ValueError):
+    """A backslash in a text that starts no escape, as a path with single backslashes has."""
 
 
 def loads(text):
-    """The value of text, None for none. ValueError where ConvertFrom-Json refuses the text."""
+    """The value of text, None for none. ValueError where ConvertFrom-Json refuses the text: Refused for valid JSON,
+    BadEscape for a backslash that starts no escape."""
     reader = _Reader(text)
     value = reader.value(0)
     if reader.next_char() is not None:
@@ -66,8 +76,8 @@ class _Reader:
         self.source = text
         self.pos = 0
 
-    def fail(self, what):
-        raise ValueError('%s at %d' % (what, self.pos))
+    def fail(self, what, kind=ValueError):
+        raise kind('%s at %d' % (what, self.pos))
 
     def next_char(self):
         while self.pos < len(self.source):
@@ -80,7 +90,7 @@ class _Reader:
     def value(self, depth):
         depth += 1
         if depth > DEPTH_LIMIT:
-            self.fail('nesting over %d levels' % DEPTH_LIMIT)
+            raise Refused('nesting over %d levels' % DEPTH_LIMIT)
         c = self.next_char()
         if c is None:
             return None
@@ -110,7 +120,9 @@ class _Reader:
                     self.fail('no colon after a name')
             if members is None:
                 members = {}
-                if not name:                # .NET takes a first name that is empty or none for an empty object
+                if name == '':
+                    raise Refused('an empty name')
+                if name is None:            # .NET takes a first member without a name for an empty object
                     c = self.next_char()
                     break
             members[name] = self.value(depth)
@@ -121,9 +133,13 @@ class _Reader:
                 self.fail('no comma or } after a member')
         if c != '}':
             self.fail('an object without its }')
-        names = [_folded(n) for n in members]
-        if '' in members or len(set(names)) < len(names):
-            self.fail('an empty name, or two names that differ in case only,')
+        seen = {}
+        for name in members:
+            if name == '':
+                raise Refused('an empty name')
+            first = seen.setdefault(_folded(name), name)
+            if first != name:
+                raise Refused('two names that differ in case only: %s and %s' % (first, name))
         return members
 
     def member_name(self):
@@ -173,7 +189,7 @@ class _Reader:
                 elif escaped in _ESCAPES:
                     out.append(_ESCAPES[escaped])
                 else:
-                    self.fail('an unknown escape')
+                    self.fail('an unknown escape', BadEscape)
         self.fail('a text without its closing quote')
 
     def code_unit(self):
@@ -182,7 +198,7 @@ class _Reader:
         self.pos += 4
         digits = four.strip(_NUMBER_WHITE)
         if len(four) < 4 or not digits or not set(digits) <= _HEX:
-            self.fail('a \\u escape without four hex digits')
+            self.fail('a \\u escape without four hex digits', BadEscape)
         return chr(int(digits, 16))
 
     def token(self):
@@ -196,6 +212,8 @@ class _Reader:
         if token in ('null', 'true', 'false'):
             return {'null': None, 'true': True, 'false': False}[token]
         number = _number(token)
+        if number is None and _JSON_NUMBER.fullmatch(token):
+            raise Refused('the number %s, too large for it' % token)
         if number is None:
             self.fail('an unknown value %r' % token)
         return number

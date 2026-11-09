@@ -94,9 +94,12 @@ def bridge_settings_problem():
         _read_bridge_settings()
     except FileNotFoundError:
         return None
+    except powershell_json.Refused as ex:
+        return 'The bridge refuses %s (%s), so the tool does not know where TIA Portal is.' % (BRIDGE_SETTINGS, ex)
     except ValueError as ex:
-        return ('%s is not valid JSON, so the tool does not know where TIA Portal is (%s). A path in it has each '
-                'backslash doubled.' % (BRIDGE_SETTINGS, ex))
+        hint = ' A path in it has each backslash doubled.' if isinstance(ex, powershell_json.BadEscape) else ''
+        return ('%s is not valid JSON, so the tool does not know where TIA Portal is (%s).%s'
+                % (BRIDGE_SETTINGS, ex, hint))
     except OSError as ex:
         return ('%s cannot be read, so the tool does not know where TIA Portal is (%s).'
                 % (BRIDGE_SETTINGS, ex.strerror or ex))
