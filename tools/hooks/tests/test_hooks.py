@@ -227,8 +227,7 @@ class EverySuite(StubsOfEveryFolder):
 
     def test_a_variable_of_the_environment_refuses_nothing(self):
         result = subprocess.run(['sh', '.githooks/pre-commit', '--all'], cwd=self.repo, capture_output=True, encoding='utf-8',
-                                env={**CLEAN_ENV, 'docs_added_moved_removed': 'x', 'docs_deprecated': 'x', 'named_suites': 'x',
-                                     'mode': '--groups'})
+                                env={**CLEAN_ENV, 'docs_added_moved_removed': 'x', 'docs_deprecated': 'x'})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_named_suites_run_alone(self):
@@ -244,6 +243,23 @@ class EverySuite(StubsOfEveryFolder):
 
 class TheJobsOfCI(StubsOfEveryFolder):
     """sh .githooks/pre-commit --groups: the matrix of CI's jobs, each long suite in a job of its own, the others in one."""
+
+    def commit_with(self, **env):
+        self.put('tools/setup/a.py', '')
+        self.git('add', 'tools/setup')
+        return subprocess.run(['git', 'commit', '-m', 'a change'], cwd=self.repo, env={**CLEAN_ENV, **env}, capture_output=True,
+                              encoding='utf-8')
+
+    def test_a_commit_runs_its_suites_with_the_mode_of_ci_in_the_environment(self):
+        result = self.commit_with(mode='--groups')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('pre-commit: first setup tests', result.stdout + result.stderr)
+        self.assertNotIn('"include"', result.stdout + result.stderr)
+
+    def test_a_commit_runs_its_suites_with_named_suites_in_the_environment(self):
+        result = self.commit_with(named_suites='parse_check')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('pre-commit: first setup tests', result.stdout + result.stderr)
 
     def groups(self):
         result = self.sh('.githooks/pre-commit', '--groups')
