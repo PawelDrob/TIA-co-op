@@ -299,12 +299,13 @@ function changeRow(o, c, view) {
     extra);
 }
 
-// No change rows (a graphic added, deleted or only moved): no head, as its badge, panes and notes tell what changed.
+// The change rows of an object under a head of their count. An object of none (added or deleted whole, or only moved:
+// a graphic, an empty tag table) gets no head: its badge, panes and notes tell what changed.
 function changeList(o, view) {
   const all = o.changes || [], shown = all.filter(c => !c.fold), folded = all.filter(c => c.fold);
   const n = shown.length;
-  return h('div', {class: 'hcl'}, all.length ? h('div', {class: 'hh'}, n ? n + (n === 1 ? ' change' : ' changes') :
-      'Only folded changes') : null,
+  const head = n ? n + (n === 1 ? ' change' : ' changes') : folded.length ? 'Only folded changes' : null;
+  return h('div', {class: 'hcl'}, head && h('div', {class: 'hh'}, head),
     shown.map(c => changeRow(o, c, view)),
     folded.length ? h('details', {class: 'hf'}, h('summary', {}, `${folded.length} folded change${folded.length === 1 ? '' : 's'}: ` +
       [...new Set(folded.map(c => FOLD_TEXT[c.fold]))].join('; ')), folded.map(c => changeRow(o, c, view))) : null);
