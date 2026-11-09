@@ -294,6 +294,32 @@ class RealBridge(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(root, 'imported')))
         self.assertTrue(os.path.exists(os.path.join(reportrun.runs_dir(root), 'zzLine.log')))
 
+    def test_the_bridge_gets_the_settings_under_the_names_the_file_spells(self):
+        """The bridge refuses two names that differ in case only: the run's folder goes under the file's spelling."""
+        root = tempdir(self)
+        repo = make_repo(root)
+        tools = os.path.join(root, 'tools.ps1')
+        with open(tools, 'w', encoding='utf-8') as f:
+            f.write(STAND_INS)
+        settings = os.path.join(root, 'settings.json')
+        with open(settings, 'w') as f:
+            json.dump({'ProjectsRoot': os.path.join(root, 'elsewhere'), 'ARCHIVESKEPT': 3}, f)
+        r = reportrun.run(repo, root, lambda: reportrun.McpBridge(root, 'zzLine', ('-NoTools', '-ToolScript', tools), settings), FakeProcesses())
+        self.assertIn('Failed at full_export: import is refused in a report run', r['text'])
+        with open(os.path.join(reportrun.runs_dir(root), 'settings.json'), encoding='utf-8') as f:
+            self.assertEqual(json.load(f), {'ProjectsRoot': root, 'ARCHIVESKEPT': 3})
+
+    def test_settings_the_run_cannot_read_end_it_in_words(self):
+        """The bridge may read them, and TIA's folder with them: a run without them could start another TIA's bridge."""
+        root = tempdir(self)
+        repo = make_repo(root)
+        settings = os.path.join(root, 'settings.json')
+        with open(settings, 'w') as f:
+            f.write("{'tiaRoot': 'D:/Portal V20'}")
+        r = reportrun.run(repo, root, lambda: reportrun.McpBridge(root, 'zzLine', settings=settings), FakeProcesses())
+        self.assertEqual(r['outcome'], 'failed')
+        self.assertTrue(r['text'].startswith(f'Not run: {settings} is not strict JSON'), r['text'])
+        self.assertTrue(r['text'].endswith('Fix the file, then press again.'), r['text'])
 
 # Stand-ins for the bridge's tools: tia_status names the project open, connect binds it, and full_export calls import
 # through the bridge's own dispatch, which a report run refuses.

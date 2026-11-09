@@ -80,8 +80,13 @@ def short(s, now=None):
     return 'TIA ' + (operation_text(op) if op else 'idle')
 
 
-def main(procs, pid, root=None, env=None):
-    """The row for the status line process `pid`: its Claude process, that process's newest live bridge."""
+def main(procs, pid, root=None, env=None, settings=st.BRIDGE_SETTINGS):
+    """The row for the status line process `pid`: its Claude process, that process's newest live bridge. Without a root,
+    the bridge's settings give it; settings this tool cannot read are the row, as the bridge's folder is unknown then."""
+    try:
+        root = root or st.projects_root(settings)
+    except st.SettingsUnreadable as e:
+        return f'TIA: {e}'
     claude = st.claude_pid(procs, pid, env)
     if claude is None:
         return ''

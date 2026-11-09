@@ -84,6 +84,33 @@ class FindBridge(unittest.TestCase):
         write(st.sessions_dir(root), state(210, 110, project='Other', tia=6000))
         self.assertTrue(statusline.main(p, 300, root, env={}).startswith('TIA: Mine'))
 
+    def test_the_folder_of_the_bridge_settings_in_any_case_of_the_name(self):
+        p = tree().add(5150, 1, memory=2**30)
+        root = tempdir(self)
+        settings = os.path.join(self.dir, 'settings.json')
+        with open(settings, 'w') as f:
+            json.dump({'PROJECTSROOT': root}, f)
+        write(st.sessions_dir(root), state(200, 100, project='Mine', tia=5150))
+        self.assertTrue(statusline.main(p, 300, env={}, settings=settings).startswith('TIA: Mine'))
+
+    def test_settings_it_cannot_read_are_said(self):
+        """The bridge reads more than JSON: its folder is then not the default one, and the row would show nothing."""
+        settings = os.path.join(self.dir, 'settings.json')
+        with open(settings, 'w') as f:
+            f.write("{'projectsRoot': 'D:/Projects'}")
+        row = statusline.main(tree(), 300, env={}, settings=settings)
+        self.assertTrue(row.startswith(f'TIA: {settings} is not strict JSON'), row)
+        self.assertNotIn('\n', row)
+
+    def test_settings_it_cannot_read_do_not_matter_with_a_root(self):
+        p = tree().add(5150, 1, memory=2**30)
+        root = tempdir(self)
+        settings = os.path.join(self.dir, 'settings.json')
+        with open(settings, 'w') as f:
+            f.write('{ not json')
+        write(st.sessions_dir(root), state(200, 100, project='Mine', tia=5150))
+        self.assertTrue(statusline.main(p, 300, root, env={}, settings=settings).startswith('TIA: Mine'))
+
     def test_claude_pid_from_env_first_then_ancestors(self):
         self.assertEqual(st.claude_pid(tree(), 300, env={'CLAUDE_PID': '110'}), 110)
         self.assertEqual(st.claude_pid(tree(), 300, env={}), 100)

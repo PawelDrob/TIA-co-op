@@ -118,9 +118,47 @@ def read_json(path, decode=lambda raw: raw.decode('utf-8-sig')):
     return data
 
 
+def folded(name):
+    """A name as the bridge compares the names of its settings, without case (StringComparison.OrdinalIgnoreCase): each
+    character's own upper case, where that is one character and not an ASCII one for a character outside ASCII. Its
+    twins: TiaAgentStatus\\state.py and TiaArchiveCompare\\runner\\powershell_json.py."""
+    def upper(c):
+        u = c.upper()
+        return u if len(u) == 1 and (u >= '\x80' or c < '\x80') else c
+    return ''.join(upper(c) for c in name)
+
+
+def spelled(settings, name):
+    """The name as the settings spell it, whatever its case, else as given."""
+    return next((n for n in settings if folded(n) == folded(name)), name)
+
+
+def refused_names(value):
+    """Why the bridge refuses the names of a parsed JSON value, '' when it takes them: an empty name, or two that differ
+    in case only, in the value or anywhere inside it. Its twin: TiaAgentStatus\\state.py."""
+    if isinstance(value, list):
+        return next(filter(None, map(refused_names, value)), '')
+    if not isinstance(value, dict):
+        return ''
+    seen = {}
+    for name in value:
+        first = seen.setdefault(folded(name), name)
+        if first != name:
+            return f'two names that differ in case only, {first} and {name}'
+        if name == '':
+            return 'an empty name'
+    return next(filter(None, map(refused_names, value.values())), '')
+
+
 def read_bridge_settings():
-    """The bridge's settings, decoded as the bridge decodes them; Claude Code's files are UTF-8 (read_json)."""
-    return read_json(BRIDGE_SETTINGS, as_windows_powershell_reads)
+    """The bridge's settings, decoded as the bridge decodes them; Claude Code's files are UTF-8 (read_json). Names the
+    bridge refuses raise ValueError (refused_names): a name has one value then, whatever its case (spelled). Strict
+    JSON only: what else the bridge takes (single quotes, names without quotes) stops setup."""
+    settings = read_json(BRIDGE_SETTINGS, as_windows_powershell_reads)
+    refused = refused_names(settings)
+    if refused:
+        raise ValueError(f'{BRIDGE_SETTINGS} holds {refused}, which the bridge refuses; fix the file, then run this again')
+    return settings
 
 
 def write_json(path, data, ascii_only):
@@ -350,7 +388,7 @@ def settle_projects_root(report, answer):
         bridge = read_bridge_settings()
         user = read_json(user_file)
         allow = ensure_allow_list(user, user_file)
-        stored = bridge.get('projectsRoot')
+        stored = bridge.get(spelled(bridge, 'projectsRoot'))
         root = normal_root(answer or stored) if answer or stored else None
     except ValueError as e:
         report.lack(f'projectsRoot: {e}')
@@ -367,7 +405,7 @@ def settle_projects_root(report, answer):
     updated = kept + [r for r in allow_rules(root) if r not in kept]
     try:
         if changed:
-            bridge['projectsRoot'] = root
+            bridge[spelled(bridge, 'projectsRoot')] = root      # never a second spelling: the bridge refuses two
             write_json(BRIDGE_SETTINGS, bridge, ascii_only=True)  # Windows PowerShell 5.1 reads a file with no byte order mark as ANSI
         if updated != allow:
             user['permissions']['allow'] = updated
@@ -390,7 +428,8 @@ def settle_projects_root(report, answer):
 def check_tia(report):
     """As the bridge finds it: tiaRoot of its settings, the Openness API of V20 under it (Import-Openness, TiaBridge\\Tia.ps1)."""
     try:
-        tia_root = read_bridge_settings().get('tiaRoot') or DEFAULT_TIA_ROOT
+        bridge = read_bridge_settings()
+        tia_root = bridge.get(spelled(bridge, 'tiaRoot')) or DEFAULT_TIA_ROOT
     except ValueError:
         return  # settle_projects_root names the file
     if (Path(tia_root) / 'PublicAPI' / 'V20' / 'Siemens.Engineering.dll').exists():

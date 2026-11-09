@@ -69,7 +69,8 @@ def _in_token(c):
 
 def _folded(name):
     """The name as StringComparison.OrdinalIgnoreCase compares it: each character's own upper case, where that is one
-    character and not an ASCII one for a character outside ASCII (dotless i and long s keep theirs)."""
+    character and not an ASCII one for a character outside ASCII (dotless i and long s keep theirs). Its twins, for the
+    names of the bridge's settings: TiaAgentStatus\\state.py and tools\\setup\\setup.py."""
     def upper(c):
         u = c.upper()
         return u if len(u) == 1 and (u >= '\x80' or c < '\x80') else c

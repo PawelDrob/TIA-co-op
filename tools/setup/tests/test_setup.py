@@ -833,6 +833,39 @@ class ProjectsRoot(SetupCase):
                 self.assertIn(f'TIA Portal V20 with TIA Openness, {self.tia}', out)
                 self.assertEqual(self.bridge_settings.read_bytes(), text.encode(written))
 
+    def test_names_in_another_case_are_read_as_the_bridge_reads_them(self):
+        text = json.dumps({'TIAROOT': str(self.tia), 'ProjectsRoot': r'C:\Work\Repos'})
+        self.bridge_settings.write_text(text)
+
+        code, out = self.run_setup()
+
+        self.assertEqual(code, 0, out)
+        self.assertNotIn('Question', out)
+        self.assertIn(r'projectsRoot C:\Work\Repos. To change it', out)
+        self.assertIn(f'TIA Portal V20 with TIA Openness, {self.tia}', out)
+        self.assertEqual(self.bridge_settings.read_text(), text)
+
+    def test_a_new_folder_goes_under_the_name_as_the_file_spells_it(self):
+        # the bridge refuses two names that differ in case only
+        self.bridge_settings.write_text(json.dumps({'tiaRoot': str(self.tia), 'ProjectsRoot': r'C:\Work\Old'}))
+
+        code, out = self.run_setup('--projects-root', r'C:\Work\Repos')
+
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.stored(), {'tiaRoot': str(self.tia), 'ProjectsRoot': r'C:\Work\Repos'})
+        self.assertIn(r'projectsRoot changed from C:\Work\Old to C:\Work\Repos', out)
+
+    def test_two_names_that_differ_in_case_only_stay_and_are_named(self):
+        text = json.dumps({'tiaRoot': str(self.tia), 'projectsRoot': r'C:\Work\Old', 'ProjectsRoot': r'C:\Work\Other'})
+        self.bridge_settings.write_text(text)
+
+        code, out = self.run_setup('--projects-root', r'C:\Work\Repos')
+
+        self.assertEqual(code, 1, out)
+        self.assertIn(f'{self.bridge_settings} holds two names that differ in case only, projectsRoot and ProjectsRoot, which the bridge refuses', out)
+        self.assertEqual(self.bridge_settings.read_text(), text)
+        self.assertNotIn('permissions', self.user())
+
     def test_a_name_outside_ascii_stays_readable_for_windows_powershell(self):
         # Windows PowerShell 5.1 reads a file with no byte order mark as ANSI, so the bridge's settings stay plain ASCII.
         code, out = self.run_setup('--projects-root', 'C:\\Users\\Zażółć\\Repos')

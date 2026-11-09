@@ -53,7 +53,9 @@ stops the bridge: it can hang a TIA with a window, and the cause is not known ye
 
 ### Settings
 
-`TiaBridge\settings.json` is optional and stays out of git. Restart the bridge after a change.
+`TiaBridge\settings.json` is optional and stays out of git. Restart the bridge after a change. Write it as strict JSON,
+each key once: the bridge takes a key in any case and refuses two that differ in case only, and first setup and the
+status tools (`TiaAgentStatus\`) read strict JSON only and name the file when they cannot read it.
 
 | Key | Default | What it does |
 |---|---|---|

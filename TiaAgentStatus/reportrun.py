@@ -326,6 +326,8 @@ def run_held(repo, root, start_bridge, procs, pid):
         raise Stop('done', f"Done: TIA as it stood{', unsaved edits included' if unsaved else ''}. Committed {sha}.")
     except Stop as s:
         outcome, text = s.outcome, s.text
+    except st.SettingsUnreadable as e:     # the run's bridge takes TIA's folder and the rest from that file
+        outcome, text = 'failed', f'Not run: {e}. Fix the file, then press again.'
     except Exception as e:     # the page says it, whatever it was
         outcome, text = 'failed', f"Failed at {rec.data['step']}: {str(e).rstrip('.')}."
     finally:
@@ -350,15 +352,17 @@ class McpBridge:
     """TiaBridge.ps1 -ReportRun as a process of this run, called over its standard input and output as an MCP client
     does. Its stderr goes to <projectsRoot>\\_bridge\\report-runs\\<repo folder>.log."""
 
-    def __init__(self, root, folder, extra=()):
+    def __init__(self, root, folder, extra=(), settings=st.BRIDGE_SETTINGS):
+        passed = st.bridge_settings(settings)      # the bridge's settings, with this run's projects root under the
+        passed[st.spelled(passed, 'projectsRoot')] = root      # name as they spell it: the bridge refuses a second spelling
         os.makedirs(runs_dir(root), exist_ok=True)
-        settings = os.path.join(runs_dir(root), 'settings.json')
-        with open(settings, 'w', encoding='utf-8') as f:      # the bridge's settings, with this run's projects root
-            json.dump({**st.bridge_settings(), 'projectsRoot': root}, f)
+        copy = os.path.join(runs_dir(root), 'settings.json')
+        with open(copy, 'w', encoding='utf-8') as f:
+            json.dump(passed, f)
         self.err = open(os.path.join(runs_dir(root), folder + '.log'), 'w', encoding='utf-8')
         env = git_env()
         self.p = subprocess.Popen([POWERSHELL, '-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', BRIDGE_SCRIPT,
-                                   '-ReportRun', '-SettingsPath', settings, *extra],
+                                   '-ReportRun', '-SettingsPath', copy, *extra],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.err, env=env,
                                   creationflags=watch.NO_WINDOW)
         self.pid, self.n = self.p.pid, 0
