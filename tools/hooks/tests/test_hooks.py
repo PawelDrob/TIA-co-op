@@ -202,8 +202,10 @@ class StubsOfEveryFolder(HookRepo):
         self.git('add', '-A')
         self.commit_past_the_hooks('stubs')
 
-    def titles(self, output):
-        return [line for line in output.splitlines() if line.startswith('pre-commit: ')]
+
+def titles(output):
+    """The lines of a hook's summary that name a step."""
+    return [line for line in output.splitlines() if line.startswith('pre-commit: ')]
 
 
 class EverySuite(StubsOfEveryFolder):
@@ -225,14 +227,14 @@ class EverySuite(StubsOfEveryFolder):
 
     def test_a_variable_of_the_environment_refuses_nothing(self):
         result = subprocess.run(['sh', '.githooks/pre-commit', '--all'], cwd=self.repo, capture_output=True, encoding='utf-8',
-                                env={**CLEAN_ENV, 'docs_added_moved_removed': 'x', 'docs_deprecated': 'x', 'only': 'x',
+                                env={**CLEAN_ENV, 'docs_added_moved_removed': 'x', 'docs_deprecated': 'x', 'named_suites': 'x',
                                      'mode': '--groups'})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_named_suites_run_alone(self):
         result = self.sh('.githooks/pre-commit', '--all', 'tiachangereports_unittest', 'pointer_check')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.titles(result.stdout), ['pre-commit: TiaChangeReports unit tests', 'pre-commit: pointer check'])
+        self.assertEqual(titles(result.stdout), ['pre-commit: TiaChangeReports unit tests', 'pre-commit: pointer check'])
 
     def test_a_name_of_no_suite_runs_nothing(self):
         result = self.sh('.githooks/pre-commit', '--all', 'tiabridge_pester', 'no_such_suite')
@@ -257,12 +259,12 @@ class TheJobsOfCI(StubsOfEveryFolder):
                                                    'setup_unittest'}])
 
     def test_the_jobs_run_every_suite_once(self):
-        every = self.titles(self.sh('.githooks/pre-commit', '--all').stdout)
+        every = titles(self.sh('.githooks/pre-commit', '--all').stdout)
         in_jobs = []
         for group in self.groups():
             result = self.sh('.githooks/pre-commit', '--all', *group['suites'].split())
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            in_jobs += self.titles(result.stdout)
+            in_jobs += titles(result.stdout)
         self.assertEqual(sorted(in_jobs), sorted(every))
 
 

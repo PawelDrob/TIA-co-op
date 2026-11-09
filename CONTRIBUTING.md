@@ -28,7 +28,7 @@ No suite needs TIA. The commit hook runs those a commit touches. From Git Bash:
 
 | What | Command |
 |---|---|
-| Every suite, as CI does | `sh .githooks/pre-commit --all` |
+| Every suite (CI runs them in the jobs `--groups` names) | `sh .githooks/pre-commit --all` |
 | Some suites, by their keys | `sh .githooks/pre-commit --all <suite>...` |
 | What a branch touches, since a ref | `sh .githooks/pre-commit main` |
 
