@@ -217,14 +217,14 @@ class NameInTooltipAndMenuTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root, mock.patch.object(sys, 'argv', ['review_server', '--root', root]), \
                 mock.patch.object(review_server.live, 'Server'), \
                 mock.patch.multiple(review_server, SCRATCH=review_server.SCRATCH, ROOT=review_server.ROOT, ANSWERS=review_server.ANSWERS):
-            self.assertEqual(self.named(review_server.main), 'Tia co-op: development dashboard')
+            self.assertEqual(self.named(review_server.main), 'TIA-co-op: development dashboard')
 
     def test_the_tia_dashboard(self):
         from TiaAgentStatus import dashboard
         with mock.patch.object(dashboard, 'Dashboard'), mock.patch.object(dashboard, 'make_server'), mock.patch.object(dashboard, 'threading'), \
                 mock.patch('TiaAgentStatus.procs.WinProcesses'):
             name = self.named(lambda: dashboard.main(Namespace(root=Path('.'), quiet_minutes=1, port=1, every=1.0)))
-        self.assertEqual(name, 'Tia co-op: TIA dashboard')
+        self.assertEqual(name, 'TIA-co-op: TIA dashboard')
 
 
 class WrongOptionTest(unittest.TestCase):

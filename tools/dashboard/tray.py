@@ -17,8 +17,8 @@ from pathlib import Path
 
 NO_ICON = 'DASHBOARD_NO_ICON'
 ICONS = Path(__file__).resolve().parent / 'icons'
-DEVELOPMENT_NAME, DEVELOPMENT_ICON, DEVELOPMENT_ID = 'Tia co-op: development dashboard', ICONS / 'development.ico', 1
-TIA_NAME, TIA_ICON, TIA_ID = 'Tia co-op: TIA dashboard', ICONS / 'tia.ico', 2     # both run on one pythonw.exe: Windows tells their taskbar settings apart by the id
+DEVELOPMENT_NAME, DEVELOPMENT_ICON, DEVELOPMENT_ID = 'TIA-co-op: development dashboard', ICONS / 'development.ico', 1
+TIA_NAME, TIA_ICON, TIA_ID = 'TIA-co-op: TIA dashboard', ICONS / 'tia.ico', 2     # both run on one pythonw.exe: Windows tells their taskbar settings apart by the id
 
 MB_ICONERROR = 0x10
 

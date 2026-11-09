@@ -4,7 +4,7 @@ title: Development dashboard
 description: How to see what waits for you while agents change this repo, answer their questions on review pages and on a ticket's page, take a page down, and reach the dashboard from another machine through tailscale serve.
 tags: [dashboard, agents, tickets, review-pages]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-05T22:30:10-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-09T14:46:57-05:00 }
 sources:
   - id: code
     resource: ../../tools/dashboard/
@@ -79,8 +79,8 @@ reads the `.scratch` of the main working tree, also when started from a worktree
 server when it is not running, also with no console. After changing the server's Python, stop it and start it again.
 
 While it runs it has an icon in the notification area of the taskbar, a dark D on mauve, in the colours of Catppuccin Mocha. Its tooltip
-says **Tia co-op: development dashboard** and its address. A left click on it opens the start page in your default Windows browser. A
-right click opens a menu: **Open Tia co-op: development dashboard** does the same, **Stop Tia co-op: development dashboard** ends the
+says **TIA-co-op: development dashboard** and its address. A left click on it opens the start page in your default Windows browser. A
+right click opens a menu: **Open TIA-co-op: development dashboard** does the same, **Stop TIA-co-op: development dashboard** ends the
 server. A review page built later starts it again. Windows 11 first puts a new icon behind
 the ^ button; drag it onto the taskbar to keep it in view. The [TIA dashboard](../../TiaAgentStatus/README.md) has an icon of its own, a dark T on green.
 

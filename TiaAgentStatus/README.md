@@ -44,8 +44,8 @@ a shortcut with that line as its target. Options: `--port P` (default 8771), `--
 everything again; raise it on a slow PC), `--quiet-minutes M` (default 5), `--root DIR` (the projects root).
 
 While it runs it has an icon in the notification area of the taskbar, a dark T on green, in the colours of Catppuccin Mocha. Its
-tooltip says **Tia co-op: TIA dashboard** and its address. A left click on it opens the page in your default Windows browser. A
-right click opens a menu: **Open Tia co-op: TIA dashboard** does the same, **Stop Tia co-op: TIA dashboard** ends the dashboard.
+tooltip says **TIA-co-op: TIA dashboard** and its address. A left click on it opens the page in your default Windows browser. A
+right click opens a menu: **Open TIA-co-op: TIA dashboard** does the same, **Stop TIA-co-op: TIA dashboard** ends the dashboard.
 Windows 11 first puts a new icon behind the ^ button; drag it onto the taskbar to keep it in view. The
 [development dashboard](../docs/user/development-dashboard.md) has an icon of its own, a dark D on mauve. A session with no
 desktop gets no icon; the dashboard answers all the same. Ended by Task Manager, it leaves its icon behind until the mouse
