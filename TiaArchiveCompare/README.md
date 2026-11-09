@@ -65,7 +65,9 @@ device's folder under it.
 | Excluded or limited content | Details |
 |---|---|
 | A change never exported, with two commits of a git repo | The report reads only what was exported and committed. See [Two commits of a git repo](#two-commits-of-a-git-repo). |
-| Hardware configuration, watch and force tables | Not compared. The tool does not export them, and the report does not read them from an export folder: a changed file there is only named, as described above. |
+| Hardware configuration, external sources | Not compared. The tool does not export the hardware configuration, and TIA Openness V20 has no export of an external source's content. |
+| Technology objects, watch and force tables, PLC alarm texts, ProDiag supervisions, project texts, alarm classes, the project's supervision and diagnostics settings, master copies | Not compared. From an archive or project, the tool exports only blocks, DBs, UDTs, PLC tag tables, project library types and, with **Compare HMIs**, the HMI screens, tags, lists, scripts, cycles and connections and the project graphics. In an export folder or a commit, a changed file of these is only named, as described above. |
+| System blocks | Not compared from an archive or project: the tool does not export them. In an export folder or a commit, they are compared like other blocks. |
 | WinCC Unified, faceplate type contents | The tool compares WinCC Comfort and Advanced devices. TIA Openness V20 does not expose the contents of faceplate types. |
 | HMI alarms, recipes, logs, user administration | TIA Openness V20 has no export for them. |
 | Alarm, trend, recipe and system diagnostics views on a screen | TIA cannot export these objects. They are omitted from the exported screen without a warning. |

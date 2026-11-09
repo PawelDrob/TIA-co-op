@@ -35,8 +35,8 @@ Changing this repository: [CONTRIBUTING.md](CONTRIBUTING.md) and [tools/README.m
 - Offline only: downloads and online work stay with you.
 - PLC blocks: `.s7dcl` is the supported format, SimaticML (xml) experimental. OBs and know-how protected blocks exist only
   as SimaticML.
-- Openness does not carry faceplate type contents, master copy contents, 14 screen controls such as the alarm view, HMI
-  alarms, recipes, logs and user administration, or F-system blocks.
+- Openness does not carry faceplate type contents, master copy contents, the content of external source files, 14 screen
+  controls such as the alarm view, HMI alarms, recipes, logs and user administration, or F-system blocks.
 - The hardware configuration is not exported.
 - The bridge can hang a TIA with a window; the cause is not known yet. Stopping the bridge has freed it. Run one bridge per
   TIA: a second can hang it too.
