@@ -15,11 +15,11 @@ atexit.register(shutil.rmtree, os.environ['HMIPREVIEW_RUNNING'], True)
 try:
     _listed = subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True,
                              creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    _problem = 'exit code %d' % _listed.returncode if _listed.returncode else ''
+    _problem = 'failed (exit code %d)' % _listed.returncode if _listed.returncode else ''
 except OSError as _error:
-    _problem = str(_error)
+    _problem = 'did not answer (%s)' % _error
 if _problem:
-    print('%s: git rev-parse --local-env-vars did not answer (%s): the names git reads a repo from stay in this process'
+    print('%s: git rev-parse --local-env-vars %s: the names git reads a repo from stay in this process'
           % (__name__, _problem), file=sys.stderr)
 else:
     for _name in _listed.stdout.split():

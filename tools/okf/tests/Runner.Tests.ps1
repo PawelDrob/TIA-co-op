@@ -23,12 +23,18 @@ function Invoke-Runner([string]$Arg, [string]$Cwd, [hashtable]$Environment = @{}
 # Started by a git-aware parent, the git -C of a fixture would commit to the parent's repo: run.ps1 takes the names git
 # reads a repo from out of the test process.
 Describe 'run.ps1 and a parent''s repo' {
-    $parent = @{ GIT_DIR = "$TestDrive"; GIT_WORK_TREE = "$TestDrive" }
-    $kept = "@('GIT_DIR', 'GIT_WORK_TREE' | Where-Object { Test-Path ""Env:`$_"" }) -join ' '"
+    # Every name git gives, so a drop cut down to some of them fails here. None is left out: set to a folder, alone or
+    # all at once, none made this call fail (git 2.45.1, 2026-11-10), as git answers it before it reads them. The two
+    # a hook sets are in it whatever git says, also without git.
+    try { $listed = @(& git rev-parse --local-env-vars) } catch { $listed = @() }
+    $names = $listed + @('GIT_DIR', 'GIT_WORK_TREE' | Where-Object { $listed -notcontains $_ })
+    $parent = @{}
+    foreach ($name in $names) { $parent[$name] = "$TestDrive" }
+    $kept = "@('$($names -join "', '")' | Where-Object { Test-Path ""Env:`$_"" }) -join ' '"
     $gone = Join-Path $TestDrive 'Gone.Tests.ps1'
     Set-Content $gone "Describe 'g' { It 'has none of its names' { $kept | Should Be '' } }"
     $stay = Join-Path $TestDrive 'Stay.Tests.ps1'
-    Set-Content $stay "Describe 's' { It 'has its names' { $kept | Should Be 'GIT_DIR GIT_WORK_TREE' } }"
+    Set-Content $stay "Describe 's' { It 'has its names' { $kept | Should Be '$($names -join ' ')' } }"
     $noGit = Join-Path $TestDrive 'no-git'
     New-Item -ItemType Directory $noGit | Out-Null
     # a program of Windows that fails on git's arguments stands in for a git that fails
@@ -39,18 +45,19 @@ Describe 'run.ps1 and a parent''s repo' {
     It 'takes its names out of the test process' {
         $r = Invoke-Runner $gone $TestDrive $parent
         $r.code | Should Be 0
-        $r.err | Should Not Match 'did not answer'
+        $r.err | Should Not Match 'git rev-parse --local-env-vars'
     }
 
     It 'leaves them and says so without git, and runs the tests' {
         $r = Invoke-Runner $stay $TestDrive ($parent + @{ PATH = $noGit })
         $r.code | Should Be 0
-        $r.err | Should Match 'run\.ps1: git rev-parse --local-env-vars did not answer'
+        $r.err | Should Match 'run\.ps1: git rev-parse --local-env-vars did not answer \('
     }
 
     It 'leaves them and says so when git fails, and runs the tests' {
         $r = Invoke-Runner $stay $TestDrive ($parent + @{ PATH = $failingGit })
         $r.code | Should Be 0
-        $r.err | Should Match 'run\.ps1: git rev-parse --local-env-vars did not answer \(exit code \d+\)'
+        $r.err | Should Match 'run\.ps1: git rev-parse --local-env-vars failed \(exit code \d+\)'
+        $r.err | Should Not Match 'did not answer'
     }
 }

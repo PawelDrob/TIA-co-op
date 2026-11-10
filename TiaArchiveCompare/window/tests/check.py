@@ -35,11 +35,11 @@ NO_WINDOW = subprocess.CREATE_NO_WINDOW
 # parent's: the names git reads a repo from leave this process. Without git, or when it fails, they stay.
 try:
     _listed = subprocess.run(['git', 'rev-parse', '--local-env-vars'], capture_output=True, text=True, creationflags=NO_WINDOW)
-    _problem = 'exit code %d' % _listed.returncode if _listed.returncode else ''
+    _problem = 'failed (exit code %d)' % _listed.returncode if _listed.returncode else ''
 except OSError as _error:
-    _problem = str(_error)
+    _problem = 'did not answer (%s)' % _error
 if _problem:
-    print('check.py: git rev-parse --local-env-vars did not answer (%s): the names git reads a repo from stay in this process'
+    print('check.py: git rev-parse --local-env-vars %s: the names git reads a repo from stay in this process'
           % _problem, file=sys.stderr)
 else:
     for _name in _listed.stdout.split():
