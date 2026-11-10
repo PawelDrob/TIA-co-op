@@ -86,11 +86,25 @@ class CommandLine(unittest.TestCase):
 
         from TiaAgentStatus import __main__ as cli
         unreadable = st.SettingsUnreadable('settings.json is not strict JSON (x)')
-        for command in (['watch', '--once'], ['dashboard'], ['report-run', '--repo', 'zzLine']):
+        for command in (['watch', '--once'], ['dashboard']):
             with mock.patch.object(st, 'bridge_settings', side_effect=unreadable), self.assertRaises(SystemExit) as stopped:
                 cli.main(command)
             self.assertEqual('settings.json is not strict JSON (x). Fix the file, or name the folder with --root.',
                              stopped.exception.code, command)
+
+    def test_a_report_run_is_not_told_of_a_root_that_would_not_help(self):
+        """Its bridge takes the other settings from the file, whatever folder --root names."""
+        import contextlib
+        import io
+        from unittest import mock
+
+        from TiaAgentStatus import __main__ as cli
+        unreadable = st.SettingsUnreadable('settings.json is not strict JSON (x)')
+        said = io.StringIO()
+        with mock.patch.object(st, 'bridge_settings', side_effect=unreadable), contextlib.redirect_stdout(said):
+            code = cli.main(['report-run', '--repo', 'zzLine'])
+        self.assertEqual(1, code)
+        self.assertEqual('Not run: settings.json is not strict JSON (x). Fix the file first.\n', said.getvalue())
 
 
 if __name__ == '__main__':

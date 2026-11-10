@@ -4,7 +4,7 @@ title: TiaAgentStatus internals
 description: The bridge's state files and how the dashboard, the status line and the herdr watcher read them, tell live bridges from orphans, and judge a TIA as hung; and the report run the dashboard's button starts.
 tags: [dev, tia-bridge, herdr, status-line, dashboard]
 status: draft
-generated: { by: claude-code/claude-fable-5-2, at: 2026-11-09T18:29:00-05:00 }
+generated: { by: claude-code/claude-fable-5-2, at: 2026-11-09T18:51:17-05:00 }
 ---
 
 # TiaAgentStatus internals
@@ -75,7 +75,7 @@ The run checks, in order:
 - no live bridge names the repo;
 - the repo has nothing uncommitted outside `logs\`.
 
-It then starts `TiaBridge.ps1 -ReportRun` with its own copy of the bridge settings, pointing at the same projects root under the name as the file spells it (settings it cannot read end the run with `Not run:` and the reason), and talks MCP to it over stdin and stdout; the bridge's stderr goes to `<repo folder>.log`. From the bridge:
+It then starts `TiaBridge.ps1 -ReportRun` with its own copy of the bridge settings, pointing at the same projects root under the name as the file spells it (settings it cannot read refuse the run before any bridge starts, with `Not run:` and the reason), and talks MCP to it over stdin and stdout; the bridge's stderr goes to `<repo folder>.log`. From the bridge:
 - `tia_status` gives the TIA process that holds the project's path, which must have a window. The record then takes that process, and the run checks again that no bridge names that TIA.
 - `connect` follows, then `full_export`.
 

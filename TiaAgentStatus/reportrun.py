@@ -239,6 +239,12 @@ def other_run(root, folder, procs, pid):
     return ''
 
 
+def settings_unreadable(e):
+    """The words for bridge settings a run cannot read. No --root helps: the run's bridge takes TIA's folder and the
+    rest from that file."""
+    return f'Not run: {e}. Fix the file first.'
+
+
 def folder_of(repo):
     return os.path.basename(os.path.normpath(repo))
 
@@ -326,8 +332,8 @@ def run_held(repo, root, start_bridge, procs, pid):
         raise Stop('done', f"Done: TIA as it stood{', unsaved edits included' if unsaved else ''}. Committed {sha}.")
     except Stop as s:
         outcome, text = s.outcome, s.text
-    except st.SettingsUnreadable as e:     # the run's bridge takes TIA's folder and the rest from that file
-        outcome, text = 'failed', f'Not run: {e}. Fix the file, then press again.'
+    except st.SettingsUnreadable as e:     # no bridge was started
+        outcome, text = 'refused', settings_unreadable(e)
     except Exception as e:     # the page says it, whatever it was
         outcome, text = 'failed', f"Failed at {rec.data['step']}: {str(e).rstrip('.')}."
     finally:
@@ -402,7 +408,11 @@ class McpBridge:
 
 def main(a):
     from TiaAgentStatus.procs import WinProcesses
-    root = a.root or st.projects_root()
+    try:
+        root = a.root or st.projects_root()
+    except st.SettingsUnreadable as e:
+        print(settings_unreadable(e), flush=True)
+        return 1
     folder = folder_of(a.repo)
     r = run(a.repo, root, lambda: McpBridge(root, folder), WinProcesses())
     print(r.get('text', ''), flush=True)

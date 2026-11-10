@@ -317,9 +317,9 @@ class RealBridge(unittest.TestCase):
         with open(settings, 'w') as f:
             f.write("{'tiaRoot': 'D:/Portal V20'}")
         r = reportrun.run(repo, root, lambda: reportrun.McpBridge(root, 'zzLine', settings=settings), FakeProcesses())
-        self.assertEqual(r['outcome'], 'failed')
+        self.assertEqual(r['outcome'], 'refused')
         self.assertTrue(r['text'].startswith(f'Not run: {settings} is not strict JSON'), r['text'])
-        self.assertTrue(r['text'].endswith('Fix the file, then press again.'), r['text'])
+        self.assertTrue(r['text'].endswith('Fix the file first.'), r['text'])
 
 # Stand-ins for the bridge's tools: tia_status names the project open, connect binds it, and full_export calls import
 # through the bridge's own dispatch, which a report run refuses.

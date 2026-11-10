@@ -81,8 +81,9 @@ TIA row, or nothing when the session's bridge holds no TIA.
 
 The row finds the bridge through the projects root in `TiaBridge\settings.json`, which it reads as strict JSON. When it
 cannot read that file, the row names it and says why (`TIA: <file> is not strict JSON (...)`). The watcher and the
-dashboard then stop naming it too, unless `--root DIR` gives the folder. A report run always needs the file, for the
-bridge's other settings, and ends with `Not run:` and the same reason.
+dashboard do not start then, and say the same about `TiaBridge\settings.json`, unless `--root DIR` gives the folder.
+A report run always needs the file, for the bridge's other settings: it does not run, and its text starts with
+`Not run:` and gives the same reason.
 
 **Watcher:** in a herdr pane of its own, Ctrl+C stops it:
 

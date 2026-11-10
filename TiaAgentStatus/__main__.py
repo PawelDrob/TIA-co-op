@@ -91,7 +91,7 @@ def main(argv=None):
             return reportrun.main(a)
         from TiaAgentStatus import watch
         return watch.main(a)
-    except st.SettingsUnreadable as e:      # no --root, and the bridge's settings do not give the folder
+    except st.SettingsUnreadable as e:      # watch or dashboard with no --root: the bridge's settings do not give the folder
         sys.exit(f'{e}. Fix the file, or name the folder with --root.')
 
 
