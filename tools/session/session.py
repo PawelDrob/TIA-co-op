@@ -136,9 +136,10 @@ def status_path(status_line):
 
 
 def made_again(ignored_line):
-    """Whether a line of git status --ignored names what uv sync and Python make again."""
+    """Whether a line of git status --ignored names what uv sync and Python make again, or what nobody wants back: an ignored
+    dump of a Git Bash program that crashed (grep.exe.stackdump), which git status does not show a session."""
     parts = status_path(ignored_line).split('/')
-    return parts[0] == '.venv' or parts[-1] == '__pycache__'
+    return parts[0] == '.venv' or parts[-1] == '__pycache__' or (ignored_line.startswith('!!') and parts[-1].endswith('.stackdump'))
 
 
 def untracked_under(status_line, folders):

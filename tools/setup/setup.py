@@ -304,7 +304,7 @@ def check_tracked_settings(report):
         return
     if not (settings.get('enabledPlugins') or {}).get(PLUGIN):
         report.lack(f'.claude/settings.json does not enable {PLUGIN}, so a Claude Code session here goes without it. To bring it back: git restore .claude/settings.json')
-    if not str((settings.get('env') or {}).get('LANG', '')).upper().endswith('UTF-8'):
+    if not str((settings.get('env') or {}).get('LANG', '')).upper().replace('-', '').endswith('UTF8'):
         report.lack('.claude/settings.json sets no LANG of UTF-8 for a Claude Code session here, and without one the grep of Git Bash aborts '
                     'on -i with fixed strings. To bring it back: git restore .claude/settings.json')
 

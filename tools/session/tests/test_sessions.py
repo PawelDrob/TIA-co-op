@@ -93,7 +93,7 @@ class Case(unittest.TestCase):
         (self.main / 'a.txt').write_text('a', encoding='utf-8')
         (self.main / 'TiaArchiveCompare' / 'window').mkdir(parents=True)    # tracked, as in the clone: git status names window/bin
         (self.main / 'TiaArchiveCompare' / 'window' / 'README.md').write_text('w', encoding='utf-8')
-        (self.main / '.gitignore').write_text('.scratch/\n.venv/\n__pycache__/\n/local/\n.playwright-mcp/\n', encoding='utf-8')
+        (self.main / '.gitignore').write_text('.scratch/\n.venv/\n__pycache__/\n/local/\n.playwright-mcp/\n*.stackdump\n', encoding='utf-8')
         git(self.main, 'add', '.')
         git(self.main, 'commit', '-q', '-m', 'first')
         self.scratch = self.main / '.scratch'
@@ -631,6 +631,25 @@ class CloseTests(Case):
             (self.tree / folder / 'x').write_text('x', encoding='utf-8')
         self.sessions.close('wk03')
         self.assertFalse(self.tree.exists())
+
+    def test_the_dump_of_a_crashed_git_bash_program_ignored_as_in_the_clone_does_not_stop_it(self):
+        self.started()
+        self.merged()
+        for dump in ('grep.exe.stackdump', 'TiaArchiveCompare/window/sh.exe.stackdump'):
+            (self.tree / dump).write_text('Stack trace:', encoding='utf-8')
+        self.sessions.close('wk03')
+        self.assertFalse(self.tree.exists())
+        self.assertFalse(any('--force' in c for c in self.commands_run()))
+
+    def test_a_dump_that_the_tree_does_not_ignore_is_refused_as_any_stray_file(self):
+        self.started()
+        (self.tree / '.gitignore').write_text('.venv/\n', encoding='utf-8')
+        git(self.tree, 'add', '.gitignore')
+        self.merged()
+        (self.tree / 'grep.exe.stackdump').write_text('Stack trace:', encoding='utf-8')
+        with self.assertRaisesRegex(SessionError, r'uncommitted[\s\S]*grep\.exe\.stackdump'):
+            self.sessions.close('wk03')
+        self.assertTrue((self.tree / 'grep.exe.stackdump').exists())
 
     def leave_what_tools_leave(self):
         """A browser's .playwright-mcp, ignored as in the clone, and the old window build, which the clone no longer ignores."""

@@ -358,6 +358,23 @@ class WhatIsMissing(SetupCase):
         self.assertIn('missing  .claude/settings.json sets no LANG of UTF-8', out)
         self.assertIn('git restore', out)
 
+    def test_a_locale_that_is_set_but_not_utf8_is_named(self):
+        self.tracked_settings.write_text(json.dumps({'env': {'LANG': 'C'}, 'enabledPlugins': {PLUGIN: True}}))
+
+        code, out = self.answered()
+
+        self.assertEqual(code, 1, out)
+        self.assertIn('missing  .claude/settings.json sets no LANG of UTF-8', out)
+
+    def test_utf8_in_either_spelling_and_any_case_passes(self):
+        for lang in ('C.utf8', 'en_US.utf8', 'en_US.UTF-8', 'C.UTF8'):
+            with self.subTest(lang):
+                self.tracked_settings.write_text(json.dumps({'env': {'LANG': lang}, 'enabledPlugins': {PLUGIN: True}}))
+
+                code, out = self.answered()
+
+                self.assertNotIn('sets no LANG', out)
+
     def test_a_tracked_file_that_no_longer_enables_the_plugin_is_named_and_stays(self):
         # What `claude plugin uninstall --scope project` leaves: seen on a real worktree.
         self.tracked_settings.write_text(json.dumps({'enabledPlugins': {}}))
