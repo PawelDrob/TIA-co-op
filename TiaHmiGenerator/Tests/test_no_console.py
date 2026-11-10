@@ -3,6 +3,7 @@ them, would open a window of its own unless the call says not to. Here, not besi
 TiaAgentStatus\\tests (the same rule): the hook runs these tests when TiaHmiGenerator\\ changes, so a new call is read
 on its own commit."""
 import ast
+import builtins
 import unittest
 from pathlib import Path
 
@@ -20,7 +21,7 @@ LISTED, READERS = HMIPREVIEW, TESTS     # where the list's files are, and its re
 
 # The rule: these constants, functions and tests are the same in the other scan, which a test of each checks.
 RULE = ('RULE', 'rule_of', 'words', 'reads_flags', 'ASYNC_STARTS', 'STARTERS', 'NO_FLAGS', 'NO_WINDOW', 'takes_no_flags', 'dotted',
-        'enclosing_function', 'assigned', 'binds', 'class_level', 'set_to', 'flag_names', 'other_names', 'console_starts', 'count_starts', 'RuleTest')
+        'enclosing_function', 'assigned', 'binds', 'class_level', 'set_to', 'flag_names', 'not_read', 'other_names', 'console_starts', 'count_starts', 'RuleTest')
 
 
 def rule_of(path):
@@ -75,12 +76,15 @@ def dotted(node):
 
 
 def enclosing_function(tree):
-    """{node: the innermost function it is in}, a function's own node in the one around it. ast.walk goes outside in,
-    so an inner function overwrites."""
+    """{node: the innermost function it is in}: in its arguments or its body. A function's own node, its decorators
+    and the defaults of its arguments are in the scope around it, where they run. ast.walk goes outside in, so an
+    inner function overwrites."""
     inside = {}
     for f in ast.walk(tree):
         if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            inside.update((n, f) for n in ast.walk(f) if n is not f)
+            a = f.args
+            own = [x for x in a.posonlyargs + a.args + a.kwonlyargs + [a.vararg, a.kwarg] if x] + f.body
+            inside.update((n, f) for part in own for n in ast.walk(part))
     return inside
 
 
@@ -107,49 +111,64 @@ def binds(node):
     return None
 
 
-def class_level(tree):
-    """The nodes of each class body outside its methods, a method's own node among them."""
-    def outside_methods(nodes):
-        for n in nodes:
-            yield n
-            if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                yield from outside_methods(ast.iter_child_nodes(n))
-    return {n for c in ast.walk(tree) if isinstance(c, ast.ClassDef) for n in outside_methods(c.body)}
+def class_level(tree, inside):
+    """The nodes of each class body that run in it: not those in a method's arguments or body."""
+    return {n for c in ast.walk(tree) if isinstance(c, ast.ClassDef) for s in c.body for n in ast.walk(s)
+            if inside.get(n) is inside.get(c)}
 
 
 def set_to(name, scope, inside, tree):
-    """[(what name is set to, the scope that sets it)] of the nearest scope that binds it: scope (the function a call is
-    in, None for the module), then each function around it, then the module; a class body is no scope of its methods.
-    Nothing when a scope on the way binds it where this cannot read a value (binds, but for a plain assignment; import *
-    may bind any name), or when a global or nonlocal statement names it: another function sets it then."""
-    if any(isinstance(n, (ast.Global, ast.Nonlocal)) and name in n.names for n in ast.walk(tree)):
-        return []
-    of_a_class = class_level(tree)
+    """([(what name is set to, the scope that sets it)], whether those are all it can be) in the nearest scope that
+    binds it: scope (the function a call is in, None for the module), then each function around it, then the module; a
+    class body is no scope of its methods. Not all: the scope also binds it where this cannot read a value (binds, but
+    for a plain assignment and import of a module; import *, and globals() in the file for the module, may bind any name
+    but a builtin), or a global or nonlocal statement names it, and then every function's values count."""
+    def sets(n):
+        return any(isinstance(t, ast.Name) and t.id == name for t in assigned(n))
+    nodes = list(ast.walk(tree))
+    if any(isinstance(n, (ast.Global, ast.Nonlocal)) and name in n.names for n in nodes):
+        return [(n.value, inside.get(n)) for n in nodes if sets(n)], False
+    of_a_class = class_level(tree, inside)
+    modules = {a for n in nodes if isinstance(n, ast.Import) for a in n.names}
     while True:
         here = [n for n in ast.walk(scope or tree) if inside.get(n) is scope and n not in of_a_class]
-        values = [n.value for n in here if any(isinstance(t, ast.Name) and t.id == name for t in assigned(n))]
-        if sum(binds(n) in (name, '*') for n in here) > len(values):
-            return []
-        if values or scope is None:
-            return [(value, scope) for value in values]
+        values = [(n.value, scope) for n in here if sets(n)]
+        bound = [n for n in here if binds(n) == name]
+        any_name = any(binds(n) == '*' for n in here) or scope is None and any(getattr(n, 'id', None) == 'globals' for n in nodes)
+        unread = sum(n not in modules for n in bound) > len(values) \
+            or any_name and not hasattr(builtins, name) and not any(n in modules for n in bound)
+        if bound or unread or scope is None:
+            return values, not unread
         scope = inside.get(scope)
 
 
 def flag_names(expr, node, inside, tree):
-    """The names in a creationflags expression of node, getattr's strings among them, and those in what a name in it is
-    set to (set_to), each read in the scope it stands in. In a class body no name is followed: it is the class's
-    first, which set_to does not read."""
-    if node in class_level(tree):
-        return set(words(expr))
-    names, followed, todo = set(), set(), [(expr, inside.get(node))]
+    """(the names in a creationflags expression of node, getattr's strings among them, and those in what a name in it is
+    set to, each read in the scope it stands in; the names among them with a binding the scan cannot read: set_to).
+    Not among the second: a name of the flag, which other_names holds to it, and the object of an attribute. In a class
+    body no name is followed: it is the class's first, which set_to does not read, so each name the file binds is
+    unread."""
+    def bare(value):
+        objects = {n.value for n in ast.walk(value) if isinstance(n, ast.Attribute)}
+        return {n.id for n in ast.walk(value) if isinstance(n, ast.Name) and n not in objects} - set(NO_WINDOW)
+    if node in class_level(tree, inside):
+        bound = {binds(n) or getattr(n, 'id', None) == 'globals' and '*' for n in ast.walk(tree)}
+        return set(words(expr)), {name for name in bare(expr) if name in bound or '*' in bound and not hasattr(builtins, name)}
+    names, unread, all_read, todo = set(), set(), {}, [(expr, inside.get(node))]
     while todo:
         value, at = todo.pop()
         names.update(words(value))
-        for n in ast.walk(value):
-            if isinstance(n, ast.Name) and (n.id, at) not in followed:
-                followed.add((n.id, at))
-                todo += set_to(n.id, at, inside, tree)
-    return names
+        for name in sorted({n.id for n in ast.walk(value) if isinstance(n, ast.Name)}):
+            if (name, at) not in all_read:
+                values, all_read[name, at] = set_to(name, at, inside, tree)
+                todo += values
+            if not all_read[name, at] and name in bare(value):
+                unread.add(name)
+    return names, unread
+
+
+def not_read(unread):
+    return unread and ', with no name the scan cannot read in every binding (%s)' % ', '.join(sorted(unread)) or ''
 
 
 def other_names(tree, inside):
@@ -163,10 +182,10 @@ def other_names(tree, inside):
         if targets and (dotted(node.value) in STARTERS or dotted(node.value) in NO_FLAGS):
             yield node.lineno, '%s under another name: the scan reads %s.<name>' % (dotted(node.value), dotted(node.value))
         elif any(getattr(t, 'id', None) in NO_WINDOW or getattr(t, 'attr', None) in NO_WINDOW for t in targets):
-            names = flag_names(node.value, node, inside, tree)
-            if isinstance(node, ast.AugAssign) or 'DETACHED_PROCESS' in names or 'CREATE_NO_WINDOW' not in names:
+            names, unread = flag_names(node.value, node, inside, tree)
+            if isinstance(node, ast.AugAssign) or unread or 'DETACHED_PROCESS' in names or 'CREATE_NO_WINDOW' not in names:
                 yield node.lineno, '%s: a name of the flag is set with = to what names CREATE_NO_WINDOW and never ' \
-                    'DETACHED_PROCESS' % ast.unparse(node)
+                    'DETACHED_PROCESS%s' % (ast.unparse(node), not_read(unread))
         elif node not in readable and (binds(node) in NO_WINDOW or isinstance(node, ast.Attribute)
                                        and isinstance(node.ctx, ast.Store) and node.attr in NO_WINDOW):
             yield node.lineno, 'a name of the flag bound where the scan cannot read its value: set it to CREATE_NO_WINDOW'
@@ -174,7 +193,8 @@ def other_names(tree, inside):
 
 def console_starts(tree, read_by=()):
     """(line, what is wrong) of each start of a program in tree that may open a console window. Its creationflags name
-    NO_WINDOW or CREATE_NO_WINDOW, and never DETACHED_PROCESS; a name spelled so is set to the flag (other_names).
+    NO_WINDOW or CREATE_NO_WINDOW, and never DETACHED_PROCESS, and hold no name the scan cannot read in every binding
+    (flag_names); a name spelled like the flag is set to it (other_names).
     read_by: the functions with one start whose flags, or **kw, a test reads (FLAGS_READ_BY)."""
     inside = enclosing_function(tree)
     yield from other_names(tree, inside)
@@ -203,10 +223,10 @@ def console_starts(tree, read_by=()):
                     yield node.lineno, 'a second %s.%s in %s: the list (FLAGS_READ_BY) lets one through' % (module, name, function.name)
                 let_through.add(function.name)
             elif flags:
-                names = flag_names(flags[0], node, inside, tree)
-                if 'DETACHED_PROCESS' in names or not names & set(NO_WINDOW):
-                    yield node.lineno, '%s.%s with creationflags=%s: they name %s and never DETACHED_PROCESS, or a test ' \
-                        'reads them (FLAGS_READ_BY)' % (module, name, ast.unparse(flags[0]), ' or '.join(NO_WINDOW))
+                names, unread = flag_names(flags[0], node, inside, tree)
+                if unread or 'DETACHED_PROCESS' in names or not names & set(NO_WINDOW):
+                    yield node.lineno, '%s.%s with creationflags=%s: they name %s and never DETACHED_PROCESS%s, or a test reads ' \
+                        'them (FLAGS_READ_BY)' % (module, name, ast.unparse(flags[0]), ' or '.join(NO_WINDOW), not_read(unread))
             elif passes_kw:
                 yield node.lineno, '%s.%s with **kw: its flags are not read here (FLAGS_READ_BY)' % (module, name)
             else:
@@ -347,6 +367,38 @@ class RuleTest(unittest.TestCase):
                                                   'def spawn():\n' + start))
         self.assertEqual([6], self.found('def detach():\n    flags = subprocess.CREATE_NO_WINDOW\n    def other():\n        nonlocal flags\n'
                                          '        flags = 0\n' + start))
+
+    def test_a_name_not_read_in_every_binding_flags_the_call(self):
+        """Whatever else the flags name: what the scan cannot read may be DETACHED_PROCESS."""
+        start = 'subprocess.Popen(a, creationflags=flags | subprocess.CREATE_NO_WINDOW)'
+        detached = 'flags = subprocess.DETACHED_PROCESS\n'
+        module = 'flags = subprocess.CREATE_NO_WINDOW\n'
+        for code in ('def f(flags=None):\n    if flags is None:\n        flags = subprocess.DETACHED_PROCESS\n    ' + start,
+                     'def f(extra=0):\n    extra = subprocess.DETACHED_PROCESS\n    flags = extra | subprocess.CREATE_NO_WINDOW\n'
+                     '    subprocess.Popen(a, creationflags=flags)',
+                     'def f():\n    ' + detached + '    subprocess.Popen(a, creationflags=flags | NO_WINDOW)\n    del flags',
+                     'from json import *\n' + detached + start,
+                     'def g():\n    global flags\ndef f():\n    ' + detached + '    ' + start,
+                     'def g():\n    global flags\n    ' + detached + 'def f():\n    ' + start,
+                     'def f():\n    ' + detached + '    def g():\n        nonlocal flags\n    ' + start,
+                     'def f(flags):\n    ' + start, 'from x import flags\n' + start, 'for flags in (0,): pass\n' + start,
+                     'class C:\n    ' + detached + '    p = ' + start, 'from x import *\nclass C:\n    p = ' + start,
+                     'globals()["flags"] = 0\nclass C:\n    p = ' + start,
+                     module + 'globals()["flags"] = 0\ndef f():\n    subprocess.Popen(a, creationflags=flags)',
+                     module + 'def g():\n    globals().update(flags=0)\ndef f():\n    def h():\n        ' + start,
+                     # a def's defaults and decorators run in the scope around it
+                     module + 'class C:\n    flags = 0\n    def m(self, p=subprocess.Popen(a, creationflags=flags)): pass',
+                     module + 'class C:\n    flags = 0\n    @d(subprocess.Popen(a, creationflags=flags))\n    def m(self): pass',
+                     module + 'def g(x=(flags := 0)): pass\ndef f():\n    subprocess.Popen(a, creationflags=flags)',
+                     'def f():\n    ' + detached + '    def g(p=' + start + '): pass'):
+            self.assertEqual([n for n, line in enumerate(code.splitlines(), 1) if 'Popen' in line], self.found(code), code)
+        for code in ('import subprocess\ndef f():\n    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)\n    ' + start,
+                     'from board import NO_WINDOW\nsubprocess.run(a, creationflags=NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)',
+                     'import subprocess\nimport x as flags\nfrom json import *\nsubprocess.run(a, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))',
+                     'def f(a, cwd):\n    flags = 0\n    ' + start,
+                     # an attribute is no flags name: its object is not read, on main neither
+                     'def f(o):\n    subprocess.run(a, creationflags=o.flags | subprocess.CREATE_NO_WINDOW)'):
+            self.assertEqual([], self.found(code), code)
 
     def test_a_name_followed_twice_is_read_each_time(self):
         """A name spelled like an attribute already seen is still followed."""
