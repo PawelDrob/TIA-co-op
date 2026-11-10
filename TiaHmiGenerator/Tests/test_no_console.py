@@ -21,7 +21,7 @@ LISTED, READERS = HMIPREVIEW, TESTS     # where the list's files are, and its re
 
 # The rule: these constants, functions and tests are the same in the other scan, which a test of each checks.
 RULE = ('RULE', 'rule_of', 'names_and_strings', 'reads_flags', 'ASYNC_STARTS', 'STARTERS', 'NO_FLAGS', 'THE_FLAG', 'NO_WINDOW',
-        'DETACHED', 'takes_no_flags', 'dotted', 'enclosing_function', 'assigned', 'binds', 'binds_any_name', 'unseen_binding', 'stores_the_flag',
+        'DETACHED', 'takes_no_flags', 'is_starter', 'dotted', 'enclosing_function', 'assigned', 'binds', 'binds_any_name', 'unseen_binding', 'stores_the_flag',
         'class_body_nodes', 'values_of', 'pooled_names', 'flag_names', 'not_the_flag', 'unread_note', 'other_names', 'read_as_values',
         'console_starts', 'count_starts', 'RuleTest')
 
@@ -69,6 +69,11 @@ def reads_flags(tree, test):
 
 def takes_no_flags(module, name):
     return name in NO_FLAGS.get(module, ()) or (module == 'os' and name.startswith(('spawn', 'exec')))
+
+
+def is_starter(module, name):
+    """True of what module.name starts a program with, flags or none, and of a module of the rule by that name."""
+    return name in STARTERS.get(module, ()) or takes_no_flags(module, name) or '%s.%s' % (module, name) in STARTERS
 
 
 def dotted(node):
@@ -246,23 +251,25 @@ def read_as_values(tree):
     """(line, what is wrong) of each place that names a module of the rule, or a starter of one, as a value: assigned,
     passed on or kept, it can get a name the scan does not follow, which reads <module>.<name>(...) alone. Where it
     is only named, in an annotation or isinstance, it is flagged too. No such place: a module as the object of an
-    attribute, or of getattr or hasattr with a string that names no starter and no module of the rule. Not read: what reaches a
-    module or a starter by a string or by its __dict__ (sys.modules, __import__)."""
+    attribute, or of getattr or hasattr with a string that names no starter and no module of the rule.
+    Not read, so these pass:
+    - a module named in a string alone: sys.modules["subprocess"], __import__("subprocess");
+    - a starter out of a module's __dict__: subprocess.__dict__["run"];
+    - a module of the rule that is an attribute of another object: p.os.system, asyncio.subprocess.subprocess."""
     above = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
-
-    def is_starter(module, name):
-        return name in STARTERS.get(module, ()) or takes_no_flags(module, name) or '%s.%s' % (module, name) in STARTERS
     for node in ast.walk(tree):
         if not isinstance(node, (ast.Name, ast.Attribute)) or not isinstance(node.ctx, ast.Load):
             continue
         name, parent = dotted(node), above[node]
         if name in STARTERS or name in NO_FLAGS:
             args = parent.args if isinstance(parent, ast.Call) and dotted(parent.func) in ('getattr', 'hasattr') else []
-            by_string = len(args) > 1 and args[0] is node and isinstance(args[1], ast.Constant) \
-                and isinstance(args[1].value, str) and not is_starter(name, args[1].value)
-            if not isinstance(parent, ast.Attribute) and not by_string:
+            string = args[1].value if len(args) > 1 and args[0] is node and isinstance(args[1], ast.Constant) else None
+            if isinstance(string, str) and is_starter(name, string):
+                yield node.lineno, '%s.%s by its name in a string, which can give it another name: write %s.%s where it ' \
+                    'is used' % (name, string, name, string)
+            elif not isinstance(parent, ast.Attribute) and not isinstance(string, str):
                 yield node.lineno, '%s read as a value, which can give it another name: write %s.<name>, or getattr with ' \
-                    'the name in a string' % (name, name)
+                    'a string that names no starter' % (name, name)
         elif isinstance(node, ast.Attribute) and is_starter(dotted(node.value), node.attr) \
                 and not (isinstance(parent, ast.Call) and parent.func is node):
             yield node.lineno, '%s read as a value, which can give it another name: call it where it is named, ' \
@@ -285,9 +292,8 @@ def console_starts(tree, read_by=()):
                 if a.asname and (a.name in STARTERS or a.name in NO_FLAGS):
                     yield node.lineno, '%s imported as %s: the scan reads %s.<name>' % (a.name, a.asname, a.name)
         elif isinstance(node, ast.ImportFrom):
-            if any(a.name in STARTERS.get(node.module, ()) or takes_no_flags(node.module, a.name)
-                   or '%s.%s' % (node.module, a.name) in STARTERS
-                   or a.name == '*' and (node.module in STARTERS or node.module in NO_FLAGS) for a in node.names):
+            if any(is_starter(node.module, a.name) or a.name == '*' and (node.module in STARTERS or node.module in NO_FLAGS)
+                   for a in node.names):
                 yield node.lineno, 'a starter imported by name: import %s, and call %s.<name>' % (node.module, node.module)
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and dotted(node.func.value):
             module, name = dotted(node.func.value), node.func.attr
@@ -525,7 +531,7 @@ class RuleTest(unittest.TestCase):
                      module + 'def g(x=(flags := 0)): pass\nsubprocess.Popen(a, creationflags=flags)',
                      'def f():\n    ' + detached + '    def g(p=' + start + '): pass'):
             self.assertEqual([n for n, line in enumerate(code.splitlines(), 1) if 'Popen' in line], self.found(code), code)
-        # without the line that binds, each of the last cases passes
+        # without their line that binds, three of those pass: the two of globals, and the one of the default's :=
         for code in ('def f():\n    ' + start, 'def f():\n    def h():\n        ' + start,
                      module + 'def g(x=0): pass\nsubprocess.Popen(a, creationflags=flags)'):
             self.assertEqual([], self.found(code), code)
@@ -614,8 +620,14 @@ class RuleTest(unittest.TestCase):
             self.assertEqual([1], self.found(code), code)
         for code in ('NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)', 'x = os.path.join(a, b)',
                      'if hasattr(os, "startfile"): pass', 'x = os.environ',
-                     'e = subprocess.CalledProcessError', 'run = asyncio.run', 'x = y.subprocess.run', 'def f(subprocess): pass'):
+                     'e = subprocess.CalledProcessError', 'run = asyncio.run', 'x = y.subprocess.run', 'def f(subprocess): pass',
+                     # a module of the rule that is an attribute of another object is not followed
+                     'sp = asyncio.subprocess.subprocess\nsp.run(a)', 'import os.path as p\np.os.system("x")',
+                     'os.path.os.system("x")'):
             self.assertEqual([], self.found(code), code)
+        said = dict(console_starts(ast.parse('getattr(subprocess, "run")(a)\nrun = subprocess')))
+        self.assertIn('write subprocess.run where it is used', said[1])
+        self.assertIn('a string that names no starter', said[2])
 
     def test_an_alias_of_each_module_of_the_rule_is_seen(self):
         for module in sorted(set(STARTERS) | set(NO_FLAGS)):
