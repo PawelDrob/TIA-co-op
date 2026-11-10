@@ -6,7 +6,15 @@ $found = @($Path, (Join-Path $PSScriptRoot $Path)) | Where-Object { Test-Path $_
 if (-not $found) { [Console]::Error.WriteLine("run.ps1: test file not found: $Path"); exit 2 }
 # Started by a git-aware parent (a hook or an alias of another repo), a run by hand would carry the parent's repo into
 # every git -C of a fixture, whose commits would land there: the names git reads a repo from leave this process.
-foreach ($name in (& git rev-parse --local-env-vars)) { Remove-Item "Env:$name" -ErrorAction SilentlyContinue }
+# Without git, or when it fails, they stay and the tests that need no git still run.
+try {
+    $names = @(& git rev-parse --local-env-vars)
+    if ($LASTEXITCODE) { throw "exit code $LASTEXITCODE" }
+} catch {
+    $names = @()
+    [Console]::Error.WriteLine("run.ps1: git rev-parse --local-env-vars did not answer ($($_.Exception.Message)): the names git reads a repo from stay in this process")
+}
+foreach ($name in $names) { Remove-Item "Env:$name" -ErrorAction SilentlyContinue }
 Import-Module Pester -MaximumVersion 3.99
 $r = Invoke-Pester -Path (Resolve-Path $found).ProviderPath -PassThru
 if ($r.FailedCount) { exit 1 }
