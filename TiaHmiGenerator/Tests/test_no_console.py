@@ -72,7 +72,7 @@ def takes_no_flags(module, name):
 
 
 def is_starter(module, name):
-    """True of what module.name starts a program with, flags or none, and of a module of the rule by that name."""
+    """True when module.name starts a program, with flags or with none, or is a module of the rule (asyncio.subprocess)."""
     return name in STARTERS.get(module, ()) or takes_no_flags(module, name) or '%s.%s' % (module, name) in STARTERS
 
 
@@ -251,7 +251,8 @@ def read_as_values(tree):
     """(line, what is wrong) of each place that names a module of the rule, or a starter of one, as a value: assigned,
     passed on or kept, it can get a name the scan does not follow, which reads <module>.<name>(...) alone. Where it
     is only named, in an annotation or isinstance, it is flagged too. No such place: a module as the object of an
-    attribute, or of getattr or hasattr with a string that names no starter and no module of the rule.
+    attribute, of getattr with a string that names no starter and no module of the rule, or of hasattr, which gives
+    nothing a name.
     Not read, so these pass:
     - a module named in a string alone: sys.modules["subprocess"], __import__("subprocess");
     - a starter out of a module's __dict__: subprocess.__dict__["run"];
@@ -262,14 +263,17 @@ def read_as_values(tree):
             continue
         name, parent = dotted(node), above[node]
         if name in STARTERS or name in NO_FLAGS:
-            args = parent.args if isinstance(parent, ast.Call) and dotted(parent.func) in ('getattr', 'hasattr') else []
-            string = args[1].value if len(args) > 1 and args[0] is node and isinstance(args[1], ast.Constant) else None
-            if isinstance(string, str) and is_starter(name, string):
-                yield node.lineno, '%s.%s by its name in a string, which can give it another name: write %s.%s where it ' \
-                    'is used' % (name, string, name, string)
-            elif not isinstance(parent, ast.Attribute) and not isinstance(string, str):
+            asked_of = dotted(parent.func) if isinstance(parent, ast.Call) and parent.args[:1] == [node] else None
+            args = parent.args if asked_of == 'getattr' else []
+            string = args[1].value if len(args) > 1 and isinstance(args[1], ast.Constant) else None
+            if isinstance(parent, ast.Attribute) or asked_of == 'hasattr':
+                continue
+            if not isinstance(string, str):
                 yield node.lineno, '%s read as a value, which can give it another name: write %s.<name>, or getattr with ' \
                     'a string that names no starter' % (name, name)
+            elif is_starter(name, string):
+                yield node.lineno, '%s.%s by its name in a string, which can give it another name: write %s.%s where it ' \
+                    'is used' % (name, string, name, string)
         elif isinstance(node, ast.Attribute) and is_starter(dotted(node.value), node.attr) \
                 and not (isinstance(parent, ast.Call) and parent.func is node):
             yield node.lineno, '%s read as a value, which can give it another name: call it where it is named, ' \
@@ -511,14 +515,14 @@ class RuleTest(unittest.TestCase):
         start = 'subprocess.Popen(a, creationflags=flags | subprocess.CREATE_NO_WINDOW)'
         detached = 'flags = subprocess.DETACHED_PROCESS\n'
         module = 'flags = subprocess.CREATE_NO_WINDOW\n'
-        for code in ('def f(flags=None):\n    if flags is None:\n        flags = subprocess.DETACHED_PROCESS\n    ' + start,
-                     'def f(extra=0):\n    extra = subprocess.DETACHED_PROCESS\n    flags = extra | subprocess.CREATE_NO_WINDOW\n'
+        zero = 'flags = 0\n'     # a value the scan reads, and fine with the flag beside it
+        for code in ('def f(flags=None):\n    if flags is None:\n        ' + zero + '    ' + start,
+                     'def f(extra=0):\n    extra = 0\n    flags = extra | subprocess.CREATE_NO_WINDOW\n'
                      '    subprocess.Popen(a, creationflags=flags)',
-                     'def f():\n    ' + detached + '    subprocess.Popen(a, creationflags=flags | NO_WINDOW)\n    del flags',
-                     'from json import *\n' + detached + start,
-                     'def g():\n    global flags\ndef f():\n    ' + detached + '    ' + start,
-                     'def g():\n    global flags\n    ' + detached + 'def f():\n    ' + start,
-                     'def f():\n    ' + detached + '    def g():\n        nonlocal flags\n    ' + start,
+                     'def f():\n    ' + zero + '    subprocess.Popen(a, creationflags=flags | NO_WINDOW)\n    del flags',
+                     'from json import *\n' + zero + start,
+                     'def g():\n    global flags\ndef f():\n    ' + zero + '    ' + start,
+                     'def f():\n    ' + zero + '    def g():\n        nonlocal flags\n    ' + start,
                      'def f(flags):\n    ' + start, 'from x import flags\n' + start, 'for flags in (0,): pass\n' + start,
                      'class C:\n    ' + detached + '    p = ' + start, 'from x import *\nclass C:\n    p = ' + start,
                      'globals()["flags"] = 0\nclass C:\n    p = ' + start,
@@ -531,9 +535,16 @@ class RuleTest(unittest.TestCase):
                      module + 'def g(x=(flags := 0)): pass\nsubprocess.Popen(a, creationflags=flags)',
                      'def f():\n    ' + detached + '    def g(p=' + start + '): pass'):
             self.assertEqual([n for n, line in enumerate(code.splitlines(), 1) if 'Popen' in line], self.found(code), code)
-        # without their line that binds, three of those pass: the two of globals, and the one of the default's :=
+        # without their line that binds, these pass: the two of globals, and the one of the default's :=
         for code in ('def f():\n    ' + start, 'def f():\n    def h():\n        ' + start,
                      module + 'def g(x=0): pass\nsubprocess.Popen(a, creationflags=flags)'):
+            self.assertEqual([], self.found(code), code)
+        # and the first six: with no argument, del, import *, global or nonlocal
+        for code in ('def f():\n    if x is None:\n        ' + zero + '    ' + start,
+                     'def f():\n    extra = 0\n    flags = extra | subprocess.CREATE_NO_WINDOW\n    subprocess.Popen(a, creationflags=flags)',
+                     'def f():\n    ' + zero + '    subprocess.Popen(a, creationflags=flags | NO_WINDOW)', zero + start,
+                     'def g():\n    pass\ndef f():\n    ' + zero + '    ' + start,
+                     'def f():\n    ' + zero + '    def g():\n        pass\n    ' + start):
             self.assertEqual([], self.found(code), code)
         for code in ('import subprocess\ndef f():\n    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)\n    ' + start,
                      'from board import NO_WINDOW\nsubprocess.run(a, creationflags=NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)',
@@ -619,7 +630,8 @@ class RuleTest(unittest.TestCase):
                      'def f(p: subprocess.Popen): pass', 'isinstance(p, subprocess.Popen)'):
             self.assertEqual([1], self.found(code), code)
         for code in ('NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)', 'x = os.path.join(a, b)',
-                     'if hasattr(os, "startfile"): pass', 'x = os.environ',
+                     'if hasattr(os, "startfile"): pass', 'if hasattr(subprocess, "run"): pass', 'ok = hasattr(os, name)',
+                     'x = os.environ',
                      'e = subprocess.CalledProcessError', 'run = asyncio.run', 'x = y.subprocess.run', 'def f(subprocess): pass',
                      # a module of the rule that is an attribute of another object is not followed
                      'sp = asyncio.subprocess.subprocess\nsp.run(a)', 'import os.path as p\np.os.system("x")',
