@@ -13,3 +13,5 @@ __pycache__/
 /docs/viz.html
 # The download of TIA Archive Compare: TiaArchiveCompare/package/build.py
 /dist/
+# Left by a Git Bash program that crashed, where it ran: never content, and as a new file it would cost the hook its pass stamp
+*.stackdump

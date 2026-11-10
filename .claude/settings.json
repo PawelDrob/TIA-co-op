@@ -1,4 +1,7 @@
 {
+  "env": {
+    "LANG": "C.UTF-8"
+  },
   "enabledPlugins": {
     "mattpocock-skills@claude-plugins-official": true
   }

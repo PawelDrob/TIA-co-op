@@ -44,7 +44,7 @@ class SetupCase(unittest.TestCase):
         (self.clone / 'TiaBridge' / 'TiaBridge.ps1').write_text('# bridge\n')
         (self.clone / '.claude').mkdir()
         self.tracked_settings = self.clone / '.claude' / 'settings.json'
-        self.tracked_settings.write_text(json.dumps({'enabledPlugins': {PLUGIN: True}}))
+        self.tracked_settings.write_text(json.dumps({'env': {'LANG': 'C.UTF-8'}, 'enabledPlugins': {PLUGIN: True}}))
         git(self.clone.parent, 'init', '-q', str(self.clone))
         git(self.clone, 'add', '-A')
         git(self.clone, 'commit', '-qm', 'first')
@@ -347,6 +347,16 @@ class WhatIsMissing(SetupCase):
         self.assertEqual(code, 0, out)
         script = str(self.clone / 'TiaBridge' / 'TiaBridge.ps1')
         self.assertEqual(json.loads(state_file.read_text())['mcpServers']['tia']['args'][-1], script)
+
+    def test_a_clone_whose_sessions_get_no_locale_is_named(self):
+        # Without LANG, Git Bash's grep aborts on -i with fixed strings and leaves a grep.exe.stackdump.
+        self.tracked_settings.write_text(json.dumps({'enabledPlugins': {PLUGIN: True}}))
+
+        code, out = self.answered()
+
+        self.assertEqual(code, 1, out)
+        self.assertIn('missing  .claude/settings.json sets no LANG of UTF-8', out)
+        self.assertIn('git restore', out)
 
     def test_a_tracked_file_that_no_longer_enables_the_plugin_is_named_and_stays(self):
         # What `claude plugin uninstall --scope project` leaves: seen on a real worktree.
