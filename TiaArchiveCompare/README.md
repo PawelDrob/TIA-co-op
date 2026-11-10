@@ -103,7 +103,13 @@ Other limits:
 - **Export folders.** Comparing a before folder without HMI exports against an after archive with **Compare HMIs**
   enabled lists every exported HMI object as new. An export folder's PLC tag tables are compared as well. A folder
   without them against an archive lists the archive's PLC tag tables as new, or as deleted when the folder is the after
-  version. A folder with `plc`, `hmi` and `library` at its top, and its exports where a project repo holds them, is
+  version. A project repo, or any folder TiaBridge's `full_export` wrote, holds more than the tool exports
+  from an archive or project: system blocks, technology objects, watch and force tables, PLC alarm texts, ProDiag
+  supervisions, project texts, alarm classes, the project's supervision and diagnostics settings, faceplate type
+  versions and the list of master copies. Against an archive or project, every system block of such a folder reads as
+  deleted, or as new when the folder is the after version, and each of the other files is named under "n other files
+  changed, not read". The result is then not "no changes", even when the two projects are alike. A folder with `plc`,
+  `hmi` and `library` at its top, and its exports where a project repo holds them, is
   read as a project repo: only `plc`, `hmi`, `project`
   and the library's `types`, `faceplates`, `mastercopies` and `global` count. A block anywhere else in it is not compared:
   the report page names it and the tool lists it as one the report could not read, but for `library\changes`. Any other folder is read whole, but for the
