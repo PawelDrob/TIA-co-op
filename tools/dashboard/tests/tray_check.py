@@ -1,15 +1,21 @@
-"""Manual check of the real icons, outside the suites: it shows them on your desktop, and moves the mouse for the clicks on their
-menus, so leave the mouse alone for a minute, and run it only on a PC nobody is using. Each run leaves entries named with its test ports in
-Windows' list of tray icons (Settings, Taskbar, Other system tray icons). Both dashboards on free ports with made-up folders, removed at the
-end; the ones you run stay as they are.
+"""Manual check of the real icons, outside the suites. Without --hidden it shows them on your desktop, and moves the mouse for the clicks
+on their menus, so leave the mouse alone for a minute, and run it only on a PC nobody is using; each such run leaves entries named with its
+test ports in Windows' list of tray icons (Settings, Taskbar, Other system tray icons). Both dashboards on free ports with made-up folders,
+removed at the end; the ones you run stay as they are.
 
     python tools\\dashboard\\tests\\tray_check.py [--shots DIR] [--hold SECONDS]
+    python tools\\dashboard\\tests\\tray_check.py --hidden
 
 What it does: starts each as a person does (through the shell, nothing handed on) and as a session does (the review_page.py command);
 watches for any new console window all the while; looks for a console in their process trees; starts one twice, by hand and as a session;
 a real left click on each icon opens its page, behind the ^ button or on the taskbar; clicks Open and Stop on the real menus, opened by real
-right clicks; runs one on a desktop with no taskbar. Open goes to a recorder through the BROWSER setting: no browser opens.
+right clicks; then the part of --hidden. Open goes to a recorder through the BROWSER setting: no browser opens.
 --shots saves pictures of the icons, tooltips, menus and the box, cut to just those; --hold keeps the icons up that long to look at them.
+
+--hidden runs only the part that shows nothing and leaves the mouse alone, so it may run on a PC in use: both dashboards on a desktop of
+their own, where no taskbar is. Under pythonw each answers with its icon window up and no icon on a taskbar. Under python.exe, in a
+console with no window, each ends with exit 0 on Ctrl+C as a console sends it to its programs (CTRL_C_EVENT, not a key press).
+Not measured, as it needs a taskbar: Ctrl+C while the icon stands on one.
 """
 import argparse
 import ctypes
@@ -48,6 +54,8 @@ MAUVE, GREEN = (0xcb, 0xa6, 0xf7), (0xa6, 0xe3, 0xa1)     # of make_icons.py
 ATTACH_CHECK = ("import ctypes,sys;k=ctypes.WinDLL('kernel32');u=ctypes.WinDLL('user32');k.GetConsoleWindow.restype=ctypes.c_void_p;"
                 "u.IsWindowVisible.argtypes=[ctypes.c_void_p];k.FreeConsole();a=k.AttachConsole(int(sys.argv[1]));w=k.GetConsoleWindow() if a else None;"
                 "sys.exit(2 if w and u.IsWindowVisible(w) else 0)")
+SEND_CTRL_C = ("import ctypes,sys,time;k=ctypes.WinDLL('kernel32');k.FreeConsole();a=k.AttachConsole(int(sys.argv[1]));k.SetConsoleCtrlHandler(None,1);"
+               "sent=a and k.GenerateConsoleCtrlEvent(0,0);time.sleep(1);sys.exit(0 if sent else 2)")
 
 user32 = ctypes.WinDLL('user32', use_last_error=True)
 kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -65,6 +73,8 @@ user32.WindowFromPoint.restype, user32.WindowFromPoint.argtypes = wintypes.HWND,
 user32.SetProcessDpiAwarenessContext.argtypes = [ctypes.c_void_p]
 user32.CreateDesktopW.restype = wintypes.HANDLE
 user32.CreateDesktopW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p]
+user32.SetThreadDesktop.argtypes = [wintypes.HANDLE]
+user32.CloseDesktop.argtypes = [wintypes.HANDLE]
 kernel32.OpenProcess.restype, kernel32.OpenProcess.argtypes = wintypes.HANDLE, [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
 kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
 kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
@@ -234,15 +244,22 @@ class Dashboard:
 
     def stop_by_menu(self, open_it=None, shots=None, picture=None):
         if self.click_menu(2, open_it, shots, picture):
-            ended = kernel32.WaitForSingleObject(self.handle, 15000) == 0
-            code = wintypes.DWORD(99)
-            kernel32.GetExitCodeProcess(self.handle, ctypes.byref(code))
-            check(ended and code.value == 0, f'{self.label}: Stop ends it, exit {code.value}')
-            check(not review_page.server_running(self.port), f'{self.label}: the port is free')
-            check(not user32.FindWindowW(tray_icon.CLASS_NAME, self.tip()), f'{self.label}: its icon window is gone')
+            self.check_ended('Stop', self.handle, lambda: not user32.FindWindowW(tray_icon.CLASS_NAME, self.tip()))
         else:
-            kernel32.TerminateProcess(self.handle, 1)
-            kernel32.WaitForSingleObject(self.handle, 5000)     # ended before its folder is removed
+            end_process(self.handle)
+
+    def check_ended(self, by, handle, icon_window_gone):
+        ended = kernel32.WaitForSingleObject(handle, 15000) == 0
+        code = wintypes.DWORD(99)
+        kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        check(ended and code.value == 0, f'{self.label}: {by} ends it, exit {code.value:#x}')
+        check(not review_page.server_running(self.port), f'{self.label}: the port is free')
+        check(icon_window_gone(), f'{self.label}: its icon window is gone')
+
+
+def end_process(handle):
+    kernel32.TerminateProcess(handle, 1)
+    kernel32.WaitForSingleObject(handle, 5000)     # ended before its folder is removed
 
 
 def click(x, y, down=LEFT_DOWN, up=LEFT_UP):
@@ -311,29 +328,96 @@ class PROCESS_INFORMATION(ctypes.Structure):
     _fields_ = [('hProcess', wintypes.HANDLE), ('hThread', wintypes.HANDLE), ('dwProcessId', wintypes.DWORD), ('dwThreadId', wintypes.DWORD)]
 
 
-def no_taskbar(folder):
-    """The server on a desktop of its own, where no taskbar is: what a session with no desktop gets from Windows when it asks for an icon."""
-    port = free_port()
-    name = f'zz-no-taskbar-{os.getpid()}'
-    desktop = user32.CreateDesktopW(name, None, None, 0, 0x10000000, None)     # GENERIC_ALL
-    if not check(bool(desktop), 'no taskbar: a desktop of its own could be made'):
-        return
-    si = STARTUPINFOW(cb=ctypes.sizeof(STARTUPINFOW), lpDesktop=name)
-    pi = PROCESS_INFORMATION()
-    line = ctypes.create_unicode_buffer(f'"{PYTHONW}" -X utf8 "{TOOLS / "review_server.py"}" --port {port} --root "{folder / "no-taskbar" / ".scratch"}"')
-    made = kernel32.CreateProcessW(None, line, None, None, False, 0, None, None, ctypes.byref(si), ctypes.byref(pi))
-    if check(bool(made), 'no taskbar: the server started'):
-        try:
-            answers(port)
-            with urllib.request.urlopen(f'http://127.0.0.1:{port}/', timeout=15) as r:
-                check(r.status == 200, 'no taskbar: it answers')
+class OwnDesktop:
+    """A desktop of its own, where no taskbar is and nobody looks: what a session with no desktop gets from Windows when it asks for an icon."""
+
+    def __init__(self):
+        self.name = f'zz-no-taskbar-{os.getpid()}'
+        self.handle = user32.CreateDesktopW(self.name, None, None, 0, 0x10000000, None)     # GENERIC_ALL
+
+    def start(self, program, args, flags=0):
+        """The process, or None when it did not start."""
+        si = STARTUPINFOW(cb=ctypes.sizeof(STARTUPINFOW), lpDesktop=self.name)
+        pi = PROCESS_INFORMATION()
+        line = ctypes.create_unicode_buffer(' '.join(f'"{a}"' for a in (program, '-X', 'utf8', *args)))
+        return pi if kernel32.CreateProcessW(None, line, None, None, False, flags, None, None, ctypes.byref(si), ctypes.byref(pi)) else None
+
+    def icon(self, dashboard):
+        """(its icon window is there, a taskbar holds its icon), asked from a thread that stands on this desktop: a window is found only
+        from its own. None when the thread could not go there."""
+        found = []
+
+        def look():
+            if user32.SetThreadDesktop(self.handle):
+                dashboard.hwnd = user32.FindWindowW(tray_icon.CLASS_NAME, dashboard.tip())
+                found.append((bool(dashboard.hwnd), bool(dashboard.hwnd) and dashboard.place() is not None))
+
+        thread = threading.Thread(target=look)
+        thread.start()
+        thread.join()
+        return found[0] if found else None
+
+    def close(self):
+        user32.CloseDesktop(self.handle)
+
+
+def page_answers(port):
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/', timeout=15) as r:
+            return r.status == 200
+    except OSError:
+        return False
+
+
+def came_up(desktop, dashboard, process):
+    """What both parts ask first of a dashboard started where no taskbar is."""
+    if not check(bool(process), f'{dashboard.label}: started'):
+        return False
+    check(answers(dashboard.port) and page_answers(dashboard.port), f'{dashboard.label}: it answers')
+    check(desktop.icon(dashboard) == (True, False), f'{dashboard.label}: its icon window is there, and no taskbar holds an icon of it')
+    return True
+
+
+def under_pythonw(desktop, dashboard, args):
+    """As a person starts it."""
+    process = desktop.start(PYTHONW, args)
+    try:
+        if came_up(desktop, dashboard, process):
             time.sleep(tray_icon.RETRY_MS / 1000 + 1)      # past a retry of the icon
-            with urllib.request.urlopen(f'http://127.0.0.1:{port}/', timeout=15) as r:
-                check(r.status == 200, 'no taskbar: it still answers after asking for its icon again')
-        finally:
-            kernel32.TerminateProcess(pi.hProcess, 0)
-            kernel32.WaitForSingleObject(pi.hProcess, 5000)     # ended before its folder is removed
-    user32.CloseDesktop(desktop)
+            check(page_answers(dashboard.port), f'{dashboard.label}: it still answers after asking for its icon again')
+    finally:
+        if process:
+            end_process(process.hProcess)
+
+
+def under_python(desktop, dashboard, args):
+    """As the how-tos say to read what stops it: under python.exe, which stays in its console. The console has no window; Ctrl+C comes
+    from a helper in that console, as the console sends it on a key press."""
+    kernel32.SetConsoleCtrlHandler(None, False)     # a child takes over whether Ctrl+C is ignored: here it is not
+    process = desktop.start(sys.executable, args, subprocess.CREATE_NO_WINDOW)
+    try:
+        if came_up(desktop, dashboard, process):
+            sent = run_hidden(sys.executable, '-c', SEND_CTRL_C, str(process.dwProcessId))
+            check(sent == 0, f'{dashboard.label}: Ctrl+C sent to its console')
+            dashboard.check_ended('Ctrl+C', process.hProcess, lambda: desktop.icon(dashboard) == (False, False))
+    finally:
+        if process:
+            end_process(process.hProcess)
+
+
+def on_a_desktop_of_their_own(folder):
+    """Both dashboards where no taskbar is. Nothing shows on the desktop of the person, and the mouse stays where it is."""
+    desktop = OwnDesktop()
+    if not check(bool(desktop.handle), 'no taskbar: a desktop of its own could be made'):
+        return
+    try:
+        for part, program in ((under_pythonw, 'pythonw'), (under_python, 'python.exe')):
+            dev = Dashboard(f'no taskbar, {program}, development', tray.DEVELOPMENT_NAME, free_port(), tray.DEVELOPMENT_ID)
+            tia = Dashboard(f'no taskbar, {program}, TIA', tray.TIA_NAME, free_port(), tray.TIA_ID)
+            part(desktop, dev, (TOOLS / 'review_server.py', '--port', dev.port, '--root', folder / 'no-taskbar' / '.scratch'))
+            part(desktop, tia, (REPO / 'TiaAgentStatus', 'dashboard', '--port', tia.port, '--root', folder))
+    finally:
+        desktop.close()
 
 
 def answers(port):
@@ -348,6 +432,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--shots', type=Path)
     ap.add_argument('--hold', type=float, default=0)
+    ap.add_argument('--hidden', action='store_true', help='only the part on a desktop of its own: nothing shows, the mouse is left alone')
     a = ap.parse_args()
     user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))     # real pixels: the icons are found by them
     with tempfile.TemporaryDirectory(prefix='tray-check-') as name:
@@ -355,16 +440,27 @@ def main():
 
 
 def check_all(a, folder):
+    os.environ.pop(tray.NO_ICON, None)
+    watch = ConsoleWatch()
+    watch.start()
+    if not a.hidden:
+        on_your_desktop(a, folder)
+    on_a_desktop_of_their_own(folder)
+    watch.ending = True
+    watch.join(2)
+    check(not watch.seen, f'no console window came up in all this: {watch.seen or "none"}')
+    print('failed: ' + '; '.join(failed) if failed else 'all ok', flush=True)
+    return 1 if failed else 0
+
+
+def on_your_desktop(a, folder):
     opened = folder / 'opened.txt'
     recorder = folder / 'recorder.py'
     recorder.write_text(f'import sys\nopen(r"{opened}", "a").write(sys.argv[1] + "\\n")\n', encoding='utf-8')
-    os.environ.pop(tray.NO_ICON, None)
     os.environ.pop('DASHBOARD_BROWSER', None)
     os.environ['BROWSER'] = f'{PYTHONW.as_posix()} {recorder.as_posix()} %s'
 
     print('herdr, asked with no window:', sorted(board.agents())[:3], flush=True)
-    watch = ConsoleWatch()
-    watch.start()
 
     dev = Dashboard('by hand, development', tray.DEVELOPMENT_NAME, free_port(), tray.DEVELOPMENT_ID, MAUVE)
     tia = Dashboard('by hand, TIA', tray.TIA_NAME, free_port(), tray.TIA_ID, GREEN)
@@ -434,13 +530,6 @@ def check_all(a, folder):
     tia.stop_by_menu(lambda: tia.click_icon(RIGHT_DOWN, RIGHT_UP), a.shots, 'tia-menu-right-click.png')
     user32.keybd_event(0x1B, 0, 0, 0)     # Esc: the flyout, when it is still up
     user32.keybd_event(0x1B, 0, 2, 0)
-
-    no_taskbar(folder)
-    watch.ending = True
-    watch.join(2)
-    check(not watch.seen, f'no console window came up in all this: {watch.seen or "none"}')
-    print('failed: ' + '; '.join(failed) if failed else 'all ok', flush=True)
-    return 1 if failed else 0
 
 
 if __name__ == '__main__':
