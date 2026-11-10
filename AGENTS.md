@@ -44,7 +44,6 @@ This repo is public: write for strangers, with the names [`CODING_STANDARDS.md`]
 - **`sh .githooks/pre-commit <ref>`** runs the same choice for a branch since `<ref>`. Use it after a cherry-pick, revert or rebase, which git runs no pre-commit hook for.
 - **Test commands, and the integration runs on a real TIA:** [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **Worktrees** go beside the clone, one per ticket; `/ticket` and [the sessions file](.claude/skills/coordinate/SESSIONS.md) make them.
-- **`grep -i` in Git Bash:** without a UTF-8 locale (none set, or `C`), the grep that Git for Windows ships (GNU grep 3.0) aborts on `-i` with fixed strings (`-F`, `fgrep`, a `-f` list or several `-e` of plain words): no output, and a `grep.exe.stackdump` where it ran. `.claude/settings.json` sets `LANG` for a Claude Code session, and first setup checks it; in any other shell, or under `LC_ALL=C`: `LC_ALL=C.UTF-8 grep ...`, or the agent's own search tool.
 - **Ending a process:** use a stop file, or the number Windows reports for it. Git Bash's process numbers are its own, and `taskkill` with one can end an unrelated process.
 
 ## Agent skills
