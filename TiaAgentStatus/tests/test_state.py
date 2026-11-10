@@ -17,7 +17,8 @@ class ProjectsRoot(unittest.TestCase):
         with open(self.settings, 'wb') as f:
             f.write(b'{"tiaRoot": "D:\\\\TIA"}')
         self.assertEqual(self.default, st.projects_root(self.settings))
-        for raw in (b'', b' \r\n', b'[]', b'null', b'5'):                       # the bridge runs on its defaults with these
+        deepest = b'{"x": %s%s}' % (b'[' * 101, b']' * 101)                     # the deepest the bridge takes
+        for raw in (b'', b' \r\n', b'[]', b'null', b'5', deepest):              # the bridge runs on its defaults with these
             with open(self.settings, 'wb') as f:
                 f.write(raw)
             self.assertEqual(self.default, st.projects_root(self.settings), raw)
@@ -32,7 +33,12 @@ class ProjectsRoot(unittest.TestCase):
         """The bridge reads the first with its folder and refuses the others: the default folder is right for none."""
         for raw, why in ((b"{'projectsRoot': 'D:/Projects'}", 'not strict JSON'),
                          (b'{"projectsRoot": "D:/a", "ProjectsRoot": "D:/b"}', 'projectsRoot and ProjectsRoot'),
-                         (b'{"x": [{"a": 1, "A": 2}]}', 'a and A'), (b'{"": 1}', 'an empty name')):
+                         (b'{"x": [{"a": 1, "A": 2}]}', 'a and A'), (b'{"": 1}', 'an empty name'),
+                         (b'\x1c', 'not strict JSON'), (b' \x1f ', 'not strict JSON'),     # blank to Python only
+                         (b'{"archivesKept": 1e400}', 'holds the number 1e400, too large for it, which the bridge refuses'),
+                         (b'{"archivesKept": -%s}' % (b'9' * 400), 'too large for it, which the bridge refuses'),
+                         (b'{"x": %s1%s}' % (b'[' * 101, b']' * 101), 'holds nesting over 102 levels, which the bridge refuses'),
+                         (b'[' * 100000 + b']' * 100000, 'holds nesting over 102 levels, which the bridge refuses')):
             with open(self.settings, 'wb') as f:
                 f.write(raw)
             with self.assertRaises(st.SettingsUnreadable, msg=raw) as caught:
@@ -44,6 +50,16 @@ class ProjectsRoot(unittest.TestCase):
         with self.assertRaises(st.SettingsUnreadable) as caught:
             st.projects_root(self.settings)
         self.assertIn(f'{self.settings} cannot be read', str(caught.exception))
+
+    def test_a_value_that_names_no_folder_is_said_not_taken_for_the_default(self):
+        """The bridge takes such a value over its default, so the default folder is not where it works."""
+        for raw, shown in ((b'{"projectsRoot": ""}', '""'), (b'{"ProjectsRoot": null}', 'null'),
+                           (b'{"projectsRoot": 5}', '5'), (b'{"projectsRoot": ["D:/Projects"]}', '["D:/Projects"]')):
+            with open(self.settings, 'wb') as f:
+                f.write(raw)
+            with self.assertRaises(st.SettingsUnreadable, msg=raw) as caught:
+                st.projects_root(self.settings)
+            self.assertEqual(f'{self.settings} holds {shown} as projectsRoot, which names no folder', str(caught.exception))
 
     def test_the_folder_as_the_bridge_reads_it(self):
         """Windows PowerShell 5.1 goes by the byte order mark, else ANSI: `>` writes UTF-16, Notepad's "ANSI" no mark,

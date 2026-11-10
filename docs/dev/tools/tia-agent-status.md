@@ -4,7 +4,7 @@ title: TiaAgentStatus internals
 description: The bridge's state files and how the dashboard, the status line and the herdr watcher read them, tell live bridges from orphans, and judge a TIA as hung; and the report run the dashboard's button starts.
 tags: [dev, tia-bridge, herdr, status-line, dashboard]
 status: draft
-generated: { by: claude-code/claude-fable-5-2, at: 2026-11-09T18:51:17-05:00 }
+generated: { by: claude-code/claude-fable-5-2, at: 2026-11-10T09:45:33-05:00 }
 ---
 
 # TiaAgentStatus internals
@@ -44,7 +44,7 @@ Every bridge process keeps `<projectsRoot>\_bridge\sessions\<bridge pid>.json` (
 
 ## Status line
 
-`statusline.py` walks up its own process tree to the nearest Claude process (`CLAUDE_PID` first when set) and shows the newest live bridge with that Claude process. It prints nothing without one, and on any error but one: bridge settings it cannot read are the row, with the file named, as the bridge's folder is unknown then. `state.bridge_settings` reads `TiaBridge\settings.json` as strict JSON, finds a name in any case, as the bridge does, and raises `SettingsUnreadable` for text only the bridge can read (single quotes, names without quotes) and for names the bridge refuses. `watch` and `dashboard` stop on it when no `--root` gives the folder. The row only stays current when Claude Code runs it again, so its how-to in [the README](../../../TiaAgentStatus/README.md#how-to-use) sets `refreshInterval`.
+`statusline.py` walks up its own process tree to the nearest Claude process (`CLAUDE_PID` first when set) and shows the newest live bridge with that Claude process. It prints nothing without one, and on any error but one: bridge settings it cannot read are the row, with the file named, as the bridge's folder is unknown then. `state.bridge_settings` reads `TiaBridge\settings.json` as strict JSON, finds a name in any case, as the bridge does, and raises `SettingsUnreadable` for text only the bridge can read (single quotes, names without quotes) and for what the bridge refuses in strict JSON: a number too large for a double, nesting over 102 levels, an empty name and two names that differ in case only. `state.projects_root` raises it too for a `projectsRoot` that is no text or an empty one: the bridge takes such a value over its default, so the default folder is not where it works. `watch` and `dashboard` stop on it when no `--root` gives the folder. The row only stays current when Claude Code runs it again, so its how-to in [the README](../../../TiaAgentStatus/README.md#how-to-use) sets `refreshInterval`.
 
 ## Watcher
 

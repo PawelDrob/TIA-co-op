@@ -801,14 +801,28 @@ class ProjectsRoot(SetupCase):
         self.assertNotIn('projectsRoot', self.stored())
 
     def test_bridge_settings_that_cannot_be_read_stay_and_are_named(self):
-        self.bridge_settings.write_text('{ not json')
+        for text in ('{ not json', ' \x1f '):       # the second is blank to Python only: the bridge refuses it
+            with self.subTest(text):
+                self.bridge_settings.write_text(text)
 
-        code, out = self.run_setup('--projects-root', r'C:\Work\Repos')
+                code, out = self.run_setup('--projects-root', r'C:\Work\Repos')
 
-        self.assertEqual(code, 1, out)
-        self.assertIn(str(self.bridge_settings), out)
-        self.assertEqual(self.bridge_settings.read_text(), '{ not json')
-        self.assertNotIn('permissions', self.user())
+                self.assertEqual(code, 1, out)
+                self.assertIn(f'missing  projectsRoot: {self.bridge_settings} cannot be read', out)
+                self.assertEqual(self.bridge_settings.read_text(), text)
+                self.assertNotIn('permissions', self.user())
+
+    def test_a_tia_root_that_names_no_folder_is_named_not_taken_for_the_default(self):
+        # the bridge takes such a value over its default
+        for value, shown in (('', '""'), (None, 'null'), (5, '5')):
+            with self.subTest(shown):
+                self.bridge_settings.write_text(json.dumps({'TiaRoot': value, 'projectsRoot': r'C:\Work\Repos'}))
+
+                code, out = self.run_setup()
+
+                self.assertEqual(code, 1, out)
+                self.assertIn(f'missing  TIA Portal V20 with TIA Openness: {self.bridge_settings} holds {shown} as tiaRoot, which names no folder', out)
+                self.assertIn(f'- Set tiaRoot in {self.bridge_settings} to the folder of TIA Portal V20, or take it out for the default', out)
 
     def test_settings_with_a_byte_order_mark_are_read(self):
         self.user_settings.write_bytes(b'\xef\xbb\xbf{"model": "opus"}')
@@ -865,6 +879,58 @@ class ProjectsRoot(SetupCase):
         self.assertIn(f'{self.bridge_settings} holds two names that differ in case only, projectsRoot and ProjectsRoot, which the bridge refuses', out)
         self.assertEqual(self.bridge_settings.read_text(), text)
         self.assertNotIn('permissions', self.user())
+
+    def test_a_value_that_names_no_folder_is_named_and_asked_for(self):
+        # the bridge takes such a value over its default
+        for value, shown in (('', '""'), (None, 'null'), (5, '5')):
+            with self.subTest(shown):
+                text = json.dumps({'tiaRoot': str(self.tia), 'ProjectsRoot': value})
+                self.bridge_settings.write_text(text)
+
+                code, out = self.run_setup()
+
+                self.assertEqual(code, 3, out)
+                self.assertIn(f'Question: {self.bridge_settings} holds {shown} as projectsRoot, which names no folder. Where should the project repos live?', out)
+                self.assertEqual(self.bridge_settings.read_text(), text)
+                self.assertNotIn('permissions', self.user())
+
+    def test_an_answer_takes_the_place_of_a_value_that_names_no_folder(self):
+        self.bridge_settings.write_text(json.dumps({'tiaRoot': str(self.tia), 'ProjectsRoot': 5}))
+
+        code, out = self.run_setup('--projects-root', r'C:\Work\Repos')
+
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.stored(), {'tiaRoot': str(self.tia), 'ProjectsRoot': r'C:\Work\Repos'})
+        self.assertIn(f'projectsRoot C:\\Work\\Repos, in {self.bridge_settings}, in place of 5, which named no folder', out)
+
+    def test_what_the_bridge_refuses_in_strict_json_stays_and_is_named(self):
+        for value, why in (('1e400', 'the number 1e400, too large for it'), ('-' + '9' * 400, 'the number -%s, too large for it' % ('9' * 400)),
+                           ('[' * 101 + '1' + ']' * 101, 'nesting over 102 levels'), ('[' * 100000 + ']' * 100000, 'nesting over 102 levels')):
+            with self.subTest(value[:8]):
+                text = '{"tiaRoot": %s, "x": %s}' % (json.dumps(str(self.tia)), value)
+                self.bridge_settings.write_text(text)
+
+                code, out = self.run_setup('--projects-root', r'C:\Work\Repos')
+
+                self.assertEqual(code, 1, out)
+                self.assertIn(f'missing  projectsRoot: {self.bridge_settings} holds {why}, which the bridge refuses; fix the file', out)
+                self.assertEqual(self.bridge_settings.read_text(), text)
+                self.assertNotIn('permissions', self.user())
+
+    def test_an_empty_file_or_no_object_holds_no_settings_as_for_the_bridge(self):
+        for text in ('', ' \r\n', '[]', 'null', '5'):
+            with self.subTest(text):
+                self.bridge_settings.write_bytes(text.encode())
+
+                code, out = self.run_setup()
+
+                self.assertIn('Question: Where should the project repos live?', out)
+                self.assertNotIn(str(self.bridge_settings), out.split('A person does these')[0])
+                self.assertEqual(self.bridge_settings.read_bytes(), text.encode())
+
+                self.run_setup('--projects-root', r'C:\Work\Repos')
+
+                self.assertEqual(self.stored(), {'projectsRoot': r'C:\Work\Repos'})
 
     def test_a_name_outside_ascii_stays_readable_for_windows_powershell(self):
         # Windows PowerShell 5.1 reads a file with no byte order mark as ANSI, so the bridge's settings stay plain ASCII.

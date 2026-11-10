@@ -240,8 +240,9 @@ def other_run(root, folder, procs, pid):
 
 
 def settings_unreadable(e):
-    """The words for bridge settings a run cannot read. No --root helps: the run's bridge takes TIA's folder and the
-    rest from that file."""
+    """The words for bridge settings a run cannot read or use. No --root helps with a file it cannot read: the run's
+    bridge takes TIA's folder and the rest from that file. A projectsRoot that names no folder stops only a run
+    without --root."""
     return f'Not run: {e}. Fix the file first.'
 
 

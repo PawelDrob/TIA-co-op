@@ -6,6 +6,7 @@ Exit code 0 is done, 1 something is missing (a question may wait as well), 3 onl
 """
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -29,6 +30,8 @@ GIT_CONTEXT = ('GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PAR
 COMMAND_SECONDS = 300
 OUTPUT_HEAD_LINES = 20
 OUTPUT_TAIL_LINES = 10
+DEPTH_LIMIT = 102  # of ConvertFrom-Json, as TiaArchiveCompare\runner\powershell_json.py has it
+TOO_DEEP = f'nesting over {DEPTH_LIMIT} levels'
 DEFAULT_TIA_ROOT = r'C:\Program Files\Siemens\Automation\Portal V20'  # as Get-BridgeSettings, TiaBridge\Repo.ps1
 OPENNESS_GROUP = 'Siemens TIA Openness'
 ARCHIVE_LIMIT = 143
@@ -105,12 +108,12 @@ def as_windows_powershell_reads(raw):
     return raw.decode('mbcs', 'replace')
 
 
-def read_json(path, decode=lambda raw: raw.decode('utf-8-sig')):
+def read_json(path):
     """A file's object, {} when there is no file. A file that cannot be read raises ValueError, naming it: it stays as it is."""
     if not path.exists():
         return {}
     try:
-        data = json.loads(decode(path.read_bytes()))
+        data = json.loads(path.read_bytes().decode('utf-8-sig'))
     except (OSError, ValueError) as e:
         raise ValueError(f'{path} cannot be read ({e}); fix the file, then run this again') from e
     if not isinstance(data, dict):
@@ -133,11 +136,13 @@ def spelled(settings, name):
     return next((n for n in settings if folded(n) == folded(name)), name)
 
 
-def refused_names(value):
-    """Why the bridge refuses the names of a parsed JSON value, '' when it takes them: an empty name, or two that differ
-    in case only, in the value or anywhere inside it. Its twin: TiaAgentStatus\\state.py."""
+def refused_in(value, depth=1):
+    """Why the bridge refuses a parsed JSON value, '' when it takes it: nesting over DEPTH_LIMIT levels, an empty name,
+    or two names that differ in case only, in the value or anywhere inside it. Its twin: TiaAgentStatus\\state.py."""
+    if depth > DEPTH_LIMIT:
+        return TOO_DEEP
     if isinstance(value, list):
-        return next(filter(None, map(refused_names, value)), '')
+        return next(filter(None, (refused_in(item, depth + 1) for item in value)), '')
     if not isinstance(value, dict):
         return ''
     seen = {}
@@ -147,18 +152,47 @@ def refused_names(value):
             return f'two names that differ in case only, {first} and {name}'
         if name == '':
             return 'an empty name'
-    return next(filter(None, map(refused_names, value.values())), '')
+    return next(filter(None, (refused_in(member, depth + 1) for member in value.values())), '')
+
+
+def blank(text):
+    """A text the bridge takes for an empty file. The four separators U+001C to U+001F are white space to Python and
+    not to .NET, which refuses a file of them. Its twin: TiaAgentStatus\\state.py."""
+    return not text.strip() and not any('\x1c' <= c <= '\x1f' for c in text)
+
+
+class TooLarge(ValueError):
+    """A number of the settings that overflows a double, which the bridge refuses the file for."""
+
+
+def number(token):
+    """A JSON number as json.loads makes it, TooLarge where it makes infinity of it. Its twin: TiaAgentStatus\\state.py."""
+    if math.isinf(float(token)):
+        raise TooLarge(f'the number {token}, too large for it')
+    return int(token) if token.lstrip('-').isdigit() else float(token)
 
 
 def read_bridge_settings():
-    """The bridge's settings, decoded as the bridge decodes them; Claude Code's files are UTF-8 (read_json). Names the
-    bridge refuses raise ValueError (refused_names): a name has one value then, whatever its case (spelled). Strict
-    JSON only: what else the bridge takes (single quotes, names without quotes) stops setup."""
-    settings = read_json(BRIDGE_SETTINGS, as_windows_powershell_reads)
-    refused = refused_names(settings)
+    """The bridge's settings, decoded as the bridge decodes them; Claude Code's files are UTF-8 (read_json). {} without a
+    file, and for an empty file or a value that is no object, where the bridge runs on its defaults. Strict JSON only:
+    what else the bridge takes (single quotes, names without quotes) stops setup with ValueError, as does what the
+    bridge refuses in strict JSON: a number too large for a double (number), deep nesting and names (refused_in). A
+    name has one value then, whatever its case (spelled). Its twin: bridge_settings, TiaAgentStatus\\state.py."""
+    if not BRIDGE_SETTINGS.exists():
+        return {}
+    try:
+        text = as_windows_powershell_reads(BRIDGE_SETTINGS.read_bytes())
+        settings = json.loads(text, parse_float=number, parse_int=number) if not blank(text) else None
+        refused = refused_in(settings)
+    except TooLarge as e:
+        refused = str(e)
+    except RecursionError:      # deeper than Python parses
+        refused = TOO_DEEP
+    except (OSError, ValueError) as e:
+        raise ValueError(f'{BRIDGE_SETTINGS} cannot be read ({e}); fix the file, then run this again') from e
     if refused:
         raise ValueError(f'{BRIDGE_SETTINGS} holds {refused}, which the bridge refuses; fix the file, then run this again')
-    return settings
+    return settings if isinstance(settings, dict) else {}
 
 
 def write_json(path, data, ascii_only):
@@ -388,13 +422,19 @@ def settle_projects_root(report, answer):
         bridge = read_bridge_settings()
         user = read_json(user_file)
         allow = ensure_allow_list(user, user_file)
-        stored = bridge.get(spelled(bridge, 'projectsRoot'))
+        name = spelled(bridge, 'projectsRoot')
+        stored = bridge.get(name)
+        # no text, or an empty one: the bridge takes it over its default, so it is said and an answer replaces it
+        no_folder = json.dumps(stored) if name in bridge and not (stored and isinstance(stored, str)) else ''
+        if no_folder:
+            stored = None
         root = normal_root(answer or stored) if answer or stored else None
     except ValueError as e:
         report.lack(f'projectsRoot: {e}')
         return
     if not root:
-        report.question = (f'Where should the project repos live? The default is {Path.home() / "TIA-Projects"}. '
+        report.question = ((f'{BRIDGE_SETTINGS} holds {no_folder} as projectsRoot, which names no folder. ' if no_folder else '')
+                           + f'Where should the project repos live? The default is {Path.home() / "TIA-Projects"}. '
                            'Ask the user, then run this again with --projects-root "<path>", the default too.')
         return
     changed = not (stored and same_path(stored, root))
@@ -418,7 +458,7 @@ def settle_projects_root(report, answer):
     elif stored:
         report.done(f'projectsRoot changed from {stored} to {root}. No repo moved: those in the old folder stay there. A bridge already running keeps the old value until it restarts. Another clone on the old folder loses these rules, as they are per user: run setup in it to bring them back')
     else:
-        report.done(f'projectsRoot {root}, in {BRIDGE_SETTINGS}')
+        report.done(f'projectsRoot {root}, in {BRIDGE_SETTINGS}' + (f', in place of {no_folder}, which named no folder' if no_folder else ''))
     print(f'         Setup makes no folder there: the bridge makes {root}\\_bridge\\sessions each time it starts; with Claude Code, in every new session and at claude mcp get tia.')
     git_form = f'git -C "{forward_slashes(root)}/<repo>"'
     (report.ok if updated == allow else report.done)(f'Claude Code allow rules for read, edit and git in that folder, in {user_file}. Git goes by {git_form}: with a backslash or a cd first it asks')
@@ -429,9 +469,14 @@ def check_tia(report):
     """As the bridge finds it: tiaRoot of its settings, the Openness API of V20 under it (Import-Openness, TiaBridge\\Tia.ps1)."""
     try:
         bridge = read_bridge_settings()
-        tia_root = bridge.get(spelled(bridge, 'tiaRoot')) or DEFAULT_TIA_ROOT
     except ValueError:
         return  # settle_projects_root names the file
+    name = spelled(bridge, 'tiaRoot')
+    tia_root = bridge.get(name, DEFAULT_TIA_ROOT)
+    if not (tia_root and isinstance(tia_root, str)):    # the bridge takes it over its default
+        report.lack_for_person(f'TIA Portal V20 with TIA Openness: {BRIDGE_SETTINGS} holds {json.dumps(tia_root)} as tiaRoot, which names no folder',
+                               f'Set tiaRoot in {BRIDGE_SETTINGS} to the folder of TIA Portal V20, or take it out for the default, {DEFAULT_TIA_ROOT}.')
+        return
     if (Path(tia_root) / 'PublicAPI' / 'V20' / 'Siemens.Engineering.dll').exists():
         report.ok(f'TIA Portal V20 with TIA Openness, {tia_root}')
     else:

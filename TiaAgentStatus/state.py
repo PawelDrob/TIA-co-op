@@ -2,6 +2,7 @@
 TiaBridge\\State.ps1): finding the folder, reading the live ones, the Claude process of a reader."""
 import datetime
 import json
+import math
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -11,6 +12,8 @@ REUSE_SLACK = datetime.timedelta(seconds=5)
 
 
 BRIDGE_SETTINGS = os.path.join(os.path.dirname(HERE), 'TiaBridge', 'settings.json')
+DEPTH_LIMIT = 102           # of ConvertFrom-Json, as TiaArchiveCompare\runner\powershell_json.py has it
+TOO_DEEP = f'nesting over {DEPTH_LIMIT} levels'
 
 
 BOMS = ((b'\xef\xbb\xbf', 'utf-8'), (b'\xff\xfe\x00\x00', 'utf-32-le'), (b'\x00\x00\xfe\xff', 'utf-32-be'),
@@ -27,8 +30,9 @@ def as_windows_powershell_reads(raw):
 
 
 class SettingsUnreadable(ValueError):
-    """TiaBridge\\settings.json is there and this tool cannot read it; its text names the file and says why. The bridge
-    may still read it: it takes more than JSON (TiaArchiveCompare\\runner\\powershell_json.py)."""
+    """TiaBridge\\settings.json is there and this tool cannot read it, or cannot use the value it asked for; its text
+    names the file and says why. The bridge may still read it: it takes more than JSON
+    (TiaArchiveCompare\\runner\\powershell_json.py)."""
 
 
 def folded(name):
@@ -46,11 +50,13 @@ def spelled(settings, name):
     return next((n for n in settings if folded(n) == folded(name)), name)
 
 
-def refused_names(value):
-    """Why the bridge refuses the names of a parsed JSON value, '' when it takes them: an empty name, or two that differ
-    in case only, in the value or anywhere inside it. Its twin: tools\\setup\\setup.py."""
+def refused_in(value, depth=1):
+    """Why the bridge refuses a parsed JSON value, '' when it takes it: nesting over DEPTH_LIMIT levels, an empty name,
+    or two names that differ in case only, in the value or anywhere inside it. Its twin: tools\\setup\\setup.py."""
+    if depth > DEPTH_LIMIT:
+        return TOO_DEEP
     if isinstance(value, list):
-        return next(filter(None, map(refused_names, value)), '')
+        return next(filter(None, (refused_in(item, depth + 1) for item in value)), '')
     if not isinstance(value, dict):
         return ''
     seen = {}
@@ -60,14 +66,31 @@ def refused_names(value):
             return f'two names that differ in case only, {first} and {name}'
         if name == '':
             return 'an empty name'
-    return next(filter(None, map(refused_names, value.values())), '')
+    return next(filter(None, (refused_in(member, depth + 1) for member in value.values())), '')
+
+
+def blank(text):
+    """A text the bridge takes for an empty file. The four separators U+001C to U+001F are white space to Python and
+    not to .NET, which refuses a file of them. Its twin: tools\\setup\\setup.py."""
+    return not text.strip() and not any('\x1c' <= c <= '\x1f' for c in text)
+
+
+class TooLarge(ValueError):
+    """A number of the settings that overflows a double, which the bridge refuses the file for."""
+
+
+def number(token):
+    """A JSON number as json.loads makes it, TooLarge where it makes infinity of it. Its twin: tools\\setup\\setup.py."""
+    if math.isinf(float(token)):
+        raise TooLarge(f'the number {token}, too large for it')
+    return int(token) if token.lstrip('-').isdigit() else float(token)
 
 
 def bridge_settings(settings_path=BRIDGE_SETTINGS):
     """TiaBridge\\settings.json beside this folder, decoded as the bridge decodes it. {} without a file, and for an empty
     file or a value that is no object, where the bridge runs on its defaults. Strict JSON only. SettingsUnreadable for
-    any other text, and for names the bridge refuses (refused_names): a name has one value then, whatever its case
-    (spelled)."""
+    any other text, and for what the bridge refuses in strict JSON: a number too large for a double (number), deep
+    nesting and names (refused_in). A name has one value then, whatever its case (spelled)."""
     try:
         with open(settings_path, 'rb') as f:
             text = as_windows_powershell_reads(f.read())
@@ -75,13 +98,17 @@ def bridge_settings(settings_path=BRIDGE_SETTINGS):
         return {}
     except OSError as e:
         raise SettingsUnreadable(f'{settings_path} cannot be read ({e})') from e
-    if not text.strip():
+    if blank(text):
         return {}
     try:
-        settings = json.loads(text)
+        settings = json.loads(text, parse_float=number, parse_int=number)
+        refused = refused_in(settings)
+    except TooLarge as e:
+        refused = str(e)
+    except RecursionError:      # deeper than Python parses
+        refused = TOO_DEEP
     except ValueError as e:
         raise SettingsUnreadable(f'{settings_path} is not strict JSON ({e})') from e
-    refused = refused_names(settings)
     if refused:
         raise SettingsUnreadable(f'{settings_path} holds {refused}, which the bridge refuses')
     return settings if isinstance(settings, dict) else {}
@@ -89,10 +116,16 @@ def bridge_settings(settings_path=BRIDGE_SETTINGS):
 
 def projects_root(settings_path=BRIDGE_SETTINGS):
     """projectsRoot of TiaBridge\\settings.json beside this folder, else the bridge's default. SettingsUnreadable for a
-    file that cannot be read: the bridge's folder is unknown then."""
+    file that cannot be read, and for a value that is no text or an empty one, which the bridge takes over its default:
+    the bridge's folder is unknown then."""
     settings = bridge_settings(settings_path)
-    return (settings.get(spelled(settings, 'projectsRoot'))
-            or os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'TIA-Projects'))
+    name = spelled(settings, 'projectsRoot')
+    if name not in settings:
+        return os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'TIA-Projects')
+    root = settings[name]
+    if not root or not isinstance(root, str):
+        raise SettingsUnreadable(f'{settings_path} holds {json.dumps(root)} as projectsRoot, which names no folder')
+    return root
 
 
 def sessions_dir(root=None):
