@@ -1,36 +1,36 @@
 #!/bin/sh
 # Pre-commit checks of this repo. First setup (tools/setup/) turns them on: git config core.hooksPath .githooks
-# Times are of a full run (--all) on the maintainer's PC, two suites at once, 2026-11-06: about 8 min in all, where one
-# suite after another took about 15.
+# Times are of a full run (--all) on the maintainer's PC with nothing else running, two suites at once, 2026-11-10:
+# about 14 min in all, where the suites' own times add up to about 27. With other sessions at work the same run took 37.
 #   1. parse check of every TiaBridge script (always)
-#   2. TiaBridge unit tests (about 2 min), when the commit touches TiaBridge/
-#   3. TiaChangeReports unit tests (about 4 min), when the commit touches TiaChangeReports/. A commit that touches
+#   2. TiaBridge unit tests (about 3 min), when the commit touches TiaBridge/
+#   3. TiaChangeReports unit tests (about 5.5 min), when the commit touches TiaChangeReports/. A commit that touches
 #      TiaBridge/ alone runs the one of them that holds the report's list of export folders to the bridge's
-#      (BridgeFolders, about 2 s)
-#   4. TiaArchiveCompare runner tests (about 30 s) and window model tests (about 3 s, no window), when the commit
+#      (BridgeFolders, about 1 s)
+#   4. TiaArchiveCompare runner tests (about 45 s) and window model tests (about 6 s, no window), when the commit
 #      touches TiaArchiveCompare/; its package tests (under a second: what the download holds, its version), also when
 #      it touches TiaBridge/Mcp.ps1, whose version the download's must equal
-#   5. TiaAgentStatus unit tests (about 12 s, one starts a bridge without TIA), when the commit touches
+#   5. TiaAgentStatus unit tests (about 30 s, one starts a bridge without TIA), when the commit touches
 #      TiaAgentStatus/, TiaBridge/ (it reads the bridge's state files), tools/dashboard/ (its page runs on that core) or
 #      .claude/skills/tia-dashboard/ (a test holds its page to the string the skill looks for)
-#   6. TiaHmiGenerator unit tests (about 4 min, run from the folder) and the catalogue check (build.py --check), when
-#      the commit touches TiaHmiGenerator/, with the bridge's validator guard tests (HmiImport.Tests.ps1, about 5 s)
+#   6. TiaHmiGenerator unit tests (about 5 min, run from the folder) and the catalogue check (build.py --check), when
+#      the commit touches TiaHmiGenerator/, with the bridge's validator guard tests (HmiImport.Tests.ps1, about 8 s)
 #      when step 2 does not run. A TiaBridge/ change alone does not need them: the generator tests use no bridge
 #      code, and step 2 runs the guard tests on the real validator
 #   7. OKF check of docs/ (check only, tools/okf/), when the commit touches docs/ or tools/okf/, and the checker's
-#      own tests (about 2 s) when it touches tools/okf/. A document added, moved, removed or deprecated needs a line in
+#      own tests (about 8 s) when it touches tools/okf/. A document added, moved, removed or deprecated needs a line in
 #      docs/log.md in the same commit
-#   8. Development dashboard tests (about 40 s), when the commit touches tools/dashboard/
+#   8. Development dashboard tests (about 45 s), when the commit touches tools/dashboard/
 #   9. Pointer check (tools/pointers/): a skill, AGENTS.md, CODING_STANDARDS.md, CONTRIBUTING.md or the README.md of the
 #      repo or of a top-level folder naming a file that is gone, or a skill whose frontmatter does not parse, on every
 #      commit that has the .venv (it says so when skipped), and the check's own tests when the commit touches
 #      tools/pointers/
-#  10. Session tool tests (about 40 s, on temp git repos, with no claude or herdr), when the commit touches tools/session/,
+#  10. Session tool tests (about 2 min, on temp git repos, with no claude or herdr), when the commit touches tools/session/,
 #      tools/setup/setup.py, whose command for the bridge a session starts too, or tools/dashboard/board.py or review_page.py,
 #      which its merge reads a ticket's head and takes a page down with
-#  11. The hook's own tests (tools/hooks/tests/, about 3 min, on temp git repos with the suites stubbed), when the commit
+#  11. The hook's own tests (tools/hooks/tests/, about 9 min, on temp git repos with the suites stubbed), when the commit
 #      touches .githooks/ or tools/hooks/
-#  12. First setup tests (about 15 s, on temp clones, with a fake claude), when the commit touches tools/setup/ or
+#  12. First setup tests (about 45 s, on temp clones, with a fake claude), when the commit touches tools/setup/ or
 #      TiaAgentStatus/ (a test runs the status line setup writes, with its fakes)
 # The checks and tests run side by side, at most PRE_COMMIT_JOBS at once (default 2: the maintainer's PC runs at most two
 # heavy jobs at once, as more ran it out of memory; CI may set more), the long suites first. Each writes its own log in
