@@ -234,7 +234,7 @@ def console_starts(tree, read_by=()):
             for a in node.names:
                 if a.asname and (a.name in STARTERS or a.name in NO_FLAGS):
                     yield node.lineno, '%s imported as %s: the scan reads %s.<name>' % (a.name, a.asname, a.name)
-        elif isinstance(node, ast.ImportFrom) and not node.level:
+        elif isinstance(node, ast.ImportFrom):
             if any(a.name in STARTERS.get(node.module, ()) or takes_no_flags(node.module, a.name)
                    or '%s.%s' % (node.module, a.name) in STARTERS
                    or a.name == '*' and (node.module in STARTERS or node.module in NO_FLAGS) for a in node.names):
@@ -528,7 +528,10 @@ class RuleTest(unittest.TestCase):
         for code in ('import asyncio.subprocess as sub', 'from asyncio import subprocess', 'from asyncio.subprocess import *',
                      'from asyncio.subprocess import create_subprocess_exec', 'sub = asyncio.subprocess'):
             self.assertEqual([1], self.found(code), code)
-        self.assertEqual([], self.found('from .asyncio import subprocess'))
+        # a relative import too: a file of the package by that name may hand the starter on
+        for code in ('from .asyncio import subprocess', 'from .subprocess import run', 'from ..os import system', 'from .subprocess import *'):
+            self.assertEqual([1], self.found(code), code)
+        self.assertEqual([], self.found('from . import subprocess_tools\nfrom .gitenv import NO_WINDOW, git_env'))
         self.assertEqual(2, count_starts(ast.parse('asyncio.subprocess.create_subprocess_exec("git")\nsubprocess.run(a)\nx.y.run(a)')))
 
     def test_a_module_of_the_rule_under_another_name_is_seen(self):
