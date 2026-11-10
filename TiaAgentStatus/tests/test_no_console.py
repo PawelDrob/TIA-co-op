@@ -28,7 +28,8 @@ OTHER_SCAN = REPO / 'TiaHmiGenerator' / 'Tests' / 'test_no_console.py'
 
 # The rule: these constants, functions and tests are the same in the other scan, which a test of each checks.
 RULE = ('RULE', 'rule_of', 'words', 'reads_flags', 'ASYNC_STARTS', 'STARTERS', 'NO_FLAGS', 'NO_WINDOW', 'takes_no_flags', 'dotted',
-        'enclosing_function', 'assigned', 'binds', 'class_level', 'set_to', 'flag_names', 'not_read', 'other_names', 'console_starts', 'count_starts', 'RuleTest')
+        'enclosing_function', 'assigned', 'binds', 'binds_any_name', 'class_level', 'set_to', 'flag_names', 'not_read',
+        'other_names', 'console_starts', 'count_starts', 'RuleTest')
 
 
 def rule_of(path):
@@ -82,16 +83,16 @@ def dotted(node):
     return head and '%s.%s' % (head, node.attr)
 
 
-def enclosing_function(tree):
-    """{node: the innermost function it is in}: in its arguments or its body. A function's own node, its decorators
-    and the defaults of its arguments are in the scope around it, where they run. ast.walk goes outside in, so an
-    inner function overwrites."""
+def enclosing_function(tree, written=False):
+    """{node: the innermost function it runs in}: its arguments and its body. A function's own node, its decorators,
+    and the defaults and annotations of its arguments run in the scope around it. written: the function a node is
+    written in instead, those among them. ast.walk goes outside in, so an inner function overwrites."""
     inside = {}
     for f in ast.walk(tree):
         if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
             a = f.args
-            own = [x for x in a.posonlyargs + a.args + a.kwonlyargs + [a.vararg, a.kwarg] if x] + f.body
-            inside.update((n, f) for part in own for n in ast.walk(part))
+            inside.update((x, f) for x in a.posonlyargs + a.args + a.kwonlyargs + [a.vararg, a.kwarg] if x)
+            inside.update((n, f) for part in ([f] if written else f.body) for n in ast.walk(part) if n is not f)
     return inside
 
 
@@ -118,6 +119,11 @@ def binds(node):
     return None
 
 
+def binds_any_name(node):
+    """True of import *, and of globals under any spelling the file gives it: either may bind any name of a module."""
+    return binds(node) == '*' or 'globals' in (getattr(node, 'id', None), getattr(node, 'attr', None), getattr(node, 'name', None))
+
+
 def class_level(tree, inside):
     """The nodes of each class body that run in it: not those in a method's arguments or body."""
     return {n for c in ast.walk(tree) if isinstance(c, ast.ClassDef) for s in c.body for n in ast.walk(s)
@@ -125,28 +131,32 @@ def class_level(tree, inside):
 
 
 def set_to(name, scope, inside, tree):
-    """([(what name is set to, the scope that sets it)], whether those are all it can be) in the nearest scope that
-    binds it: scope (the function a call is in, None for the module), then each function around it, then the module; a
-    class body is no scope of its methods. Not all: the scope also binds it where this cannot read a value (binds, but
-    for a plain assignment and import of a module; import *, and globals() in the file for the module, may bind any name
-    but a builtin), or a global or nonlocal statement names it, and then every function's values count."""
+    """([(what name is set to in scope, scope)], whether those are all it can be there). scope: the function a start is
+    in, None for the module; a class body is no scope of its methods. Not all, when:
+    - scope also binds it where this cannot read a value (binds, but for a plain assignment and import of a module);
+    - import * in scope, or globals in the file for the module, may bind it: any name but a builtin;
+    - a global or nonlocal statement names it, and then every function's values count;
+    - scope is a function that does not bind it, and the file binds it elsewhere or may (import *, globals): a name
+      of a scope around is not followed, as it can be set there in ways no reading of one file sees."""
     def sets(n):
         return any(isinstance(t, ast.Name) and t.id == name for t in assigned(n))
+
+    def any_name(among):
+        return not hasattr(builtins, name) and any(binds_any_name(n) for n in among)
     nodes = list(ast.walk(tree))
     if any(isinstance(n, (ast.Global, ast.Nonlocal)) and name in n.names for n in nodes):
         return [(n.value, inside.get(n)) for n in nodes if sets(n)], False
     of_a_class = class_level(tree, inside)
     modules = {a for n in nodes if isinstance(n, ast.Import) for a in n.names}
-    while True:
-        here = [n for n in ast.walk(scope or tree) if inside.get(n) is scope and n not in of_a_class]
-        values = [(n.value, scope) for n in here if sets(n)]
-        bound = [n for n in here if binds(n) == name]
-        any_name = any(binds(n) == '*' for n in here) or scope is None and any(getattr(n, 'id', None) == 'globals' for n in nodes)
-        unread = sum(n not in modules for n in bound) > len(values) \
-            or any_name and not hasattr(builtins, name) and not any(n in modules for n in bound)
-        if bound or unread or scope is None:
-            return values, not unread
-        scope = inside.get(scope)
+    here = [n for n in nodes if inside.get(n) is scope and n not in of_a_class]
+    values = [(n.value, scope) for n in here if sets(n)]
+    bound = [n for n in here if binds(n) == name]
+    if scope is not None and not bound:
+        around = [n for n in nodes if binds(n) == name]
+        return [], not (any(n not in modules for n in around) or not around and any_name(nodes))
+    unread = sum(n not in modules for n in bound) > len(values) \
+        or not any(n in modules for n in bound) and any_name(here if scope is not None else nodes)
+    return values, not unread
 
 
 def flag_names(expr, node, inside, tree):
@@ -154,13 +164,14 @@ def flag_names(expr, node, inside, tree):
     set to, each read in the scope it stands in; the names among them with a binding the scan cannot read: set_to).
     Not among the second: a name of the flag, which other_names holds to it, and the object of an attribute. In a class
     body no name is followed: it is the class's first, which set_to does not read, so each name the file binds is
-    unread."""
+    unread. The same in a default, decorator or annotation of a def: written in it, run around it."""
     def bare(value):
         objects = {n.value for n in ast.walk(value) if isinstance(n, ast.Attribute)}
         return {n.id for n in ast.walk(value) if isinstance(n, ast.Name) and n not in objects} - set(NO_WINDOW)
-    if node in class_level(tree, inside):
-        bound = {binds(n) or getattr(n, 'id', None) == 'globals' and '*' for n in ast.walk(tree)}
-        return set(words(expr)), {name for name in bare(expr) if name in bound or '*' in bound and not hasattr(builtins, name)}
+    if node in class_level(tree, inside) or enclosing_function(tree, written=True).get(node) is not inside.get(node):
+        bound = {binds(n) for n in ast.walk(tree)}
+        any_name = any(binds_any_name(n) for n in ast.walk(tree))
+        return set(words(expr)), {name for name in bare(expr) if name in bound or any_name and not hasattr(builtins, name)}
     names, unread, all_read, todo = set(), set(), {}, [(expr, inside.get(node))]
     while todo:
         value, at = todo.pop()
@@ -202,8 +213,8 @@ def console_starts(tree, read_by=()):
     """(line, what is wrong) of each start of a program in tree that may open a console window. Its creationflags name
     NO_WINDOW or CREATE_NO_WINDOW, and never DETACHED_PROCESS, and hold no name the scan cannot read in every binding
     (flag_names); a name spelled like the flag is set to it (other_names).
-    read_by: the functions with one start whose flags, or **kw, a test reads (FLAGS_READ_BY)."""
-    inside = enclosing_function(tree)
+    read_by: the functions with one start written in them whose flags, or **kw, a test reads (FLAGS_READ_BY)."""
+    inside, written_in = enclosing_function(tree), enclosing_function(tree, written=True)
     yield from other_names(tree, inside)
     let_through = set()
     for node in ast.walk(tree):
@@ -218,7 +229,7 @@ def console_starts(tree, read_by=()):
                 yield node.lineno, 'a starter imported by name: import %s, and call %s.<name>' % (node.module, node.module)
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and dotted(node.func.value):
             module, name = dotted(node.func.value), node.func.attr
-            function = inside.get(node)
+            function = written_in.get(node)
             flags = [k.value for k in node.keywords if k.arg == 'creationflags']
             passes_kw = None in [k.arg for k in node.keywords]
             if takes_no_flags(module, name):
@@ -328,18 +339,21 @@ class RuleTest(unittest.TestCase):
                      'from board import NO_WINDOW', 'from subprocess import CREATE_NO_WINDOW', 'match m:\n    case _: pass'):
             self.assertEqual([], self.found(code + start), code)
 
-    def test_a_flags_name_is_read_in_the_nearest_scope_that_sets_it(self):
+    def test_a_flags_name_is_read_in_the_scope_of_the_start_alone(self):
+        """A function that reads a name it does not set is flagged, as on main: no name of a scope around is followed."""
         start = '    subprocess.Popen(a, creationflags=flags)'
         module = 'flags = subprocess.CREATE_NO_WINDOW\n'
-        self.assertEqual([], self.found(module + 'def spawn():\n' + start))
-        self.assertEqual([], self.found('def detach():\n    flags = subprocess.CREATE_NO_WINDOW\n    def start():\n    ' + start))
+        self.assertEqual([], self.found('def spawn():\n    flags = subprocess.CREATE_NO_WINDOW\n' + start))
+        self.assertEqual([], self.found(module + start.strip()))
+        self.assertEqual([3], self.found(module + 'def spawn():\n' + start))     # the strict side: fine, and flagged
+        self.assertEqual([4], self.found('def detach():\n    flags = subprocess.CREATE_NO_WINDOW\n    def start():\n    ' + start))
         # not what another function, or one inside this one, sets a name of its own to
         self.assertEqual([], self.found('def spawn():\n    flags = subprocess.CREATE_NO_WINDOW\n    def other():\n'
                                         '        flags = subprocess.DETACHED_PROCESS\n' + start))
         self.assertEqual([5], self.found('def spawn():\n    flags = 0\n    def other():\n'
                                          '        flags = subprocess.CREATE_NO_WINDOW\n' + start))
         self.assertEqual([4], self.found(module + 'def spawn():\n    flags = 0\n' + start))
-        # nor a class's name of that spelling: a method reads the module's
+        # nor a class's name of that spelling
         self.assertEqual([4], self.found('class C:\n    flags = subprocess.CREATE_NO_WINDOW\n    def spawn(self):\n    ' + start))
         # a start in a class body: its names are the class's first, which this does not read
         self.assertEqual([4], self.found(module + 'class C:\n    flags = 0\n    p = subprocess.Popen(a, creationflags=flags)'))
@@ -351,9 +365,51 @@ class RuleTest(unittest.TestCase):
         self.assertEqual([], self.found(method % 'subprocess.CREATE_NO_WINDOW'))
         self.assertEqual([6], self.found('class C:\n    try:\n        flags = subprocess.CREATE_NO_WINDOW\n    finally:\n'
                                          '        def spawn(self):\n        ' + start))
-        # a name in what it is set to is read where that stands
+        # a name in what it is set to is read in that scope too
+        self.assertEqual([], self.found('def spawn():\n    x = subprocess.CREATE_NO_WINDOW\n    flags = x\n' + start))
+        self.assertEqual([4], self.found('x = subprocess.CREATE_NO_WINDOW\ndef spawn():\n    flags = x | NO_WINDOW\n' + start))
         self.assertEqual([6], self.found('x = 0\ndef detach():\n    flags = x\n    def start():\n'
                                          '        x = subprocess.CREATE_NO_WINDOW\n    ' + start))
+
+    def test_a_name_of_a_scope_around_flags_the_call_whatever_it_is_set_to(self):
+        """Main flagged each of these: it followed no module name. A name the function does not set may be anything."""
+        module = 'flags = subprocess.CREATE_NO_WINDOW\n'
+        reads = 'def f():\n    subprocess.Popen(a, creationflags=flags)'
+        for code in (module + 'flags = 0\n' + reads, module + 'vars()["flags"] = 0\n' + reads, module + 'exec("flags = 0")\n' + reads,
+                     module + 'setattr(sys.modules[__name__], "flags", 0)\n' + reads, 'import flags\n' + module + 'from x import *\n' + reads,
+                     'flags = 0 * subprocess.CREATE_NO_WINDOW\n' + reads, module + 'import builtins\nbuiltins.globals()["flags"] = 0\n' + reads,
+                     module + 'from builtins import globals as g\ng()["flags"] = 0\n' + reads,
+                     # though they name the flag too: stricter than main
+                     'flags = subprocess.DETACHED_PROCESS\ndef f():\n    subprocess.Popen(a, creationflags=flags | NO_WINDOW)',
+                     'def f():\n    flags = subprocess.DETACHED_PROCESS\n    def g():\n'
+                     '        subprocess.Popen(a, creationflags=flags | subprocess.CREATE_NO_WINDOW)',
+                     'from x import *\ndef f():\n    subprocess.Popen(a, creationflags=flags | NO_WINDOW)'):
+            self.assertEqual([len(code.splitlines())], self.found(code), code)
+        # globals under another name, for a start of the module
+        start = 'subprocess.Popen(a, creationflags=flags)'
+        self.assertEqual([4], self.found('import builtins\n' + module + 'builtins.globals()["flags"] = 0\n' + start))
+        self.assertEqual([4], self.found('from builtins import globals as g\n' + module + 'g()["flags"] = 0\n' + start))
+        self.assertEqual([4], self.found('import builtins\nbuiltins.globals()["flags"] = 0\nclass C:\n'
+                                         '    p = subprocess.Popen(a, creationflags=flags | NO_WINDOW)'))
+        # not such names: a name of the flag, a module, a builtin, a name the file binds nowhere
+        for code in ('NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)\ndef f():\n    subprocess.run(a, creationflags=NO_WINDOW)',
+                     'from board import NO_WINDOW\ndef f():\n    subprocess.run(a, creationflags=NO_WINDOW | h(1))',
+                     'import subprocess\ndef f():\n    subprocess.run(a, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))'):
+            self.assertEqual([], self.found(code), code)
+
+    def test_an_annotation_runs_in_the_scope_around_its_def(self):
+        module = 'flags = subprocess.CREATE_NO_WINDOW\n'
+        start = 'subprocess.Popen(a, creationflags=flags)'
+        for g in ('def g(x: (flags := 0) = 1): pass', 'def g(*args: (flags := 0)): pass', 'def g(**kw: (flags := 0)): pass',
+                  'def g(*, x: (flags := 0)): pass', 'def g() -> (flags := 0): pass'):
+            self.assertEqual([3], self.found(module + g + '\n' + start), g)
+        self.assertEqual([4], self.found(module + 'class C:\n    flags = 0\n    def m(self, p: ' + start + ' = None): pass'))
+        self.assertEqual([], self.found(module + 'def g(x: int = 1): pass\n' + start))
+        # a start that stands there itself follows no name, as in a class body: main read it inside the def
+        for g in ('def g(p=%s): pass', 'def g(p: %s = 1): pass', '@d(%s)\n    def g(): pass'):
+            code = 'def f():\n    flags = 0 * subprocess.CREATE_NO_WINDOW\n    ' + g % start
+            self.assertEqual([n for n, line in enumerate(code.splitlines(), 1) if 'Popen' in line], self.found(code), code)
+        self.assertEqual([], self.found('def f():\n    def g(p=subprocess.Popen(a, creationflags=NO_WINDOW | subprocess.CREATE_NO_WINDOW)): pass'))
 
     def test_a_flags_name_bound_where_no_value_is_read_is_not_the_module_s(self):
         start = '    subprocess.Popen(a, creationflags=flags)'
@@ -369,7 +425,6 @@ class RuleTest(unittest.TestCase):
             self.assertEqual([len(code.splitlines())], self.found(code), bound)
         self.assertEqual([2], self.found(module + 'spawn = lambda flags: subprocess.Popen(a, creationflags=flags)'))
         self.assertEqual([4], self.found(module + 'from x import *\ndef spawn():\n' + start))     # it may bring a flags
-        self.assertEqual([], self.found(module + 'from x import y\ndef spawn():\n' + start))
         self.assertEqual([6], self.found(module + 'def other():\n    global flags\n    flags = subprocess.DETACHED_PROCESS\n'
                                                   'def spawn():\n' + start))
         self.assertEqual([6], self.found('def detach():\n    flags = subprocess.CREATE_NO_WINDOW\n    def other():\n        nonlocal flags\n'
@@ -441,6 +496,10 @@ class RuleTest(unittest.TestCase):
     def test_the_list_lets_one_start_through_in_a_function(self):
         code = 'def start(**kw):\n    subprocess.Popen(a, **kw)\n    subprocess.run(b, **kw)\n    subprocess.run(c, creationflags=kw["f"])'
         self.assertEqual([3, 4], self.found(code, ('start',)))
+        # a start in a default of a def inside it is that def's
+        self.assertEqual([2], self.found('def start():\n    def g(p=subprocess.Popen(a, creationflags=0)): pass', ('start',)))
+        self.assertEqual([3], self.found('def start(**kw):\n    def g(p=subprocess.Popen(a, **kw)): pass\n'
+                                         '    subprocess.Popen(a, **kw)', ('g',)))
 
 
 def sources():
