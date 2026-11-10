@@ -25,7 +25,8 @@ report-run  the change report of the project of repo R as the user's TIA holds i
 --root      the projects root (default: projectsRoot of TiaBridge\\settings.json, in any case of the name, else
             %USERPROFILE%\\TIA-Projects). The settings are read as strict JSON: the bridge takes more (single quotes,
             names without quotes), and a file only it can read stops a command that has no --root, with the file named.
-            A report run needs the file with --root too: its bridge gets the other settings from it.
+            Such a file stops a report run with --root too: its bridge takes the other settings from it. With no
+            file, every command goes by the bridge's defaults.
 """
 import argparse
 import math
