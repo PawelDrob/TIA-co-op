@@ -50,23 +50,44 @@ function ConvertTo-BridgeError($ErrorOrException) {
 # dispatch (Set-TiaEnded): catch { if (Test-TiaEndedError $_) { throw }; ... }
 function Test-TiaEndedError($ErrorOrException) { [bool](ConvertTo-BridgeError $ErrorOrException).tiaEnded }
 
-# How many times Read-TiaList reads a list in all.
+# How many times Read-TiaList reads a list in all, and how deep the reads in progress are nested.
 $script:TiaListReads = 3
+$script:TiaListDepth = 0
+
+# True for the error the Openness client gives when TIA changed a list during a read: an InvalidOperationException (not a
+# subclass such as ObjectDisposedException) thrown by its enumerator, Siemens.Engineering.Internal.EngineeringEnumerator, in
+# MoveNext once TIA's call-back has marked the list changed. Known by type and thrower, so the language of the text does not
+# matter, and the same text from a list of the bridge's own is not taken for it.
+function Test-TiaListChanged($ErrorOrException) {
+    $e = if ($ErrorOrException -is [System.Management.Automation.ErrorRecord]) { $ErrorOrException.Exception } else { $ErrorOrException }
+    for (; $e; $e = $e.InnerException) {
+        $t = if ($e.TargetSite) { $e.TargetSite.DeclaringType }
+        if ($e.GetType() -eq [InvalidOperationException] -and $t -and $t.Namespace -eq 'Siemens.Engineering.Internal' -and $t.Name -like 'EngineeringEnumerator*') { return $true }
+    }
+    $false
+}
 
 # Runs Read, a loop that only reads TIA lists, and outputs what it gave once a whole read went through. The bridge attaches
-# from an MTA thread (TiaBridge.ps1), so TIA, a person or another program can change a list between two pages of a read:
-# "Collection was modified" reads it again, at most TiaListReads times in all; any other error is thrown at once. Never for
-# a loop that writes: a second run would write again.
+# from an MTA thread (TiaBridge.ps1), so TIA, a person or another program can change a list while it is read: then
+# (Test-TiaListChanged) it is read again, at most TiaListReads times in all; any other error is thrown at once. Nested in
+# another, it runs Read once and leaves the reading again to the outermost, so the bound stays. Never for a loop that writes:
+# a second run would write again.
 function Read-TiaList([scriptblock]$Read) {
-    for ($readNo = 1; ; $readNo++) {
-        try { $readItems = @(& $Read); break }
-        catch {
-            $readError = ConvertTo-BridgeError $_
-            $readChanged = (@($readError.message) + @($readError.details) + @($readError.inner | ForEach-Object { $_.message })) -match 'Collection was modified'
-            if (-not $readChanged -or $readNo -ge $script:TiaListReads) { throw }
-            Write-BridgeLog "TIA changed a list during the read; read $($readNo + 1) of $script:TiaListReads."
+    if ($script:TiaListDepth) {
+        $script:TiaListDepth++
+        try { return @(& $Read) } finally { $script:TiaListDepth-- }
+    }
+    $script:TiaListDepth = 1
+    try {
+        for ($readNo = 1; ; $readNo++) {
+            try { $readItems = @(& $Read); break }
+            catch {
+                if (-not (Test-TiaListChanged $_) -or $readNo -ge $script:TiaListReads) { throw }
+                Write-BridgeLog "TIA changed a list during the read; read $($readNo + 1) of $script:TiaListReads."
+            }
         }
     }
+    finally { $script:TiaListDepth = 0 }
     foreach ($o in $readItems) { $o }
 }
 
@@ -362,7 +383,7 @@ function Get-DeviceTypeIdentifier($Device) {
         try {
             $id = [string]$o.TypeIdentifier
             if ($id -like 'OrderNumber:*') { return $id }
-            foreach ($i in @($o.DeviceItems)) { if ($null -ne $i) { $queue.Enqueue($i) } }
+            foreach ($i in @(Read-TiaList { foreach ($d in $o.DeviceItems) { $d } })) { if ($null -ne $i) { $queue.Enqueue($i) } }
         }
         catch { Write-BridgeLog "TypeIdentifier of $($Device.Name): $($_.Exception.Message)" }
     }

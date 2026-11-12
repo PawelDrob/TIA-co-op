@@ -1,13 +1,16 @@
 # Tools\Plc.ps1 - PLC kinds for list/export/import/delete (Tools\Objects.ps1): block (FB, FC, OB), db, type (UDT),
 # plc_tag_table. Formats: .s7dcl/.s7res via ExportAsDocuments/ImportFromDocuments, SimaticML via Export/Import.
 
+# The items of a folder tree with their folder paths, read again when TIA changed a list during the read (Read-TiaList).
 function Get-GroupTree($Root, [string]$ItemsProperty, [string]$GroupsProperty) {
-    $stack = New-Object System.Collections.Stack
-    $stack.Push(@($Root, ''))
-    while ($stack.Count) {
-        $e = $stack.Pop(); $g = $e[0]; $prefix = $e[1]
-        foreach ($o in $g.$ItemsProperty) { @{ obj = $o; name = $o.Name; folder = $prefix } }
-        foreach ($s in $g.$GroupsProperty) { $stack.Push(@($s, $(if ($prefix) { "$prefix/$($s.Name)" } else { $s.Name }))) }
+    Read-TiaList {
+        $stack = New-Object System.Collections.Stack
+        $stack.Push(@($Root, ''))
+        while ($stack.Count) {
+            $e = $stack.Pop(); $g = $e[0]; $prefix = $e[1]
+            foreach ($o in $g.$ItemsProperty) { @{ obj = $o; name = $o.Name; folder = $prefix } }
+            foreach ($s in $g.$GroupsProperty) { $stack.Push(@($s, $(if ($prefix) { "$prefix/$($s.Name)" } else { $s.Name }))) }
+        }
     }
 }
 

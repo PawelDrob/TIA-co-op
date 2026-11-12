@@ -46,7 +46,10 @@ function Get-DeviceDir([string]$Scope, [string]$Device) {
 }
 
 # The names of the open global libraries, for their folders.
-function Get-GlobalLibraryNames { @($script:Bridge.portal.GlobalLibraries | ForEach-Object { [string]$_.Name } | Where-Object { $_ }) }
+function Get-GlobalLibraryNames { @(Get-GlobalLibraryList | ForEach-Object { [string]$_.Name } | Where-Object { $_ }) }
+
+# The global libraries open in the bound TIA, read again when TIA changed the list during the read (Read-TiaList).
+function Get-GlobalLibraryList { Read-TiaList { foreach ($l in $script:Bridge.portal.GlobalLibraries) { $l } } }
 
 # What a result says when a device or global library is not in the folder of its name, as another has that name in
 # file-safe form (Get-UniqueFolderName), or $null. What: Device or Library.

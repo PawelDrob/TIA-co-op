@@ -519,9 +519,9 @@ Register-ObjectKind 'master_copy' @{
 function Get-TiaLibrary([string]$Name = '') {
     $project = Get-TiaProject
     if (-not $Name) { return $project.ProjectLibrary }
-    $lib = $script:Bridge.portal.GlobalLibraries | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
+    $lib = Get-GlobalLibraryList | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
     if (-not $lib) {
-        $open = @($script:Bridge.portal.GlobalLibraries | ForEach-Object { $_.Name }) -join ', '
+        $open = @(Get-GlobalLibraryList | ForEach-Object { $_.Name }) -join ', '
         throw "Global library '$Name' is not open. Open: $(if ($open) { $open } else { 'none' }). Use library_open."
     }
     $lib
@@ -754,7 +754,7 @@ function Invoke-LibraryOpenTool($a) {
     # TIA refuses it itself, with a window on the screen in a session that has one
     if ($full.Length -gt $script:TiaPathLimit) { return New-Refusal "$full has $($full.Length) characters: TIA opens a global library at a path of at most $script:TiaPathLimit. Ask the user to copy it to a shorter path." }
     $null = Get-TiaProject
-    $lib = $script:Bridge.portal.GlobalLibraries | Where-Object { $_.Path -and $_.Path.FullName -eq $full } | Select-Object -First 1
+    $lib = Get-GlobalLibraryList | Where-Object { $_.Path -and $_.Path.FullName -eq $full } | Select-Object -First 1
     $already = [bool]$lib
     if (-not $lib) {
         $mode = if (Get-OptionalBool $a 'writable' $false) { [Siemens.Engineering.OpenMode]::ReadWrite } else { [Siemens.Engineering.OpenMode]::ReadOnly }

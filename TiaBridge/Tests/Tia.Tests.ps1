@@ -233,33 +233,76 @@ Describe 'Limit-ToolResponse' {
     }
 }
 
-# The bridge attaches from an MTA thread, so TIA can change a list while the bridge reads it.
+# The bridge attaches from an MTA thread, so TIA can change a list while the bridge reads it. The Openness client then throws
+# InvalidOperationException from MoveNext of its Siemens.Engineering.Internal.EngineeringEnumerator; this stand-in does the
+# same, a given number of times, and reads through a PowerShell foreach as the bridge does.
+if (-not ('Siemens.Engineering.Internal.FakeTiaList' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System; using System.Collections; using System.Collections.Generic;
+namespace Siemens.Engineering.Internal {
+    public sealed class EngineeringEnumerator<T> : IEnumerator<T> {
+        public static int Changes; public static bool Disposed;
+        readonly T[] items; int i = -1;
+        public EngineeringEnumerator(T[] items) { this.items = items; }
+        public T Current { get { return items[i]; } }
+        object IEnumerator.Current { get { return items[i]; } }
+        public bool MoveNext() {
+            if (Disposed) throw new ObjectDisposedException("list");
+            i++;
+            if (i == 1 && Changes > 0) { Changes--; throw new InvalidOperationException("Collection was modified; enumeration operation may not execute."); }
+            return i < items.Length;
+        }
+        public void Reset() { i = -1; }
+        public void Dispose() { }
+    }
+    public sealed class FakeTiaList : IEnumerable<string> {
+        readonly string[] items;
+        public FakeTiaList(string[] items) { this.items = items; }
+        public IEnumerator<string> GetEnumerator() { return new EngineeringEnumerator<string>(items); }
+        IEnumerator IEnumerable.GetEnumerator() { return GetEnumerator(); }
+    }
+}
+'@
+}
+
 Describe 'Read-TiaList' {
     function Write-BridgeLog { }
-    $changed = 'Collection was modified; enumeration operation may not execute.'
+    $fake = [Siemens.Engineering.Internal.EngineeringEnumerator[string]]
+    function Set-Fake([int]$Changes, [bool]$Disposed = $false) { $fake::Changes = $Changes; $fake::Disposed = $Disposed; $script:n = 0 }
+    $list = [Siemens.Engineering.Internal.FakeTiaList]::new([string[]]@('a', 'b', 'c'))
 
     It 'reads again when TIA changed the list meanwhile, and gives only the last whole read' {
-        $script:n = 0
-        $r = @(Read-TiaList { $script:n++; 'a'; if ($script:n -lt 3) { throw [InvalidOperationException]::new($changed) }; 'b' })
+        Set-Fake 2
+        $r = @(Read-TiaList { $script:n++; foreach ($x in $list) { $x } })
         $script:n | Should Be 3
-        ($r -join ',') | Should Be 'a,b'
-    }
-
-    It 'knows the change also when Openness wraps it' {
-        $script:n = 0
-        $r = @(Read-TiaList { $script:n++; if ($script:n -eq 1) { throw [System.Management.Automation.MethodInvocationException]::new('outer', [InvalidOperationException]::new($changed)) }; 'x' })
-        ($r -join ',') | Should Be 'x'
+        ($r -join ',') | Should Be 'a,b,c'
     }
 
     It 'gives up after three reads and throws the change' {
-        $script:n = 0
-        { Read-TiaList { $script:n++; throw [InvalidOperationException]::new($changed) } } | Should Throw 'Collection was modified'
+        Set-Fake 5
+        { Read-TiaList { $script:n++; foreach ($x in $list) { $x } } } | Should Throw
         $script:n | Should Be 3
     }
 
-    It 'reads once and throws any other error' {
-        $script:n = 0
-        { Read-TiaList { $script:n++; throw [InvalidOperationException]::new('other') } } | Should Throw 'other'
+    It 'reads again only in the outermost of nested reads, so three reads stay the bound' {
+        Set-Fake 5
+        { Read-TiaList { Read-TiaList { $script:n++; foreach ($x in $list) { $x } } } } | Should Throw
+        $script:n | Should Be 3
+    }
+
+    It 'knows the change by where it was thrown, not by its text: the same text from another list is thrown at once' {
+        Set-Fake 0
+        $own = New-Object System.Collections.Generic.List[string]; $own.Add('x'); $own.Add('y')
+        { Read-TiaList { $script:n++; foreach ($x in $own) { $own.Add('z') } } } | Should Throw
+        $script:n | Should Be 1
+    }
+
+    It 'reads once and throws any other error, a disposed list too' {
+        Set-Fake 0 $true
+        { Read-TiaList { $script:n++; foreach ($x in $list) { $x } } } | Should Throw
+        $script:n | Should Be 1
+        Set-Fake 0
+        { Read-TiaList { $script:n++; throw [InvalidOperationException]::new('Collection was modified; enumeration operation may not execute.') } } | Should Throw
         $script:n | Should Be 1
     }
 }

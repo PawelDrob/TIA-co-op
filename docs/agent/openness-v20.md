@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T12:00:42-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T12:15:31-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -232,8 +232,11 @@ On copies of a test project, 2026-11-04 `[PROBE]`; the bridge's tools are `proje
   session it leaves), a `project_close` in *Closing project...* or an import with only the exclusive-access box; with the bridge
   idle; beside a second, stale bridge. Another program attached from an STA thread, a bridge of release 0.1.0 among them, still hangs
   TIA so. Stopping it frees TIA, mostly within seconds; once it did not within 30 s. `tia_status` names other bridges on the
-  same TIA. From an MTA thread call-backs run while the bridge's own calls run, so TIA can change a list between two pages of a
-  read: a read of a list that fails with "Collection was modified" is read again, at most three times in all.
+  same TIA. From an MTA thread call-backs run while the bridge's own calls run, so TIA can change a list while the bridge
+  reads it: the client's enumerator then throws `InvalidOperationException` "Collection was modified; enumeration operation
+  may not execute." from `MoveNext`, a text of its own, not translated. Read again, at most three times in all: the objects
+  of each kind, folder trees, the devices and their items, the projects and the global libraries. Not read again: other
+  lists, such as the versions of a library type and their dependencies.
 - **Not explained:** an import of OB `Main` (2026-11-08) that never returned, with one bridge attached once and no other program
   known; TIA ended when the bridge was stopped. No stack was taken.
 

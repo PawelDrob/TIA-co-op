@@ -4,7 +4,7 @@ title: Known issues
 description: What TIA Openness V20 cannot do and which problems of the tools are not solved, for anyone changing the tools.
 tags: [dev, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T12:00:42-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T12:15:31-05:00 }
 ---
 
 # Known issues
@@ -30,7 +30,7 @@ The list is in [the README, Limitations](../../README.md#limitations), and what 
 
 ## TIA itself
 
-- **TIA waits on an Openness client attached from an STA thread** ([the Openness facts](../agent/openness-v20.md), [the README, Limitations](../../README.md#limitations)). A change to a list a session read waits for that session's next call. The bridge runs on an MTA thread of its own (`TiaBridge.ps1`), so its call-backs run at once; a window it shows runs on an STA thread of its own (`Invoke-OnStaThread`), and a read of a list TIA changed meanwhile is read again (`Read-TiaList`). Another program attached from an STA thread, a bridge of release 0.1.0 among them, still hangs TIA. An import that never returned with one bridge attached is not explained.
+- **TIA waits on an Openness client attached from an STA thread** ([the Openness facts](../agent/openness-v20.md), [the README, Limitations](../../README.md#limitations)). A change to a list a session read waits for that session's next call. The bridge runs on an MTA thread of its own (`TiaBridge.ps1`), so its call-backs run at once; a window it shows runs on an STA thread of its own (`Invoke-OnStaThread`), and a read of a list TIA changed meanwhile is read again (`Read-TiaList`): the objects of each kind, folder trees, devices, projects and global libraries, not other lists such as a library type's versions and dependencies. Another program attached from an STA thread, a bridge of release 0.1.0 among them, still hangs TIA. An import that never returned with one bridge attached is not explained.
 - **TIA ends its own process after a `NonRecoverableException`,** for example on a refused HMI import whose dependent property does not follow its main one. Unsaved edits go with it. The result says `tiaEnded`, and the bridge refuses TIA calls until the next `connect`.
 - **A failing call can wait behind a message box** for many minutes. In a TIA with no window, the bridge answers prompts Cancel or No and lists them. Whether TIA raises those events for every modal message is not proven.
 - **A PLC with a safety program can need the safety login for a whole compile.** F-blocks imported as SimaticML answer "No safety license available" on a PC with no safety license; `.s7dcl` takes them.
