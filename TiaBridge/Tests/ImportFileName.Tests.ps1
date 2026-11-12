@@ -690,7 +690,7 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
         $script:imported -join ',' | Should Be 'Tags1.xml'
     }
 
-    It 'refuses a tag table or HMI document for a library type, new or in work' {
+    It 'refuses a tag table, watch table, force table or HMI document for a library type, new or in work' {
         foreach ($path in 'library\types\Table\Lib1.xml', 'library\types\Screen\Lib1.xml', 'library\types\Watch\Lib1.xml', 'library\types\Force\Lib1.xml') {
             $r = Invoke-LibraryImport @('Lib1') @($path)
             $r.items[0].refused | Should Match 'a library type is a PLC data type, an FB or an FC'

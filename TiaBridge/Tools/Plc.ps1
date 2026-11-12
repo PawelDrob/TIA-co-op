@@ -203,14 +203,15 @@ Register-ObjectKind 'plc_tag_table' @{
     import = { param($plc, $folder, $file, $override) Import-SimaticMlFile (Get-OrCreateGroup $plc.TagTableGroup $folder 'Groups').TagTables $file $override }
 }
 
-# The check of an imported watch or force table (What names which): TIA answers OK to a row whose symbol the PLC does not
-# have, written without DisplayFormat (with one TIA throws), and leaves the table not consistent, a watch table with no
-# rows (docs\agent\openness-v20.md, Watch and force tables), so a table not consistent is an error. Reads IsConsistent
-# only: counting Entries inside the transaction ended TIA.
-function Test-ImportedTables([object[]]$Tables, [string]$What) {
+# The check of the watch or force tables Import returned: TIA answers OK to a row whose symbol the PLC does not have,
+# written without DisplayFormat (with one, a force table's row makes TIA throw), and leaves the table not consistent
+# (docs\agent\openness-v20.md, Watch and force tables), so a table not consistent is an error. What: the table in words
+# for the message ('watch table'). RowsLost: the message says TIA kept none of its rows, as seen of watch tables. Reads
+# IsConsistent only: counting Entries inside the transaction ended TIA.
+function Test-ImportedTables([object[]]$Tables, [string]$What, [switch]$RowsLost) {
     $broken = @($Tables | Where-Object { -not $_.IsConsistent } | ForEach-Object { [string]$_.Name })
     if (-not $broken.Count) { return $null }
-    $rows = if ($What -eq 'watch table') { ', with none of its rows' }
+    $rows = if ($RowsLost) { ', with none of its rows' }
     @{ type = 'TiaBridge.NotConsistent'
        message = "TIA took the file and left $What '$($broken -join "', '")' not consistent${rows}: a row names a symbol the PLC does not have (a tag or DB member, also a nested member written flat). TIA does not say which row. Check each row's Name against the PLC, fix the file and import it again ($(Get-GuidePath 'openness-v20.md') section 1, Watch and force tables)." }
 }
@@ -224,12 +225,12 @@ Register-ObjectKind 'watch_table' @{
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
     precheck = { param($file, $cache) if ($file.format -ne 'xml') { @{ ok = $false; refused = 'Watch tables are SimaticML (.xml) only.' } } }
     import = { param($plc, $folder, $file, $override)
-        Import-SimaticMlFile (Get-OrCreateGroup $plc.WatchAndForceTableGroup $folder 'Groups').WatchTables $file $override { param($list) Test-ImportedTables $list 'watch table' } }
+        Import-SimaticMlFile (Get-OrCreateGroup $plc.WatchAndForceTableGroup $folder 'Groups').WatchTables $file $override { param($list) Test-ImportedTables $list 'watch table' -RowsLost } }
 }
 
 # One force table per PLC, which TIA makes and has no Delete() for: Import over it takes its rows, and a file of another
 # name answers "'Create' is not supported by type '...PlcForceTableComposition'", so the bridge refuses that name first. A
-# row of a missing symbol throws, or with no DisplayFormat leaves the table not consistent, as of a watch table.
+# row of a missing symbol throws, or with no DisplayFormat leaves the table not consistent, as a watch table's does.
 # ForceIntention is read-only, so no file arms a force (docs\agent\openness-v20.md, Watch and force tables).
 $script:ForceTableOnline = 'A force table import changes the offline force table only, nothing in the CPU: a file cannot set a force mark (ForceIntention is read-only), and whether a row marked in TIA keeps its mark through an import was not tried. Forcing stays the user''s, online in TIA.'
 

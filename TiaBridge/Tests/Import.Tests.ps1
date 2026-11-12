@@ -601,13 +601,16 @@ Describe 'import of watch tables' {
 # import writes the offline table only. The kind checks the table TIA returns as watch tables do.
 Describe 'import of force tables' {
     $repo = Join-Path $TestDrive 'Fo'
-    function Write-ForceTable([string]$Path, [string]$Name, [string]$Row = '%Q0.0:P') {
+    # Format: the row carries a DisplayFormat, as an export writes it
+    function Write-ForceTable([string]$Path, [string]$Name, [string]$Row = '%Q0.0:P', [switch]$Format) {
+        $f = if ($Format) { '<DisplayFormat>Bool</DisplayFormat>' }
         Write-TextFile (Join-Path $repo $Path) ("<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><SW.WatchAndForceTables.PlcForceTable ID=`"0`">" +
             "<AttributeList><Name>$Name</Name></AttributeList><ObjectList><SW.WatchAndForceTables.PlcForceTableEntry ID=`"1`" CompositionName=`"Entries`">" +
-            "<AttributeList><Address>$Row</Address><ForceValue>TRUE</ForceValue></AttributeList></SW.WatchAndForceTables.PlcForceTableEntry></ObjectList></SW.WatchAndForceTables.PlcForceTable></Document>")
+            "<AttributeList><Address>$Row</Address>$f<ForceValue>TRUE</ForceValue></AttributeList></SW.WatchAndForceTables.PlcForceTableEntry></ObjectList></SW.WatchAndForceTables.PlcForceTable></Document>")
     }
     Write-ForceTable 'plc\forcetables\Force table.xml' 'Force table'
     Write-ForceTable 'plc\forcetables\Broken.xml' 'Force table' '"Data".noSuchMember'
+    Write-ForceTable 'plc\forcetables\BrokenFormat.xml' 'Force table' '"Data".noSuchMember' -Format
     Write-ForceTable 'plc\forcetables\Other.xml' 'Other'
     Write-TextFile (Join-Path $repo 'plc\forcetables\Watch1.xml') '<Document><SW.WatchAndForceTables.PlcWatchTable ID="0"><AttributeList><Name>Watch1</Name></AttributeList></SW.WatchAndForceTables.PlcWatchTable></Document>'
     Write-TextFile (Join-Path $repo 'plc\forcetables\Force table.s7dcl') 'x'
@@ -619,7 +622,8 @@ Describe 'import of force tables' {
         Add-Member -InputObject $t ScriptMethod Delete { $script:deleted += @($this.Name) }
         $t
     }
-    # the PLC holds its one force table, 'Force table'; an imported file whose row names noSuchMember comes back not consistent
+    # the PLC holds its one force table, 'Force table'; an imported file whose row names noSuchMember makes TIA throw when
+    # the row has a DisplayFormat, and comes back not consistent when it has none
     function Get-KindRoot {
         $tables = New-Object System.Collections.ArrayList
         [void]$tables.Add((New-ForceTable 'Force table'))
@@ -627,6 +631,9 @@ Describe 'import of force tables' {
             $text = [System.IO.File]::ReadAllText($file.FullName)
             $name = [regex]::Match($text, '<Name>([^<]*)</Name>').Groups[1].Value
             $script:imported += @("$name $options")
+            if ($text -match 'noSuchMember' -and $text -match 'DisplayFormat') {
+                throw [System.InvalidOperationException]::new("The attribute 'Siemens.Simatic.PlcLanguages.VatService.Openness.ForceTableEntry.DisplayFormat' cannot be set for '$name' because the assigned block is inconsistent.")
+            }
             , @(New-ForceTable $name ($text -notmatch 'noSuchMember')) }
         $groups = New-Object System.Collections.ArrayList
         Add-Member -InputObject $groups ScriptMethod Find { param($n) $null }
@@ -676,7 +683,21 @@ Describe 'import of force tables' {
         $script:entriesRead | Should Be 0
     }
 
-    It 'refuses the save after the rolled-back failure, until the table is imported good' {
+    It 'rolls back a row TIA throws on, says what the import does not do online, and refuses the save until the table is imported good' {
+        $r = Invoke-ForceImport @('plc\forcetables\BrokenFormat.xml')
+        $r.ok | Should Be $false
+        $r.rolledBack | Should Be $true
+        $script:committed | Should Be $false
+        $r.items[0].name | Should Be 'Force table'
+        $r.items[0].error.message | Should Match 'DisplayFormat'' cannot be set for ''Force table'' because the assigned block is inconsistent'
+        $r.items[0].Contains('imported') | Should Be $false
+        $r.online | Should Match 'nothing in the CPU'
+        @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Match 'A write failed and was not redone successfully: plc@PLC_1:Force table'
+        $null = Invoke-ForceImport @('plc\forcetables\Force table.xml')
+        @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Not Match 'failed'
+    }
+
+    It 'refuses the save after a table TIA left not consistent is rolled back, until the table is imported good' {
         $r = Invoke-ForceImport @('plc\forcetables\Broken.xml')
         $r.rolledBack | Should Be $true
         @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Match 'A write failed and was not redone successfully: plc@PLC_1:Force table'
