@@ -3,10 +3,12 @@
 #
 # A kind is a hashtable: scope ('plc'|'hmi'|'library'|'project'), dir (repo folder), description, defaultOverride,
 # exportOnly (import and delete refused), noOverride (why import never replaces one: override refused), noDelete (why
-# delete is refused), systemKnowHow (why its objects read know-how protected with no person's protection: the import
-# guard of know-how protected blocks passes them), importDir (the one folder it imports from, where the HMI validator
-# looks), and scriptblocks items(root) -> @{ obj; name; folder }, info(entry), export(entry, dir, options),
-# import(root, folder, file, override). A kind without export or import does not support it.
+# delete is refused), systemKnowHow ($true: TIA marks its objects know-how protected itself, so the import guard of
+# know-how protected blocks passes them), sharesNamesWith (the kinds whose names are one list in TIA with its own: a new
+# object of such a name is refused), compileWhy (why the compile that next names is due), importDir (the one folder it
+# imports from, where the HMI validator looks), and scriptblocks items(root) -> @{ obj; name; folder }, info(entry),
+# export(entry, dir, options), import(root, folder, file, override), precheck, whoseFile, afterImport. A kind without
+# export or import does not support it.
 # Kinds with a folder tree also give tree(root) -> top folder and groups, the name of its subfolder collection
 # (master copies are placed through them).
 
@@ -480,7 +482,7 @@ function Invoke-ImportTool($a) {
     # a transaction on which nothing reached TIA rolled nothing back
     $reachedTia = @($items | Where-Object { -not $_.notAttempted -and -not $_.refused }).Count -gt 0
     $r = @{ ok = -not $failed.Count; kind = $k.name; override = $override; items = @($items); transaction = $w.transaction; rolledBack = [bool]$w.rolledBack -and $reachedTia
-            next = "compile the $((@($written | ForEach-Object { $_.scope } | Where-Object { $_ -in 'plc', 'hmi' } | Sort-Object -Unique) + @()) -join ' and ') scope, then save" }
+            next = "compile the $((@($written | ForEach-Object { $_.scope } | Where-Object { $_ -in 'plc', 'hmi' } | Sort-Object -Unique) + @()) -join ' and ') scope$(if ($k.compileWhy) { " ($($k.compileWhy))" }), then save" }
     if (-not $written.Count) { $r.next = 'Nothing of it is in TIA: fix the file and import it again.' }
     if ($failed.Count) {
         $r.note = if ($failed[0].refused -and -not $reachedTia) { "Nothing imported: $($failed[0].name) was refused before TIA was asked." }
@@ -858,8 +860,8 @@ function Register-ObjectTools {
         'The result''s online says what the import does not do: it changes the offline table only, nothing in the CPU, and a file cannot set a force mark (ForceIntention is read-only); whether a row marked in TIA keeps its mark through an import was not tried. Forcing stays the user''s, online in TIA. ' +
         "technology_object: tried on a real TIA, each made new from a file and round tripped identically: $(@($script:TechnologyObjectsTried.Keys) -join ', '), the axes as virtual axes without a drive. " +
         'Each item names its kind as the document writes it (technology: element and version) and whether it was tried; the result''s technology says which were and which not. A kind not tried goes in: TIA refuses a kind or version it does not have, and the call rolls back; one it has it takes as the file writes it, unchecked. ' +
-        'A new object keeps the file''s number; a number another block has stands until the compile, which gives it a free one. After an import the object and a block that uses it read not consistent, and TIA refuses the object''s export, until the PLC is compiled; next says so. ' +
-        'A new object of a name a block or DB has is refused, and so is a new block or DB of a technology object''s name. The know-how mark TIA sets on a technology object refuses nothing. ' +
+        'A new object keeps the file''s number; a number another block has stands until the compile, which gives it a free one. After an import the object reads not consistent, and TIA refuses its export, until the PLC is compiled, and a block that uses it may read not consistent until then; next says so. ' +
+        'A new object of a name a block or DB has is refused, and so is a new block or DB of a technology object''s name. A technology object''s know-how mark refuses nothing: TIA sets it (seen on a PID_Compact), so the bridge passes it on every technology object. ' +
         'An existing object is replaced where it is; a new one goes to ' +
         'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables and cycles. ' +
         'override defaults to true, except hmi_template and hmi_tag_table (an existing one is refused). ' +

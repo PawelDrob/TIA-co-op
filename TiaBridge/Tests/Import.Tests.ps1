@@ -805,8 +805,8 @@ Describe 'import of technology objects' {
         $r.items[0].technology | Should Be 'PID_Compact 2.4'
         $r.items[0].tried | Should Be $true
         $r.next | Should Match '^compile the plc scope'
-        $r.next | Should Match 'until then the technology object and a block that uses it read not consistent'
-        $r.next | Should Match 'refuses the object''s export'
+        $r.next | Should Match 'until then the technology object reads not consistent and TIA refuses its export'
+        $r.next | Should Match 'a block that uses it may read not consistent\), then save$'
         $r.next | Should Match 'then save'
         $r.technology | Should Match 'Tried on a real TIA: PID_Compact 2\.4 \(Pid1\)'
         $r.technology | Should Not Match 'Not tried'

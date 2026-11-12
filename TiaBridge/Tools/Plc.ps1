@@ -254,12 +254,13 @@ Register-ObjectKind 'force_table' @{
 
 # Technology objects go back through TechnologicalInstanceDBComposition.Import with Override. What a real TIA V20 was
 # tried with, as "<OfSystemLibElement> <OfSystemLibVersion>" of the document, and how where it matters: each made new from
-# a file and round tripped identically (docs\agent\openness-v20.md, Technology objects). After an import the object, and
-# a block that uses it, read not consistent and TIA refuses the object's export until the PLC is compiled.
+# a file and round tripped identically (docs\agent\openness-v20.md, Technology objects). After an import the object
+# reads not consistent and TIA refuses its export until the PLC is compiled; a block that uses it was seen not consistent
+# until then too.
+$script:VirtualAxisTried = 'as a virtual axis only, without a drive'
 $script:TechnologyObjectsTried = [ordered]@{
     'PID_Compact 2.4' = ''; 'PID_3Step 2.3' = ''; 'PID_Temp 1.1' = ''
-    'TO_SpeedAxis 6.0' = 'as a virtual axis only, without a drive'; 'TO_PositioningAxis 6.0' = 'as a virtual axis only, without a drive'
-    'TO_SynchronousAxis 6.0' = 'as a virtual axis only, without a drive'
+    'TO_SpeedAxis 6.0' = $script:VirtualAxisTried; 'TO_PositioningAxis 6.0' = $script:VirtualAxisTried; 'TO_SynchronousAxis 6.0' = $script:VirtualAxisTried
 }
 
 # "<element> <version>" of a technology object's document, '' when it names no system library element.
@@ -273,20 +274,26 @@ function Get-TechnologyObjectKind([string]$Path) {
     } catch { '' }
 }
 
+# Items by their kind, as "<kind> (<names>[; how it was tried])", joined by commas.
+function Format-TechnologyObjectKinds([object[]]$Items) {
+    @($Items | Group-Object { $_.technology } | ForEach-Object {
+        $kind = if ($_.Name) { $_.Name } else { 'no system library element named' }
+        $names = @($_.Group | ForEach-Object { $_.name }) -join ', '
+        $how = if ($_.Name) { $script:TechnologyObjectsTried[$_.Name] }
+        "$kind ($names$(if ($how) { "; $how" }))" }) -join ', '
+}
+
 # What the result says of the kinds of a call's technology objects: the items the precheck read (technology, tried),
-# grouped as "<kind> (<names>)", tried first. $null when no item got that far.
+# tried first. $null when no item got that far.
 function Get-TechnologyObjectTriedNote([object[]]$Items) {
     $read = @($Items | Where-Object { $_.Contains('technology') })
     if (-not $read.Count) { return $null }
-    $part = { param($list) @($list | Group-Object { $_.technology } | ForEach-Object {
-        $how = if ($_.Name) { $script:TechnologyObjectsTried[$_.Name] }
-        "$(if ($_.Name) { $_.Name } else { 'no system library element named' }) ($(@($_.Group | ForEach-Object { $_.name }) -join ', ')$(if ($how) { "; $how" }))" }) -join ', ' }
     $tried = @($read | Where-Object { $_.tried })
     $untried = @($read | Where-Object { -not $_.tried })
     $text = @()
-    if ($tried.Count) { $text += "Tried on a real TIA: $(& $part $tried)." }
+    if ($tried.Count) { $text += "Tried on a real TIA: $(Format-TechnologyObjectKinds $tried)." }
     if ($untried.Count) {
-        $text += "Not tried: $(& $part $untried). TIA refuses a kind or version it does not have, and takes one it has as the file writes it, unchecked (a PID_Compact marked 2.3 with the parameters of a 2.4 went in so): have the user look at each in TIA before the save. Tried were $(@($script:TechnologyObjectsTried.Keys) -join ', ')."
+        $text += "Not tried: $(Format-TechnologyObjectKinds $untried). TIA refuses a kind or version it does not have, and takes one it has as the file writes it, unchecked (a PID_Compact marked 2.3 with the parameters of a 2.4 went in so): have the user look at each in TIA before the save. Tried were $(@($script:TechnologyObjectsTried.Keys) -join ', ')."
     }
     $text -join ' '
 }
@@ -296,7 +303,9 @@ Register-ObjectKind 'technology_object' @{
     description = 'technology objects (SimaticML)'
     sharesNamesWith = @('block', 'db')
     noDelete = 'Deleting a technology object was not tried on a real TIA. Delete it in TIA.'
-    systemKnowHow = 'IsKnowHowProtected reads true of a PID_Compact, whose export imports back identically'
+    # IsKnowHowProtected read true of a PID_Compact, whose export imported back identically: TIA's mark, not a person's
+    systemKnowHow = $true
+    compileWhy = 'the PLC as a whole: until then the technology object reads not consistent and TIA refuses its export, and a block that uses it may read not consistent'
     items = { param($plc) Get-GroupTree $plc.TechnologicalObjectGroup 'TechnologicalObjects' 'Groups' }
     info = { param($e) @{ technology = "$($e.obj.OfSystemLibElement) $($e.obj.OfSystemLibVersion)".Trim(); number = $e.obj.Number; consistent = $e.obj.IsConsistent } }
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
@@ -308,7 +317,6 @@ Register-ObjectKind 'technology_object' @{
     import = { param($plc, $folder, $file, $override)
         Import-SimaticMlFile (Get-OrCreateGroup $plc.TechnologicalObjectGroup $folder 'Groups').TechnologicalObjects $file $override }
     afterImport = { param($result, $items)
-        if ($result.next) { $result.next = $result.next.Replace('compile the plc scope', 'compile the plc scope (the PLC as a whole: until then the technology object and a block that uses it read not consistent, and TIA refuses the object''s export)') }
         $note = Get-TechnologyObjectTriedNote $items
         if ($note) { $result.technology = $note } }
 }
