@@ -473,7 +473,7 @@ Describe 'import the bridge refuses before TIA is asked, and the save' {
 }
 
 # A row naming a symbol the PLC does not have: TIA answers the import OK and leaves the table not consistent with no rows,
-# the good ones gone too (ticket 323, docs\agent\openness-v20.md). The kind reads IsConsistent of what Import returned and
+# the good ones gone too (docs\agent\openness-v20.md). The kind reads IsConsistent of what Import returned and
 # fails the item, so the batch rolls back. It never reads Entries there: counting them inside the transaction ended TIA.
 Describe 'import of watch tables' {
     $repo = Join-Path $TestDrive 'W'
@@ -539,6 +539,7 @@ Describe 'import of watch tables' {
         $r.items[0].rolledBack | Should Be $true
         $r.items[1].error.message | Should Match "watch table 'Broken' not consistent"
         $r.items[1].error.message | Should Match 'symbol the PLC does not have'
+        $r.items[1].Contains('imported') | Should Be $false
         $r.note | Should Be 'Nothing imported: Broken failed and TIA rolled the batch back.'
         $script:entriesRead | Should Be 0
     }
@@ -548,6 +549,20 @@ Describe 'import of watch tables' {
         $r.rolledBack | Should Be $true
         $r.items[0].name | Should Be 'Good'
         $r.items[0].error.message | Should Match "watch table 'Good' not consistent"
+    }
+
+    Context 'without a transaction' {
+        function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf) {
+            @{ output = @(& $Body); transaction = $false; rolledBack = $false; commitError = $null; note = $null }
+        }
+        It 'refuses the save while the table TIA emptied is not imported good' {
+            $r = Invoke-WatchImport @('plc\watchtables\GoodBroken.xml')
+            $r.rolledBack | Should Be $false
+            $r.items[0].error.message | Should Match "watch table 'Good' not consistent"
+            @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Match 'A write failed and was not redone successfully: plc@PLC_1:Good'
+            $null = Invoke-WatchImport @('plc\watchtables\Good.xml')
+            @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Not Match 'failed'
+        }
     }
 
     It 'refuses a file that is no SimaticML, and a block document, before TIA is asked' {

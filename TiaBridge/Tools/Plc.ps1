@@ -118,7 +118,15 @@ function Import-PlcFile($Composition, $File, [bool]$Override) {
         if ($lineEnds) { $r.note = $lineEnds }
         return $r
     }
-    $list = $Composition.Import([System.IO.FileInfo]::new($File.file), (Get-ImportOptions $Override))
+    Import-SimaticMlFile $Composition $File $Override
+}
+
+# A SimaticML file through Import of a composition. Check: what the kind asks of the objects Import returned, inside the
+# write: an error (@{ type; message }) fails the item, and the call rolls back; $null passes.
+function Import-SimaticMlFile($Composition, $File, [bool]$Override, [scriptblock]$Check = $null) {
+    $list = @($Composition.Import([System.IO.FileInfo]::new($File.file), (Get-ImportOptions $Override)))
+    $err = if ($Check) { & $Check $list }
+    if ($err) { return @{ ok = $false; error = $err } }
     @{ ok = $true; imported = @($list | ForEach-Object { $_.Name }) }
 }
 
@@ -192,24 +200,17 @@ Register-ObjectKind 'plc_tag_table' @{
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
     precheck = { param($file, $cache) if ($file.format -ne 'xml') { @{ ok = $false; refused = 'PLC tag tables are SimaticML (.xml) only.' } } }
-    import = { param($plc, $folder, $file, $override)
-        $list = (Get-OrCreateGroup $plc.TagTableGroup $folder 'Groups').TagTables.Import([System.IO.FileInfo]::new($file.file), (Get-ImportOptions $override))
-        @{ ok = $true; imported = @($list | ForEach-Object { $_.Name }) } }
+    import = { param($plc, $folder, $file, $override) Import-SimaticMlFile (Get-OrCreateGroup $plc.TagTableGroup $folder 'Groups').TagTables $file $override }
 }
 
-# Import of a watch table. A row whose symbol the PLC does not have: TIA answers OK and leaves the table not consistent with
-# no rows, the good ones gone too [PROBE] (2026-11-12, ticket 323). So the item fails on the IsConsistent of what Import
-# returned, and the transaction rolls the table back. Entries is not read here: counting them in the transaction ended TIA.
-function Import-WatchTableFile($Composition, $File, [bool]$Override) {
-    $list = @($Composition.Import([System.IO.FileInfo]::new($File.file), (Get-ImportOptions $Override)))
-    $r = @{ ok = $true; imported = @($list | ForEach-Object { $_.Name }) }
-    $broken = @($list | Where-Object { -not $_.IsConsistent } | ForEach-Object { [string]$_.Name })
-    if ($broken.Count) {
-        $r.ok = $false
-        $r.error = @{ type = 'TiaBridge.NotConsistent'
-                      message = "TIA took the file and left watch table '$($broken -join "', '")' not consistent, with none of its rows: a row names a symbol the PLC does not have (a tag or DB member, also a nested member written flat). TIA does not say which row. Check each row's Name against the PLC, fix the file and import it again ($(Get-GuidePath 'openness-v20.md') section 1, Watch and force tables)." }
-    }
-    $r
+# The check of an imported watch table: TIA answers OK to a row whose symbol the PLC does not have and leaves the table not
+# consistent with no rows (docs\agent\openness-v20.md, Watch and force tables), so a table not consistent is an error. Reads
+# IsConsistent only: counting Entries inside the transaction ended TIA.
+function Test-ImportedWatchTables([object[]]$Tables) {
+    $broken = @($Tables | Where-Object { -not $_.IsConsistent } | ForEach-Object { [string]$_.Name })
+    if (-not $broken.Count) { return $null }
+    @{ type = 'TiaBridge.NotConsistent'
+       message = "TIA took the file and left watch table '$($broken -join "', '")' not consistent, with none of its rows: a row names a symbol the PLC does not have (a tag or DB member, also a nested member written flat). TIA does not say which row. Check each row's Name against the PLC, fix the file and import it again ($(Get-GuidePath 'openness-v20.md') section 1, Watch and force tables)." }
 }
 
 Register-ObjectKind 'watch_table' @{
@@ -219,7 +220,8 @@ Register-ObjectKind 'watch_table' @{
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
     precheck = { param($file, $cache) if ($file.format -ne 'xml') { @{ ok = $false; refused = 'Watch tables are SimaticML (.xml) only.' } } }
-    import = { param($plc, $folder, $file, $override) Import-WatchTableFile (Get-OrCreateGroup $plc.WatchAndForceTableGroup $folder 'Groups').WatchTables $file $override }
+    import = { param($plc, $folder, $file, $override)
+        Import-SimaticMlFile (Get-OrCreateGroup $plc.WatchAndForceTableGroup $folder 'Groups').WatchTables $file $override { param($list) Test-ImportedWatchTables $list } }
 }
 
 # Export only: SimaticML through Export, as the Openness V20 assembly offers it for these
