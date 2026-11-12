@@ -10,6 +10,9 @@ function Test-TiaAlive { -not $script:tiaGone }
 if (-not ('FakeSiemens.NonRecoverableException' -as [type])) {
     Add-Type -TypeDefinition 'namespace FakeSiemens { public class NonRecoverableException : System.Exception { public NonRecoverableException(string m) : base(m) { } } }'
 }
+if (-not ('Siemens.Engineering.ImportOptions' -as [type])) {
+    Add-Type -TypeDefinition 'namespace Siemens.Engineering { public enum ImportOptions { None, Override } }'
+}
 function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf) {
     $out = @(& $Body)
     $rb = [bool]($RollbackIf -and (& $RollbackIf))
@@ -43,7 +46,7 @@ Describe 'import of a kind that has no import' {
         Register-Archive (Get-BridgeSession)
         Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = @('Any.xml') })
     }
-    foreach ($kind in 'force_table', 'watch_table', 'system_block', 'technology_object', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_cycle', 'hmi_connection') {
+    foreach ($kind in 'force_table', 'system_block', 'technology_object', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_cycle', 'hmi_connection') {
         It "$kind is export only, and no library tool is named as the way to change it" {
             $r = Invoke-ImportOfKind $kind
             $r.ok | Should Be $false
@@ -466,5 +469,99 @@ Describe 'import the bridge refuses before TIA is asked, and the save' {
             @($script:imported).Count | Should Be 0
             @(Test-SaveAllowed (Get-BridgeSession)).Count | Should Be 0
         }
+    }
+}
+
+# A row naming a symbol the PLC does not have: TIA answers the import OK and leaves the table not consistent with no rows,
+# the good ones gone too (ticket 323, docs\agent\openness-v20.md). The kind reads IsConsistent of what Import returned and
+# fails the item, so the batch rolls back. It never reads Entries there: counting them inside the transaction ended TIA.
+Describe 'import of watch tables' {
+    $repo = Join-Path $TestDrive 'W'
+    function Write-WatchTable([string]$Path, [string]$Name, [string]$Row = '"Tag_1"') {
+        Write-TextFile (Join-Path $repo $Path) ("<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><SW.WatchAndForceTables.PlcWatchTable ID=`"0`">" +
+            "<AttributeList><Name>$Name</Name></AttributeList><ObjectList><SW.WatchAndForceTables.PlcWatchTableEntry ID=`"1`" CompositionName=`"Entries`">" +
+            "<AttributeList><Name>$Row</Name></AttributeList></SW.WatchAndForceTables.PlcWatchTableEntry></ObjectList></SW.WatchAndForceTables.PlcWatchTable></Document>")
+    }
+    Write-WatchTable 'plc\watchtables\Good.xml' 'Good'
+    Write-WatchTable 'plc\watchtables\Broken.xml' 'Broken' '"Data".noSuchMember'
+    Write-WatchTable 'plc\watchtables\GoodBroken.xml' 'Good' '"Data".noSuchMember'
+    Write-WatchTable 'plc\watchtables\sub\New.xml' 'New'
+    Write-TextFile (Join-Path $repo 'plc\watchtables\Fb1.xml') '<Document><SW.Blocks.FB ID="0"><AttributeList><Name>Fb1</Name></AttributeList></SW.Blocks.FB></Document>'
+    Write-TextFile (Join-Path $repo 'plc\watchtables\Good.s7dcl') 'x'
+
+    # a table as TIA returns it; reading its rows counts, and throws
+    function New-WatchTable([string]$Name, [bool]$Consistent = $true) {
+        $t = [pscustomobject]@{ Name = $Name; IsConsistent = $Consistent }
+        Add-Member -InputObject $t ScriptProperty Entries { $script:entriesRead++; throw 'Entries read' }
+        Add-Member -InputObject $t ScriptMethod Delete { $script:deleted += @($this.Name) }
+        $t
+    }
+    # the PLC holds the table Good; an imported file whose row names noSuchMember comes back not consistent
+    function Get-KindRoot {
+        $tables = New-Object System.Collections.ArrayList
+        [void]$tables.Add((New-WatchTable 'Good'))
+        Add-Member -InputObject $tables ScriptMethod Import { param($file, $options)
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+            $name = [regex]::Match($text, '<Name>([^<]*)</Name>').Groups[1].Value
+            $script:imported += @("$name $options")
+            , @(New-WatchTable $name ($text -notmatch 'noSuchMember')) }
+        $groups = New-Object System.Collections.ArrayList
+        Add-Member -InputObject $groups ScriptMethod Find { param($n) $null }
+        Add-Member -InputObject $groups ScriptMethod Create { param($n) $script:groupsMade += @($n); [pscustomobject]@{ WatchTables = $script:tables; Groups = @() } }
+        $script:tables = $tables
+        [pscustomobject]@{ WatchAndForceTableGroup = [pscustomobject]@{ WatchTables = $tables; Groups = $groups } }
+    }
+    function Invoke-WatchImport([string[]]$Paths) {
+        $script:imported = @(); $script:groupsMade = @(); $script:entriesRead = 0; $script:committed = $null
+        Invoke-ImportTool ([pscustomobject]@{ kind = 'watch_table'; paths = $Paths })
+    }
+    BeforeEach {
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Register-Archive (Get-BridgeSession)
+    }
+
+    It 'imports a table over the existing one and a new one into the folder its path mirrors, with Override' {
+        $r = Invoke-WatchImport @('plc\watchtables\Good.xml', 'plc\watchtables\sub\New.xml')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'Good Override,New Override'
+        $script:groupsMade -join ',' | Should Be 'sub'
+        $r.items[1].folder | Should Be 'sub'
+        $script:committed | Should Be $true
+        $script:entriesRead | Should Be 0
+    }
+
+    It 'rolls back a table TIA leaves not consistent, names it and says why, and never reads its rows' {
+        $r = Invoke-WatchImport @('plc\watchtables\Good.xml', 'plc\watchtables\Broken.xml')
+        $r.ok | Should Be $false
+        $r.rolledBack | Should Be $true
+        $script:committed | Should Be $false
+        $r.items[0].rolledBack | Should Be $true
+        $r.items[1].error.message | Should Match "watch table 'Broken' not consistent"
+        $r.items[1].error.message | Should Match 'symbol the PLC does not have'
+        $r.note | Should Be 'Nothing imported: Broken failed and TIA rolled the batch back.'
+        $script:entriesRead | Should Be 0
+    }
+
+    It 'goes by the name the document declares: a broken file over the existing table names that table' {
+        $r = Invoke-WatchImport @('plc\watchtables\GoodBroken.xml')
+        $r.rolledBack | Should Be $true
+        $r.items[0].name | Should Be 'Good'
+        $r.items[0].error.message | Should Match "watch table 'Good' not consistent"
+    }
+
+    It 'refuses a file that is no SimaticML, and a block document, before TIA is asked' {
+        $r = Invoke-WatchImport @('plc\watchtables\Good.s7dcl')
+        $r.items[0].refused | Should Match 'SimaticML'
+        $r = Invoke-WatchImport @('plc\watchtables\Fb1.xml')
+        $r.items[0].refused | Should Match 'holds an FB or FC: import it with kind block, not watch_table'
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'deletes a table by name' {
+        $script:deleted = @()
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'watch_table'; names = @('Good') })
+        $r.ok | Should Be $true
+        $script:deleted -join ',' | Should Be 'Good'
     }
 }

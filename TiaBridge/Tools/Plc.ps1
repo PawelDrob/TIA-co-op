@@ -197,6 +197,31 @@ Register-ObjectKind 'plc_tag_table' @{
         @{ ok = $true; imported = @($list | ForEach-Object { $_.Name }) } }
 }
 
+# Import of a watch table. A row whose symbol the PLC does not have: TIA answers OK and leaves the table not consistent with
+# no rows, the good ones gone too [PROBE] (2026-11-12, ticket 323). So the item fails on the IsConsistent of what Import
+# returned, and the transaction rolls the table back. Entries is not read here: counting them in the transaction ended TIA.
+function Import-WatchTableFile($Composition, $File, [bool]$Override) {
+    $list = @($Composition.Import([System.IO.FileInfo]::new($File.file), (Get-ImportOptions $Override)))
+    $r = @{ ok = $true; imported = @($list | ForEach-Object { $_.Name }) }
+    $broken = @($list | Where-Object { -not $_.IsConsistent } | ForEach-Object { [string]$_.Name })
+    if ($broken.Count) {
+        $r.ok = $false
+        $r.error = @{ type = 'TiaBridge.NotConsistent'
+                      message = "TIA took the file and left watch table '$($broken -join "', '")' not consistent, with none of its rows: a row names a symbol the PLC does not have (a tag or DB member, also a nested member written flat). TIA does not say which row. Check each row's Name against the PLC, fix the file and import it again ($(Get-GuidePath 'openness-v20.md') section 1, Watch and force tables)." }
+    }
+    $r
+}
+
+Register-ObjectKind 'watch_table' @{
+    scope = 'plc'; dir = 'plc\watchtables'; defaultOverride = $true
+    description = 'watch tables (SimaticML)'
+    items = { param($plc) Get-GroupTree $plc.WatchAndForceTableGroup 'WatchTables' 'Groups' }
+    whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
+    export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
+    precheck = { param($file, $cache) if ($file.format -ne 'xml') { @{ ok = $false; refused = 'Watch tables are SimaticML (.xml) only.' } } }
+    import = { param($plc, $folder, $file, $override) Import-WatchTableFile (Get-OrCreateGroup $plc.WatchAndForceTableGroup $folder 'Groups').WatchTables $file $override }
+}
+
 # Export only: SimaticML through Export, as the Openness V20 assembly offers it for these
 # objects [PROBE] (2026-10-30, project A).
 
@@ -216,13 +241,6 @@ Register-ObjectKind 'technology_object' @{
     scope = 'plc'; dir = 'plc\technology'; exportOnly = $true
     description = 'technology objects (export only, SimaticML)'
     items = { param($plc) Get-GroupTree $plc.TechnologicalObjectGroup 'TechnologicalObjects' 'Groups' }
-    export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
-}
-
-Register-ObjectKind 'watch_table' @{
-    scope = 'plc'; dir = 'plc\watchtables'; exportOnly = $true
-    description = 'watch tables (export only, SimaticML)'
-    items = { param($plc) Get-GroupTree $plc.WatchAndForceTableGroup 'WatchTables' 'Groups' }
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
 }
 

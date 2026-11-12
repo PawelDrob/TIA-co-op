@@ -74,6 +74,7 @@ $script:DocumentClassKinds = @{
     DB = @{ kind = 'db'; what = 'a DB' }
     type = @{ kind = 'type'; what = 'a PLC data type' }
     tags = @{ kind = 'plc_tag_table'; what = 'a PLC tag table' }
+    watch = @{ kind = 'watch_table'; what = 'a watch table' }
     HMI = @{ kind = 'hmi_*'; what = 'an HMI object' }
 }
 
@@ -107,7 +108,7 @@ function Get-DocumentRefusal([string]$KindName, [string]$Path) {
             if ($className -notin 'type', 'block') { return "$doc holds $($class.what): a library type is a PLC data type, an FB or an FC." }
             continue
         }
-        if ($KindName -in 'block', 'db', 'type', 'plc_tag_table' -and $class.kind -ne $KindName) {
+        if ($KindName -in 'block', 'db', 'type', 'plc_tag_table', 'watch_table' -and $class.kind -ne $KindName) {
             return "$doc holds $($class.what): import it with kind $($class.kind), not $KindName. Kind $KindName looks only at its own objects, so the guards would not see the object."
         }
         # by the keyword the name reader found: the line scan of Test-S7dclImportAllowed misses one after a comment on its line

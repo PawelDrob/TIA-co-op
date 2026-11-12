@@ -6,7 +6,8 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
 
 ## What it does
 
-- Exports, imports and compiles PLC blocks, data types, DBs, tag tables, HMI screens and text lists, and saves the project.
+- Exports, imports and compiles PLC blocks, data types, DBs, tag tables, watch tables, HMI screens and text lists, and saves
+  the project.
 - Keeps a git repo per project under the projects root, with the exports, the logs, your `standards\` and the project's
   notes. Session archives lie in its `archives\` folder, outside git, and only the newest are kept (`archivesKept`, default 10).
 - Archives the project before the first write, and names at each save what stays uncompiled or not consistent.

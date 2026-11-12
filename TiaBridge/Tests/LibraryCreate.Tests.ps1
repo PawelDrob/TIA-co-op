@@ -35,6 +35,7 @@ Describe 'Get-DocumentObjectClass' {
     $xml = @(
         @{ node = 'SW.Types.PlcStruct'; class = 'type' }, @{ node = 'SW.Blocks.FB'; class = 'block' }, @{ node = 'SW.Blocks.FC'; class = 'block' }
         @{ node = 'SW.Blocks.OB'; class = 'OB' }, @{ node = 'SW.Blocks.GlobalDB'; class = 'DB' }, @{ node = 'SW.Blocks.InstanceDB'; class = 'DB' }
+        @{ node = 'SW.WatchAndForceTables.PlcWatchTable'; class = 'watch' }, @{ node = 'SW.WatchAndForceTables.PlcForceTable'; class = '' }
     )
     It 'reads a SimaticML by its node: <node>' -TestCases $xml {
         param($node, $class)
