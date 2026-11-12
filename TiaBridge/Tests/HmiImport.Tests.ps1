@@ -19,11 +19,12 @@ function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTr
 }
 
 # SimaticML shapes from TiaHmiGenerator\Tests\fixture.py
-function New-HmiDocument([string]$Name, [string[]]$Items, [string]$Template, [string]$Root = 'Hmi.Screen.Screen') {
+function New-HmiDocument([string]$Name, [string[]]$Items, [string]$Template, [string]$Root = 'Hmi.Screen.Screen', [string]$Number) {
     $links = if ($Template) { "<LinkList><Template TargetID=`"@OpenLink`"><Name>$Template</Name></Template></LinkList>" } else { '' }
+    $numberAttribute = if ($Number) { "<Number>$Number</Number>" } else { '' }
     "<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><Engineering version=`"V20`" />" +
     "<DocumentInfo><Created>2026-10-06T00:00:00</Created></DocumentInfo>" +
-    "<$Root ID=`"0`"><AttributeList><Name>$Name</Name></AttributeList>$links<ObjectList>" +
+    "<$Root ID=`"0`"><AttributeList><Name>$Name</Name>$numberAttribute</AttributeList>$links<ObjectList>" +
     "<Hmi.Screen.ScreenLayer ID=`"0`" CompositionName=`"Layers`"><AttributeList><Index>0</Index><Name /></AttributeList>" +
     "<ObjectList>$($Items -join '')</ObjectList></Hmi.Screen.ScreenLayer></ObjectList></$Root></Document>`r`n"
 }
@@ -190,6 +191,96 @@ Describe 'import of generated HMI documents (validator guard)' {
         $r.items[0].findings[0].rule | Should Be 'vocabulary.element-type'
         $r = Invoke-HmiImport $repo -Kind 'hmi_template' -Paths @('hmi\generated\screens\Main.xml')
         $r.items[0].refused | Should Match 'hmi\\generated\\templates'
+    }
+}
+
+# A screen number is unique on the device: a new screen, or an override, whose number another screen has ended TIA
+# (2026-11-12). The bridge reads the numbers of the screens in TIA from their exports and refuses before TIA sees the file.
+Describe 'import of a screen whose number another screen has' {
+    # the screens in TIA: Get-GroupTree lists them, Export-ObjectFile writes each one as an export without defaults does
+    function Get-GroupTree { @($script:inTia | ForEach-Object { @{ obj = $_; name = $_.name; folder = '' } }) }
+    function Get-HmiExportOptions { 'none' }
+    function Export-ObjectFile($Obj, [string]$File, $Options) {
+        if ($Obj.broken) { throw 'Export failed.' }
+        $script:exported += @($Obj.name)
+        Write-TextFile $File (New-HmiDocument $Obj.name @() -Number $(if ($Obj.number -ne 1) { $Obj.number }))   # 1, the default, left out
+    }
+    function Set-InTia([hashtable]$Numbers) {
+        $script:inTia = @($Numbers.Keys | Sort-Object | ForEach-Object { [pscustomobject]@{ name = $_; number = $Numbers[$_]; broken = $false } })
+    }
+    function Write-Generated([string]$Repo, [string]$Name, [string]$Number) {
+        Write-TextFile (Join-Path $Repo "hmi\generated\screens\$Name.xml") (New-HmiDocument $Name @((New-HmiItem 'Hmi.Screen.Rectangle' 'rect1')) -Number $Number)
+        "hmi\generated\screens\$Name.xml"
+    }
+    function Invoke-NumberImport([string]$Repo, [string[]]$Paths) { $script:exported = @(); Invoke-HmiImport $Repo -Paths $Paths }
+
+    It 'refuses a new screen whose number a screen in TIA has, which the validator cannot see, naming that screen' {
+        $repo = New-HmiRepo 'TakenInTia'
+        Set-InTia @{ Main = 1; Alarms = 2 }   # Alarms has no export in the repo
+        $r = Invoke-NumberImport $repo @(Write-Generated $repo 'New' '2')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match "Screen 'New' has number 2, which screen 'Alarms' in TIA has: TIA ended on such an import"
+    }
+
+    Context 'the validator passes' {
+        function Test-HmiImportGuard { @{} }
+
+        It 'imports a screen over its namesake with the number it has' {
+            $repo = New-HmiRepo 'Namesake'
+            Set-InTia @{ Main = 1; Alarms = 2 }
+            $r = Invoke-NumberImport $repo @(Write-Generated $repo 'Alarms' '2')
+            $r.ok | Should Be $true
+            ($script:imported -join ',') | Should Be 'Alarms'
+        }
+
+        It 'refuses an override that takes the number of another screen, read as 1 from an export that leaves it out' {
+            $repo = New-HmiRepo 'OverrideTaken'
+            Set-InTia @{ Main = 1; Alarms = 2 }
+            $r = Invoke-NumberImport $repo @(Write-Generated $repo 'Alarms' '1')
+            $r.ok | Should Be $false
+            @($script:imported).Count | Should Be 0
+            $r.items[0].refused | Should Match "Screen 'Alarms' has number 1, which screen 'Main' in TIA has"
+        }
+
+        It 'refuses two new screens with one number in one import, naming the first' {
+            $repo = New-HmiRepo 'TwoNew'
+            Set-InTia @{ Main = 1 }
+            $r = Invoke-NumberImport $repo @((Write-Generated $repo 'A' '5'), (Write-Generated $repo 'B' '5'))
+            $r.ok | Should Be $false
+            @($script:imported).Count | Should Be 0
+            $r.items[0].notAttempted | Should Be $true
+            $r.items[1].refused | Should Match "Screen 'B' has number 5, which screen 'A' of hmi\\generated\\screens\\A\.xml in this import has"
+        }
+
+        It 'imports a screen that takes the number an earlier document of the import frees, reading TIA once' {
+            $repo = New-HmiRepo 'Freed'
+            Set-InTia @{ Main = 1; Alarms = 2 }
+            $r = Invoke-NumberImport $repo @((Write-Generated $repo 'Alarms' '3'), (Write-Generated $repo 'New' '2'))
+            $r.ok | Should Be $true
+            ($script:imported -join ',') | Should Be 'Alarms,New'
+            ($script:exported -join ',') | Should Be 'Alarms,Main'
+        }
+
+        It 'refuses a screen whose number an earlier document without one gets: the lowest number no other screen has' {
+            $repo = New-HmiRepo 'NoNumber'
+            Set-InTia @{ Main = 1 }
+            $r = Invoke-NumberImport $repo @((Write-Generated $repo 'New' ''), (Write-Generated $repo 'Other' '2'))
+            $r.ok | Should Be $false
+            $r.items[1].refused | Should Match "Screen 'Other' has number 2, which screen 'New' of .* in this import has"
+            $r = Invoke-NumberImport $repo @((Write-Generated $repo 'New' ''), (Write-Generated $repo 'Other' '3'))
+            $r.ok | Should Be $true
+        }
+
+        It 'refuses every screen when a screen in TIA cannot be exported for its number' {
+            $repo = New-HmiRepo 'Unreadable'
+            Set-InTia @{ Main = 1; Alarms = 2 }
+            $script:inTia[0].broken = $true
+            $r = Invoke-NumberImport $repo @((Write-Generated $repo 'A' '5'), (Write-Generated $repo 'B' '6'))
+            $r.ok | Should Be $false
+            @($script:imported).Count | Should Be 0
+            foreach ($i in $r.items) { $i.refused | Should Match "no screen is imported unchecked: Screen 'Alarms' could not be exported to read its number: Export failed\." }
+        }
     }
 }
 

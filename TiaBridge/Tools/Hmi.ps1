@@ -132,6 +132,64 @@ function Test-HmiScreenFile($File, [hashtable]$Cache) {
     Test-HmiFaceplates $File $Cache
 }
 
+# ------------------------------------------------------------------ screen numbers
+
+# A screen number is unique on the HMI device, and an import that would break that ends TIA [PROBE] (2026-11-12, V20
+# Update 7): a new screen, or an override of one, whose number another screen has throws NonRecoverableException (The
+# "screen number '2' for screen '...' is not unique for this device.). An override takes the document's number, so the
+# number it had is free after it; a document without a number gets the lowest number no other screen has. Templates and
+# pop-ups have no number.
+
+# The number a screen document declares, $null for none or a document that cannot be read.
+function Get-ScreenDocumentNumber([string]$Path) {
+    try { $node = (Read-DocumentXml $Path).SelectSingleNode('/Document/Hmi.Screen.Screen/AttributeList/Number') } catch { return $null }
+    $n = 0
+    if ($node -and [int]::TryParse($node.InnerText.Trim(), [ref]$n)) { $n } else { $null }
+}
+
+# The device's screens in TIA by number: number -> name. Openness gives a screen its name only (get_Number is not
+# supported), so each one is exported without defaults: 20-30 ms a screen, a full export up to 2 s; the number is left out
+# when it is 1, the default [PROBE]. Throws, naming the screen, when one cannot be exported.
+function Get-HmiScreenNumbers([object[]]$Entries) {
+    $numbers = @{}
+    $dir = Join-Path ([System.IO.Path]::GetTempPath()) "TiaBridge-$([guid]::NewGuid().ToString('N'))"
+    try {
+        $i = 0
+        foreach ($e in $Entries) {
+            $file = Join-Path $dir "$i.xml"; $i++
+            try { Export-ObjectFile $e.obj $file (Get-HmiExportOptions $false) }
+            catch { throw "Screen '$($e.name)' could not be exported to read its number: $($_.Exception.Message)" }
+            $n = Get-ScreenDocumentNumber $file
+            $numbers[$(if ($null -eq $n) { 1 } else { $n })] = $e.name
+        }
+    }
+    finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    $numbers
+}
+
+# The screen-number guard of hmi_screen, in its precheck: the files of one call in order, as TIA imports them. Entries: the
+# device's screens in TIA. Cache.screenNumbers starts as their numbers and takes each document checked, in place of the
+# number its screen had; a document whose number another screen has is refused, naming that screen.
+function Test-HmiScreenNumber($File, [hashtable]$Cache, [object[]]$Entries) {
+    if (-not $Cache.ContainsKey('screenNumbers')) {
+        $Cache.screenNumbers = @{}
+        try { $live = Get-HmiScreenNumbers $Entries; foreach ($n in $live.Keys) { $Cache.screenNumbers[$n] = @{ name = $live[$n] } } }
+        catch { $Cache.screenNumbersFailed = "The screens' numbers in TIA could not be read, so no screen is imported unchecked: $($_.Exception.Message)" }
+    }
+    if ($Cache.screenNumbersFailed) { return @{ ok = $false; refused = $Cache.screenNumbersFailed } }
+    $taken = $Cache.screenNumbers
+    $name = if ($File.objectName) { [string]$File.objectName } else { [string]$File.name }
+    $n = Get-ScreenDocumentNumber $File.file
+    $holder = if ($null -ne $n) { $taken[$n] }
+    if ($holder -and -not [string]::Equals($holder.name, $name, [StringComparison]::OrdinalIgnoreCase)) {
+        $whose = if ($holder.path) { "screen '$($holder.name)' of $($holder.path) in this import" } else { "screen '$($holder.name)' in TIA" }
+        return @{ ok = $false; refused = "Screen '$name' has number $n, which $whose has: TIA ended on such an import (The `"screen number '$n' for screen '$name' is not unique for this device.). Give the document a number no screen of the device has, or renumber '$($holder.name)' first." }
+    }
+    foreach ($k in @($taken.Keys)) { if ([string]::Equals($taken[$k].name, $name, [StringComparison]::OrdinalIgnoreCase)) { $taken.Remove($k) } }
+    if ($null -eq $n) { $n = 1; while ($taken.ContainsKey($n)) { $n++ } }
+    $taken[$n] = @{ name = $name; path = Get-RepoRelative $File.file }
+}
+
 function Import-HmiFile($Composition, $File, [bool]$Override) {
     $list = $Composition.Import([System.IO.FileInfo]::new($File.file), (Get-ImportOptions $Override))
     @{ ok = $true; imported = @($list | ForEach-Object { $_.Name }) }
@@ -141,13 +199,15 @@ Register-ObjectKind 'hmi_screen' @{
     scope = 'hmi'; dir = 'hmi\screens'; importDir = 'hmi\generated\screens'
     importGuard = $script:HmiImportGuard
     defaultOverride = $true
-    description = 'screens'
+    description = 'screens; an import whose number another screen of the device has is refused (it ended TIA)'
     items = { param($hmi) Get-GroupTree $hmi.ScreenFolder 'Screens' 'Folders' }
     tree = { param($hmi) $hmi.ScreenFolder }; groups = 'Folders'
     # no info: a Comfort screen offers only Name through Openness; number and template are in its export only
     # [PROBE] (2026-10-06: GetAttributeInfos lists Name alone, list had shown null for every screen)
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
-    precheck = { param($file, $cache) Test-HmiScreenFile $file $cache }
+    precheck = { param($file, $cache, $entries)
+        $refusal = Test-HmiScreenFile $file $cache
+        if ($refusal) { $refusal } else { Test-HmiScreenNumber $file $cache $entries } }
     import = { param($hmi, $folder, $file, $override) Import-HmiFile (Get-OrCreateGroup $hmi.ScreenFolder $folder 'Folders').Screens $file $override }
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
 }

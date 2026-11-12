@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T15:14:11-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T15:44:05-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -91,7 +91,9 @@ screen, template, pop-up and HMI tag folders of a Comfort panel):
 |---|---|---|
 | Objects | Screens, templates, global screen, pop-ups, slide-ins, tag tables, text and graphic lists, VB scripts, cycles, connections, as SimaticML | [12] |
 | Not exportable | Among others: alarm view, alarm indicator, alarm window, trend views, table and value views, recipe view, system diagnostics view/window, screen window, HTML browser, media player, camera, PDF view, status/force, editable text field, list/combo box, check box, option buttons, scroll bar, connector, pipes. The export leaves them out without a message, so an `Override` import of that screen deletes them `[EXPORT]` `[INFERRED]` | [21] |
-| Screen attributes | A screen offers only `Name` through the object model: number and template come from the export `[PROBE]` | [33] |
+| Screen attributes | A screen offers only `Name` through the object model: number and template come from the export `[PROBE]`. `GetAttribute('Number')` throws: *'get_Number' is not supported by type 'Siemens.Engineering.Hmi.Screen.Screen'.* An export without defaults (`ExportOptions.None`) takes 20 to 30 ms a screen, a full one up to 2 s, and leaves out number 1, the default `[PROBE]` | [33] |
+| Screen numbers | Unique on the device. A new screen, or an `Override` of one, whose number another screen has ends TIA: `NonRecoverableException`, *The "screen number '1' for screen 'Connection status' is not unique for this device.* `[PROBE]`. An `Override` takes the document's number, and the old one is free after it. A document without `Number` gets the lowest number no other screen has, new or over an existing screen, so an export without defaults does not carry number 1 back `[PROBE]`. TiaBridge refuses a taken number before TIA sees the file | |
+| Templates and pop-ups | No number: a pop-up's `Number` is refused, and TIA keeps running (*The 'Number' attribute at the 'Siemens.Engineering.Hmi.Screen.ScreenPopup' object ... is not supported.*). Names are kept apart per kind: a new pop-up or template with a screen's name goes in, and so does a new screen with a template's name `[PROBE]` | |
 | Import order | With function keys: global screen, then templates, then screens (readme) | [8] |
 | Faceplate instances | Import and export inside the screen; object name and type name are mandatory; an unknown type, event or interface attribute aborts the import [22]. A type version missing from the project library crashed TIA `[IMPORT]`; grouped instances are refused `[IMPORT]` | [22] |
 | Faceplate types | Contents do not export or import: `Export` writes version metadata only, `ExportAsDocuments` refuses every format `[PROBE]`. Putting one in work with `Edit(LibraryTypeInstanceInfo)` ended TIA (`NonRecoverableException`) `[PROBE]`. A person builds the type in TIA | |

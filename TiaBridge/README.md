@@ -20,6 +20,7 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   a project closed in your TIA.
 - Refuses to change F-blocks unless you asked for that change. Refuses an import over a know-how protected block whatever
   you ask: remove the protection in TIA first. Deletes one, or replaces it from a master copy, only when you asked for that.
+- Refuses an HMI screen whose number another screen of the device has, as that ended TIA, and names that screen.
 
 ## What it does not
 

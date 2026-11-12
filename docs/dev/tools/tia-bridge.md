@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T14:54:56-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T15:44:05-05:00 }
 ---
 
 # TiaBridge internals
@@ -86,6 +86,7 @@ The rules count per device. The record lives in `.tiabridge-session.json` in the
 - **An import runs in one transaction per call, so it is all or nothing.** Where TIA refuses a transaction, or `useTransactions` is off, the files before a failure stay imported, and the result says so. A name TIA answers differently than the document declares is not ok.
 - **HMI screens, templates and pop-ups import only from `hmi\[<device>\]generated\<kind>`,** after `hmipreview validate --import`. Errors, open planned items and a newer TIA export refuse them. `override` passed as true lets a newer export be replaced; the screens' default does not. A validator that cannot run refuses the whole call.
 - **Faceplate type versions a screen names must be in the project library,** as a mismatch has crashed TIA.
+- **A screen whose number another screen of the device has is refused,** new or over another screen, naming that screen: it ended TIA. Openness gives a screen no number, so the precheck of `hmi_screen` exports each screen of the device once per call, without defaults (a missing number is 1). The call's documents then count in order, as TIA imports them: an override frees the number it had, and a document without a number takes the lowest free one. A screen that cannot be exported refuses the call.
 - **A watch table TIA leaves not consistent fails its import,** and the call rolls back. TIA answers OK to a row naming a symbol the PLC does not have, and drops every row of the table.
 - **F-blocks and F-compliant data types need `safety: true`.** Know-how protected blocks need `knowhow: true` to delete and cannot be imported over. An import over a `hmi_tag_table` is refused, as it has crashed TIA.
 - **`export` refuses two objects whose names give one file,** and leaves the files there.

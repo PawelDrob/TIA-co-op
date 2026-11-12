@@ -375,7 +375,9 @@ function Invoke-ImportTool($a) {
 
     # A batch is all or nothing (decided 2026-10-05: blocks that depend on each other go in together).
     # Every file is checked before TIA is touched; one refusal imports nothing.
-    $cache = @{}   # shared across the files: the kind's precheck (the faceplate guard walks the library once), the namesakes
+    # shared across the files: the kind's precheck (the faceplate guard walks the library once; the screen numbers of the
+    # device, exported once, take each file in turn), the namesakes
+    $cache = @{}
     $plan = @(foreach ($f in $files) {
         # a file name is the object's name made file-safe (Ns:Block in Ns_Block.s7dcl): the guards and the save rules go
         # by the object, so the kind says whose file it is; $f.name stays what the file is called
@@ -399,7 +401,7 @@ function Invoke-ImportTool($a) {
             $refusal = Get-ImportRefusal -KindName $k.name -Name $f.objectName -Existing $ex -Override $override -Safety $safety -FDocument $fDocument
             if ($refusal) { $item.refused = $(if ($k.noOverride) { "$refusal $($k.noOverride)" } else { $refusal }) }
             elseif ($k.precheck) {
-                $g = & $k.precheck $f $cache
+                $g = & $k.precheck $f $cache $entries
                 if ($g) { foreach ($key in $g.Keys) { if ($key -ne 'ok') { $item[$key] = $g[$key] } } }
             }
         }
@@ -848,7 +850,9 @@ function Register-ObjectTools {
         'override defaults to true, except hmi_template and hmi_tag_table (an existing one is refused). ' +
         'HMI screens/templates/pop-ups/tag tables are imported from hmi\generated\<kind> only (tag tables: hmi\generated\tags; hmi\<device>\generated\<kind> in a project with several HMI devices) and checked first by python -m hmipreview validate --import [--device]: refused on its errors for the imported documents ' +
         '(findings listed per item), on open planned items, and for screens/templates/pop-ups on a TIA export newer than the generated document unless override is passed as true (the screen default does not count; an existing tag table is refused anyway). ' +
-        'Refused: .s7dcl of an OB; HMI screens/templates/pop-ups whose faceplate type versions are not in the project library; any write before the session archive; ' +
+        'Refused: .s7dcl of an OB; HMI screens/templates/pop-ups whose faceplate type versions are not in the project library; ' +
+        'an HMI screen whose number another screen of the device has, in TIA or earlier in the call, new or over another screen (it ended TIA; the bridge exports each screen of the device to read its number, ' +
+        'an override takes the document''s number and frees the one it had, a document without a number gets the lowest free one); any write before the session archive; ' +
         'an F-block (the file or the object it replaces) or the document of an F-compliant PLC data type without safety: true (a data type by its document only: with the mark taken out, nothing refuses it); override of a know-how protected block; override of hmi_tag_table (it crashed TIA: delete the table first, then import). ' +
         'Import HMI documents only after the user''s yes to their preview. Skill tia-change, hmi.md, holds that stop and the order of HMI imports. Never re-import a screen that holds an alarm view or diagnostics view ' +
         '(the export drops them). A call is all or nothing: one refused or failed file and nothing of the call is imported ' +

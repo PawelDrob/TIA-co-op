@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-07T17:20:08-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T15:44:05-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -774,7 +774,8 @@ refuses on its errors. The rest stays manual.
    `vocabulary.*`, `document.incomplete`; exports that are not full: `document.not-full`.
 2. IDs renumbered, unique; attributes and compositions in export order.
 3. Rich text on one line; every language of the project present: validator, `languages.*`.
-4. Screen numbers unique (staging 9101+); object names unique per screen: validator, `structure.*`.
+4. Screen numbers unique (staging 9101+); object names unique per screen: validator, `structure.*`. TiaBridge `import`
+   also checks the numbers against the screens in TIA, as a taken number ended TIA ([Openness facts](openness-v20.md), section 2).
 5. Linked text lists / templates / pictures / authorizations / faceplate versions exist or come first; no open
    planned item: validator, `links.*`. Faceplate versions are checked against the exported project library
    (`library\faceplates`, TiaBridge `export` kind `faceplate_type`): export it again before a run that uses a new
