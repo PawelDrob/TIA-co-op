@@ -217,6 +217,7 @@ Register-ObjectKind 'watch_table' @{
     scope = 'plc'; dir = 'plc\watchtables'; defaultOverride = $true
     description = 'watch tables (SimaticML)'
     items = { param($plc) Get-GroupTree $plc.WatchAndForceTableGroup 'WatchTables' 'Groups' }
+    tree = { param($plc) $plc.WatchAndForceTableGroup }; groups = 'Groups'
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
     precheck = { param($file, $cache) if ($file.format -ne 'xml') { @{ ok = $false; refused = 'Watch tables are SimaticML (.xml) only.' } } }

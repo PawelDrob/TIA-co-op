@@ -1587,10 +1587,14 @@ function Invoke-MasterCopyToProjectTool($a) {
        next = "compile the $($k.scope) scope." }
 }
 
+# A kind the bridge makes master copies of: one with a folder tree whose objects it can also place (MasterCopyTargets).
+# A watch table has folders and no such target: not tried.
+function Test-MasterCopyKind($Kind) { [bool]($Kind.tree -and @($script:MasterCopyTargets.Values | Where-Object { $_[0] -eq $Kind.name }).Count) }
+
 # A kind whose folder a master copy can be made of: one the bridge can also place. By the public API of V20 every user
 # folder is a source of MasterCopies.Create, but the user folder compositions of an HMI device have no
 # CreateFrom(MasterCopy), so the bridge could not use such a master copy.
-function Test-MasterCopyFolderKind($Kind) { [bool]($Kind.tree -and $Kind.scope -eq 'plc') }
+function Test-MasterCopyFolderKind($Kind) { (Test-MasterCopyKind $Kind) -and $Kind.scope -eq 'plc' }
 
 function Get-HmiFolderMasterCopyRefusal {
     $kinds = @($script:ObjectKinds.Values | Where-Object { Test-MasterCopyFolderKind $_ } | ForEach-Object { $_.name } | Sort-Object)
@@ -1637,7 +1641,7 @@ function Invoke-MasterCopyFromProjectTool($a) {
     $gate = Test-WriteAllowed $session
     if ($gate) { return New-Refusal $gate }
     $k = Get-ObjectKind ([string]$a.kind)
-    if (-not $k.tree) { return New-Refusal "Kind $($k.name) cannot be made into a master copy by the bridge." }
+    if (-not (Test-MasterCopyKind $k)) { return New-Refusal "Kind $($k.name) cannot be made into a master copy by the bridge." }
     $source = Find-MasterCopySource $k $a
     if ($source.refused) { return New-Refusal $source.refused }
     $name = $source.name

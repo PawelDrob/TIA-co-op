@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T14:54:56-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T15:14:11-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -72,7 +72,10 @@ screen, template, pop-up and HMI tag folders of a Comfort panel):
   such flag; a compile of the panel afterwards reported only its missing start screen.
 - `Groups.Find` and `Folders.Find` ignore case: `delete_folder` compares the names itself.
 - What a folder holds, from `GetCompositionInfos`: block folder `Blocks`, `Groups`; PLC data type folder `Types`, `Groups`,
-  `Documents`; PLC tag table folder `TagTables`, `Groups`; HMI folders their objects and `Folders`.
+  `Documents`; PLC tag table folder `TagTables`, `Groups`; HMI folders their objects and `Folders`. A watch table folder
+  (`PlcWatchAndForceTableUserGroup`, 2026-11-12) `ForceTables`, `Groups`, `WatchTables`, as the root
+  `WatchAndForceTableGroup` does, and it has `Delete()`. `delete_folder` refused one holding a subfolder and one holding a
+  watch table, and deleted both once empty.
 - `Documents` is for named value data types. Into a folder of the PLC, `ImportFromDocuments` refuses: "The
   'ImportFromDocuments' method only supports the import of named value data types within software units." Into a folder of
   a software unit it answered "The file '...' does not exist" for every file name tried, so a filled `Documents` was not

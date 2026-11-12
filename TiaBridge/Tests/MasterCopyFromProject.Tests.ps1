@@ -219,6 +219,14 @@ Describe 'master_copy_from_project refuses, asking nothing of TIA' {
         $script:writes | Should Be 0
     }
 
+    It 'a watch table or its folder: the kind has folders, but nothing places such a master copy' {
+        Set-FakeProject
+        foreach ($a in @(@{ kind = 'watch_table'; name = 'W' }, @{ kind = 'watch_table'; source_folder = 'zzWatch' })) {
+            (Invoke-FromProject $a).refused | Should Be 'Kind watch_table cannot be made into a master copy by the bridge.'
+        }
+        $script:writes | Should Be 0
+    }
+
     It 'both a name and a folder, and neither' {
         Set-FakeProject
         (Invoke-FromProject @{ kind = 'block'; name = 'A'; source_folder = 'zzFolder' }).refused | Should Match 'not both'

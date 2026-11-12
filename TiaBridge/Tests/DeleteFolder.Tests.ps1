@@ -236,9 +236,9 @@ Describe 'delete_folder kinds' {
         $script:writes | Should Be 0
     }
 
-    It 'offers the block, data type, tag table and HMI folder kinds, library kinds not' {
+    It 'offers the block, data type, tag table, watch table and HMI folder kinds, library kinds not' {
         $names = @(Get-FolderKindNames | Where-Object { $_ -notlike 'fake*' }) -join ','
-        $names | Should Be 'block,db,type,plc_tag_table,hmi_screen,hmi_template,hmi_popup,hmi_tag_table'
+        $names | Should Be 'block,db,type,plc_tag_table,watch_table,hmi_screen,hmi_template,hmi_popup,hmi_tag_table'
     }
 }
 

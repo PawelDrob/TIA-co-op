@@ -551,6 +551,14 @@ Describe 'import of watch tables' {
         $r.items[0].error.message | Should Match "watch table 'Good' not consistent"
     }
 
+    It 'refuses the save after a rolled-back failure over the existing table too, until it is imported good' {
+        $r = Invoke-WatchImport @('plc\watchtables\GoodBroken.xml')
+        $r.rolledBack | Should Be $true
+        @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Match 'A write failed and was not redone successfully: plc@PLC_1:Good'
+        $null = Invoke-WatchImport @('plc\watchtables\Good.xml')
+        @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Not Match 'failed'
+    }
+
     Context 'without a transaction' {
         function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf) {
             @{ output = @(& $Body); transaction = $false; rolledBack = $false; commitError = $null; note = $null }
