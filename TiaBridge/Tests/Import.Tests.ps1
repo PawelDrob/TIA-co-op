@@ -537,7 +537,7 @@ Describe 'import of watch tables' {
         $r.rolledBack | Should Be $true
         $script:committed | Should Be $false
         $r.items[0].rolledBack | Should Be $true
-        $r.items[1].error.message | Should Match "watch table 'Broken' not consistent"
+        $r.items[1].error.message | Should Match "watch table 'Broken' not consistent, with none of its rows"
         $r.items[1].error.message | Should Match 'symbol the PLC does not have'
         $r.items[1].Contains('imported') | Should Be $false
         $r.note | Should Be 'Nothing imported: Broken failed and TIA rolled the batch back.'
@@ -653,6 +653,7 @@ Describe 'import of force tables' {
         $r.online | Should Match 'offline force table only, nothing in the CPU'
         $r.online | Should Match 'cannot set a force mark'
         $r.online | Should Match 'Forcing stays the user''s, online'
+        $r.online | Should Match 'keeps its mark through an import was not tried'
     }
 
     It 'refuses a force table of another name before TIA is asked, naming the PLC''s one' {
@@ -670,7 +671,7 @@ Describe 'import of force tables' {
         $script:committed | Should Be $false
         $r.items[0].name | Should Be 'Force table'
         $r.items[0].error.type | Should Be 'TiaBridge.NotConsistent'
-        $r.items[0].error.message | Should Match "force table 'Force table' not consistent"
+        $r.items[0].error.message | Should Match "force table 'Force table' not consistent: a row names a symbol"
         $r.items[0].Contains('imported') | Should Be $false
         $script:entriesRead | Should Be 0
     }
@@ -681,6 +682,20 @@ Describe 'import of force tables' {
         @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Match 'A write failed and was not redone successfully: plc@PLC_1:Force table'
         $null = Invoke-ForceImport @('plc\forcetables\Force table.xml')
         @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Not Match 'failed'
+    }
+
+    Context 'without a transaction' {
+        function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf) {
+            @{ output = @(& $Body); transaction = $false; rolledBack = $false; commitError = $null; note = $null }
+        }
+        It 'refuses the save while the table TIA left not consistent is not imported good' {
+            $r = Invoke-ForceImport @('plc\forcetables\Broken.xml')
+            $r.rolledBack | Should Be $false
+            $r.items[0].error.message | Should Match "force table 'Force table' not consistent"
+            @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Match 'A write failed and was not redone successfully: plc@PLC_1:Force table'
+            $null = Invoke-ForceImport @('plc\forcetables\Force table.xml')
+            @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Not Match 'failed'
+        }
     }
 
     It 'refuses a file that is no SimaticML, and a watch table document, before TIA is asked; and a force table under watch_table' {
