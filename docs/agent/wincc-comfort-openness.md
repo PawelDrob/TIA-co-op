@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T15:44:05-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T17:05:06-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -78,6 +78,7 @@ their findings stay in this guide, and the git history of this repo keeps them.
 | Tool / file | Does |
 |---|---|
 | `export` / `import` / `delete` kinds `hmi_screen`, `hmi_popup`, `hmi_template`, `hmi_tag_table`, `hmi_textlist` | SimaticML out of and into TIA; exports go to `hmi\screens\`, `hmi\popups\`, ...; screens, pop-ups and templates are always exported full (section 2.3), tag tables and text lists minimal unless `options.full`; screens, pop-ups, templates and tag tables are imported only from `hmi\[<device>\]generated\<kind>\` (tag tables: `generated\tags\`) and only after the HMI validator passed (section 3); a new one goes to the folder its path there mirrors (`hmi\[<device>\]generated\screens\zzStaging\x.xml` -> `zzStaging`), an existing one is replaced where it is; faceplate guard before every screen import |
+| `export` / `import` kind `hmi_cycle` | always the full export, into `hmi\[<device>\]cycles\`, and imported from there only, after the HMI validator passed: a cycle document that is no full export is refused (`cycle.not-full`), as TIA imports a minimal one with `StartAtStartingPoint` false ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses it |
 | `compile(hmi)` | the full compiler message tree |
 | `list` / `export` kind `faceplate_type`, `probe` | faceplate type versions and metadata; reflection on any object |
 | `TiaHmiGenerator\hmixml.py` | Python: builds screens and text lists from object dicts, using exported objects as templates, and tag tables from tag dicts, with `Length` and `HmiDataType` from the data type; writes only through a run (`begin` / `plan` / `add` / `finish`) into `hmi\[<device>\]generated\` |
@@ -147,7 +148,10 @@ guesses them: it draws what a document carries and reports a generated object
 that lacks an attribute every full export of its type has
 (`document.incomplete`), and a screen export that is not full
 (`document.not-full`). Tag tables and text lists stay minimal by default: the
-import of their full export is untested.
+import of their full export is untested. Cycles are exported full too, from
+2026-11-12: a minimal export of a cycle leaves out `StartAtStartingPoint` when
+it is true, and TIA imports that file as false `[PROBE]`; the validator refuses
+a cycle document that is no full export (`cycle.not-full`).
 
 A project with several HMI devices (decided 2026-10-30):
 each device's exports go to `hmi\<device>\screens\`, `hmi\<device>\tags\`, ...

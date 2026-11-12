@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from unittest import mock
 
 from hmipreview import changes, diff, geometry, jsbundle, sides
-from Tests.fixture import FULL_SETTING, FixtureRepo, document, group, item, rect
+from Tests.fixture import FULL_SETTING, FixtureRepo, cycle, document, group, item, rect
 
 PACKAGE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # TiaHmiGenerator
 
@@ -1407,6 +1407,22 @@ class LayerAndFoldTest(RepoCase):
         self.assertEqual('export', by['Motor']['fold'])
         self.assertNotIn('fold', by['Fan'])
         self.assertEqual([{'name': 'Length', 'missing': 'after', 'count': 1}], table['exportNoise'])
+
+    def test_a_cycle_exported_full_after_a_minimal_export_is_changed_and_folded(self):
+        # TiaBridge exports cycles full from ticket bridge/327: the first export of an older repo's cycles adds the
+        # attributes the minimal one left out, a change of the file and not of the cycle
+        self.repo.write('hmi/cycles/Fast.xml', cycle('Fast', 'None', full=False))
+        self.repo.commit()
+        self.repo.write('hmi/cycles/Fast.xml', cycle('Fast'))
+
+        fast = self.obj(self.compare('HEAD'), 'Fast', 'cycle')
+
+        self.assertEqual('changed', fast['state'])
+        self.assertEqual(['export'], [c['fold'] for c in fast['changes']])
+        self.assertEqual([{'name': n, 'missing': 'before', 'count': 1} for n in
+                          ('StartAtStartingPoint', 'StartingPoint', 'TriggerAtShutdown', 'TriggerAtStartup')],
+                         fast['exportNoise'])
+        self.assertEqual({'before': 'None', 'after': FULL_SETTING}, fast['exportSetting'])
 
     def test_tab_order_alone_is_folded_as_without_visible_effect(self):
         self.repo.export('screen', 'Silo', document('screen', 'Silo', [rect('r1', TabIndex=1), rect('r2', TabIndex=2)],

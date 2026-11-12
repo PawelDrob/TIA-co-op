@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T15:55:53-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T17:05:06-05:00 }
 ---
 
 # TiaBridge internals
@@ -88,6 +88,7 @@ The rules count per device. The record lives in `.tiabridge-session.json` in the
 - **Faceplate type versions a screen names must be in the project library,** as a mismatch has crashed TIA.
 - **A screen whose number another screen of the device has is refused,** new or over another screen, naming that screen: it ended TIA. Openness gives a screen no number, so the precheck of `hmi_screen` exports each screen of the device once per call, without defaults (a missing number is 1). The call's documents then count in order, as TIA imports them: an override frees the number it had, and a document without a number takes the lowest free one. A screen that cannot be exported or read refuses the call, and so does a document whose number is no whole number.
 - **A watch table TIA leaves not consistent fails its import,** and the call rolls back. TIA answers OK to a row naming a symbol the PLC does not have, and drops every row of the table.
+- **HMI cycles import only from `hmi\[<device>\]cycles`, their export, and only as a full export.** The validator's `cycle.not-full` refuses a document that is no full export or lacks `StartAtStartingPoint`, as TIA imports a minimal one with that false. The bridge exports cycles full whatever `options.full` says. An older repo holds minimal ones: its next export changes every cycle file, which the change report folds as export differences. `delete` refuses the kind (`noDelete`): a delete was not tried.
 - **F-blocks and F-compliant data types need `safety: true`.** Know-how protected blocks need `knowhow: true` to delete and cannot be imported over. An import over a `hmi_tag_table` is refused, as it has crashed TIA.
 - **`export` refuses two objects whose names give one file,** and leaves the files there.
 - **A repo records one `.ap20` path.** Another path is refused until the person says `moved` or names another `repo`.

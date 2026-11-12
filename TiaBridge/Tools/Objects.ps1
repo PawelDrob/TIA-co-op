@@ -2,7 +2,8 @@
 # Tools\Hmi.ps1 and Tools\Library.ps1 register.
 #
 # A kind is a hashtable: scope ('plc'|'hmi'|'library'|'project'), dir (repo folder), description, defaultOverride,
-# exportOnly (import and delete refused), noOverride (why import never replaces one: override refused), and
+# exportOnly (import and delete refused), noOverride (why import never replaces one: override refused), noDelete (why
+# delete is refused), importDir (the one folder it imports from, where the HMI validator looks), and
 # scriptblocks items(root) -> @{ obj; name; folder }, info(entry), export(entry, dir, options),
 # import(root, folder, file, override). A kind without export or import does not support it.
 # Kinds with a folder tree also give tree(root) -> top folder and groups, the name of its subfolder collection
@@ -390,7 +391,7 @@ function Invoke-ImportTool($a) {
         if ($g -and @($g.findings).Count) { $item.findings = @($g.findings) }
         if ($f.missing) { $item.refused = "File not found: $($f.file)" }
         elseif ($k.importDir -and -not $f.file.StartsWith($importRoot, [StringComparison]::OrdinalIgnoreCase)) {
-            $item.refused = "$($k.name) files are imported from $importDir only (generated documents, checked by the HMI validator)."
+            $item.refused = "$($k.name) files are imported from $importDir only, where the HMI validator checks them."
         }
         elseif ($g -and $g.refused) { $item.refused = $g.refused }
         elseif ($whose.refused) { $item.refused = $whose.refused }
@@ -514,6 +515,7 @@ function Invoke-DeleteTool($a) {
     if ($gate) { return New-Refusal $gate }
     if ($k.scope -eq 'library') { return New-Refusal "Kind $($k.name) cannot be deleted. $script:LibraryKindNote" }
     if ($k.exportOnly) { return New-Refusal "Kind $($k.name) is export only; the bridge does not delete it." }
+    if ($k.noDelete) { return New-Refusal "Kind $($k.name) is not deleted by the bridge. $($k.noDelete) Delete it in TIA." }
     $names = @($a.names | Where-Object { $_ })
     if (-not $names.Count) { return New-Refusal 'names is empty.' }
     if (@($names | Where-Object { $_ -match '[*?]' }).Count) { return New-Refusal 'delete takes exact names, no wildcards.' }
@@ -821,7 +823,7 @@ function Register-ObjectTools {
         'Objects whose names give one file name (Ns:Block and Ns_Block; a name is made file-safe, and Windows does not tell case) are refused, whichever is asked for: never overwritten, the files there stay, rename one in TIA. ' +
         "block/db/type: .s7dcl + .s7res ($(Get-GuidePath 's7dcl-format.md')); OBs and know-how protected blocks: SimaticML. A successful block/db/type export removes " +
         'that object''s files in the other format (and an .s7res it no longer writes) and lists them in the item''s removed: commit the removals with the export. plc_tag_table and HMI kinds: SimaticML, ' +
-        'hmi_screen/hmi_template/hmi_popup: always the full export (WithDefaults + WithReadOnly) into hmi\<kind dir>; options.full changes nothing for them. ' +
+        'hmi_screen/hmi_template/hmi_popup/hmi_cycle: always the full export (WithDefaults + WithReadOnly) into hmi\<kind dir>; options.full changes nothing for them. ' +
         'hmi_tag_table/hmi_textlist: minimal unless options.full, in hmi\<kind dir>. library_type: the documents of the version in work (else the default one) ' +
         'into a folder of the type, .libinfo + .libint + .s7dcl/.s7res (SD) or .xml (SimaticML); options.format picks one, without it the type keeps the format ' +
         'its folder holds (SD for a new export). The folder is replaced whole, so the type is in one format only (a folder holding a git repo is not: that export is refused and the folder stays as it was); the item''s removed lists the files of the other ' +
@@ -833,7 +835,7 @@ function Register-ObjectTools {
             names = @{ type = 'array'; items = @{ type = 'string' }; description = 'exact names, or wildcards with * and ? ([ ] are literal)' }
             options = @{ type = 'object'; properties = @{
                     format = @{ type = 'string'; enum = @('s7dcl', 'xml'); description = 'blocks/types and library_type only; s7dcl is refused for OBs' }
-                    full = @{ type = 'boolean'; description = 'export every attribute (WithDefaults + WithReadOnly); no effect on hmi_screen/hmi_template/hmi_popup, which are always exported full' }
+                    full = @{ type = 'boolean'; description = 'export every attribute (WithDefaults + WithReadOnly); no effect on hmi_screen/hmi_template/hmi_popup/hmi_cycle, which are always exported full' }
                     released = @{ type = 'boolean'; description = 'library_type: the default released version, for comparison' } } }
             device = $device; library = $library } }
 
@@ -846,10 +848,11 @@ function Register-ObjectTools {
         'An import TIA answers with another name than the document declares is not ok, though the object is in TIA: the item has importedAs, the result namedOtherwise and what to do. ' +
         'watch_table: a row naming a symbol the PLC does not have makes TIA answer OK and leave the table not consistent with none of its rows; the bridge fails that item (error TiaBridge.NotConsistent, naming the table) and the call rolls back. Over an existing table the save is then refused until that table is imported good, after a rollback too, and without a transaction the table also stays not consistent and empty; a new table rolled back is not in the project and holds nothing. ' +
         'An existing object is replaced where it is; a new one goes to ' +
-        'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups and tag tables. ' +
+        'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables and cycles. ' +
         'override defaults to true, except hmi_template and hmi_tag_table (an existing one is refused). ' +
         'HMI screens/templates/pop-ups/tag tables are imported from hmi\generated\<kind> only (tag tables: hmi\generated\tags; hmi\<device>\generated\<kind> in a project with several HMI devices) and checked first by python -m hmipreview validate --import [--device]: refused on its errors for the imported documents ' +
         '(findings listed per item), on open planned items, and for screens/templates/pop-ups on a TIA export newer than the generated document unless override is passed as true (the screen default does not count; an existing tag table is refused anyway). ' +
+        'hmi_cycle: from its export folder hmi\[<device>\]cycles only, checked by the same validator, which refuses a document that is no full export or has no StartAtStartingPoint (cycle.not-full: older repos hold minimal exports, and TIA imported one as StartAtStartingPoint false): export the cycles again, then edit and import. ' +
         'Refused: .s7dcl of an OB; HMI screens/templates/pop-ups whose faceplate type versions are not in the project library; ' +
         "an HMI screen whose number another screen of the device has, in TIA or earlier in the call, new or over another screen (it ended TIA; the refusal names that screen; numbering rules: $(Get-GuidePath 'openness-v20.md') section 2), " +
         'or whose number is no whole number; any write before the session archive; ' +
@@ -868,7 +871,8 @@ function Register-ObjectTools {
 
     Register-McpTool -Name 'delete' -Handler { param($a) Invoke-DeleteTool $a } -Description (
         'Delete objects by exact name (e.g. test blocks from bisecting, objects after a rename). Counts as a write: compile afterwards. ' +
-        'Refused per name: the test instance of a library type in work (release the version in work first, or discard it with library_discard_type); an F-block without safety: true (an F-compliant PLC data type is not recognised here); a know-how protected block without knowhow: true (its code cannot be exported, so only a project archive can restore it: the session archive, unless it was skipped); the other names go on.') -Schema @{
+        'Refused per name: the test instance of a library type in work (release the version in work first, or discard it with library_discard_type); an F-block without safety: true (an F-compliant PLC data type is not recognised here); a know-how protected block without knowhow: true (its code cannot be exported, so only a project archive can restore it: the session archive, unless it was skipped); the other names go on. ' +
+        'Refused per call: the kinds the bridge only exports, and hmi_cycle (a delete was not tried on a real TIA).') -Schema @{
         type = 'object'; required = @('kind', 'names')
         properties = @{ kind = @{ type = 'string'; enum = $kinds }; names = @{ type = 'array'; items = @{ type = 'string' } }; safety = $script:SafetyArgument
                         knowhow = @{ type = 'boolean'; description = 'allows the delete of know-how protected blocks. Only when the user asked for this delete; never to get past the refusal' }; device = $device } }

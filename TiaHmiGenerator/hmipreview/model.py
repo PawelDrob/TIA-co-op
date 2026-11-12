@@ -7,6 +7,8 @@ load() reads one device: the device given, else tiabridge.json hmiDevice, else t
   <hmi>/generated/{screens,templates,popups,textlists}       generated documents
   <hmi>/tags, <hmi>/generated/tags                           HMI tag tables, exported and generated: Repo.tag_tables
                                                              (kind 'tagtable'), apart from the documents above
+  <hmi>/cycles                                               cycles as TIA exports them, which TiaBridge also imports
+                                                             from there: Repo.cycles (kind 'cycle'), apart too
   hmi/<other device>/{screens,templates,popups,textlists}    exports of the other HMI devices: vocabulary only
   hmi/references/<source>/{screens,templates,popups,...}     full exports of another project (e.g. a sister project) whose
                                                              objects a generator copies: they feed the vocabulary
@@ -48,6 +50,9 @@ KINDS = ('screen', 'template', 'popup', 'textlist')
 KIND_DIRS = {'screen': 'screens', 'template': 'templates', 'popup': 'popups', 'textlist': 'textlists'}
 TAG_TABLE = 'tagtable'    # the kind of a tag table document; not one of KINDS: no screen rule reads it
 TAG_DIR = 'tags'
+CYCLE = 'cycle'           # the kind of a cycle document; not one of KINDS either
+CYCLE_DIR = 'cycles'
+OWN_DIRS = {TAG_TABLE: TAG_DIR, CYCLE: CYCLE_DIR}   # the kinds apart from KINDS, and their folders
 EXPORT = 'export'
 REFERENCE = 'reference'
 REFERENCE_DIR = 'hmi/references'
@@ -113,7 +118,7 @@ def hmi_base(device):
 
 @dataclass
 class Document:
-    kind: str                 # 'screen' | 'template' | 'popup' | 'textlist' | 'tagtable'
+    kind: str                 # 'screen' | 'template' | 'popup' | 'textlist' | 'tagtable' | 'cycle'
     origin: str               # 'export' | 'generated'
     path: str                 # repo-relative, forward slashes
     folder: str               # TIA folder below the kind folder, '/'-separated, '' at the root
@@ -164,6 +169,7 @@ class Repo:
     tag_tables: list = field(default_factory=list)     # this device's tag tables (Document, kind 'tagtable'), exports
                                                        # then generated
     other_tag_tables: list = field(default_factory=list)  # tag table exports of the other devices and the references
+    cycles: list = field(default_factory=list)         # this device's cycles (Document, kind 'cycle'), from <hmi>/cycles
 
     @property
     def base(self):
@@ -302,7 +308,7 @@ def _load_docs(repo_path, base, origin, findings, overlay, kinds=KINDS):
     One that cannot be read is a document.parse finding in findings, and left out."""
     docs = []
     for kind in kinds:
-        top_rel = base + '/' + (TAG_DIR if kind == TAG_TABLE else KIND_DIRS[kind])
+        top_rel = base + '/' + (OWN_DIRS.get(kind) or KIND_DIRS[kind])
         for rel in _xml_files(repo_path, top_rel, overlay):
             folder, _, fn = rel[len(top_rel) + 1:].rpartition('/')
             try:
@@ -438,6 +444,8 @@ def load(repo_path, overlay=None, device=None):
                   + _load_docs(repo_path, base + '/generated', GENERATED, findings, overlay, (TAG_TABLE,)))
     other_tag_tables = (_load_other_devices(repo_path, folders, folder, (TAG_TABLE,))
                         + _load_references(repo_path, [], overlay, (TAG_TABLE,)))
+    # TiaBridge imports a cycle from here: one that cannot be read is a finding
+    cycles = _load_docs(repo_path, base, EXPORT, findings, overlay, (CYCLE,))
     tid, problem = _resolution.select_type_identifier(config, folder or device, folder_name)
     device_problem = device_problem or problem
     hardware = _resolution.resolve(tid)
@@ -452,4 +460,5 @@ def load(repo_path, overlay=None, device=None):
                 findings.append(error(panel_rel, None, 'repo.json', problem))
     return Repo(repo_path, config, exports, generated, planned, handbuilt, panel or hardware, findings, generation,
                 tid, device_problem, faceplate_types, panel, hardware, references, graphics, folder, folders, others,
-                tag_types=_tag_types(tag_tables), tag_tables=tag_tables, other_tag_tables=other_tag_tables)
+                tag_types=_tag_types(tag_tables), tag_tables=tag_tables, other_tag_tables=other_tag_tables,
+                cycles=cycles)

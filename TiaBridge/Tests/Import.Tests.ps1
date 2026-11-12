@@ -46,7 +46,7 @@ Describe 'import of a kind that has no import' {
         Register-Archive (Get-BridgeSession)
         Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = @('Any.xml') })
     }
-    foreach ($kind in 'force_table', 'system_block', 'technology_object', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_cycle', 'hmi_connection') {
+    foreach ($kind in 'force_table', 'system_block', 'technology_object', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_connection') {
         It "$kind is export only, and no library tool is named as the way to change it" {
             $r = Invoke-ImportOfKind $kind
             $r.ok | Should Be $false

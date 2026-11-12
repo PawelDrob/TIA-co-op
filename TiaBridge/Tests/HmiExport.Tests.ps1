@@ -69,6 +69,14 @@ Describe 'export of HMI screens, templates and pop-ups' {
         Test-Path -LiteralPath "$file.partial" | Should Be $false
     }
 
+    It 'exports cycles full whatever options.full says, as a minimal one does not import back unchanged (ticket bridge/327)' {
+        $hmi = [pscustomobject]@{ Cycles = @(New-FakeHmiObject 'Fast') }
+        Mock Get-KindRoot { $hmi }
+        $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'hmi_cycle'; names = @('Fast'); options = [pscustomobject]@{ full = $false } })
+        $r.items[0].files | Should Be 'hmi\cycles\Fast.xml'
+        Get-Content (Join-Path $repo 'hmi\cycles\Fast.xml') | Should Be 'Fast WithDefaults, WithReadOnly'
+    }
+
     It 'keeps options.full for tag tables: the full export replaces the minimal one in hmi\tags' {
         $hmi = [pscustomobject]@{ TagFolder = [pscustomobject]@{ TagTables = @(New-FakeHmiObject 'Tags'); Folders = @() } }
         Mock Get-KindRoot { $hmi }

@@ -33,6 +33,8 @@ from .rules.structure import GROUP
 
 # A heading per rule; a rule not named here is headed by its id.
 TITLES = {
+    'cycle.not-cycle': 'Not a cycle',
+    'cycle.not-full': 'Cycle not exported full',
     'dependent.device': 'Value not taken on Comfort panels',
     'dependent.value': 'Dependent property',
     'document.incomplete': 'Attributes missing',

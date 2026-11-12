@@ -1,5 +1,6 @@
 # Tools\Hmi.ps1 - WinCC Comfort/Advanced kinds for list/export/import/delete (Tools\Objects.ps1):
-# hmi_screen, hmi_template, hmi_popup, hmi_tag_table, hmi_textlist. All SimaticML; see docs/agent/wincc-comfort-openness.md.
+# hmi_screen, hmi_template, hmi_popup, hmi_tag_table, hmi_textlist, hmi_cycle, and the HMI kinds the bridge only exports.
+# All SimaticML; see docs/agent/wincc-comfort-openness.md.
 
 function Get-HmiExportOptions([bool]$Full) {
     if ($Full) { [Siemens.Engineering.ExportOptions]::WithDefaults -bor [Siemens.Engineering.ExportOptions]::WithReadOnly }
@@ -68,14 +69,14 @@ function Invoke-HmiValidator([string]$Repo, [bool]$OverrideStale, [string]$Devic
     @($list | ForEach-Object { $_ })
 }
 
-# The HMI device folder of a generated document: <device> of hmi\<device>\generated\..., '' for hmi\generated\...
-# (one HMI device) or a path outside the repo.
+# The HMI device folder of a document the validator checks: <device> of hmi\<device>\generated\... or of a cycle in
+# hmi\<device>\cycles\..., '' for hmi\generated\... and hmi\cycles\... (one HMI device) or a path outside the repo.
 function Get-HmiDeviceFolder([string]$Repo, [string]$File) {
     $root = [System.IO.Path]::GetFullPath($Repo).TrimEnd('\') + '\'
     $full = [System.IO.Path]::GetFullPath($File)
     if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return '' }
     $parts = $full.Substring($root.Length) -split '\\'
-    if ($parts.Count -ge 4 -and $parts[0] -eq 'hmi' -and $parts[2] -eq 'generated') { return $parts[1] }
+    if ($parts.Count -ge 4 -and $parts[0] -eq 'hmi' -and $parts[1] -ne 'generated' -and $parts[2] -in 'generated', 'cycles') { return $parts[1] }
     ''
 }
 
@@ -114,8 +115,8 @@ function Test-HmiImportGuard([string]$Repo, [object[]]$Files, [bool]$OverrideSta
     $result
 }
 
-# The importGuard of the screen kinds (hmi_screen, hmi_template, hmi_popup) and of hmi_tag_table: an Int tag with
-# Length 1 ended TIA on import (the validator's rules\tagtable.py).
+# The importGuard of the screen kinds (hmi_screen, hmi_template, hmi_popup), of hmi_tag_table (an Int tag with Length 1
+# ended TIA on import: the validator's rules\tagtable.py) and of hmi_cycle (rules\cycle.py).
 $script:HmiImportGuard = { param($repo, $files, $a) Test-HmiImportGuard $repo $files (Get-OptionalBool $a 'override' $false) }
 
 # The precheck of the HMI kinds: before the write, as the folder of a new object is made on the way into it. SimaticML
@@ -269,6 +270,25 @@ Register-ObjectKind 'hmi_textlist' @{
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
 }
 
+# Cycles: the full export only, and imported from it. A minimal export leaves out StartAtStartingPoint when it is true,
+# and TIA's import of it set that false on every cycle, system cycles too; a full export went back unchanged, an edited
+# time and a new cycle landed [PROBE] (2026-11-12, ticket 323). The validator (rules\cycle.py) refuses a cycle document
+# that is no full export, so the import goes from the export folder, where it looks. Not deleted: that was not tried,
+# and an HMI tag names its acquisition cycle.
+Register-ObjectKind 'hmi_cycle' @{
+    scope = 'hmi'; dir = 'hmi\cycles'; importDir = 'hmi\cycles'
+    importGuard = $script:HmiImportGuard
+    defaultOverride = $true
+    noDelete = 'Deleting a cycle was not tried on a real TIA, and an HMI tag names its acquisition cycle.'
+    description = 'cycles (no folders), exported full and imported from hmi\cycles after the HMI validator passed (a minimal export, as older repos hold, is refused: TIA sets StartAtStartingPoint false from it); not deleted'
+    items = { param($hmi) foreach ($c in $hmi.Cycles) { @{ obj = $c; name = $c.Name; folder = '' } } }
+    info = { param($e) @{ isSystem = $e.obj.IsSystemObject } }
+    export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
+    precheck = { param($file, $cache) Test-HmiFileFormat $file }
+    import = { param($hmi, $folder, $file, $override) Import-HmiFile $hmi.Cycles $file $override }
+    whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
+}
+
 # Export only: SimaticML through Export [PROBE] (2026-10-30, project A).
 
 Register-ObjectKind 'hmi_slidein' @{
@@ -299,14 +319,6 @@ Register-ObjectKind 'hmi_vbscript' @{
     scope = 'hmi'; dir = 'hmi\scripts'; exportOnly = $true
     description = 'VB scripts (export only)'
     items = { param($hmi) Get-GroupTree $hmi.VBScriptFolder 'VBScripts' 'Folders' }
-    export = { param($e, $dir, $opt) Export-HmiObject $e $dir $opt }
-}
-
-Register-ObjectKind 'hmi_cycle' @{
-    scope = 'hmi'; dir = 'hmi\cycles'; exportOnly = $true
-    description = 'cycles (export only)'
-    items = { param($hmi) foreach ($c in $hmi.Cycles) { @{ obj = $c; name = $c.Name; folder = '' } } }
-    info = { param($e) @{ isSystem = $e.obj.IsSystemObject } }
     export = { param($e, $dir, $opt) Export-HmiObject $e $dir $opt }
 }
 

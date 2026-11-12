@@ -123,6 +123,22 @@ def group(name, *members):
     return item('Hmi.Screen.Group', name, '<ObjectList>%s</ObjectList>' % ''.join(members))
 
 
+# What a full export of a cycle writes beside CycleTime, CycleUnit and Name, at TIA's defaults [EXPORT] (2026-11-12): a
+# minimal export of a cycle at its defaults leaves all four out.
+CYCLE_DEFAULTS = {'StartAtStartingPoint': 'true', 'StartingPoint': '****-**-**T**:**:**', 'TriggerAtShutdown': 'false',
+                  'TriggerAtStartup': 'false'}
+
+
+def cycle(name, export_setting=FULL_SETTING, full=True, root='Hmi.Cycle.Cycle', **attrs):
+    """A cycle document of 2 s in export shape: CYCLE_DEFAULTS overridden by attrs (None drops one); full=False writes
+    the others alone, as a minimal export of a cycle at its defaults does; export_setting None leaves it out."""
+    attrs = full_attrs(CYCLE_DEFAULTS, {'CycleTime': 2, 'CycleUnit': 'Second', 'Name': name, **attrs}, full)
+    setting = '<ExportSetting>%s</ExportSetting>' % export_setting if export_setting else ''
+    return ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Engineering version="V20" />'
+            '<DocumentInfo><Created>2026-11-12T00:00:00</Created>%s</DocumentInfo><%s ID="0"><AttributeList>%s'
+            '</AttributeList></%s></Document>\n' % (setting, root, attrs_xml(attrs), root))
+
+
 def document(kind, name, items=(), template=None, full=True, export_setting=FULL_SETTING, **attrs):
     """A screen / template / pop-up document with one layer holding the items, in full-export shape: root
     attributes FULL_ROOT[kind] overridden by attrs, DocumentInfo/ExportSetting export_setting (None leaves it

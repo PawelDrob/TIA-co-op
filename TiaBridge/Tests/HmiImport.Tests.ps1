@@ -347,6 +347,85 @@ Describe 'import of a generated HMI tag table (validator guard)' {
     }
 }
 
+# A cycle goes back from its export folder, hmi\[<device>\]cycles, and only as a full export: a minimal one leaves out
+# StartAtStartingPoint when it is true, and TIA's import of it set that false on every cycle (ticket bridge/327). The
+# validator's rules\cycle.py refuses it, as it does a screen's errors.
+Describe 'import of an HMI cycle (validator guard)' {
+    function Get-KindRoot { [pscustomobject]@{ Cycles = @([pscustomobject]@{ Name = 'Fast'; IsSystemObject = $false }) } }
+
+    function New-CycleDocument([string]$Name, [string]$Setting = 'WithDefaults, WithReadOnly', [switch]$Minimal) {
+        $defaults = if ($Minimal) { '' } else { '<StartAtStartingPoint>true</StartAtStartingPoint><StartingPoint>****-**-**T**:**:**</StartingPoint><TriggerAtShutdown>false</TriggerAtShutdown><TriggerAtStartup>false</TriggerAtStartup>' }
+        "<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><Engineering version=`"V20`" /><DocumentInfo><ExportSetting>$Setting</ExportSetting></DocumentInfo>" +
+        "<Hmi.Cycle.Cycle ID=`"0`"><AttributeList><CycleTime>2</CycleTime><CycleUnit>Second</CycleUnit><Name>$Name</Name>$defaults</AttributeList></Hmi.Cycle.Cycle></Document>`r`n"
+    }
+
+    It 'imports a full export over its cycle from hmi\cycles, override by default' {
+        $repo = New-HmiRepo 'CycleFull'
+        Write-TextFile (Join-Path $repo 'hmi\cycles\Fast.xml') (New-CycleDocument 'Fast')
+        $r = Invoke-HmiImport $repo -Kind 'hmi_cycle' -Paths @('hmi\cycles\Fast.xml')
+        $r.ok | Should Be $true
+        $r.override | Should Be $true
+        ($script:imported -join ',') | Should Be 'Fast'
+    }
+
+    It 'imports a new cycle' {
+        $repo = New-HmiRepo 'CycleNew'
+        Write-TextFile (Join-Path $repo 'hmi\cycles\zzSlow.xml') (New-CycleDocument 'zzSlow')
+        $r = Invoke-HmiImport $repo -Kind 'hmi_cycle' -Paths @('hmi\cycles\zzSlow.xml')
+        $r.ok | Should Be $true
+        ($script:imported -join ',') | Should Be 'zzSlow'
+    }
+
+    It 'refuses a minimal export before TIA sees it, and says to export again' {
+        $repo = New-HmiRepo 'CycleMinimal'
+        Write-TextFile (Join-Path $repo 'hmi\cycles\Fast.xml') (New-CycleDocument 'Fast' 'None' -Minimal)
+        $r = Invoke-HmiImport $repo -Kind 'hmi_cycle' -Paths @('hmi\cycles\Fast.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match 'cycle\.not-full'
+        $f = @($r.items[0].findings)
+        $f[0].rule | Should Be 'cycle.not-full'
+        $f[0].document | Should Be 'hmi/cycles/Fast.xml'
+        $f[0].message | Should Match 'Export the cycles again'
+    }
+
+    It 'refuses a cycle file outside hmi\cycles, where the validator does not look' {
+        $repo = New-HmiRepo 'CycleOutside'
+        Write-TextFile (Join-Path $repo 'elsewhere\Fast.xml') (New-CycleDocument 'Fast')
+        $r = Invoke-HmiImport $repo -Kind 'hmi_cycle' -Paths @('elsewhere\Fast.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match 'imported from hmi\\cycles only'
+    }
+
+    It 'checks the cycle of the device given in a project with several HMI devices' {
+        function Get-TiaSoftwareList { @(@{ device = 'HMI_A'; kind = 'hmi' }, @{ device = 'HMI_B'; kind = 'hmi' }) }
+        $repo = Join-Path $TestDrive 'CycleDevices'
+        Write-TextFile (Join-Path $repo 'tiabridge.json') '{ "projectName": "Fixture", "hmiDevices": ["HMI_A", "HMI_B"], "hmiTypeIdentifier": { "HMI_A": "OrderNumber:6AV2 124-0MC01-0AX0/17.0.0.0", "HMI_B": "OrderNumber:6AV2 124-0MC01-0AX0/17.0.0.0" } }'
+        Write-TextFile (Join-Path $repo 'hmi\HMI_A\cycles\Fast.xml') (New-CycleDocument 'Fast' 'None' -Minimal)
+        Write-TextFile (Join-Path $repo 'hmi\HMI_B\cycles\Fast.xml') (New-CycleDocument 'Fast')
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Register-Archive (Get-BridgeSession)
+        $script:imported = @()
+        $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'hmi_cycle'; paths = @('hmi\HMI_B\cycles\Fast.xml'); device = 'HMI_B' })
+        $r.ok | Should Be $true
+        ($script:imported -join ',') | Should Be 'Fast'
+        $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'hmi_cycle'; paths = @('hmi\HMI_A\cycles\Fast.xml'); device = 'HMI_A' })
+        $r.items[0].findings[0].rule | Should Be 'cycle.not-full'
+    }
+
+    It 'is not deleted: delete was not tried on a real TIA, and tags name their cycle' {
+        $repo = New-HmiRepo 'CycleDelete'
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Register-Archive (Get-BridgeSession)
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'hmi_cycle'; names = @('Fast') })
+        $r.ok | Should Be $false
+        $r.refused | Should Match '^Kind hmi_cycle is not deleted by the bridge'
+    }
+}
+
 # A project with several HMI devices exports each into hmi\<device>\; its generated
 # documents are in hmi\<device>\generated\<kind> and the validator checks that device (--device).
 Describe 'import of generated HMI documents of a project with several HMI devices' {
@@ -401,6 +480,9 @@ Describe 'import of generated HMI documents of a project with several HMI device
     It 'finds the device folder of a generated document' {
         Get-HmiDeviceFolder 'C:\R' 'C:\R\hmi\HMI_A\generated\screens\x\Main.xml' | Should Be 'HMI_A'
         Get-HmiDeviceFolder 'C:\R\' 'C:\R\hmi\generated\screens\Main.xml' | Should Be ''
+        Get-HmiDeviceFolder 'C:\R' 'C:\R\hmi\HMI_A\cycles\Fast.xml' | Should Be 'HMI_A'
+        Get-HmiDeviceFolder 'C:\R' 'C:\R\hmi\cycles\Fast.xml' | Should Be ''
+        Get-HmiDeviceFolder 'C:\R' 'C:\R\hmi\generated\cycles\Fast.xml' | Should Be ''
         Get-HmiDeviceFolder 'C:\R' 'C:\Other\hmi\HMI_A\generated\screens\Main.xml' | Should Be ''
     }
 }
