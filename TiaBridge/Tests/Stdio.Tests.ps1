@@ -37,11 +37,12 @@ Describe 'TiaBridge.ps1 over stdio' {
         'this is not json'
         ('{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"echo","arguments":{"text":"' + $long + '"}}}')
         '{"jsonrpc":"2.0","id":4,"method":"tools/list"}'
+        '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"apartment","arguments":{}}}'
     )
     $out = Invoke-BridgeProcess $lines "-ToolScript `"$toolScript`" -NoTools -SettingsPath `"$settings`""
 
     It 'writes exactly one response line per request and none for the notification' {
-        $out.Count | Should Be 5
+        $out.Count | Should Be 6
     }
 
     It 'keeps stray Write-Host and pipeline output of a tool off stdout' {
@@ -66,6 +67,13 @@ Describe 'TiaBridge.ps1 over stdio' {
 
     It 'still answers after all of that' {
         ($out[4] | ConvertFrom-Json).id | Should Be 4
+    }
+
+    # Openness queues TIA's call-backs for a session attached from an STA thread until that thread calls again, and TIA waits
+    # for each: started -STA, as setup registers it, the bridge must still attach from an MTA thread (ticket 94)
+    It 'runs its tools on an MTA thread when started -STA' {
+        (($out[5] | ConvertFrom-Json).result.content[0].text | ConvertFrom-Json).apartment | Should Be 'MTA'
+        $script:LastStderr | Should Match 'STA: False'
     }
 }
 

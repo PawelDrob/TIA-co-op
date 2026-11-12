@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-09T12:06:31-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T11:53:21-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -214,16 +214,28 @@ On copies of a test project, 2026-11-04 `[PROBE]`; the bridge's tools are `proje
   closes in the same way and they are gone**, with no event. In PowerShell the old `Project` object answers afterwards: `Name`
   reads empty, with no exception.
 - **A person's close with a script attached and idle** goes through, with no hang and no message. An older note has TIA unable
-  to close a project with a bridge attached; neither a plain attach nor TiaBridge attached and idle shows that, and what the bridge held then is not known.
+  to close a project with a bridge attached; neither a plain attach nor TiaBridge attached and idle shows that. A close
+  through a second program does hang beside an idle STA client (next point); why a close in TIA's window does not is not known.
 - **The access dialog** shows at the first attach of a program, until someone answers "Yes to all" for that program. An attach
   then takes about a second.
-- **A project bound second, in a second TIA process, gets slow and then hangs,** as seen in work from 2026-10-20 to 2026-10-22: an export took 23 s against
-  2 s, an import 84 s, and then a screen import hung with only the exclusive-access box, Cancel doing nothing. It also hung with
-  the bridge idle and two bridges attached. The cause is not known. When only the exclusive-access box shows, stopping the bridge
-  frees TIA, after about 20 s. `connect` warns on such a switch, `project_open` asks first, `tia_status` names other
-  bridges on the same TIA. On 2026-11-05 a `project_close` hung in *Closing project...* after one bridge bound a project in
-  a second TIA, closed it and went back to the first; stopping the bridge did not free that TIA within 30 s. A second program
-  attached to close the project while a bridge was attached hung too, until it was ended.
+- **TIA waits on a client attached from an STA thread** `[PROBE]` (2026-11-12: stacks of TIA and the client at the hang, and
+  `Siemens.Engineering.dll` read). When a list changes in TIA (a project closes, a block or a group is added), TIA calls back
+  into every Openness session that has read that list (`PageEnumerator.EnumeratorInvalidated`), and its UI thread waits for the
+  answer. A session attached from an STA thread keeps such call-backs in a queue that only its own next call empties, and
+  nothing empties it on dispose; from an MTA thread a call-back runs at once. So beside an STA session that read the list, TIA
+  waits for that session's next call, and for a disposed one until its process ends. Hangs on demand, each from STA and none
+  from MTA: attach, read `Projects`, dispose, attach again, `Close()` (*Closing project...*); two live sessions, `Close()` through
+  the second; block groups read in one session, a group created through the other. A session that reads nothing does not take
+  part. A garbage collection does not release what a session read.
+- **TiaBridge attaches from an MTA thread** of its own since then. Version 0.1.0 ran on the STA thread of `powershell.exe -STA`
+  and hung TIA so, from 2026-10-19 on: after a switch to a project in a second TIA process and back (`connect` disposes the
+  session it leaves), a `project_close` in *Closing project...* or an import with only the exclusive-access box; with the bridge
+  idle; beside a second, stale bridge. Another program attached from an STA thread, a bridge of 0.1.0 among them, still hangs
+  TIA so. Stopping it frees TIA, mostly within seconds; once it did not within 30 s. `tia_status` names other bridges on the
+  same TIA. From an MTA thread call-backs run while the bridge's own calls run, so TIA can change a list between two pages of a
+  read: a read of a list that fails with "Collection was modified" is read again, at most three times in all.
+- **Not explained:** an import of OB `Main` (2026-11-08) that never returned, with one bridge attached once and no other program
+  known; TIA ended when the bridge was stopped. No stack was taken.
 
 ## Sources
 

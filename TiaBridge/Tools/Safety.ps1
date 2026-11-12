@@ -8,37 +8,39 @@
 $script:SafetyPasswordTimeoutMs = 300000
 
 # The password typed into a window on the user's screen as a SecureString, or $null (cancelled, closed, timed out).
-# Seam for the tests.
+# The window runs on an STA thread of its own: the bridge runs on an MTA thread (TiaBridge.ps1). Seam for the tests.
 function Read-SafetyPassword([string]$Title, [string]$Text) {
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = $Title; $form.TopMost = $true; $form.StartPosition = 'CenterScreen'
-    $form.FormBorderStyle = 'FixedDialog'; $form.MaximizeBox = $false; $form.MinimizeBox = $false
-    $form.ClientSize = New-Object System.Drawing.Size(420, 130)
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text = $Text; $label.SetBounds(12, 10, 396, 40)
-    $box = New-Object System.Windows.Forms.TextBox
-    $box.UseSystemPasswordChar = $true; $box.SetBounds(12, 55, 396, 22)
-    $ok = New-Object System.Windows.Forms.Button
-    $ok.Text = 'OK'; $ok.DialogResult = 'OK'; $ok.SetBounds(252, 92, 75, 26)
-    $cancel = New-Object System.Windows.Forms.Button
-    $cancel.Text = 'Cancel'; $cancel.DialogResult = 'Cancel'; $cancel.SetBounds(333, 92, 75, 26)
-    $form.Controls.AddRange(@($label, $box, $ok, $cancel))
-    $form.AcceptButton = $ok; $form.CancelButton = $cancel
-    $timer = New-Object System.Windows.Forms.Timer
-    $timer.Interval = $script:SafetyPasswordTimeoutMs
-    $timer.Add_Tick({ $form.DialogResult = 'Cancel'; $form.Close() })
-    $form.Add_Shown({ $form.Activate(); $box.Focus() | Out-Null; $timer.Start() })
-    try {
-        if ($form.ShowDialog() -ne 'OK' -or -not $box.TextLength) { return $null }
-        $secure = New-Object System.Security.SecureString
-        foreach ($c in $box.Text.ToCharArray()) { $secure.AppendChar($c) }
-        $box.Clear()
-        $secure.MakeReadOnly()
-        $secure
-    }
-    finally { $timer.Dispose(); $form.Dispose() }
+    Invoke-OnStaThread { param($Title, $Text, $TimeoutMs)
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+        $form = New-Object System.Windows.Forms.Form
+        $form.Text = $Title; $form.TopMost = $true; $form.StartPosition = 'CenterScreen'
+        $form.FormBorderStyle = 'FixedDialog'; $form.MaximizeBox = $false; $form.MinimizeBox = $false
+        $form.ClientSize = New-Object System.Drawing.Size(420, 130)
+        $label = New-Object System.Windows.Forms.Label
+        $label.Text = $Text; $label.SetBounds(12, 10, 396, 40)
+        $box = New-Object System.Windows.Forms.TextBox
+        $box.UseSystemPasswordChar = $true; $box.SetBounds(12, 55, 396, 22)
+        $ok = New-Object System.Windows.Forms.Button
+        $ok.Text = 'OK'; $ok.DialogResult = 'OK'; $ok.SetBounds(252, 92, 75, 26)
+        $cancel = New-Object System.Windows.Forms.Button
+        $cancel.Text = 'Cancel'; $cancel.DialogResult = 'Cancel'; $cancel.SetBounds(333, 92, 75, 26)
+        $form.Controls.AddRange(@($label, $box, $ok, $cancel))
+        $form.AcceptButton = $ok; $form.CancelButton = $cancel
+        $timer = New-Object System.Windows.Forms.Timer
+        $timer.Interval = $TimeoutMs
+        $timer.Add_Tick({ $form.DialogResult = 'Cancel'; $form.Close() })
+        $form.Add_Shown({ $form.Activate(); $box.Focus() | Out-Null; $timer.Start() })
+        try {
+            if ($form.ShowDialog() -ne 'OK' -or -not $box.TextLength) { return $null }
+            $secure = New-Object System.Security.SecureString
+            foreach ($c in $box.Text.ToCharArray()) { $secure.AppendChar($c) }
+            $box.Clear()
+            $secure.MakeReadOnly()
+            $secure
+        }
+        finally { $timer.Dispose(); $form.Dispose() }
+    } @($Title, $Text, $script:SafetyPasswordTimeoutMs)
 }
 
 # The SafetyAdministration service of a PLC, $null without; seam for the tests. The PLC software offers none: it

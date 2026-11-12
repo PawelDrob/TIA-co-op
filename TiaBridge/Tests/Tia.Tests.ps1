@@ -232,3 +232,33 @@ Describe 'Limit-ToolResponse' {
         $r.failedCount | Should Be 1
     }
 }
+
+# The bridge attaches from an MTA thread (ticket 94), so TIA can change a list while the bridge reads it.
+Describe 'Read-TiaList' {
+    $changed = 'Collection was modified; enumeration operation may not execute.'
+
+    It 'reads again when TIA changed the list meanwhile, and gives only the last whole read' {
+        $script:n = 0
+        $r = @(Read-TiaList { $script:n++; 'a'; if ($script:n -lt 3) { throw [InvalidOperationException]::new($changed) }; 'b' })
+        $script:n | Should Be 3
+        ($r -join ',') | Should Be 'a,b'
+    }
+
+    It 'knows the change also when Openness wraps it' {
+        $script:n = 0
+        $r = @(Read-TiaList { $script:n++; if ($script:n -eq 1) { throw [System.Management.Automation.MethodInvocationException]::new('outer', [InvalidOperationException]::new($changed)) }; 'x' })
+        ($r -join ',') | Should Be 'x'
+    }
+
+    It 'gives up after three reads and throws the change' {
+        $script:n = 0
+        { Read-TiaList { $script:n++; throw [InvalidOperationException]::new($changed) } } | Should Throw 'Collection was modified'
+        $script:n | Should Be 3
+    }
+
+    It 'reads once and throws any other error' {
+        $script:n = 0
+        { Read-TiaList { $script:n++; throw [InvalidOperationException]::new('other') } } | Should Throw 'other'
+        $script:n | Should Be 1
+    }
+}

@@ -50,6 +50,26 @@ function ConvertTo-BridgeError($ErrorOrException) {
 # dispatch (Set-TiaEnded): catch { if (Test-TiaEndedError $_) { throw }; ... }
 function Test-TiaEndedError($ErrorOrException) { [bool](ConvertTo-BridgeError $ErrorOrException).tiaEnded }
 
+# How many times Read-TiaList reads a list in all.
+$script:TiaListReads = 3
+
+# Runs Read, a loop that only reads TIA lists, and outputs what it gave once a whole read went through. The bridge attaches
+# from an MTA thread (TiaBridge.ps1), so TIA, a person or another program can change a list between two pages of a read:
+# "Collection was modified" reads it again, at most TiaListReads times in all; any other error is thrown at once. Never for
+# a loop that writes: a second run would write again.
+function Read-TiaList([scriptblock]$Read) {
+    for ($readNo = 1; ; $readNo++) {
+        try { $readItems = @(& $Read); break }
+        catch {
+            $readError = ConvertTo-BridgeError $_
+            $readChanged = (@($readError.message) + @($readError.details) + @($readError.inner | ForEach-Object { $_.message })) -match 'Collection was modified'
+            if (-not $readChanged -or $readNo -ge $script:TiaListReads) { throw }
+            if (Get-Command Write-BridgeLog -ErrorAction SilentlyContinue) { Write-BridgeLog "TIA changed a list during the read; read $($readNo + 1) of $script:TiaListReads." }
+        }
+    }
+    foreach ($o in $readItems) { $o }
+}
+
 # CompilerResult, DocumentImportResult, DocumentExportResult (or anything with State/Messages) -> nested hashtables
 function ConvertTo-ResultTree($Result) {
     if ($null -eq $Result) { return $null }
@@ -230,7 +250,7 @@ function Test-TiaAlive {
 # The project at Path in an attached TIA. No other project stands in for it: writes would go to the wrong one. Detaches
 # when it is not there.
 function Find-PortalProject($Portal, [string]$Path) {
-    $project = $Portal.Projects | Where-Object { $_.Path.FullName -eq $Path } | Select-Object -First 1
+    $project = @(Read-TiaList { foreach ($p in $Portal.Projects) { $p } }) | Where-Object { $_.Path.FullName -eq $Path } | Select-Object -First 1
     if ($project) { return $project }
     $Portal.Dispose()
     throw "The TIA process does not have the project $Path open any more. Ask the user to open it, then call connect."
@@ -283,21 +303,23 @@ function Get-TiaService($Obj, [type]$Type) {
 function Get-TiaSoftwareList {
     $project = Get-TiaProject
     if ($script:Bridge.software) { return $script:Bridge.software }
-    $devices = New-Object System.Collections.ArrayList
-    foreach ($d in $project.Devices) { [void]$devices.Add($d) }
-    $stack = New-Object System.Collections.Stack
-    foreach ($g in $project.DeviceGroups) { $stack.Push($g) }
-    while ($stack.Count) { $g = $stack.Pop(); foreach ($d in $g.Devices) { [void]$devices.Add($d) }; foreach ($s in $g.Groups) { $stack.Push($s) } }
-    $list = @(foreach ($dev in $devices) {
-        $items = New-Object System.Collections.Stack
-        foreach ($i in $dev.DeviceItems) { $items.Push($i) }
-        while ($items.Count) {
-            $item = $items.Pop()
-            foreach ($i in $item.DeviceItems) { $items.Push($i) }
-            $sc = Get-TiaService $item ([Siemens.Engineering.HW.Features.SoftwareContainer])
-            if (-not $sc) { continue }
-            $kind = $(if ($sc.Software -is [Siemens.Engineering.SW.PlcSoftware]) { 'plc' } elseif ($sc.Software -is [Siemens.Engineering.Hmi.HmiTarget]) { 'hmi' })
-            if ($kind) { @{ device = $dev.Name; kind = $kind; software = $sc.Software; deviceObject = $dev; deviceItem = $item } }
+    $list = @(Read-TiaList {
+        $devices = New-Object System.Collections.ArrayList
+        foreach ($d in $project.Devices) { [void]$devices.Add($d) }
+        $stack = New-Object System.Collections.Stack
+        foreach ($g in $project.DeviceGroups) { $stack.Push($g) }
+        while ($stack.Count) { $g = $stack.Pop(); foreach ($d in $g.Devices) { [void]$devices.Add($d) }; foreach ($s in $g.Groups) { $stack.Push($s) } }
+        foreach ($dev in $devices) {
+            $items = New-Object System.Collections.Stack
+            foreach ($i in $dev.DeviceItems) { $items.Push($i) }
+            while ($items.Count) {
+                $item = $items.Pop()
+                foreach ($i in $item.DeviceItems) { $items.Push($i) }
+                $sc = Get-TiaService $item ([Siemens.Engineering.HW.Features.SoftwareContainer])
+                if (-not $sc) { continue }
+                $kind = $(if ($sc.Software -is [Siemens.Engineering.SW.PlcSoftware]) { 'plc' } elseif ($sc.Software -is [Siemens.Engineering.Hmi.HmiTarget]) { 'hmi' })
+                if ($kind) { @{ device = $dev.Name; kind = $kind; software = $sc.Software; deviceObject = $dev; deviceItem = $item } }
+            }
         }
     })
     $script:Bridge.software = $list

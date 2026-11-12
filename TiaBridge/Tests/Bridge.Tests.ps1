@@ -92,3 +92,22 @@ Describe 'A failure after a commit' {
         $d.summary | Should Be $null
     }
 }
+
+# The bridge runs on an MTA thread (TiaBridge.ps1, ticket 94); a window needs an STA thread of its own.
+Describe 'Invoke-OnStaThread' {
+    It 'runs the block on an STA thread when called from an MTA thread, with its arguments, and returns its output' {
+        $rs = [runspacefactory]::CreateRunspace(); $rs.ApartmentState = 'MTA'; $rs.Open()
+        $ps = [powershell]::Create(); $ps.Runspace = $rs
+        $null = $ps.AddScript({ param($Dir)
+            foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Bridge.ps1') { . (Join-Path $Dir $f) }
+            "caller $([Threading.Thread]::CurrentThread.GetApartmentState())"
+            Invoke-OnStaThread { param($x) "block $([Threading.Thread]::CurrentThread.GetApartmentState()) $x" } 'given' }).AddArgument((Join-Path $here '..'))
+        $out = @($ps.Invoke())
+        $ps.Dispose(); $rs.Dispose()
+        ($out -join '|') | Should Be 'caller MTA|block STA given'
+    }
+
+    It 'throws what the block throws' {
+        { Invoke-OnStaThread { throw 'from the block' } } | Should Throw 'from the block'
+    }
+}

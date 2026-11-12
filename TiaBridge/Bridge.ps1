@@ -306,3 +306,21 @@ function Invoke-BridgeToolCall($Name, $Handler, $Arguments, [object[]]$Secrets) 
     }
     @{ result = $r; text = (Limit-ToolResponse $r $script:Bridge.settings.maxResponseChars) }
 }
+
+# Runs Block on an STA thread of its own and returns its output: the bridge runs on an MTA thread (TiaBridge.ps1), and a window
+# such as the safety password's needs STA. Block runs in a runspace of its own: it gets only its arguments, none of the
+# bridge's functions or variables. What it throws is thrown here.
+function Invoke-OnStaThread([scriptblock]$Block, [object[]]$ArgumentList = @()) {
+    $rs = [runspacefactory]::CreateRunspace()
+    $rs.ApartmentState = 'STA'; $rs.ThreadOptions = 'ReuseThread'; $rs.Open()
+    $ps = [powershell]::Create(); $ps.Runspace = $rs
+    try {
+        $null = $ps.AddScript($Block.ToString())
+        foreach ($a in $ArgumentList) { $null = $ps.AddArgument($a) }
+        try { $out = $ps.Invoke() }
+        catch { $e = $_.Exception; while ($e.InnerException -and $e -is [System.Management.Automation.MethodInvocationException]) { $e = $e.InnerException }; throw $e }
+        if ($ps.Streams.Error.Count) { throw $ps.Streams.Error[0].Exception }
+        $out
+    }
+    finally { $ps.Dispose(); $rs.Dispose() }
+}

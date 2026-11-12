@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-06T14:04:29-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T11:53:41-05:00 }
 ---
 
 # TiaBridge internals
@@ -19,6 +19,8 @@ Claude Code -- stdio JSON-RPC, UTF-8 --> powershell.exe -STA -File TiaBridge\Tia
                                            stderr: diagnostics and progress lines
                                            state file for observers
 ```
+
+Started `-STA`, as first setup registers it, `TiaBridge.ps1` runs itself again on an MTA thread of its own: Openness answers TIA's call-backs at once only for a client attached from an MTA thread, and TIA waits for each ([the Openness facts](../../agent/openness-v20.md)). The safety password window runs on an STA thread of its own (`Invoke-OnStaThread`).
 
 It is one process per client, attached to one TIA at a time: a `connect` to a project in another TIA attaches there, and `background_open` to a TIA of its own. Windows PowerShell 5.1 with Pester 3.4 for tests: nothing to compile.
 

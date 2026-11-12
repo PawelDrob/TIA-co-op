@@ -4,7 +4,7 @@ title: Known issues
 description: What TIA Openness V20 cannot do and which problems of the tools are not solved, for anyone changing the tools.
 tags: [dev, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-06T12:30:18-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T11:53:41-05:00 }
 ---
 
 # Known issues
@@ -30,7 +30,7 @@ The list is in [the README, Limitations](../../README.md#limitations), and what 
 
 ## TIA itself
 
-- **TIA can hang with a bridge attached** ([the README, Limitations](../../README.md#limitations)). What is known: seen only on a TIA with a window that stops responding, either at near-zero CPU with only the exclusive-access box, also with the bridge idle, or in *Closing project...* (a `project_close` after a switch back to the first TIA process). Stopping the bridge has not always freed it. It points at the attachment (a switch to a second TIA process, a second or stale bridge), not at the kind of object: F-imports have gone through. `connect` warns of such a switch, and `tia_status` names other bridges.
+- **TIA waits on an Openness client attached from an STA thread** ([the Openness facts](../agent/openness-v20.md), [the README, Limitations](../../README.md#limitations)). A change to a list a session read waits for that session's next call. The bridge runs on an MTA thread of its own (`TiaBridge.ps1`), so its call-backs run at once; a window it shows runs on an STA thread of its own (`Invoke-OnStaThread`), and a read of a list TIA changed meanwhile is read again (`Read-TiaList`). Another program attached from an STA thread, a bridge of 0.1.0 among them, still hangs TIA. An import that never returned with one bridge (2026-11-08) is not explained.
 - **TIA ends its own process after a `NonRecoverableException`,** for example on a refused HMI import whose dependent property does not follow its main one. Unsaved edits go with it. The result says `tiaEnded`, and the bridge refuses TIA calls until the next `connect`.
 - **A failing call can wait behind a message box** for many minutes. In a TIA with no window, the bridge answers prompts Cancel or No and lists them. Whether TIA raises those events for every modal message is not proven.
 - **A PLC with a safety program can need the safety login for a whole compile.** F-blocks imported as SimaticML answer "No safety license available" on a PC with no safety license; `.s7dcl` takes them.

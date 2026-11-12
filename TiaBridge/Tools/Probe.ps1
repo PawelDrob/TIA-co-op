@@ -14,7 +14,7 @@ function Resolve-ProbeRoot([string]$Path, [string]$Device = '') {
     }
     $k = Get-ObjectKind $head
     if (-not $rest) { throw "object_path '$Path': give a name after '$($head):'." }
-    $e = @(& $k.items (Get-KindRoot $k $Device)) | Where-Object { $_.name -eq $rest } | Select-Object -First 1
+    $e = @(Get-KindItems $k (Get-KindRoot $k $Device)) | Where-Object { $_.name -eq $rest } | Select-Object -First 1
     if (-not $e) { throw "No $head named '$rest'." }
     $e.obj
 }

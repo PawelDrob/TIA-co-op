@@ -1553,7 +1553,7 @@ function Invoke-MasterCopyToProjectTool($a) {
     if ($modeName -eq 'Replace' -and $k.scope -eq 'plc' -and $a.knowhow -ne $true) {
         # blocks and DBs are two kinds of one tree, and their names are unique across it
         $kinds = if ($k.name -in 'block', 'db') { @('block', 'db') } else { @($k.name) }
-        $entries = @(foreach ($n in $kinds) { & (Get-ObjectKind $n).items $root })
+        $entries = @(foreach ($n in $kinds) { Get-KindItems (Get-ObjectKind $n) $root })
         $isGroup = $target.composition -eq 'Groups'
         $hits = @(Get-KnowHowReplaced $entries @($mc.ContentDescriptions | ForEach-Object { $_.ContentName }) $isGroup)
         if ($hits.Count) {
@@ -1615,7 +1615,7 @@ function Find-MasterCopySource($Kind, $a) {
     if (-not $name -and -not $path) { return @{ refused = 'Name an object with name, or a folder with source_folder.' } }
     $root = Get-KindRoot $Kind ([string]$a.device)
     if ($name) {
-        $e = @(& $Kind.items $root) | Where-Object { $_.name -eq $name } | Select-Object -First 1
+        $e = @(Get-KindItems $Kind $root) | Where-Object { $_.name -eq $name } | Select-Object -First 1
         if (-not $e) { return @{ refused = (Get-NoSuchObjectRefusal $Kind $root $name) } }
         return @{ name = $name; obj = $e.obj; label = "$($Kind.name) $name" }
     }

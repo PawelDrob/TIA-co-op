@@ -8,6 +8,23 @@ param(
     [switch]$ReportRun          # started by a report run of the TIA dashboard (TiaAgentStatus\reportrun.py): Bridge.ps1
 )
 $ErrorActionPreference = 'Stop'
+
+# Openness keeps TIA's call-backs for a session attached from an STA thread in a queue that only that thread's own calls empty,
+# and TIA's UI thread waits for each one: a change TIA made to something a disposed or idle session had read hung TIA
+# (docs\agent\openness-v20.md). From an MTA thread a call-back runs at once. Started -STA, as first setup registers it, the
+# script runs again, whole, on an MTA thread of its own; a window it shows gets an STA thread of its own (Invoke-OnStaThread).
+if ([Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA') {
+    $rs = [runspacefactory]::CreateRunspace($Host)
+    $rs.ApartmentState = 'MTA'; $rs.ThreadOptions = 'ReuseThread'; $rs.Open()
+    $ps = [powershell]::Create(); $ps.Runspace = $rs
+    $null = $ps.AddCommand($PSCommandPath)
+    foreach ($k in $PSBoundParameters.Keys) { $null = $ps.AddParameter($k, $PSBoundParameters[$k]) }
+    try { $null = $ps.Invoke() }
+    catch { [Console]::Error.WriteLine("TiaBridge stopped: $($_.Exception.Message)"); exit 1 }
+    foreach ($e in $ps.Streams.Error) { [Console]::Error.WriteLine("TiaBridge: $e") }
+    exit
+}
+
 foreach ($f in 'Guides.ps1', 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'State.ps1',
                'Tools\Objects.ps1', 'Tools\Plc.ps1', 'Tools\Hmi.ps1', 'Tools\Library.ps1', 'Tools\LibraryChange.ps1',
                'Tools\Session.ps1', 'Tools\Probe.ps1', 'Tools\Report.ps1', 'Tools\Background.ps1', 'Tools\Safety.ps1',

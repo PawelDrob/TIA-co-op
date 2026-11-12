@@ -514,7 +514,7 @@ Describe 'Get-SecondTiaWarning' {
         $w = Get-SecondTiaWarning 11 'C:\A\A.ap20' 12
         $w | Should Match 'second TIA process'
         $w | Should Match ([regex]::Escape('C:\A\A.ap20'))
-        $w | Should Match 'stopping the bridge frees TIA'
+        $w | Should Match 'Tell the user which TIA'
     }
 
     It 'says nothing with no bridge bound before, in the same process, or with the first closed' {

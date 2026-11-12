@@ -88,7 +88,7 @@ function Get-SessionSummary {
 function Set-BridgeStatusNotes($Result) {
     $ids = $(if ($Result.connected) { @([int]$script:Bridge.processId) } else { @($Result.processes | Where-Object { $_.mode -ne 'WithoutUserInterface' } | ForEach-Object { [int]$_.processId }) })
     $others = @(Get-OtherBridges (Get-BridgeStateDir $script:Bridge.settings.projectsRoot) $ids)
-    if ($others.Count) { $Result.otherBridges = $others; $Result.otherBridgesNote = 'Another bridge on one TIA has hung it (cause unknown). Tell the user before you write; only the user stops a bridge of another session.' }
+    if ($others.Count) { $Result.otherBridges = $others; $Result.otherBridgesNote = 'Another bridge on one TIA has hung it: one of version 0.1.0, or another program attached from an STA thread, still can. Tell the user before you write; only the user stops a bridge of another session.' }
     $newer = @(Get-NewerBridgeScripts (Split-Path -Parent $PSScriptRoot) (Get-Process -Id $PID).StartTime)
     if ($newer.Count) { $Result.scriptsNewer = "Changed since this bridge started, so not in what it runs: $($newer -join ', '). A restart of the bridge (/mcp in Claude Code) loads them." }
 }
@@ -237,12 +237,12 @@ function Set-StandardsResult($Result, $Map) {
     if ($Map.standardsNote) { $Result.standardsNote = $Map.standardsNote }
 }
 
-# A switch to a project in another TIA process, with the one before still open: why that is to be said (2026-10-20, 2026-10-21).
+# A switch to a project in another TIA process, with the one before still open: the user looks at one TIA and the writes go to
+# another. Such a switch also hung TIA until the bridge attached from an MTA thread (TiaBridge.ps1, docs\agent\openness-v20.md).
 function Get-SecondTiaWarning([int]$PreviousTia, [string]$PreviousPath, [int]$Tia) {
     if (-not $PreviousTia -or $PreviousTia -eq $Tia) { return $null }
     if (-not @(Get-TiaProcesses | Where-Object { $_.processId -eq $PreviousTia -and $_.path }).Count) { return $null }
-    "This project is in a second TIA process ($Tia), beside $PreviousPath in process $PreviousTia. A project bound second, in a second TIA process, has got slow and then hung TIA (cause unknown). " +
-        'Tell the user. When a write takes more than a minute and TIA shows only the exclusive-access box, stopping the bridge frees TIA: offer that.'
+    "This project is in a second TIA process ($Tia), beside $PreviousPath in process $PreviousTia. Tell the user which TIA the next changes go to."
 }
 
 $script:ProjectOpenWaitMs = 90000
@@ -310,7 +310,7 @@ function Invoke-ProjectOpenTool($a) {
     $beside = @($processes | Where-Object { $_.path -and $_.mode -ne 'WithoutUserInterface' } | ForEach-Object { $_.path })
     $beside += @($waiting | Where-Object { $_ -ne $pending } | ForEach-Object { "$($_.path) (process $($_.processId), still opening or waiting behind a box)" })
     if (-not $pending -and $beside.Count -and -not (Get-OptionalBool $a 'second' $false)) {
-        return New-Refusal ("Open in TIA now: $($beside -join ', '). TIA holds one project per process, so this would start a second TIA process beside it, and a project bound second has got slow and then hung TIA (cause unknown). " +
+        return New-Refusal ("Open in TIA now: $($beside -join ', '). TIA holds one project per process, so this would start a second TIA process beside it, with the memory of a second TIA. " +
                             'Ask the user: close that project first (in TIA, or project_close on the user''s word), or second=true when the user says to run both.')
     }
     if ($pending) { $tia = $pending.processId }

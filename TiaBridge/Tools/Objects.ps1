@@ -21,6 +21,9 @@ function Get-ObjectKind([string]$Name) {
     $k
 }
 
+# The objects of a kind under Root (its items), read again when TIA changed a list during the read (Read-TiaList).
+function Get-KindItems($Kind, $Root) { Read-TiaList { & $Kind.items $Root } }
+
 # Library: '' for the project library, else the name of a global library opened with library_open.
 function Get-KindRoot($Kind, [string]$Device, [string]$Library = '') {
     switch ($Kind.scope) {
@@ -119,7 +122,7 @@ function Get-ExportCollisions($Kind, [object[]]$Entries, $Root, [string]$Library
     foreach ($e in $Entries) { & $add $Kind $e }
     foreach ($o in $script:ObjectKinds.Values) {
         if ($o.name -eq $Kind.name -or $o.dir -ne $Kind.dir -or -not $o.export) { continue }
-        foreach ($e in @(& $o.items $Root)) { & $add $o $e }
+        foreach ($e in @(Get-KindItems $o $Root)) { & $add $o $e }
     }
     $hits = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
     foreach ($b in $byBase.Keys) { if ($byBase[$b].Count -gt 1) { $hits[$b] = @($byBase[$b] | Sort-Object) } }
@@ -216,7 +219,7 @@ function Get-OptionalBool($Arguments, [string]$Name, [bool]$Default) {
 function Invoke-ListTool($a) {
     $k = Get-ObjectKind ([string]$a.kind)
     $null = Get-BridgeSession
-    $entries = @(& $k.items (Get-KindRoot $k ([string]$a.device) ([string]$a.library)))
+    $entries = @(Get-KindItems $k (Get-KindRoot $k ([string]$a.device) ([string]$a.library)))
     if ($a.filter) { $entries = @($entries | Where-Object { Test-NameLike $_.name @($a.filter) }) }
     if ($a.folder) { $f = [string]$a.folder; $entries = @($entries | Where-Object { $_.folder -eq $f -or $_.folder -like "$f/*" }) }
     $items = @(foreach ($e in $entries) {
@@ -247,7 +250,7 @@ function Invoke-ExportTool($a) {
     $opt = $a.options
     if ($null -eq $opt) { $opt = New-Object psobject }
     $root = Get-KindRoot $k ([string]$a.device) ([string]$a.library)
-    $entries = @(& $k.items $root)
+    $entries = @(Get-KindItems $k $root)
     $collisions = Get-ExportCollisions $k $entries $root ([string]$a.library) ([string]$a.device)
     $script:UnchangedExports.Clear()
     # every match first, so each object's progress line has n of m. Ordinal: @{} goes by culture and would skip one of two
@@ -319,7 +322,7 @@ function Get-NamesakeRefusal($Kind, $Root, [string]$Name, [hashtable]$Cache) {
     if (-not $Kind.sharesNamesWith) { return $null }
     if (-not $Cache.ContainsKey('namesakes')) {
         $names = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
-        foreach ($e in @(& (Get-ObjectKind $Kind.sharesNamesWith).items $Root)) { $names[$e.name] = $true }
+        foreach ($e in @(Get-KindItems (Get-ObjectKind $Kind.sharesNamesWith) $Root)) { $names[$e.name] = $true }
         $Cache.namesakes = $names
     }
     if (-not $Cache.namesakes.ContainsKey($Name)) { return $null }
@@ -362,7 +365,7 @@ function Invoke-ImportTool($a) {
     # the save rules: a plc or hmi kind writes to the device resolved here; a library type counts for every device of its scope
     $writeDevice = if ($k.scope -in 'plc', 'hmi') { Get-TiaDeviceName $k.scope ([string]$a.device) }
     $typeDevices = if ($k.scope -eq 'library') { @{ plc = @(Get-TiaDeviceNames 'plc'); hmi = @(Get-TiaDeviceNames 'hmi') } }
-    $entries = @(& $k.items $root)
+    $entries = @(Get-KindItems $k $root)
     # without case, as TIA; not by culture as @{}, which takes spellings for one that TIA keeps apart
     $existing = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
     foreach ($e in $entries) { $existing[$e.name] = $e }
@@ -492,7 +495,7 @@ function Get-FailedNamesNotCreated($Kind, $Root, [object[]]$Plan) {
     $new = @($Plan | Where-Object { -not $_.existing -and -not $_.item.ok -and -not $_.item.notAttempted -and -not $_.item.rolledBack -and -not $_.item.refused } | ForEach-Object { $_.item.name })
     if (-not $new.Count) { return }
     $now = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
-    try { foreach ($e in @(& $Kind.items $Root)) { $now[$e.name] = $true } }
+    try { foreach ($e in @(Get-KindItems $Kind $Root)) { $now[$e.name] = $true } }
     catch { Write-BridgeLog "The objects were not listed after the failed import: $($_.Exception.Message)"; return }
     $new | Where-Object { -not $now.ContainsKey($_) }
 }
@@ -509,7 +512,7 @@ function Invoke-DeleteTool($a) {
     $names = @($a.names | Where-Object { $_ })
     if (-not $names.Count) { return New-Refusal 'names is empty.' }
     if (@($names | Where-Object { $_ -match '[*?]' }).Count) { return New-Refusal 'delete takes exact names, no wildcards.' }
-    $entries = @(& $k.items (Get-KindRoot $k ([string]$a.device) ([string]$a.library)))
+    $entries = @(Get-KindItems $k (Get-KindRoot $k ([string]$a.device) ([string]$a.library)))
     $writeDevice = Get-TiaDeviceName $k.scope ([string]$a.device)
     $safety = $a.safety -eq $true   # only a true opens the safety program, not the text 'false'
     $knowhow = $a.knowhow -eq $true

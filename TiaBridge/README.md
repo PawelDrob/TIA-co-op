@@ -48,8 +48,10 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
 At the first connect, TIA asks whether to allow access: answer **Yes**. The agent follows the skill `tia-change`. It ends
 with a commit in the project repo, a change report and what is left for you, such as the download.
 
-If TIA does not respond for more than a minute, look for an open message box in it. With none, end the agent's session, which
-stops the bridge: it can hang a TIA with a window, and the cause is not known yet. Run one bridge per TIA: a second can hang it too.
+If TIA does not respond for more than a minute, look for an open message box in it. With none, another program attached to
+that TIA can hang it, a bridge of version 0.1.0 among them: the agent's `tia_status` names other bridges. Save in TIA if it
+still answers, then stop that program or end its agent's session. Run one bridge per TIA. Why, and what is not explained yet:
+[the Openness facts](../docs/agent/openness-v20.md).
 
 ### Settings
 

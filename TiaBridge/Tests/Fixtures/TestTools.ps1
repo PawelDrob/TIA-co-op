@@ -6,3 +6,9 @@ Register-McpTool -Name 'echo' -Description 'Echoes text' -Schema @{ type = 'obje
     'stray pipeline output'
     @{ ok = $true; text = $a.text }
 }
+
+# The apartment of the thread a tool runs on: TIA's call-backs wait on a bridge attached from an STA thread (ticket 94).
+Register-McpTool -Name 'apartment' -Description 'The apartment of the tool thread' -Schema @{ type = 'object' } -Handler {
+    param($a)
+    @{ ok = $true; apartment = [string][Threading.Thread]::CurrentThread.GetApartmentState() }
+}

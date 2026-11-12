@@ -118,7 +118,7 @@ function Export-DiagnosticsSettings($Project, [string]$Dir) {
 # Master copies have no export in Openness: their names, folders and contents as an index.
 function Export-MasterCopyIndex($Library, [string]$Dir) {
     $k = Get-ObjectKind 'master_copy'
-    $list = @(foreach ($e in & $k.items $Library) {
+    $list = @(foreach ($e in Get-KindItems $k $Library) {
         $i = & $k.info $e
         [ordered]@{ folder = $e.folder; name = $e.name; author = $i.author; created = $i.created; content = @($i.content) }
     })
@@ -326,7 +326,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record) {
     $Record.listError = Get-DeviceNameRefusal $Part $Device
     if ($Record.listError) { return }
     $k = Get-ObjectKind $Part.kind
-    $entries = @(& $k.items $Root)
+    $entries = @(Get-KindItems $k $Root)
     if ($Part.filter) { $entries = @($entries | Where-Object { & $Part.filter $_ }) }
     $Record.count = $entries.Count
     $collisions = Get-ExportCollisions $k $entries $Root '' $Device
