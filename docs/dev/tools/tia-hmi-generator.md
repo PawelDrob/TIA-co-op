@@ -4,7 +4,7 @@ title: TiaHmiGenerator internals
 description: How WinCC Comfort screens are generated with hmixml, what the validator checks, how the preview server works, and how the screen object catalogue is built.
 tags: [dev, hmi, wincc-comfort]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-06T11:58:19-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T17:14:31-05:00 }
 ---
 
 # TiaHmiGenerator internals
@@ -29,7 +29,7 @@ Every object is copied from a full export or the catalogue's fixture. The genera
 
 ## Validating
 
-`hmipreview.validator.validate(repo, for_import=False, override=False, overlay=None, device=None)` returns findings of `severity`, `document`, `object`, `rule` and `message`. Three callers: `hmixml.finish`, the preview, and the bridge's import guard (`validate --json --import`). The rules read generated documents, as an export is in TIA already. Two read exports too: `document.not-full`, which tells that an export must be made again, and `resolution.screen-size`, a warning on an export.
+`hmipreview.validator.validate(repo, for_import=False, override=False, overlay=None, device=None)` returns findings of `severity`, `document`, `object`, `rule` and `message`. Three callers: `hmixml.finish`, the preview, and the bridge's import guard (`validate --json --import`). The rules read generated documents, as an export is in TIA already. Some read exports too: `document.not-full`, which tells that an export must be made again, `resolution.screen-size`, a warning on an export, and the `cycle` rules, which read only the cycle exports in `<hmi>\cycles`, as the bridge imports cycles from there.
 
 A new rule group is a new file in `hmipreview\rules\` defining `check(repo, ctx)`. Rule ids are `<group>.<rule>`, and each module's head says what each finds and how severe it is.
 
@@ -47,6 +47,8 @@ A new rule group is a new file in `hmipreview\rules\` defining `check(repo, ctx)
 | `iofield` | A format pattern with a decimal point on a tag not known to hold a float |
 | `languages` | Texts missing a project language |
 | `text` | A text that does not fit its box in a language |
+| `tagtable` | A generated HMI tag table whose `Length` or `HmiDataType` does not fit its data type, which ended TIA |
+| `cycle` | A cycle export that is not full or lacks `StartAtStartingPoint` (warning, an error at import); another object in the cycles folder |
 
 **What makes an error** and what a warning: [decisions](../decisions.md#hmi).
 

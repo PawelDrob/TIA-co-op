@@ -47,12 +47,10 @@ from .findings import error
 from .sides import KIND_DIRS as _TOP_KIND_DIRS
 
 KINDS = ('screen', 'template', 'popup', 'textlist')
-KIND_DIRS = {'screen': 'screens', 'template': 'templates', 'popup': 'popups', 'textlist': 'textlists'}
 TAG_TABLE = 'tagtable'    # the kind of a tag table document; not one of KINDS: no screen rule reads it
-TAG_DIR = 'tags'
 CYCLE = 'cycle'           # the kind of a cycle document; not one of KINDS either
-CYCLE_DIR = 'cycles'
-OWN_DIRS = {TAG_TABLE: TAG_DIR, CYCLE: CYCLE_DIR}   # the kinds apart from KINDS, and their folders
+KIND_DIRS = {'screen': 'screens', 'template': 'templates', 'popup': 'popups', 'textlist': 'textlists',
+             TAG_TABLE: 'tags', CYCLE: 'cycles'}
 EXPORT = 'export'
 REFERENCE = 'reference'
 REFERENCE_DIR = 'hmi/references'
@@ -308,7 +306,7 @@ def _load_docs(repo_path, base, origin, findings, overlay, kinds=KINDS):
     One that cannot be read is a document.parse finding in findings, and left out."""
     docs = []
     for kind in kinds:
-        top_rel = base + '/' + (OWN_DIRS.get(kind) or KIND_DIRS[kind])
+        top_rel = base + '/' + KIND_DIRS[kind]
         for rel in _xml_files(repo_path, top_rel, overlay):
             folder, _, fn = rel[len(top_rel) + 1:].rpartition('/')
             try:

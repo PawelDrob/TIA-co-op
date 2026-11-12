@@ -22,14 +22,17 @@ def check(repo, ctx):
                         'its process on an HMI document it could not make. Move it to the folder of its kind.'
                         % (d.obj.tag if d.obj is not None else 'no object', ROOT))
             continue
-        if d.full and d.attr('StartAtStartingPoint') is not None:
+        if not d.full:
+            setting = "'%s'" % d.export_setting if d.export_setting is not None else 'not recorded'
+            what = "ExportSetting is %s, not 'WithDefaults, WithReadOnly'" % setting
+        elif d.attr('StartAtStartingPoint') is None:
+            what = 'the cycle has no StartAtStartingPoint'
+        else:
             continue
-        what = ("ExportSetting is %s, not 'WithDefaults, WithReadOnly'" % (
-            "'%s'" % d.export_setting if d.export_setting is not None else 'not recorded') if not d.full
-            else 'the cycle has no StartAtStartingPoint')
         make = error if ctx.for_import else warning
         yield make(d.path, d.name, 'cycle.not-full',
                    '%s. A minimal export leaves out StartAtStartingPoint when it is true, and TIA imports a file '
                    'without it as false: every cycle of a project changed so. Export the cycles again (TiaBridge '
-                   'export or full_export, kind hmi_cycle, which writes them full), then edit and import that file.'
-                   % what)
+                   'export or full_export, kind hmi_cycle, which writes them full), then edit and import that file. '
+                   'Once only: the next change report shows those cycles changed, by export differences alone, '
+                   'folded.' % what)

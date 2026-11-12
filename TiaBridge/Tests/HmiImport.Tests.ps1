@@ -348,7 +348,7 @@ Describe 'import of a generated HMI tag table (validator guard)' {
 }
 
 # A cycle goes back from its export folder, hmi\[<device>\]cycles, and only as a full export: a minimal one leaves out
-# StartAtStartingPoint when it is true, and TIA's import of it set that false on every cycle (ticket bridge/327). The
+# StartAtStartingPoint when it is true, and TIA's import of it set that false on every cycle (2026-11-12). The
 # validator's rules\cycle.py refuses it, as it does a screen's errors.
 Describe 'import of an HMI cycle (validator guard)' {
     function Get-KindRoot { [pscustomobject]@{ Cycles = @([pscustomobject]@{ Name = 'Fast'; IsSystemObject = $false }) } }

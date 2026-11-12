@@ -133,10 +133,16 @@ def cycle(name, export_setting=FULL_SETTING, full=True, root='Hmi.Cycle.Cycle', 
     """A cycle document of 2 s in export shape: CYCLE_DEFAULTS overridden by attrs (None drops one); full=False writes
     the others alone, as a minimal export of a cycle at its defaults does; export_setting None leaves it out."""
     attrs = full_attrs(CYCLE_DEFAULTS, {'CycleTime': 2, 'CycleUnit': 'Second', 'Name': name, **attrs}, full)
+    return export_document('<%s ID="0"><AttributeList>%s</AttributeList></%s>' % (root, attrs_xml(attrs), root),
+                           export_setting)
+
+
+def export_document(body, export_setting=FULL_SETTING):
+    """The <Document> around one exported object, DocumentInfo/ExportSetting export_setting (None leaves it out)."""
     setting = '<ExportSetting>%s</ExportSetting>' % export_setting if export_setting else ''
     return ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Engineering version="V20" />'
-            '<DocumentInfo><Created>2026-11-12T00:00:00</Created>%s</DocumentInfo><%s ID="0"><AttributeList>%s'
-            '</AttributeList></%s></Document>\n' % (setting, root, attrs_xml(attrs), root))
+            '<DocumentInfo><Created>2026-10-06T00:00:00</Created>%s</DocumentInfo>%s</Document>\n'
+            % (setting, body))
 
 
 def document(kind, name, items=(), template=None, full=True, export_setting=FULL_SETTING, **attrs):
@@ -153,10 +159,7 @@ def document(kind, name, items=(), template=None, full=True, export_setting=FULL
              '</Hmi.Screen.ScreenLayer>' % ''.join(items))
     body = ('<%s ID="0"><AttributeList>%s</AttributeList>%s<ObjectList>%s</ObjectList></%s>'
             % (tag, attrs_xml(attrs), links, layer, tag))
-    setting = '<ExportSetting>%s</ExportSetting>' % export_setting if export_setting else ''
-    return ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Engineering version="V20" />'
-            '<DocumentInfo><Created>2026-10-06T00:00:00</Created>%s</DocumentInfo>%s</Document>\n'
-            % (setting, body))
+    return export_document(body, export_setting)
 
 
 class FixtureRepo:

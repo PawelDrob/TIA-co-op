@@ -1409,7 +1409,7 @@ class LayerAndFoldTest(RepoCase):
         self.assertEqual([{'name': 'Length', 'missing': 'after', 'count': 1}], table['exportNoise'])
 
     def test_a_cycle_exported_full_after_a_minimal_export_is_changed_and_folded(self):
-        # TiaBridge exports cycles full from ticket bridge/327: the first export of an older repo's cycles adds the
+        # TiaBridge exports cycles full from 2026-11-12: the first export of an older repo's cycles adds the
         # attributes the minimal one left out, a change of the file and not of the cycle
         self.repo.write('hmi/cycles/Fast.xml', cycle('Fast', 'None', full=False))
         self.repo.commit()

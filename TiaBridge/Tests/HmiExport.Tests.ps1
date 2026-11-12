@@ -69,7 +69,7 @@ Describe 'export of HMI screens, templates and pop-ups' {
         Test-Path -LiteralPath "$file.partial" | Should Be $false
     }
 
-    It 'exports cycles full whatever options.full says, as a minimal one does not import back unchanged (ticket bridge/327)' {
+    It 'exports cycles full whatever options.full says, as a minimal one does not import back unchanged (2026-11-12)' {
         $hmi = [pscustomobject]@{ Cycles = @(New-FakeHmiObject 'Fast') }
         Mock Get-KindRoot { $hmi }
         $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'hmi_cycle'; names = @('Fast'); options = [pscustomobject]@{ full = $false } })

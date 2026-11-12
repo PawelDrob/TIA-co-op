@@ -272,7 +272,7 @@ Register-ObjectKind 'hmi_textlist' @{
 
 # Cycles: the full export only, and imported from it. A minimal export leaves out StartAtStartingPoint when it is true,
 # and TIA's import of it set that false on every cycle, system cycles too; a full export went back unchanged, an edited
-# time and a new cycle landed [PROBE] (2026-11-12, ticket 323). The validator (rules\cycle.py) refuses a cycle document
+# time and a new cycle landed [PROBE] (2026-11-12). The validator (rules\cycle.py) refuses a cycle document
 # that is no full export, so the import goes from the export folder, where it looks. Not deleted: that was not tried,
 # and an HMI tag names its acquisition cycle.
 Register-ObjectKind 'hmi_cycle' @{
@@ -280,7 +280,7 @@ Register-ObjectKind 'hmi_cycle' @{
     importGuard = $script:HmiImportGuard
     defaultOverride = $true
     noDelete = 'Deleting a cycle was not tried on a real TIA, and an HMI tag names its acquisition cycle.'
-    description = 'cycles (no folders), exported full and imported from hmi\cycles after the HMI validator passed (a minimal export, as older repos hold, is refused: TIA sets StartAtStartingPoint false from it); not deleted'
+    description = 'cycles (no folders), exported full and imported from hmi\[<device>\]cycles after the HMI validator passed (a minimal export, as older repos hold, is refused: TIA sets StartAtStartingPoint false from it); not deleted'
     items = { param($hmi) foreach ($c in $hmi.Cycles) { @{ obj = $c; name = $c.Name; folder = '' } } }
     info = { param($e) @{ isSystem = $e.obj.IsSystemObject } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }

@@ -45,6 +45,7 @@ class CycleRuleTest(unittest.TestCase):
         self.assertIn('StartAtStartingPoint', message)
         self.assertIn('as false', message)
         self.assertIn('Export the cycles again', message)
+        self.assertIn('next change report', message)
 
     def test_the_preview_warns(self):
         self.assertEqual([('warning', 'hmi/cycles/Fast.xml', 'Fast', 'cycle.not-full')],
