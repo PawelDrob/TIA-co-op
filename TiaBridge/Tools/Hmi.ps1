@@ -279,7 +279,7 @@ Register-ObjectKind 'hmi_cycle' @{
     scope = 'hmi'; dir = 'hmi\cycles'; importDir = 'hmi\cycles'
     importGuard = $script:HmiImportGuard
     defaultOverride = $true
-    noDelete = 'Deleting a cycle was not tried on a real TIA, and an HMI tag names its acquisition cycle.'
+    noDelete = 'Deleting a cycle was not tried on a real TIA, and an HMI tag names its acquisition cycle. Delete it in TIA.'
     description = 'cycles (no folders), exported full and imported from hmi\[<device>\]cycles after the HMI validator passed (a minimal export, as older repos hold, is refused: TIA sets StartAtStartingPoint false from it); not deleted'
     items = { param($hmi) foreach ($c in $hmi.Cycles) { @{ obj = $c; name = $c.Name; folder = '' } } }
     info = { param($e) @{ isSystem = $e.obj.IsSystemObject } }

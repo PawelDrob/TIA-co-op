@@ -203,14 +203,14 @@ Register-ObjectKind 'plc_tag_table' @{
     import = { param($plc, $folder, $file, $override) Import-SimaticMlFile (Get-OrCreateGroup $plc.TagTableGroup $folder 'Groups').TagTables $file $override }
 }
 
-# The check of an imported watch table: TIA answers OK to a row whose symbol the PLC does not have and leaves the table not
-# consistent with no rows (docs\agent\openness-v20.md, Watch and force tables), so a table not consistent is an error. Reads
-# IsConsistent only: counting Entries inside the transaction ended TIA.
-function Test-ImportedWatchTables([object[]]$Tables) {
+# The check of an imported watch or force table (What names which): TIA answers OK to a row whose symbol the PLC does not
+# have and leaves the table not consistent, a watch table with no rows (docs\agent\openness-v20.md, Watch and force
+# tables), so a table not consistent is an error. Reads IsConsistent only: counting Entries inside the transaction ended TIA.
+function Test-ImportedTables([object[]]$Tables, [string]$What) {
     $broken = @($Tables | Where-Object { -not $_.IsConsistent } | ForEach-Object { [string]$_.Name })
     if (-not $broken.Count) { return $null }
     @{ type = 'TiaBridge.NotConsistent'
-       message = "TIA took the file and left watch table '$($broken -join "', '")' not consistent, with none of its rows: a row names a symbol the PLC does not have (a tag or DB member, also a nested member written flat). TIA does not say which row. Check each row's Name against the PLC, fix the file and import it again ($(Get-GuidePath 'openness-v20.md') section 1, Watch and force tables)." }
+       message = "TIA took the file and left $What '$($broken -join "', '")' not consistent: a row names a symbol the PLC does not have (a tag or DB member, also a nested member written flat). TIA does not say which row. Check each row's Name against the PLC, fix the file and import it again ($(Get-GuidePath 'openness-v20.md') section 1, Watch and force tables)." }
 }
 
 Register-ObjectKind 'watch_table' @{
@@ -222,7 +222,31 @@ Register-ObjectKind 'watch_table' @{
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
     precheck = { param($file, $cache) if ($file.format -ne 'xml') { @{ ok = $false; refused = 'Watch tables are SimaticML (.xml) only.' } } }
     import = { param($plc, $folder, $file, $override)
-        Import-SimaticMlFile (Get-OrCreateGroup $plc.WatchAndForceTableGroup $folder 'Groups').WatchTables $file $override { param($list) Test-ImportedWatchTables $list } }
+        Import-SimaticMlFile (Get-OrCreateGroup $plc.WatchAndForceTableGroup $folder 'Groups').WatchTables $file $override { param($list) Test-ImportedTables $list 'watch table' } }
+}
+
+# One force table per PLC, which TIA makes and has no Delete() for: Import over it takes its rows, and a file of another
+# name answers "'Create' is not supported by type '...PlcForceTableComposition'", so the bridge refuses that name first. A
+# row of a missing symbol throws, or with no DisplayFormat leaves the table not consistent, as of a watch table.
+# ForceIntention is read-only, so no file arms a force (docs\agent\openness-v20.md, Watch and force tables).
+$script:ForceTableOnline = 'A force table import changes the offline force table only, nothing in the CPU: a file cannot set a force mark (ForceIntention is read-only). Forcing stays the user''s, online in TIA.'
+
+Register-ObjectKind 'force_table' @{
+    scope = 'plc'; dir = 'plc\forcetables'; defaultOverride = $true
+    description = 'force tables (SimaticML; the PLC''s one table, imported over itself)'
+    noDelete = 'A PLC has one force table, which TIA makes and keeps: it has no Delete.'
+    items = { param($plc) Get-GroupTree $plc.WatchAndForceTableGroup 'ForceTables' 'Groups' }
+    whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
+    export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
+    precheck = { param($file, $cache, $entries)
+        if ($file.format -ne 'xml') { return @{ ok = $false; refused = 'Force tables are SimaticML (.xml) only.' } }
+        if (-not @($entries | Where-Object { $_.name -eq $file.objectName }).Count) {
+            $own = @($entries | ForEach-Object { "'$($_.name)'" }) -join ', '
+            @{ ok = $false; refused = "A PLC has one force table, and TIA makes no other: '$($file.objectName)' is not it$(if ($own) { " (the PLC's is $own)" }). Import the PLC's force table under its own name." }
+        } }
+    import = { param($plc, $folder, $file, $override)
+        Import-SimaticMlFile (Get-OrCreateGroup $plc.WatchAndForceTableGroup $folder 'Groups').ForceTables $file $override { param($list) Test-ImportedTables $list 'force table' } }
+    afterImport = { param($result, $items) $result.online = $script:ForceTableOnline }
 }
 
 # Export only: SimaticML through Export, as the Openness V20 assembly offers it for these
@@ -244,12 +268,5 @@ Register-ObjectKind 'technology_object' @{
     scope = 'plc'; dir = 'plc\technology'; exportOnly = $true
     description = 'technology objects (export only, SimaticML)'
     items = { param($plc) Get-GroupTree $plc.TechnologicalObjectGroup 'TechnologicalObjects' 'Groups' }
-    export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
-}
-
-Register-ObjectKind 'force_table' @{
-    scope = 'plc'; dir = 'plc\forcetables'; exportOnly = $true
-    description = 'force tables (export only, SimaticML)'
-    items = { param($plc) Get-GroupTree $plc.WatchAndForceTableGroup 'ForceTables' 'Groups' }
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
 }

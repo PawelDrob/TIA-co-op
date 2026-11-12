@@ -46,7 +46,7 @@ Describe 'import of a kind that has no import' {
         Register-Archive (Get-BridgeSession)
         Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = @('Any.xml') })
     }
-    foreach ($kind in 'force_table', 'system_block', 'technology_object', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_connection') {
+    foreach ($kind in 'system_block', 'technology_object', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_connection') {
         It "$kind is export only, and no library tool is named as the way to change it" {
             $r = Invoke-ImportOfKind $kind
             $r.ok | Should Be $false
@@ -593,5 +593,111 @@ Describe 'import of watch tables' {
         $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'watch_table'; names = @('Good') })
         $r.ok | Should Be $true
         $script:deleted -join ',' | Should Be 'Good'
+    }
+}
+
+# A PLC has one force table, and TIA makes no other: a file of another name answers "'Create' is not supported by type
+# '...PlcForceTableComposition'" (docs\agent\openness-v20.md). ForceIntention is read-only, so no file arms a force: the
+# import writes the offline table only. The kind checks the table TIA returns as watch tables do.
+Describe 'import of force tables' {
+    $repo = Join-Path $TestDrive 'Fo'
+    function Write-ForceTable([string]$Path, [string]$Name, [string]$Row = '%Q0.0:P') {
+        Write-TextFile (Join-Path $repo $Path) ("<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><SW.WatchAndForceTables.PlcForceTable ID=`"0`">" +
+            "<AttributeList><Name>$Name</Name></AttributeList><ObjectList><SW.WatchAndForceTables.PlcForceTableEntry ID=`"1`" CompositionName=`"Entries`">" +
+            "<AttributeList><Address>$Row</Address><ForceValue>TRUE</ForceValue></AttributeList></SW.WatchAndForceTables.PlcForceTableEntry></ObjectList></SW.WatchAndForceTables.PlcForceTable></Document>")
+    }
+    Write-ForceTable 'plc\forcetables\Force table.xml' 'Force table'
+    Write-ForceTable 'plc\forcetables\Broken.xml' 'Force table' '"Data".noSuchMember'
+    Write-ForceTable 'plc\forcetables\Other.xml' 'Other'
+    Write-TextFile (Join-Path $repo 'plc\forcetables\Watch1.xml') '<Document><SW.WatchAndForceTables.PlcWatchTable ID="0"><AttributeList><Name>Watch1</Name></AttributeList></SW.WatchAndForceTables.PlcWatchTable></Document>'
+    Write-TextFile (Join-Path $repo 'plc\forcetables\Force table.s7dcl') 'x'
+    Write-ForceTable 'plc\watchtables\Force table.xml' 'Force table'
+
+    function New-ForceTable([string]$Name, [bool]$Consistent = $true) {
+        $t = [pscustomobject]@{ Name = $Name; IsConsistent = $Consistent }
+        Add-Member -InputObject $t ScriptProperty Entries { $script:entriesRead++; throw 'Entries read' }
+        Add-Member -InputObject $t ScriptMethod Delete { $script:deleted += @($this.Name) }
+        $t
+    }
+    # the PLC holds its one force table, 'Force table'; an imported file whose row names noSuchMember comes back not consistent
+    function Get-KindRoot {
+        $tables = New-Object System.Collections.ArrayList
+        [void]$tables.Add((New-ForceTable 'Force table'))
+        Add-Member -InputObject $tables ScriptMethod Import { param($file, $options)
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+            $name = [regex]::Match($text, '<Name>([^<]*)</Name>').Groups[1].Value
+            $script:imported += @("$name $options")
+            , @(New-ForceTable $name ($text -notmatch 'noSuchMember')) }
+        $groups = New-Object System.Collections.ArrayList
+        Add-Member -InputObject $groups ScriptMethod Find { param($n) $null }
+        Add-Member -InputObject $groups ScriptMethod Create { param($n) $script:groupsMade += @($n); [pscustomobject]@{ ForceTables = $tables; WatchTables = @(); Groups = @() } }
+        [pscustomobject]@{ WatchAndForceTableGroup = [pscustomobject]@{ ForceTables = $tables; WatchTables = @(); Groups = $groups } }
+    }
+    function Invoke-ForceImport([string[]]$Paths, [string]$Kind = 'force_table') {
+        $script:imported = @(); $script:groupsMade = @(); $script:entriesRead = 0; $script:committed = $null
+        Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = $Paths })
+    }
+    BeforeEach {
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Register-Archive (Get-BridgeSession)
+    }
+
+    It 'imports the PLC''s force table over itself, with Override, and says that nothing of it reaches the CPU' {
+        $r = Invoke-ForceImport @('plc\forcetables\Force table.xml')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'Force table Override'
+        $script:groupsMade.Count | Should Be 0
+        $script:committed | Should Be $true
+        $script:entriesRead | Should Be 0
+        $r.online | Should Match 'offline force table only, nothing in the CPU'
+        $r.online | Should Match 'cannot set a force mark'
+        $r.online | Should Match 'Forcing stays the user''s, online'
+    }
+
+    It 'refuses a force table of another name before TIA is asked, naming the PLC''s one' {
+        $r = Invoke-ForceImport @('plc\forcetables\Other.xml')
+        $r.ok | Should Be $false
+        $r.items[0].refused | Should Match "'Other' is not it"
+        $r.items[0].refused | Should Match "'Force table'"
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'rolls back a table TIA leaves not consistent, names it as a force table, and never reads its rows' {
+        $r = Invoke-ForceImport @('plc\forcetables\Broken.xml')
+        $r.ok | Should Be $false
+        $r.rolledBack | Should Be $true
+        $script:committed | Should Be $false
+        $r.items[0].name | Should Be 'Force table'
+        $r.items[0].error.type | Should Be 'TiaBridge.NotConsistent'
+        $r.items[0].error.message | Should Match "force table 'Force table' not consistent"
+        $r.items[0].Contains('imported') | Should Be $false
+        $script:entriesRead | Should Be 0
+    }
+
+    It 'refuses the save after the rolled-back failure, until the table is imported good' {
+        $r = Invoke-ForceImport @('plc\forcetables\Broken.xml')
+        $r.rolledBack | Should Be $true
+        @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Match 'A write failed and was not redone successfully: plc@PLC_1:Force table'
+        $null = Invoke-ForceImport @('plc\forcetables\Force table.xml')
+        @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Not Match 'failed'
+    }
+
+    It 'refuses a file that is no SimaticML, and a watch table document, before TIA is asked; and a force table under watch_table' {
+        $r = Invoke-ForceImport @('plc\forcetables\Force table.s7dcl')
+        $r.items[0].refused | Should Match 'SimaticML'
+        $r = Invoke-ForceImport @('plc\forcetables\Watch1.xml')
+        $r.items[0].refused | Should Match 'holds a watch table: import it with kind watch_table, not force_table'
+        $r = Invoke-ForceImport @('plc\watchtables\Force table.xml') 'watch_table'
+        $r.items[0].refused | Should Match 'holds a force table: import it with kind force_table, not watch_table'
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'does not delete the PLC''s force table' {
+        $script:deleted = @()
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'force_table'; names = @('Force table') })
+        $r.ok | Should Be $false
+        $r.refused | Should Match 'one force table'
+        @($script:deleted).Count | Should Be 0
     }
 }

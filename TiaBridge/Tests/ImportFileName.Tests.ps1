@@ -536,6 +536,8 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
     Write-TextFile (Join-Path $script:repo 'library\types\Table\Lib1.xml') $tableXml.Replace('Tags1', 'Lib1')
     Write-TextFile (Join-Path $script:repo 'library\types\Screen\Lib1.xml') $screenXml.Replace('Screen1', 'Lib1')
     Write-TextFile (Join-Path $script:repo 'library\types\Watch\Lib1.xml') (Get-Content (Join-Path $script:repo 'plc\tags\Watch1.xml') -Raw).Replace('Watch1', 'Lib1')
+    Write-TextFile (Join-Path $script:repo 'plc\tags\Force1.xml') '<Document><SW.WatchAndForceTables.PlcForceTable ID="0"><AttributeList><Name>Force1</Name></AttributeList></SW.WatchAndForceTables.PlcForceTable></Document>'
+    Write-TextFile (Join-Path $script:repo 'library\types\Force\Lib1.xml') (Get-Content (Join-Path $script:repo 'plc\tags\Force1.xml') -Raw).Replace('Force1', 'Lib1')
     # as Python's ElementTree writes them back: a tag table declaring utf-8-sig, an OB with its namespaces as prefixes
     Write-TextFile (Join-Path $script:repo 'plc\tags\SigTags.xml') "<?xml version=`"1.0`" encoding=`"utf-8-sig`"?>`r`n$tableXml"
     Write-TextFile (Join-Path $script:repo 'plc\blocks\TreeOb.xml') ("<?xml version='1.0' encoding='utf-8'?>`n<Document xmlns:ns0=`"http://www.siemens.com/automation/Openness/SW/Interface/v5`">`n" +
@@ -658,12 +660,17 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
         }
     }
 
-    It 'refuses a SimaticML tag table, watch table or HMI document under a kind of other objects' {
+    It 'refuses a SimaticML tag table, watch table, force table or HMI document under a kind of other objects' {
         foreach ($case in @(
             @('block', 'plc\tags\Watch1.xml', 'holds a watch table.*kind watch_table'),
             @('plc_tag_table', 'plc\tags\Watch1.xml', 'holds a watch table.*kind watch_table'),
             @('watch_table', 'plc\tags\Tags1.xml', 'holds a PLC tag table.*kind plc_tag_table'),
             @('watch_table', 'plc\tags\Screen1.xml', 'holds an HMI object'),
+            @('block', 'plc\tags\Force1.xml', 'holds a force table.*kind force_table'),
+            @('plc_tag_table', 'plc\tags\Force1.xml', 'holds a force table.*kind force_table'),
+            @('watch_table', 'plc\tags\Force1.xml', 'holds a force table.*kind force_table'),
+            @('force_table', 'plc\tags\Tags1.xml', 'holds a PLC tag table.*kind plc_tag_table'),
+            @('force_table', 'plc\tags\Screen1.xml', 'holds an HMI object'),
             @('block', 'plc\tags\Tags1.xml', 'holds a PLC tag table.*kind plc_tag_table'),
             @('db', 'plc\tags\Tags1.xml', 'holds a PLC tag table.*kind plc_tag_table'),
             @('type', 'plc\tags\Tags1.xml', 'holds a PLC tag table.*kind plc_tag_table'),
@@ -684,7 +691,7 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
     }
 
     It 'refuses a tag table or HMI document for a library type, new or in work' {
-        foreach ($path in 'library\types\Table\Lib1.xml', 'library\types\Screen\Lib1.xml', 'library\types\Watch\Lib1.xml') {
+        foreach ($path in 'library\types\Table\Lib1.xml', 'library\types\Screen\Lib1.xml', 'library\types\Watch\Lib1.xml', 'library\types\Force\Lib1.xml') {
             $r = Invoke-LibraryImport @('Lib1') @($path)
             $r.items[0].refused | Should Match 'a library type is a PLC data type, an FB or an FC'
             @($script:created).Count | Should Be 0
