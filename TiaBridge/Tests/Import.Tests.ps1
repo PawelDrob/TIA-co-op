@@ -559,6 +559,13 @@ Describe 'import of watch tables' {
         @(Test-SaveAllowed (Get-BridgeSession)) -join ' ' | Should Not Match 'failed'
     }
 
+    It 'holds nothing for a new table rolled back: it is not in the project' {
+        $r = Invoke-WatchImport @('plc\watchtables\Broken.xml')
+        $r.rolledBack | Should Be $true
+        $r.next | Should Match 'Nothing of it is in TIA'
+        @(Test-SaveAllowed (Get-BridgeSession)).Count | Should Be 0
+    }
+
     Context 'without a transaction' {
         function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf) {
             @{ output = @(& $Body); transaction = $false; rolledBack = $false; commitError = $null; note = $null }
