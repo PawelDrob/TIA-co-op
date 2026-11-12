@@ -281,6 +281,23 @@ Describe 'import of a screen whose number another screen has' {
             @($script:imported).Count | Should Be 0
             foreach ($i in $r.items) { $i.refused | Should Match "no screen is imported unchecked: Screen 'Alarms' could not be exported to read its number: Export failed\." }
         }
+
+        It 'refuses a document whose number is no whole number' {
+            $repo = New-HmiRepo 'NotANumber'
+            Set-InTia @{ Main = 1 }
+            $r = Invoke-NumberImport $repo @(Write-Generated $repo 'New' '2.0')
+            $r.ok | Should Be $false
+            $r.items[0].refused | Should Match "Screen 'New': its number '2\.0' is no whole number"
+        }
+
+        It 'refuses every screen when the export of a screen in TIA cannot be read, as it cannot tell the number' {
+            $repo = New-HmiRepo 'UnreadableExport'
+            Set-InTia @{ Main = 1 }
+            function Export-ObjectFile($Obj, [string]$File, $Options) { Write-TextFile $File '<Document><unclosed>' }
+            $r = Invoke-NumberImport $repo @(Write-Generated $repo 'New' '5')
+            $r.ok | Should Be $false
+            $r.items[0].refused | Should Match "Screen 'Main' could not be exported to read its number"
+        }
     }
 }
 

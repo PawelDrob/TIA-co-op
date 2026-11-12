@@ -851,8 +851,8 @@ function Register-ObjectTools {
         'HMI screens/templates/pop-ups/tag tables are imported from hmi\generated\<kind> only (tag tables: hmi\generated\tags; hmi\<device>\generated\<kind> in a project with several HMI devices) and checked first by python -m hmipreview validate --import [--device]: refused on its errors for the imported documents ' +
         '(findings listed per item), on open planned items, and for screens/templates/pop-ups on a TIA export newer than the generated document unless override is passed as true (the screen default does not count; an existing tag table is refused anyway). ' +
         'Refused: .s7dcl of an OB; HMI screens/templates/pop-ups whose faceplate type versions are not in the project library; ' +
-        'an HMI screen whose number another screen of the device has, in TIA or earlier in the call, new or over another screen (it ended TIA; the bridge exports each screen of the device to read its number, ' +
-        'an override takes the document''s number and frees the one it had, a document without a number gets the lowest free one); any write before the session archive; ' +
+        "an HMI screen whose number another screen of the device has, in TIA or earlier in the call, new or over another screen (it ended TIA; the refusal names that screen; numbering rules: $(Get-GuidePath 'openness-v20.md') section 2), " +
+        'or whose number is no whole number; any write before the session archive; ' +
         'an F-block (the file or the object it replaces) or the document of an F-compliant PLC data type without safety: true (a data type by its document only: with the mark taken out, nothing refuses it); override of a know-how protected block; override of hmi_tag_table (it crashed TIA: delete the table first, then import). ' +
         'Import HMI documents only after the user''s yes to their preview. Skill tia-change, hmi.md, holds that stop and the order of HMI imports. Never re-import a screen that holds an alarm view or diagnostics view ' +
         '(the export drops them). A call is all or nothing: one refused or failed file and nothing of the call is imported ' +

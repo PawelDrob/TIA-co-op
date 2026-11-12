@@ -140,11 +140,14 @@ function Test-HmiScreenFile($File, [hashtable]$Cache) {
 # number it had is free after it; a document without a number gets the lowest number no other screen has. Templates and
 # pop-ups have no number.
 
-# The number a screen document declares, $null for none or a document that cannot be read.
+# The number a screen document declares, $null for none. Throws for a document that cannot be read or a number that is no
+# whole number: the guard cannot tell which screen it would clash with, and what TIA does with it was not tried.
 function Get-ScreenDocumentNumber([string]$Path) {
-    try { $node = (Read-DocumentXml $Path).SelectSingleNode('/Document/Hmi.Screen.Screen/AttributeList/Number') } catch { return $null }
+    $node = (Read-DocumentXml $Path).SelectSingleNode('/Document/Hmi.Screen.Screen/AttributeList/Number')
+    if (-not $node) { return $null }
     $n = 0
-    if ($node -and [int]::TryParse($node.InnerText.Trim(), [ref]$n)) { $n } else { $null }
+    if (-not [int]::TryParse($node.InnerText.Trim(), [ref]$n)) { throw "its number '$($node.InnerText)' is no whole number" }
+    $n
 }
 
 # The device's screens in TIA by number: number -> name. Openness gives a screen its name only (get_Number is not
@@ -157,9 +160,8 @@ function Get-HmiScreenNumbers([object[]]$Entries) {
         $i = 0
         foreach ($e in $Entries) {
             $file = Join-Path $dir "$i.xml"; $i++
-            try { Export-ObjectFile $e.obj $file (Get-HmiExportOptions $false) }
+            try { Export-ObjectFile $e.obj $file (Get-HmiExportOptions $false); $n = Get-ScreenDocumentNumber $file }
             catch { throw "Screen '$($e.name)' could not be exported to read its number: $($_.Exception.Message)" }
-            $n = Get-ScreenDocumentNumber $file
             $numbers[$(if ($null -eq $n) { 1 } else { $n })] = $e.name
         }
     }
@@ -179,7 +181,8 @@ function Test-HmiScreenNumber($File, [hashtable]$Cache, [object[]]$Entries) {
     if ($Cache.screenNumbersFailed) { return @{ ok = $false; refused = $Cache.screenNumbersFailed } }
     $taken = $Cache.screenNumbers
     $name = if ($File.objectName) { [string]$File.objectName } else { [string]$File.name }
-    $n = Get-ScreenDocumentNumber $File.file
+    try { $n = Get-ScreenDocumentNumber $File.file }
+    catch { return @{ ok = $false; refused = "Screen '$name': $($_.Exception.Message), so its number cannot be checked against the other screens of the device. Write the number as an export does." } }
     $holder = if ($null -ne $n) { $taken[$n] }
     if ($holder -and -not [string]::Equals($holder.name, $name, [StringComparison]::OrdinalIgnoreCase)) {
         $whose = if ($holder.path) { "screen '$($holder.name)' of $($holder.path) in this import" } else { "screen '$($holder.name)' in TIA" }
