@@ -4,7 +4,7 @@ title: Known issues
 description: What TIA Openness V20 cannot do and which problems of the tools are not solved, for anyone changing the tools.
 tags: [dev, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T18:35:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T19:00:00-05:00 }
 ---
 
 # Known issues
@@ -20,7 +20,7 @@ The list is in [the README, Limitations](../../README.md#limitations), and what 
 - **Blocks that are not consistent** can refuse their export: compile them first, on the project open in TIA after `connect` (its session archive is the way back) or in a background session on a copy.
 - **The 14 screen objects TIA does not export,** such as the alarm view: an import over their screen deletes them with no message. Such screens go in `hmi\handbuilt.json`, and the validator refuses a generated document over them (`handbuilt.override`).
 - **F-system blocks and the F-OB:** `full_export` lists them as left out.
-- **Know-how protected blocks:** an import over one replaces it unprotected, with no message, so the bridge refuses it.
+- **Know-how protected blocks:** an import over one replaces it unprotected, with no message, so the bridge refuses it. A technology object can read know-how protected in TIA, by Siemens' own protection of its system block (a PID_Compact 2.4 does, an external encoder 6.0 does not): the bridge imports over one.
 - **External source contents** do not export: counted only.
 
 ## What the tools leave out
@@ -48,7 +48,7 @@ The list is in [the README, Limitations](../../README.md#limitations), and what 
 
 What each tool does not do is in its README, under "What it does not". Beyond those:
 
-- **The bridge, not run on content:** technology objects of kinds other than those its import names as tried, PLC alarm text lists, graphic lists, VB scripts, connections, external sources. They are built from the API documentation.
+- **The bridge, not run on content:** technology objects of elements and versions other than those its import names as tried, PLC alarm text lists, graphic lists, VB scripts, connections, external sources. They are built from the API documentation.
 - **The bridge does not reach software units:** their folders are a tree of their own.
 - **A killed bridge leaves its background TIA and copy.** The next `background_open` removes copies of bridges that are gone and lists the TIA processes, which a person ends.
 - **Logins of protected projects,** UMC included: [the Archive Compare README](../../TiaArchiveCompare/README.md#what-it-does-not), Protected projects.

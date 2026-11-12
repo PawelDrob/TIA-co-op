@@ -253,8 +253,8 @@ Register-ObjectKind 'force_table' @{
 }
 
 # Technology objects go back through TechnologicalInstanceDBComposition.Import with Override. What a real TIA V20 was
-# tried with, as "<OfSystemLibElement> <OfSystemLibVersion>" of the document, and how where it matters: each made new from
-# a file and round tripped identically (docs\agent\openness-v20.md, Technology objects). After an import the object
+# tried with, by system library element and version ("<OfSystemLibElement> <OfSystemLibVersion>" of the document), and
+# how where it matters: each made new from a file and round tripped identically (docs\agent\openness-v20.md, Technology objects). After an import the object
 # reads not consistent and TIA refuses its export until the PLC is compiled; a block that uses it was seen not consistent
 # until then too.
 $script:VirtualAxisTried = 'as a virtual axis only, without a drive'
@@ -264,7 +264,7 @@ $script:TechnologyObjectsTried = [ordered]@{
 }
 
 # "<element> <version>" of a technology object's document, '' when it names no system library element.
-function Get-TechnologyObjectKind([string]$Path) {
+function Get-TechnologyObjectElement([string]$Path) {
     try {
         $list = (Read-DocumentXml $Path).SelectSingleNode("$script:DocumentObjectsXPath/AttributeList")
         $element = $list.SelectSingleNode('OfSystemLibElement')
@@ -274,26 +274,26 @@ function Get-TechnologyObjectKind([string]$Path) {
     } catch { '' }
 }
 
-# Items by their kind, as "<kind> (<names>[; how it was tried])", joined by commas.
-function Format-TechnologyObjectKinds([object[]]$Items) {
+# Items by their element and version, as "<element> <version> (<names>[; how it was tried])", joined by commas.
+function Format-TechnologyObjectElements([object[]]$Items) {
     @($Items | Group-Object { $_.technology } | ForEach-Object {
-        $kind = if ($_.Name) { $_.Name } else { 'no system library element named' }
+        $element = if ($_.Name) { $_.Name } else { 'no system library element named' }
         $names = @($_.Group | ForEach-Object { $_.name }) -join ', '
         $how = if ($_.Name) { $script:TechnologyObjectsTried[$_.Name] }
-        "$kind ($names$(if ($how) { "; $how" }))" }) -join ', '
+        "$element ($names$(if ($how) { "; $how" }))" }) -join ', '
 }
 
-# What the result says of the kinds of a call's technology objects: the items the precheck read (technology, tried),
-# tried first. $null when no item got that far.
+# What the result says of the elements and versions of a call's technology objects: the items the precheck read
+# (technology, tried), tried first. $null when no item got that far.
 function Get-TechnologyObjectTriedNote([object[]]$Items) {
     $read = @($Items | Where-Object { $_.Contains('technology') })
     if (-not $read.Count) { return $null }
     $tried = @($read | Where-Object { $_.tried })
     $untried = @($read | Where-Object { -not $_.tried })
     $text = @()
-    if ($tried.Count) { $text += "Tried on a real TIA: $(Format-TechnologyObjectKinds $tried)." }
+    if ($tried.Count) { $text += "Tried on a real TIA: $(Format-TechnologyObjectElements $tried)." }
     if ($untried.Count) {
-        $text += "Not tried: $(Format-TechnologyObjectKinds $untried). TIA refuses a kind or version it does not have, and takes one it has as the file writes it, unchecked (a PID_Compact marked 2.3 with the parameters of a 2.4 went in so): have the user look at each in TIA before the save. Tried were $(@($script:TechnologyObjectsTried.Keys) -join ', ')."
+        $text += "Not tried: $(Format-TechnologyObjectElements $untried). TIA refuses an element or version it does not have, and takes one it has as the file writes it, unchecked (a PID_Compact marked 2.3 with the parameters of a 2.4 went in so): have the user look at each in TIA before the save. Tried were $(@($script:TechnologyObjectsTried.Keys) -join ', ')."
     }
     $text -join ' '
 }
@@ -303,17 +303,27 @@ Register-ObjectKind 'technology_object' @{
     description = 'technology objects (SimaticML)'
     sharesNamesWith = @('block', 'db')
     noDelete = 'Deleting a technology object was not tried on a real TIA. Delete it in TIA.'
-    # IsKnowHowProtected read true of a PID_Compact, whose export imported back identically: TIA's mark, not a person's
+    # IsKnowHowProtected read true of a PID_Compact 2.4 (false of an external encoder 6.0): Siemens' own protection of its
+    # system block, not a person's. Its export imported back identically; the bridge imports over every technology object
+    # (Pawel, 2026-11-12: "yes")
     systemKnowHow = $true
     compileWhy = 'the PLC as a whole: until then the technology object reads not consistent and TIA refuses its export, and a block that uses it may read not consistent'
     items = { param($plc) Get-GroupTree $plc.TechnologicalObjectGroup 'TechnologicalObjects' 'Groups' }
     info = { param($e) @{ technology = "$($e.obj.OfSystemLibElement) $($e.obj.OfSystemLibVersion)".Trim(); number = $e.obj.Number; consistent = $e.obj.IsConsistent } }
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
-    precheck = { param($file, $cache)
+    # an import over an object of another element or version was not tried: refused before TIA, as the namesake guard does
+    precheck = { param($file, $cache, $entries)
         if ($file.format -ne 'xml') { return @{ ok = $false; refused = 'Technology objects are SimaticML (.xml) only.' } }
-        $kind = Get-TechnologyObjectKind $file.file
-        @{ technology = $kind; tried = [bool]($kind -and $script:TechnologyObjectsTried.Contains($kind)) } }
+        $element = Get-TechnologyObjectElement $file.file
+        $existing = @($entries | Where-Object { $_.name -eq $file.objectName })[0]
+        if ($existing) {
+            $has = "$($existing.obj.OfSystemLibElement) $($existing.obj.OfSystemLibVersion)".Trim()
+            if ($has -ne $element) {
+                return @{ ok = $false; technology = $element; refused = "technology object '$($file.objectName)' is a $has in the project, and the document $(if ($element) { "a $element" } else { 'names no system library element' }): an import over an object of another element or version was not tried on a real TIA. Nothing imported: change it in TIA, or give the document another name." }
+            }
+        }
+        @{ technology = $element; tried = [bool]($element -and $script:TechnologyObjectsTried.Contains($element)) } }
     import = { param($plc, $folder, $file, $override)
         Import-SimaticMlFile (Get-OrCreateGroup $plc.TechnologicalObjectGroup $folder 'Groups').TechnologicalObjects $file $override }
     afterImport = { param($result, $items)

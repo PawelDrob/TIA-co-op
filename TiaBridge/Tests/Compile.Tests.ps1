@@ -56,6 +56,17 @@ Describe 'what TIA holds not consistent after a compile' {
         @($s.notConsistent['plc@PLC_1']) -join ',' | Should Be 'First'
     }
 
+    It 'a technology object left not consistent is named too, after the compile cleared its write, and at the save' {
+        $s = New-WriteSession
+        Register-Write $s -Scope plc -Device PLC_1 -Items @(@{ name = 'Enc1'; ok = $true })
+        $script:plc | Add-Member NoteProperty TechnologicalObjectGroup ([pscustomobject]@{ TechnologicalObjects = @(); Groups = @(
+            [pscustomobject]@{ Name = 'Axes'; TechnologicalObjects = @((New-Compilable 'Enc1' -Consistent $false), (New-Compilable 'Pid1')); Groups = @() }) })
+        $r = Invoke-CompileTool ([pscustomobject]@{ scope = 'blocks'; names = @('First', 'Last') })
+        (@($r.failed) | Sort-Object) -join ',' | Should Be 'Enc1,First'
+        (@($s.notConsistent['plc@PLC_1']) | Sort-Object) -join ',' | Should Be 'Enc1,First'
+        @(Get-SaveStanding $s)[0].notConsistent.names -contains 'Enc1' | Should Be $true
+    }
+
     It 'a block left behind by another name is named too: TIA is asked about the whole PLC' {
         $s = New-WriteSession
         $r = Invoke-CompileTool ([pscustomobject]@{ scope = 'blocks'; names = @('Last') })
@@ -374,6 +385,16 @@ Describe 'compile of the copy in a background session for export only' {
         @($r.failed) -join ',' | Should Be 'F_Main'
         @($r.items | Where-Object { -not $_.ok } | ForEach-Object { $_.name }) -join ',' | Should Be 'F_Main'
         $r.note | Should Match 'one by one'
+    }
+
+    It 'without the safety login compiles a technology object not consistent one by one too, and names it while it stays so' {
+        New-ExportOnly $safety
+        $script:plc | Add-Member NoteProperty TechnologicalObjectGroup ([pscustomobject]@{ TechnologicalObjects = @(
+            (New-Compilable 'Pid1' -Consistent $false), (New-Compilable 'Enc1' 'The input address of the encoder telegram is not set.' $false)); Groups = @() })
+        $r = Invoke-CompileTool ([pscustomobject]@{ scope = 'plc' })
+        (@($script:compiled) | Sort-Object) -join ',' | Should Be 'Enc1,F_Main,New_UDT,Pid1,PLC software,Std_FB'
+        (@($r.failed) | Sort-Object) -join ',' | Should Be 'Enc1,F_Main'
+        (@($r.items | Where-Object { -not $_.ok } | ForEach-Object { $_.name }) | Sort-Object) -join ',' | Should Be 'Enc1,F_Main'
     }
 
     It 'lets another compile failure through, and keeps the failure of a connect session as it was' {

@@ -760,9 +760,10 @@ Describe 'import of technology objects' {
     Write-TextFile (Join-Path $repo 'plc\technology\Pid1.s7dcl') 'x'
 
     function Get-PlcBlockClass($Block) { $Block.Class }
-    # a technology object reads know-how protected, as a PID_Compact did on a real TIA
+    # a technology object reads know-how protected, as a PID_Compact did on a real TIA, and is a PID_Compact 2.4
     function New-PlcObject([string]$Name, [string]$Class) {
         $o = [pscustomobject]@{ Name = $Name; Class = $Class; ProgrammingLanguage = 'DB'; IsKnowHowProtected = ($Class -eq 'TechnologicalInstanceDB') }
+        if ($Class -eq 'TechnologicalInstanceDB') { $o | Add-Member NoteProperty OfSystemLibElement 'PID_Compact'; $o | Add-Member NoteProperty OfSystemLibVersion ([version]'2.4') }
         Add-Member -InputObject $o ScriptMethod Delete { $script:deleted += @($this.Name) }
         $o
     }
@@ -797,7 +798,7 @@ Describe 'import of technology objects' {
         Register-Archive (Get-BridgeSession)
     }
 
-    It 'imports a technology object over itself with Override, though it reads know-how protected, names the compile of the PLC in next, and says its kind was tried' {
+    It 'imports a technology object over itself with Override, though it reads know-how protected, names the compile of the PLC in next, and says its element was tried' {
         $r = Invoke-ToImport @('plc\technology\Pid1.xml')
         $r.ok | Should Be $true
         $script:imported -join ',' | Should Be 'Pid1 Override'
@@ -828,7 +829,17 @@ Describe 'import of technology objects' {
         $script:imported -join ',' | Should Be 'Pid2 Override'
     }
 
-    It 'lets a kind or version not tried through, and says so of each' {
+    It 'refuses an import over an object of another element or version before TIA is asked' {
+        foreach ($case in @(@('PID_3Step', '2.3', 'a PID_3Step 2.3'), @('PID_Compact', '2.3', 'a PID_Compact 2.3'), @('', '', 'names no system library element'))) {
+            Write-TechnologyObject 'plc\technology\Pid1Other.xml' 'Pid1' $case[0] $case[1]
+            $r = Invoke-ToImport @('plc\technology\Pid1Other.xml')
+            $r.ok | Should Be $false
+            $r.items[0].refused | Should Match "technology object 'Pid1' is a PID_Compact 2\.4 in the project, and the document $($case[2]): an import over an object of another element or version was not tried"
+            @($script:imported).Count | Should Be 0
+        }
+    }
+
+    It 'lets an element or version not tried through, and says so of each' {
         $r = Invoke-ToImport @('plc\technology\Pid9.xml', 'plc\technology\Bare.xml', 'plc\technology\Pid1.xml')
         $r.ok | Should Be $true
         $r.items[0].technology | Should Be 'PID_Compact 9.9'

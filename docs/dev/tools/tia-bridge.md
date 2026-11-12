@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T18:55:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T19:00:00-05:00 }
 ---
 
 # TiaBridge internals
@@ -75,7 +75,7 @@ The description in each tool's `Register-McpTool` call is the contract an agent 
 - the session record cannot be read, or lacks the result of a write (the bridge stopped during it);
 - a write failed and was not redone. An import the bridge refused before TIA was asked holds nothing.
 
-With an archive of this session, a save goes through over writes not compiled since and known compile errors. `savedWith` names them per device, and the agent quotes it to the person. With the archive skipped, a save is also refused while, since the last save, a write was not followed by a compile of its scope on its device, that compile had errors, or what this session wrote or named is left not consistent.
+With an archive of this session, a save goes through over writes not compiled since and known compile errors. `savedWith` names them per device, and the agent quotes it to the person. What stays not consistent is read from TIA's blocks, PLC data types and technology objects. With the archive skipped, a save is also refused while, since the last save, a write was not followed by a compile of its scope on its device, that compile had errors, or what this session wrote or named is left not consistent.
 
 The rules count per device. The record lives in `.tiabridge-session.json` in the project repo, so it survives a bridge restart. A `connect` to a project with no unsaved changes clears it. A background session keeps its record in memory.
 
@@ -90,8 +90,8 @@ The rules count per device. The record lives in `.tiabridge-session.json` in the
 - **A watch or force table TIA leaves not consistent fails its import,** and the call rolls back. TIA answers OK to a row naming a symbol the PLC does not have and written without `DisplayFormat`, and drops every row of a watch table; such a row of a force table with `DisplayFormat` makes TIA throw instead. Without a transaction the table stays as TIA left it, not consistent or partly imported, and either way the save is refused until it is imported good.
 - **HMI cycles import only from `hmi\[<device>\]cycles`, their export, and only as a full export.** The validator's `cycle.not-full` refuses a document that is no full export or lacks `StartAtStartingPoint`, as TIA imports a minimal one with that false. The bridge exports cycles full whatever `options.full` says. An older repo holds minimal ones: its next export changes every cycle file, which the change report folds as export differences. `delete` refuses the kind (`noDelete`): a delete was not tried.
 - **A force table imports over the PLC's own only.** TIA makes no other, so a file of another name is refused before TIA sees it, and `delete` refuses the table. The result's `online` says that nothing reaches the CPU, that no file sets a force mark, and that whether a mark set in TIA survives an import was not tried.
-- **Technology objects import as SimaticML, and each item says whether its kind was tried on a real TIA.** The precheck reads the document's `OfSystemLibElement` and `OfSystemLibVersion`; the result's `technology` names the kinds tried and those not, which go in. `next` names the compile of the PLC (the kind's `compileWhy`). A new object of a name a block or DB has is refused, and the other way round (`sharesNamesWith`). The kind's `systemKnowHow` passes the know-how guard for every technology object, as TIA marks them itself (seen on a PID_Compact). What TIA does with the kind: [Openness V20](../../agent/openness-v20.md), Technology objects. `delete` refuses the kind (`noDelete`): a delete was not tried.
-- **F-blocks and F-compliant data types need `safety: true`.** Know-how protected blocks need `knowhow: true` to delete and cannot be imported over. An import over a `hmi_tag_table` is refused, as it has crashed TIA.
+- **Technology objects import as SimaticML, and each item says whether its system library element and version were tried on a real TIA.** The precheck reads the document's `OfSystemLibElement` and `OfSystemLibVersion`; the result's `technology` names those tried and those not, which go in. An import over an object of another element or version is refused in the precheck: it was not tried. `next` names the compile of the PLC (the kind's `compileWhy`). A new object of a name a block or DB has is refused, and the other way round (`sharesNamesWith`). The kind's `systemKnowHow` passes the know-how guard for every technology object: one can read know-how protected by Siemens' own protection of its system block (a PID_Compact 2.4 does, an external encoder 6.0 does not), and the maintainer decided the bridge imports over one (2026-11-12). What TIA does with the kind: [Openness V20](../../agent/openness-v20.md), Technology objects. `delete` refuses the kind (`noDelete`): a delete was not tried.
+- **F-blocks and F-compliant data types need `safety: true`.** Know-how protected blocks need `knowhow: true` to delete and cannot be imported over; technology objects can (above). An import over a `hmi_tag_table` is refused, as it has crashed TIA.
 - **`export` refuses two objects whose names give one file,** and leaves the files there.
 - **A repo records one `.ap20` path.** Another path is refused until the person says `moved` or names another `repo`.
 

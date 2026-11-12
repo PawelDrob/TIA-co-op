@@ -309,7 +309,7 @@ function Get-InWorkRefusal([string]$KindName, [string]$Name, $Obj, [string]$Cann
 
 # Why a file must not be imported over the existing object, or $null. Existing: entry of the kind's items, or $null.
 # Safety: the call's safety argument. FDocument: the file is the document of an F-block. SystemKnowHow: the kind's
-# objects read know-how protected by TIA's own mark, not a person's (a technology object), so that mark refuses nothing.
+# objects can read know-how protected by TIA's own mark, not a person's (a technology object), so that mark refuses nothing.
 function Get-ImportRefusal([string]$KindName, [string]$Name, $Existing, [bool]$Override, [bool]$Safety = $false, [bool]$FDocument = $false, [bool]$SystemKnowHow = $false) {
     if ($Existing -and -not $Override) { return "$KindName '$Name' exists and override is false; nothing imported." }
     # by the object too: a file with the F mark taken out would turn the F-block into a standard one
@@ -674,11 +674,13 @@ function Invoke-DeleteFolderTool($a) {
 
 # ------------------------------------------------------------------ compile
 
-# Blocks and PLC data types of a PLC that are not consistent, as Get-GroupTree entries: their export fails. Changed and not
-# compiled since, or compiled: a compile by name of several can leave all but the last so, with 0 errors and "All blocks are
-# up-to-date" (seen on real blocks calling library instructions; cause not known).
+# Blocks, PLC data types and technology objects of a PLC that are not consistent, as Get-GroupTree entries: their export
+# fails. Changed and not compiled since, or compiled: a compile by name of several can leave all but the last so, with 0
+# errors and "All blocks are up-to-date" (seen on real blocks calling library instructions; cause not known). A technology
+# object stays so after a compile while its hardware is missing (an external encoder, a counter).
 function Get-InconsistentPlcObjects($Plc) {
-    @(Get-GroupTree $Plc.BlockGroup 'Blocks' 'Groups') + @(Get-GroupTree $Plc.TypeGroup 'Types' 'Groups') | Where-Object { -not $_.obj.IsConsistent }
+    @(Get-GroupTree $Plc.BlockGroup 'Blocks' 'Groups') + @(Get-GroupTree $Plc.TypeGroup 'Types' 'Groups') +
+        @(Get-GroupTree $Plc.TechnologicalObjectGroup 'TechnologicalObjects' 'Groups') | Where-Object { -not $_.obj.IsConsistent }
 }
 
 # $true for the error of a compile that lacks the safety login.
@@ -745,11 +747,11 @@ function Invoke-CompileTool($a) {
             try { $result = $svc.Compile() }
             catch {
                 # export only: without the safety login the PLC software does not compile as a whole, its standard
-                # blocks do one by one; F-blocks among them fail and stay in failed
+                # blocks, data types and technology objects do one by one; F-blocks among them fail and stay in failed
                 if (-not ($copyOnly -and $scope -eq 'plc' -and (Test-SafetyPermissionError (ConvertTo-BridgeError $_)))) { throw }
                 $todo = @(Get-InconsistentPlcObjects $t.obj)
                 $compileState.oneByOne = $todo.Count
-                Write-BridgeLog "compile (plc): no safety login, compiling $($todo.Count) blocks and PLC data types one by one"
+                Write-BridgeLog "compile (plc): no safety login, compiling $($todo.Count) blocks, PLC data types and technology objects one by one"
                 foreach ($o in $todo) { Invoke-CompileObject $o.name $o.obj }
                 continue
             }
@@ -786,10 +788,10 @@ function Invoke-CompileTool($a) {
         if ($notConsistent.Count -gt 10) { $r.note += " failed shows the first ten of failedTotal, what this session wrote or named first; list, with consistent per block, shows them all." }
     }
     if ($copyOnly) {
-        $r.note = 'Compiled the copy of a background session for export only: never saved. failed: the blocks and PLC data types still not consistent (their export fails).'
+        $r.note = 'Compiled the copy of a background session for export only: never saved. failed: the blocks, PLC data types and technology objects still not consistent (their export fails).'
         if ($null -ne $compileState.oneByOne) {
             $r.safetyLogin = $false
-            $r.note += " The PLC software has a safety program and this session has no safety login: the $($compileState.oneByOne) blocks and PLC data types " +
+            $r.note += " The PLC software has a safety program and this session has no safety login: the $($compileState.oneByOne) blocks, PLC data types and technology objects " +
                        'not consistent were compiled one by one instead; F-blocks need safety_login, then compile scope plc.'
         }
     }
@@ -859,9 +861,9 @@ function Register-ObjectTools {
         'force_table: the PLC''s one force table, over itself only: a file of another name is refused before TIA sees it, as TIA makes no other. A row naming a symbol the PLC does not have fails the import (TIA throws, or leaves the table not consistent: TiaBridge.NotConsistent), and the call rolls back with the table as it was; without a transaction the table stays as TIA left it, not consistent or partly imported. Either way the save is then refused until the table is imported good. ' +
         'The result''s online says what the import does not do: it changes the offline table only, nothing in the CPU, and a file cannot set a force mark (ForceIntention is read-only); whether a row marked in TIA keeps its mark through an import was not tried. Forcing stays the user''s, online in TIA. ' +
         "technology_object: tried on a real TIA, each made new from a file and round tripped identically: $(@($script:TechnologyObjectsTried.Keys) -join ', '), the axes as virtual axes without a drive. " +
-        'Each item names its kind as the document writes it (technology: element and version) and whether it was tried; the result''s technology says which were and which not. A kind not tried goes in: TIA refuses a kind or version it does not have, and the call rolls back; one it has it takes as the file writes it, unchecked. ' +
+        'Each item names the system library element and version the document writes (technology) and whether they were tried; the result''s technology says which were and which not. An element or version not tried goes in: TIA refuses one it does not have, and the call rolls back; one it has it takes as the file writes it, unchecked. An import over an object of another element or version is refused before TIA sees it: it was not tried. ' +
         'A new object keeps the file''s number; a number another block has stands until the compile, which gives it a free one. After an import the object reads not consistent, and TIA refuses its export, until the PLC is compiled, and a block that uses it may read not consistent until then; next says so. ' +
-        'A new object of a name a block or DB has is refused, and so is a new block or DB of a technology object''s name. A technology object''s know-how mark refuses nothing: TIA sets it (seen on a PID_Compact), so the bridge passes it on every technology object. ' +
+        'A new object of a name a block or DB has is refused, and so is a new block or DB of a technology object''s name. A technology object can read know-how protected in TIA, by Siemens'' own protection of its system block (a PID_Compact 2.4 does, an external encoder 6.0 does not); the bridge imports over one. ' +
         'An existing object is replaced where it is; a new one goes to ' +
         'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables and cycles. ' +
         'override defaults to true, except hmi_template and hmi_tag_table (an existing one is refused). ' +
@@ -871,7 +873,7 @@ function Register-ObjectTools {
         'Refused: .s7dcl of an OB; HMI screens/templates/pop-ups whose faceplate type versions are not in the project library; ' +
         "an HMI screen whose number another screen of the device has, in TIA or earlier in the call, new or over another screen (it ended TIA; the refusal names that screen; numbering rules: $(Get-GuidePath 'openness-v20.md') section 2), " +
         'or whose number is no whole number; any write before the session archive; ' +
-        'an F-block (the file or the object it replaces) or the document of an F-compliant PLC data type without safety: true (a data type by its document only: with the mark taken out, nothing refuses it); override of a know-how protected block; override of hmi_tag_table (it crashed TIA: delete the table first, then import). ' +
+        'an F-block (the file or the object it replaces) or the document of an F-compliant PLC data type without safety: true (a data type by its document only: with the mark taken out, nothing refuses it); override of a know-how protected block (not of a technology object, see technology_object); override of hmi_tag_table (it crashed TIA: delete the table first, then import). ' +
         'Import HMI documents only after the user''s yes to their preview. Skill tia-change, hmi.md, holds that stop and the order of HMI imports. Never re-import a screen that holds an alarm view or diagnostics view ' +
         '(the export drops them). A call is all or nothing: one refused or failed file and nothing of the call is imported ' +
         '(the result says which file and why); put blocks that depend on each other in one call. Compile afterwards.') -Schema @{
@@ -902,11 +904,11 @@ function Register-ObjectTools {
 
     Register-McpTool -Name 'compile' -Handler { param($a) Invoke-CompileAndReadChange $a } -Description (
         'Compile the PLC software (scope plc), single blocks or PLC data types (scope blocks + names) or the HMI (scope hmi). Returns the full compiler message tree. ' +
-        "failed names what TIA holds not consistent afterwards on the whole PLC, the user's own blocks too, also with 0 errors: their export fails. At most ten names, what this session wrote or named first, and failedTotal; list shows them all. In a session for export only every name. " +
+        "failed names the blocks, PLC data types and technology objects TIA holds not consistent afterwards on the whole PLC, the user's own too, also with 0 errors: their export fails (a technology object stays so while its hardware is missing). At most ten names, what this session wrote or named first, and failedTotal; list shows them all. In a session for export only every name. " +
         'consistencyUnread: that could not be read, so failed is left out and what a save holds stays as it was. ' +
         'Compile the written scope on each device written to before save; warnings are allowed. Errors, a write not compiled, or a block this session wrote or named left not consistent refuse the save only in a session without an archive; with one the save result names them (see save). A clean compile by name takes back the errors on record of those names. In a background session for export only it compiles ' +
         'the copy (scope plc or blocks), never saved, so uncompiled blocks export; failed names what is still not consistent. There, without safety_login, ' +
-        'scope plc of a PLC with a safety program compiles the blocks not consistent one by one (safetyLogin false). ' +
+        'scope plc of a PLC with a safety program compiles the blocks, data types and technology objects not consistent one by one (safetyLogin false). ' +
         'With an open library change, a compile of the PLC or by name reads what stands in work: alsoInWork names the types of the change its record did not have in work, and its report takes them; changeUnread: that could not be read.') -Schema @{
         type = 'object'; required = @('scope')
         properties = @{
