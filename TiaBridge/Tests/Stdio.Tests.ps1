@@ -70,7 +70,7 @@ Describe 'TiaBridge.ps1 over stdio' {
     }
 
     # Openness queues TIA's call-backs for a session attached from an STA thread until that thread calls again, and TIA waits
-    # for each: started -STA, as setup registers it, the bridge must still attach from an MTA thread (ticket 94)
+    # for each: started -STA, as setup registers it, the bridge must still attach from an MTA thread
     It 'runs its tools on an MTA thread when started -STA' {
         (($out[5] | ConvertFrom-Json).result.content[0].text | ConvertFrom-Json).apartment | Should Be 'MTA'
         $script:LastStderr | Should Match 'STA: False'

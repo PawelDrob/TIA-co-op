@@ -88,7 +88,7 @@ function Get-SessionSummary {
 function Set-BridgeStatusNotes($Result) {
     $ids = $(if ($Result.connected) { @([int]$script:Bridge.processId) } else { @($Result.processes | Where-Object { $_.mode -ne 'WithoutUserInterface' } | ForEach-Object { [int]$_.processId }) })
     $others = @(Get-OtherBridges (Get-BridgeStateDir $script:Bridge.settings.projectsRoot) $ids)
-    if ($others.Count) { $Result.otherBridges = $others; $Result.otherBridgesNote = 'Another bridge on one TIA has hung it: one of version 0.1.0, or another program attached from an STA thread, still can. Tell the user before you write; only the user stops a bridge of another session.' }
+    if ($others.Count) { $Result.otherBridges = $others; $Result.otherBridgesNote = 'Another bridge on one TIA has hung it: one of release 0.1.0, or another program attached from an STA thread, still can. Tell the user before you write; only the user stops a bridge of another session.' }
     $newer = @(Get-NewerBridgeScripts (Split-Path -Parent $PSScriptRoot) (Get-Process -Id $PID).StartTime)
     if ($newer.Count) { $Result.scriptsNewer = "Changed since this bridge started, so not in what it runs: $($newer -join ', '). A restart of the bridge (/mcp in Claude Code) loads them." }
 }
@@ -238,7 +238,7 @@ function Set-StandardsResult($Result, $Map) {
 }
 
 # A switch to a project in another TIA process, with the one before still open: the user looks at one TIA and the writes go to
-# another. Such a switch also hung TIA until the bridge attached from an MTA thread (TiaBridge.ps1, docs\agent\openness-v20.md).
+# another.
 function Get-SecondTiaWarning([int]$PreviousTia, [string]$PreviousPath, [int]$Tia) {
     if (-not $PreviousTia -or $PreviousTia -eq $Tia) { return $null }
     if (-not @(Get-TiaProcesses | Where-Object { $_.processId -eq $PreviousTia -and $_.path }).Count) { return $null }

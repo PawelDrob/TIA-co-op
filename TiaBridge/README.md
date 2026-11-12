@@ -49,8 +49,9 @@ At the first connect, TIA asks whether to allow access: answer **Yes**. The agen
 with a commit in the project repo, a change report and what is left for you, such as the download.
 
 If TIA does not respond for more than a minute, look for an open message box in it. With none, another program attached to
-that TIA can hang it, a bridge of version 0.1.0 among them: the agent's `tia_status` names other bridges. Save in TIA if it
-still answers, then stop that program or end its agent's session. Run one bridge per TIA. Why, and what is not explained yet:
+that TIA can hang it, a bridge of release 0.1.0 among them: the agent's `tia_status` names other bridges. Save in TIA if it
+still answers, then stop that program or end its agent's session; with no other program, end this agent's session. Run
+one bridge per TIA. Why, and what is not explained yet:
 [the Openness facts](../docs/agent/openness-v20.md).
 
 ### Settings

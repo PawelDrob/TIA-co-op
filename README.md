@@ -38,9 +38,9 @@ Changing this repository: [CONTRIBUTING.md](CONTRIBUTING.md) and [tools/README.m
 - Openness does not carry faceplate type contents, master copy contents, the content of external source files, 14 screen
   controls such as the alarm view, HMI alarms, recipes, logs and user administration, or F-system blocks.
 - The hardware configuration is not exported.
-- Version 0.1.0 of the bridge can hang a TIA with a window: TIA waits for an answer that bridge gives only at its next call.
-  Later versions answer at once. Another program attached to the same TIA can still hang it so, a bridge of 0.1.0 among
-  them: run one bridge per TIA. Stopping that program has freed TIA, though once not within 30 s. One hang with a
+- The bridge of release 0.1.0 can hang a TIA with a window: TIA waits for an answer that bridge gives only at its next
+  call. The bridge in this repository answers at once. Another program attached to the same TIA can still hang it so, a
+  bridge of release 0.1.0 among them: run one bridge per TIA. Stopping that program has freed TIA, though once not within 30 s. One hang with a
   single bridge, an import that never returned, is not explained yet.
 - Not certified for functional safety. Keep your own backups. See [NOTICE](NOTICE).
 - Tested with Claude Code only.

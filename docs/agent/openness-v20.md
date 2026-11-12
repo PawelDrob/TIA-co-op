@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T11:53:21-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T12:00:42-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -227,10 +227,10 @@ On copies of a test project, 2026-11-04 `[PROBE]`; the bridge's tools are `proje
   from MTA: attach, read `Projects`, dispose, attach again, `Close()` (*Closing project...*); two live sessions, `Close()` through
   the second; block groups read in one session, a group created through the other. A session that reads nothing does not take
   part. A garbage collection does not release what a session read.
-- **TiaBridge attaches from an MTA thread** of its own since then. Version 0.1.0 ran on the STA thread of `powershell.exe -STA`
+- **TiaBridge attaches from an MTA thread** of its own since then. The bridge of release 0.1.0 ran on the STA thread of `powershell.exe -STA`
   and hung TIA so, from 2026-10-19 on: after a switch to a project in a second TIA process and back (`connect` disposes the
   session it leaves), a `project_close` in *Closing project...* or an import with only the exclusive-access box; with the bridge
-  idle; beside a second, stale bridge. Another program attached from an STA thread, a bridge of 0.1.0 among them, still hangs
+  idle; beside a second, stale bridge. Another program attached from an STA thread, a bridge of release 0.1.0 among them, still hangs
   TIA so. Stopping it frees TIA, mostly within seconds; once it did not within 30 s. `tia_status` names other bridges on the
   same TIA. From an MTA thread call-backs run while the bridge's own calls run, so TIA can change a list between two pages of a
   read: a read of a list that fails with "Collection was modified" is read again, at most three times in all.

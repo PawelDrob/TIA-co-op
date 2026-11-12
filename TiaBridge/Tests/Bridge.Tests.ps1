@@ -93,7 +93,7 @@ Describe 'A failure after a commit' {
     }
 }
 
-# The bridge runs on an MTA thread (TiaBridge.ps1, ticket 94); a window needs an STA thread of its own.
+# The bridge runs on an MTA thread (TiaBridge.ps1); a window needs an STA thread of its own.
 Describe 'Invoke-OnStaThread' {
     It 'runs the block on an STA thread when called from an MTA thread, with its arguments, and returns its output' {
         $rs = [runspacefactory]::CreateRunspace(); $rs.ApartmentState = 'MTA'; $rs.Open()

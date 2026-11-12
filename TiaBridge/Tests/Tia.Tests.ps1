@@ -233,8 +233,9 @@ Describe 'Limit-ToolResponse' {
     }
 }
 
-# The bridge attaches from an MTA thread (ticket 94), so TIA can change a list while the bridge reads it.
+# The bridge attaches from an MTA thread, so TIA can change a list while the bridge reads it.
 Describe 'Read-TiaList' {
+    function Write-BridgeLog { }
     $changed = 'Collection was modified; enumeration operation may not execute.'
 
     It 'reads again when TIA changed the list meanwhile, and gives only the last whole read' {

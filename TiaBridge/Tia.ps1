@@ -64,7 +64,7 @@ function Read-TiaList([scriptblock]$Read) {
             $readError = ConvertTo-BridgeError $_
             $readChanged = (@($readError.message) + @($readError.details) + @($readError.inner | ForEach-Object { $_.message })) -match 'Collection was modified'
             if (-not $readChanged -or $readNo -ge $script:TiaListReads) { throw }
-            if (Get-Command Write-BridgeLog -ErrorAction SilentlyContinue) { Write-BridgeLog "TIA changed a list during the read; read $($readNo + 1) of $script:TiaListReads." }
+            Write-BridgeLog "TIA changed a list during the read; read $($readNo + 1) of $script:TiaListReads."
         }
     }
     foreach ($o in $readItems) { $o }

@@ -18,7 +18,7 @@ Guides, read before the work they cover:
 
 When something fails:
 - Quote the Siemens exception type, message, detail texts and inner chain as the result gives them.
-- A write that takes more than a minute: ask the user to look at TIA for an open message box. With none, call tia_status: another bridge or program attached to that TIA (otherBridges) can hang it, and stopping it frees TIA. A background session has no window: quote the prompts its result lists.
+- A write over a minute: ask the user to look at TIA for a message box. With none, tia_status: another program on that TIA (otherBridges) can hang it: tell the user; with none either, the user saves in TIA if it answers, then ends this session. A background session has no window: quote the prompts its result lists.
 
 Compare two archives or projects, when the user asks: from {root} run {root}\.venv\Scripts\python.exe -X utf8 -m TiaArchiveCompare.runner run --no-ask --before A --after B [--hmi] [--compile]. It starts its own TIA without a window and needs several GB of memory. Its last output line names the report; give the user that page. If it stops at a password, tell the user to run that comparison in the TIA Archive Compare window.
 
