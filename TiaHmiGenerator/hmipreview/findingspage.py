@@ -221,7 +221,7 @@ def page(parts):
     """The answer of /api/findingspage; parts: [(device, repo, findings, planned)], planned as links.open_planned."""
     planned, docs, project = [], [], []
     for device, repo, findings, open_items in parts:
-        by_path = {d.path: d for d in repo.exports + repo.generated + repo.tag_tables}
+        by_path = {d.path: d for d in repo.exports + repo.generated + repo.tag_tables + repo.cycles}
         for p in open_items:
             used = []
             for u in p['usedBy']:

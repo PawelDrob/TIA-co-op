@@ -17,7 +17,7 @@ ROOT = 'Hmi.Cycle.Cycle'
 def check(repo, ctx):
     for d in repo.cycles:
         if d.obj is None or d.obj.tag != ROOT:
-            yield error(d.path, d.name, 'cycle.not-cycle',
+            yield error(d.path, None, 'cycle.not-cycle',
                         'The cycles folder holds %s, not a cycle (%s): TiaBridge imports it as a cycle, and TIA ended '
                         'its process on an HMI document it could not make. Move it to the folder of its kind.'
                         % (d.obj.tag if d.obj is not None else 'no object', ROOT))
@@ -30,7 +30,7 @@ def check(repo, ctx):
         else:
             continue
         make = error if ctx.for_import else warning
-        yield make(d.path, d.name, 'cycle.not-full',
+        yield make(d.path, None, 'cycle.not-full',
                    '%s. A minimal export leaves out StartAtStartingPoint when it is true, and TIA imports a file '
                    'without it as false: every cycle of a project changed so. Export the cycles again (TiaBridge '
                    'export or full_export, kind hmi_cycle, which writes them full), then edit and import that file. '

@@ -22,20 +22,20 @@ class CycleRuleTest(unittest.TestCase):
         self.assertEqual([], self.found(cycle('Fast')))
 
     def test_a_minimal_export_is_refused_for_import(self):
-        self.assertEqual([('error', 'hmi/cycles/Fast.xml', 'Fast', 'cycle.not-full')],
+        self.assertEqual([('error', 'hmi/cycles/Fast.xml', None, 'cycle.not-full')],
                          self.found(cycle('Fast', 'None', full=False)))
 
     def test_a_minimal_export_whose_cycle_has_the_attribute_is_refused_too(self):
         # a minimal export writes StartAtStartingPoint false; the other defaults are still left out
-        self.assertEqual([('error', 'hmi/cycles/Fast.xml', 'Fast', 'cycle.not-full')],
+        self.assertEqual([('error', 'hmi/cycles/Fast.xml', None, 'cycle.not-full')],
                          self.found(cycle('Fast', 'None', full=False, StartAtStartingPoint='false')))
 
     def test_a_full_export_without_the_attribute_is_refused(self):
-        self.assertEqual([('error', 'hmi/cycles/Fast.xml', 'Fast', 'cycle.not-full')],
+        self.assertEqual([('error', 'hmi/cycles/Fast.xml', None, 'cycle.not-full')],
                          self.found(cycle('Fast', StartAtStartingPoint=None)))
 
     def test_a_file_without_export_setting_is_refused(self):
-        self.assertEqual([('error', 'hmi/cycles/Fast.xml', 'Fast', 'cycle.not-full')],
+        self.assertEqual([('error', 'hmi/cycles/Fast.xml', None, 'cycle.not-full')],
                          self.found(cycle('Fast', None)))
 
     def test_the_message_says_what_tia_did_and_the_way_out(self):
@@ -48,11 +48,11 @@ class CycleRuleTest(unittest.TestCase):
         self.assertIn('next change report', message)
 
     def test_the_preview_warns(self):
-        self.assertEqual([('warning', 'hmi/cycles/Fast.xml', 'Fast', 'cycle.not-full')],
+        self.assertEqual([('warning', 'hmi/cycles/Fast.xml', None, 'cycle.not-full')],
                          self.found(cycle('Fast', 'None', full=False), for_import=False))
 
     def test_another_object_in_the_cycles_folder_is_refused(self):
-        self.assertEqual([('error', 'hmi/cycles/Fast.xml', 'Fast', 'cycle.not-cycle')],
+        self.assertEqual([('error', 'hmi/cycles/Fast.xml', None, 'cycle.not-cycle')],
                          self.found(cycle('Fast', root='Hmi.TextGraphicList.TextList')))
 
     def test_a_document_that_is_no_xml_is_refused(self):
@@ -62,7 +62,7 @@ class CycleRuleTest(unittest.TestCase):
 
     def test_the_cycles_of_the_device_given(self):
         self.repo.write('hmi/HMI_A/cycles/Fast.xml', cycle('Fast', 'None', full=False))
-        self.assertEqual([('error', 'hmi/HMI_B/cycles/Slow.xml', 'Slow', 'cycle.not-full')],
+        self.assertEqual([('error', 'hmi/HMI_B/cycles/Slow.xml', None, 'cycle.not-full')],
                          self.found(cycle('Slow', 'None', full=False), rel='hmi/HMI_B/cycles/Slow.xml', device='HMI_B'))
 
 

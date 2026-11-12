@@ -1,10 +1,12 @@
 """The findings list below the preview's screen: sentences, folds, order; and /api/findingspage."""
+import os
+import re
 import unittest
 
 from hmipreview import findingspage, model, validate
 from hmipreview.findings import error, warning
 from hmipreview.links import open_planned
-from Tests.fixture import FixtureRepo, document, group, item, rect
+from Tests.fixture import FixtureRepo, cycle, document, group, item, rect
 from Tests.test_server import ServerCase
 
 
@@ -142,6 +144,30 @@ class OpenTest(Base):
         [s] = [x for x in answer(self.repo)['sections'] if x['kind'] == 'project']
 
         self.assertEqual(['hmi/generated/planned.json', 'hmi/panel.json'], s['files'])
+
+    def test_a_cycle_finding_stands_under_its_cycle_not_the_project(self):
+        self.repo.write('hmi/cycles/Fast.xml', cycle('Fast', 'None', full=False))
+        self.repo.write('hmi/cycles/Broken.xml', '<Document>')
+
+        sections = answer(self.repo)['sections']
+
+        self.assertEqual([('cycle', 'Fast', 'hmi/cycles/Fast.xml', False, [])],
+                         [(s['kind'], s['name'], s['path'], s['opens'], s['files']) for s in sections
+                          if s['kind'] == 'cycle'])
+        [fast] = [s for s in sections if s['kind'] == 'cycle']
+        self.assertEqual([('cycle.not-full', None, False)], [(r['rule'], i['object'], i['select'])
+                                                               for r in fast['rules'] for row in r['rows']
+                                                               for i in row['items']])
+        self.assertTrue(texts(fast)[0][1][0].startswith("ExportSetting is 'None'"))
+        # a cycle that cannot be read has no document to stand under: the project's box names its file
+        [project] = [s for s in sections if s['kind'] == 'project']
+        self.assertEqual(['hmi/cycles/Broken.xml'], project['files'])
+
+    def test_the_page_script_names_every_kind_a_box_can_have(self):
+        with open(os.path.join(os.path.dirname(findingspage.__file__), 'static', 'findings.js'), encoding='utf-8') as f:
+            script = f.read()
+        text = re.search(r'export const KIND_TEXT = \{(.*?)\};', script, re.S).group(1)
+        self.assertEqual(set(model.KIND_DIRS) | {findingspage.PROJECT}, set(re.findall(r'(\w+): \'', text)))
 
 
 class OrderTest(Base):
