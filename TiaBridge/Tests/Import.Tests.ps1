@@ -46,7 +46,7 @@ Describe 'import of a kind that has no import' {
         Register-Archive (Get-BridgeSession)
         Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = @('Any.xml') })
     }
-    foreach ($kind in 'system_block', 'technology_object', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_connection') {
+    foreach ($kind in 'system_block', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_connection') {
         It "$kind is export only, and no library tool is named as the way to change it" {
             $r = Invoke-ImportOfKind $kind
             $r.ok | Should Be $false
@@ -734,6 +734,152 @@ Describe 'import of force tables' {
         $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'force_table'; names = @('Force table') })
         $r.ok | Should Be $false
         $r.refused | Should Match 'one force table'
+        @($script:deleted).Count | Should Be 0
+    }
+}
+
+Describe 'import of technology objects' {
+    $repo = Join-Path $TestDrive 'To'
+    # a technology object as TIA exports it: its system library element and version, its number
+    function Write-TechnologyObject([string]$Path, [string]$Name, [string]$Element = 'PID_Compact', [string]$Version = '2.4') {
+        $lib = if ($Element) { "<OfSystemLibElement>$Element</OfSystemLibElement><OfSystemLibVersion>$Version</OfSystemLibVersion>" }
+        Write-TextFile (Join-Path $repo $Path) ("<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><SW.TechnologicalObjects.TechnologicalInstanceDB ID=`"0`">" +
+            "<AttributeList><InstanceOfName>$Element</InstanceOfName><Name>$Name</Name><Number>8</Number>$lib<ProgrammingLanguage>DB</ProgrammingLanguage></AttributeList></SW.TechnologicalObjects.TechnologicalInstanceDB></Document>")
+    }
+    Write-TechnologyObject 'plc\technology\Pid1.xml' 'Pid1'
+    Write-TechnologyObject 'plc\technology\sub\Pid2.xml' 'Pid2'
+    Write-TechnologyObject 'plc\technology\Axis1.xml' 'Axis1' 'TO_SpeedAxis' '9.0'
+    Write-TechnologyObject 'plc\technology\Pid9.xml' 'Pid9' 'PID_Compact' '9.9'
+    Write-TechnologyObject 'plc\technology\Bare.xml' 'Bare' ''
+    Write-TechnologyObject 'plc\technology\Data1.xml' 'Data1'
+    Write-TechnologyObject 'plc\technology\Fc1.xml' 'Fc1'
+    Write-TechnologyObject 'plc\blocks\Pid1.xml' 'Pid1'
+    Write-TextFile (Join-Path $repo 'plc\technology\Db1.xml') '<Document><SW.Blocks.GlobalDB ID="0"><AttributeList><Name>Db1</Name></AttributeList></SW.Blocks.GlobalDB></Document>'
+    Write-TextFile (Join-Path $repo 'plc\blocks\NewDb.xml') '<Document><SW.Blocks.GlobalDB ID="0"><AttributeList><Name>NewDb</Name></AttributeList></SW.Blocks.GlobalDB></Document>'
+    Write-TextFile (Join-Path $repo 'plc\blocks\Pid1Db.xml') '<Document><SW.Blocks.GlobalDB ID="0"><AttributeList><Name>Pid1</Name></AttributeList></SW.Blocks.GlobalDB></Document>'
+    Write-TextFile (Join-Path $repo 'plc\technology\Pid1.s7dcl') 'x'
+
+    function Get-PlcBlockClass($Block) { $Block.Class }
+    # a technology object reads know-how protected, as a PID_Compact did on a real TIA
+    function New-PlcObject([string]$Name, [string]$Class) {
+        $o = [pscustomobject]@{ Name = $Name; Class = $Class; ProgrammingLanguage = 'DB'; IsKnowHowProtected = ($Class -eq 'TechnologicalInstanceDB') }
+        Add-Member -InputObject $o ScriptMethod Delete { $script:deleted += @($this.Name) }
+        $o
+    }
+    # the PLC holds the technology object Pid1, the DB Data1 and the FC Fc1; Import of a file of an element TIA has not
+    # (TO_SpeedAxis 9.0) throws, as on a real TIA
+    function Get-KindRoot {
+        $tos = New-Object System.Collections.ArrayList
+        [void]$tos.Add((New-PlcObject 'Pid1' 'TechnologicalInstanceDB'))
+        Add-Member -InputObject $tos ScriptMethod Import { param($file, $options)
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+            $name = [regex]::Match($text, '<Name>([^<]*)</Name>').Groups[1].Value
+            $script:imported += @("$name $options")
+            if ($text -match '<OfSystemLibVersion>9\.0<') { throw [System.InvalidOperationException]::new('The type or version of the library element "TO_SpeedAxis.9.0" does not exist or is not a valid technology object.') }
+            , @(New-PlcObject $name 'TechnologicalInstanceDB') }
+        $groups = New-Object System.Collections.ArrayList
+        Add-Member -InputObject $groups ScriptMethod Find { param($n) $null }
+        Add-Member -InputObject $groups ScriptMethod Create { param($n) $script:groupsMade += @($n); [pscustomobject]@{ TechnologicalObjects = $script:tos; Groups = @() } }
+        $script:tos = $tos
+        $blocks = New-Object System.Collections.ArrayList
+        [void]$blocks.Add((New-PlcObject 'Data1' 'GlobalDB')); [void]$blocks.Add((New-PlcObject 'Fc1' 'FC'))
+        Add-Member -InputObject $blocks ScriptMethod Import { param($file, $options) $script:imported += @("$($file.Name) $options"); , @() }
+        [pscustomobject]@{ TechnologicalObjectGroup = [pscustomobject]@{ TechnologicalObjects = $tos; Groups = $groups }
+                           BlockGroup = [pscustomobject]@{ Blocks = $blocks; Groups = @() } }
+    }
+    function Invoke-ToImport([string[]]$Paths, [string]$Kind = 'technology_object') {
+        $script:imported = @(); $script:groupsMade = @(); $script:committed = $null
+        Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = $Paths })
+    }
+    BeforeEach {
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Register-Archive (Get-BridgeSession)
+    }
+
+    It 'imports a technology object over itself with Override, though it reads know-how protected, names the compile of the PLC in next, and says its kind was tried' {
+        $r = Invoke-ToImport @('plc\technology\Pid1.xml')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'Pid1 Override'
+        $script:committed | Should Be $true
+        $r.items[0].technology | Should Be 'PID_Compact 2.4'
+        $r.items[0].tried | Should Be $true
+        $r.next | Should Match '^compile the plc scope'
+        $r.next | Should Match 'until then the technology object and a block that uses it read not consistent'
+        $r.next | Should Match 'refuses the object''s export'
+        $r.next | Should Match 'then save'
+        $r.technology | Should Match 'Tried on a real TIA: PID_Compact 2\.4 \(Pid1\)'
+        $r.technology | Should Not Match 'Not tried'
+    }
+
+    It 'says an axis was tried as a virtual axis only' {
+        Write-TechnologyObject 'plc\technology\Ax1.xml' 'Ax1' 'TO_SpeedAxis' '6.0'
+        $r = Invoke-ToImport @('plc\technology\Ax1.xml')
+        $r.ok | Should Be $true
+        $r.items[0].tried | Should Be $true
+        $r.technology | Should Be 'Tried on a real TIA: TO_SpeedAxis 6.0 (Ax1; as a virtual axis only, without a drive).'
+    }
+
+    It 'makes a new one in the folder its path mirrors' {
+        $r = Invoke-ToImport @('plc\technology\sub\Pid2.xml')
+        $r.ok | Should Be $true
+        $r.items[0].folder | Should Be 'sub'
+        $script:groupsMade -join ',' | Should Be 'sub'
+        $script:imported -join ',' | Should Be 'Pid2 Override'
+    }
+
+    It 'lets a kind or version not tried through, and says so of each' {
+        $r = Invoke-ToImport @('plc\technology\Pid9.xml', 'plc\technology\Bare.xml', 'plc\technology\Pid1.xml')
+        $r.ok | Should Be $true
+        $r.items[0].technology | Should Be 'PID_Compact 9.9'
+        $r.items[0].tried | Should Be $false
+        $r.items[1].technology | Should Be ''
+        $r.items[1].tried | Should Be $false
+        $r.technology | Should Match 'Tried on a real TIA: PID_Compact 2\.4 \(Pid1\)\.'
+        $r.technology | Should Match 'Not tried: PID_Compact 9\.9 \(Pid9\), no system library element named \(Bare\)'
+        $r.technology | Should Match 'look at each in TIA before the save'
+        $r.technology | Should Match 'Tried were PID_Compact 2\.4, PID_3Step 2\.3'
+    }
+
+    It 'rolls back an object TIA cannot make, and names no compile for it' {
+        $r = Invoke-ToImport @('plc\technology\Pid1.xml', 'plc\technology\Axis1.xml')
+        $r.ok | Should Be $false
+        $r.rolledBack | Should Be $true
+        $script:committed | Should Be $false
+        $r.items[1].error.message | Should Match 'TO_SpeedAxis\.9\.0" does not exist'
+        $r.next | Should Not Match 'read not consistent'
+        $r.technology | Should Match 'Not tried: TO_SpeedAxis 9\.0 \(Axis1\)'
+    }
+
+    It 'refuses a new technology object of a name a DB or block holds, and a new DB of a name a technology object holds' {
+        $r = Invoke-ToImport @('plc\technology\Data1.xml')
+        $r.items[0].refused | Should Match "technology_object 'Data1': the project holds that name as kind db"
+        $r = Invoke-ToImport @('plc\technology\Fc1.xml')
+        $r.items[0].refused | Should Match 'the project holds that name as kind block'
+        @($script:imported).Count | Should Be 0
+        $r = Invoke-ToImport @('plc\blocks\Pid1Db.xml') 'db'
+        $r.items[0].refused | Should Match "db 'Pid1': the project holds that name as kind technology_object"
+        @($script:imported).Count | Should Be 0
+        $r = Invoke-ToImport @('plc\blocks\NewDb.xml') 'db'
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'NewDb.xml Override'
+    }
+
+    It 'refuses a file that is no SimaticML and a DB document before TIA is asked, and a technology object under db' {
+        $r = Invoke-ToImport @('plc\technology\Pid1.s7dcl')
+        $r.items[0].refused | Should Match 'SimaticML'
+        $r = Invoke-ToImport @('plc\technology\Db1.xml')
+        $r.items[0].refused | Should Match 'holds a DB: import it with kind db, not technology_object'
+        $r = Invoke-ToImport @('plc\blocks\Pid1.xml') 'db'
+        $r.items[0].refused | Should Match 'holds a technology object: import it with kind technology_object, not db'
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'does not delete a technology object' {
+        $script:deleted = @()
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'technology_object'; names = @('Pid1') })
+        $r.ok | Should Be $false
+        $r.refused | Should Match 'not tried on a real TIA'
         @($script:deleted).Count | Should Be 0
     }
 }

@@ -142,7 +142,7 @@ function Get-DocumentFileObject($File) {
 Register-ObjectKind 'block' @{
     scope = 'plc'; dir = 'plc\blocks'; defaultOverride = $true
     description = 'FB, FC, OB'
-    sharesNamesWith = 'db'
+    sharesNamesWith = @('db', 'technology_object')
     items = { param($plc) Get-GroupTree $plc.BlockGroup 'Blocks' 'Groups' | Where-Object { -not (Test-IsDataBlock $_.obj) } }
     tree = { param($plc) $plc.BlockGroup }; groups = 'Groups'
     info = { param($e) $b = $e.obj
@@ -159,7 +159,7 @@ Register-ObjectKind 'block' @{
 Register-ObjectKind 'db' @{
     scope = 'plc'; dir = 'plc\blocks'; defaultOverride = $true
     description = 'global, instance and array DBs'
-    sharesNamesWith = 'block'
+    sharesNamesWith = @('block', 'technology_object')
     items = { param($plc) Get-GroupTree $plc.BlockGroup 'Blocks' 'Groups' | Where-Object { Test-IsDataBlock $_.obj } }
     tree = { param($plc) $plc.BlockGroup }; groups = 'Groups'
     info = { param($e) $b = $e.obj
@@ -252,6 +252,67 @@ Register-ObjectKind 'force_table' @{
     afterImport = { param($result, $items) $result.online = $script:ForceTableOnline }
 }
 
+# Technology objects go back through TechnologicalInstanceDBComposition.Import with Override. What a real TIA V20 was
+# tried with, as "<OfSystemLibElement> <OfSystemLibVersion>" of the document, and how where it matters: each made new from
+# a file and round tripped identically (docs\agent\openness-v20.md, Technology objects). After an import the object, and
+# a block that uses it, read not consistent and TIA refuses the object's export until the PLC is compiled.
+$script:TechnologyObjectsTried = [ordered]@{
+    'PID_Compact 2.4' = ''; 'PID_3Step 2.3' = ''; 'PID_Temp 1.1' = ''
+    'TO_SpeedAxis 6.0' = 'as a virtual axis only, without a drive'; 'TO_PositioningAxis 6.0' = 'as a virtual axis only, without a drive'
+    'TO_SynchronousAxis 6.0' = 'as a virtual axis only, without a drive'
+}
+
+# "<element> <version>" of a technology object's document, '' when it names no system library element.
+function Get-TechnologyObjectKind([string]$Path) {
+    try {
+        $list = (Read-DocumentXml $Path).SelectSingleNode("$script:DocumentObjectsXPath/AttributeList")
+        $element = $list.SelectSingleNode('OfSystemLibElement')
+        if (-not $element -or -not $element.InnerText) { return '' }
+        $version = $list.SelectSingleNode('OfSystemLibVersion')
+        "$($element.InnerText) $(if ($version) { $version.InnerText })".Trim()
+    } catch { '' }
+}
+
+# What the result says of the kinds of a call's technology objects: the items the precheck read (technology, tried),
+# grouped as "<kind> (<names>)", tried first. $null when no item got that far.
+function Get-TechnologyObjectTriedNote([object[]]$Items) {
+    $read = @($Items | Where-Object { $_.Contains('technology') })
+    if (-not $read.Count) { return $null }
+    $part = { param($list) @($list | Group-Object { $_.technology } | ForEach-Object {
+        $how = if ($_.Name) { $script:TechnologyObjectsTried[$_.Name] }
+        "$(if ($_.Name) { $_.Name } else { 'no system library element named' }) ($(@($_.Group | ForEach-Object { $_.name }) -join ', ')$(if ($how) { "; $how" }))" }) -join ', ' }
+    $tried = @($read | Where-Object { $_.tried })
+    $untried = @($read | Where-Object { -not $_.tried })
+    $text = @()
+    if ($tried.Count) { $text += "Tried on a real TIA: $(& $part $tried)." }
+    if ($untried.Count) {
+        $text += "Not tried: $(& $part $untried). TIA refuses a kind or version it does not have, and takes one it has as the file writes it, unchecked (a PID_Compact marked 2.3 with the parameters of a 2.4 went in so): have the user look at each in TIA before the save. Tried were $(@($script:TechnologyObjectsTried.Keys) -join ', ')."
+    }
+    $text -join ' '
+}
+
+Register-ObjectKind 'technology_object' @{
+    scope = 'plc'; dir = 'plc\technology'; defaultOverride = $true
+    description = 'technology objects (SimaticML)'
+    sharesNamesWith = @('block', 'db')
+    noDelete = 'Deleting a technology object was not tried on a real TIA. Delete it in TIA.'
+    systemKnowHow = 'IsKnowHowProtected reads true of a PID_Compact, whose export imports back identically'
+    items = { param($plc) Get-GroupTree $plc.TechnologicalObjectGroup 'TechnologicalObjects' 'Groups' }
+    info = { param($e) @{ technology = "$($e.obj.OfSystemLibElement) $($e.obj.OfSystemLibVersion)".Trim(); number = $e.obj.Number; consistent = $e.obj.IsConsistent } }
+    whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
+    export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
+    precheck = { param($file, $cache)
+        if ($file.format -ne 'xml') { return @{ ok = $false; refused = 'Technology objects are SimaticML (.xml) only.' } }
+        $kind = Get-TechnologyObjectKind $file.file
+        @{ technology = $kind; tried = [bool]($kind -and $script:TechnologyObjectsTried.Contains($kind)) } }
+    import = { param($plc, $folder, $file, $override)
+        Import-SimaticMlFile (Get-OrCreateGroup $plc.TechnologicalObjectGroup $folder 'Groups').TechnologicalObjects $file $override }
+    afterImport = { param($result, $items)
+        if ($result.next) { $result.next = $result.next.Replace('compile the plc scope', 'compile the plc scope (the PLC as a whole: until then the technology object and a block that uses it read not consistent, and TIA refuses the object''s export)') }
+        $note = Get-TechnologyObjectTriedNote $items
+        if ($note) { $result.technology = $note } }
+}
+
 # Export only: SimaticML through Export, as the Openness V20 assembly offers it for these
 # objects [PROBE] (2026-10-30, project A).
 
@@ -264,12 +325,5 @@ Register-ObjectKind 'system_block' @{
             foreach ($e in Get-GroupTree $g 'Blocks' 'Groups') { $e.folder = $(if ($e.folder) { "$($g.Name)/$($e.folder)" } else { $g.Name }); $e }
         } }
     info = { param($e) $b = $e.obj; @{ class = Get-PlcBlockClass $b; number = $b.Number; language = [string]$b.ProgrammingLanguage } }
-    export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
-}
-
-Register-ObjectKind 'technology_object' @{
-    scope = 'plc'; dir = 'plc\technology'; exportOnly = $true
-    description = 'technology objects (export only, SimaticML)'
-    items = { param($plc) Get-GroupTree $plc.TechnologicalObjectGroup 'TechnologicalObjects' 'Groups' }
     export = { param($e, $dir, $opt) Export-PlcXml $e $dir $opt }
 }

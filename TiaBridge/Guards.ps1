@@ -76,6 +76,7 @@ $script:DocumentClassKinds = @{
     tags = @{ kind = 'plc_tag_table'; what = 'a PLC tag table' }
     watch = @{ kind = 'watch_table'; what = 'a watch table' }
     force = @{ kind = 'force_table'; what = 'a force table' }
+    technology = @{ kind = 'technology_object'; what = 'a technology object' }
     HMI = @{ kind = 'hmi_*'; what = 'an HMI object' }
 }
 

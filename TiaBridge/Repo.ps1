@@ -752,9 +752,9 @@ function Get-DocumentDeclaredName([string]$Path) {
 }
 
 # What a document holds, for a new library type and the kind it belongs to: 'type' (a PLC data type), 'block' (an FB or
-# FC), 'OB', 'DB', of a SimaticML also 'tags' (a PLC tag table), 'watch' (a watch table), 'force' (a force table) and
-# 'HMI', or '' when it cannot be read. By the same anchored reading as Get-DocumentDeclaredName, as a word further down
-# may name anything.
+# FC), 'OB', 'DB', of a SimaticML also 'tags' (a PLC tag table), 'watch' (a watch table), 'force' (a force table),
+# 'technology' (a technology object, which Openness calls an instance DB) and 'HMI', or '' when it cannot be read. By the
+# same anchored reading as Get-DocumentDeclaredName, as a word further down may name anything.
 function Get-DocumentObjectClass([string]$Path) {
     try {
         if ([System.IO.Path]::GetExtension($Path) -eq '.s7dcl') {
@@ -764,7 +764,7 @@ function Get-DocumentObjectClass([string]$Path) {
         }
         $node = (Read-DocumentXml $Path).SelectSingleNode($script:DocumentObjectsXPath)
         if (-not $node) { return '' }
-        $(switch -Regex ($node.Name) { '^Hmi\.' { 'HMI'; break } '^SW\.Tags\.' { 'tags'; break } '^SW\.WatchAndForceTables\.PlcWatchTable$' { 'watch'; break } '^SW\.WatchAndForceTables\.PlcForceTable$' { 'force'; break } '^SW\.Types\.' { 'type'; break } '^SW\.Blocks\.(FB|FC)$' { 'block'; break } '^SW\.Blocks\.OB$' { 'OB'; break } 'DB$' { 'DB'; break } default { '' } })
+        $(switch -Regex ($node.Name) { '^Hmi\.' { 'HMI'; break } '^SW\.Tags\.' { 'tags'; break } '^SW\.WatchAndForceTables\.PlcWatchTable$' { 'watch'; break } '^SW\.WatchAndForceTables\.PlcForceTable$' { 'force'; break } '^SW\.TechnologicalObjects\.' { 'technology'; break } '^SW\.Types\.' { 'type'; break } '^SW\.Blocks\.(FB|FC)$' { 'block'; break } '^SW\.Blocks\.OB$' { 'OB'; break } 'DB$' { 'DB'; break } default { '' } })
     } catch { '' }
 }
 

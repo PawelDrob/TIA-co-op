@@ -3,8 +3,9 @@
 #
 # A kind is a hashtable: scope ('plc'|'hmi'|'library'|'project'), dir (repo folder), description, defaultOverride,
 # exportOnly (import and delete refused), noOverride (why import never replaces one: override refused), noDelete (why
-# delete is refused), importDir (the one folder it imports from, where the HMI validator looks), and
-# scriptblocks items(root) -> @{ obj; name; folder }, info(entry), export(entry, dir, options),
+# delete is refused), systemKnowHow (why its objects read know-how protected with no person's protection: the import
+# guard of know-how protected blocks passes them), importDir (the one folder it imports from, where the HMI validator
+# looks), and scriptblocks items(root) -> @{ obj; name; folder }, info(entry), export(entry, dir, options),
 # import(root, folder, file, override). A kind without export or import does not support it.
 # Kinds with a folder tree also give tree(root) -> top folder and groups, the name of its subfolder collection
 # (master copies are placed through them).
@@ -305,32 +306,38 @@ function Get-InWorkRefusal([string]$KindName, [string]$Name, $Obj, [string]$Cann
 }
 
 # Why a file must not be imported over the existing object, or $null. Existing: entry of the kind's items, or $null.
-# Safety: the call's safety argument. FDocument: the file is the document of an F-block.
-function Get-ImportRefusal([string]$KindName, [string]$Name, $Existing, [bool]$Override, [bool]$Safety = $false, [bool]$FDocument = $false) {
+# Safety: the call's safety argument. FDocument: the file is the document of an F-block. SystemKnowHow: the kind's
+# objects read know-how protected by TIA's own mark, not a person's (a technology object), so that mark refuses nothing.
+function Get-ImportRefusal([string]$KindName, [string]$Name, $Existing, [bool]$Override, [bool]$Safety = $false, [bool]$FDocument = $false, [bool]$SystemKnowHow = $false) {
     if ($Existing -and -not $Override) { return "$KindName '$Name' exists and override is false; nothing imported." }
     # by the object too: a file with the F mark taken out would turn the F-block into a standard one
     if (-not $Safety -and ($FDocument -or ($Existing -and (Test-FBlockLanguage ([string]$Existing.obj.ProgrammingLanguage))))) {
         return Get-FBlockRefusal $KindName $Name 'import'
     }
     if (-not $Existing) { return $null }
-    if ($Existing.obj.IsKnowHowProtected) {
+    if ($Existing.obj.IsKnowHowProtected -and -not $SystemKnowHow) {
         return "$KindName '$Name' is know-how protected: an override replaced such a block unprotected when tried (an FC, an instance DB), with no password and no message, and the repo holds no copy of its code. Nothing imported: remove the protection in TIA first if it is to change."
     }
     Get-InWorkRefusal $KindName $Name $Existing.obj 'replace it by import' 'Change it in TIA, or release or discard the version in work first.'
 }
 
-# Why a document must not be imported under a name another kind holds, or $null. Blocks and DBs have one list of names in
-# TIA and two kinds here: the object would be replaced by a document of another class, past the guards of the kind that
-# lists it, and what TIA does then is not probed. Walks the other kind once per call, only for a name not of this kind.
+# Why a document must not be imported under a name another kind holds, or $null. Blocks, DBs and technology objects have
+# one list of names in TIA and three kinds here: the object would be replaced by a document of another class, past the
+# guards of the kind that lists it, and what TIA does then is not probed. Walks each other kind (sharesNamesWith) once
+# per call, only for a name not of this kind.
 function Get-NamesakeRefusal($Kind, $Root, [string]$Name, [hashtable]$Cache) {
-    if (-not $Kind.sharesNamesWith) { return $null }
-    if (-not $Cache.ContainsKey('namesakes')) {
-        $names = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
-        foreach ($e in @(Get-KindItems (Get-ObjectKind $Kind.sharesNamesWith) $Root)) { $names[$e.name] = $true }
-        $Cache.namesakes = $names
+    foreach ($other in @($Kind.sharesNamesWith | Where-Object { $_ })) {
+        $key = "namesakes:$other"
+        if (-not $Cache.ContainsKey($key)) {
+            $names = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
+            foreach ($e in @(Get-KindItems (Get-ObjectKind $other) $Root)) { $names[$e.name] = $true }
+            $Cache[$key] = $names
+        }
+        if ($Cache[$key].ContainsKey($Name)) {
+            return "$($Kind.name) '$Name': the project holds that name as kind $other, which the document would replace. Nothing imported: delete that object first if it is to change kind, or give the document another name."
+        }
     }
-    if (-not $Cache.namesakes.ContainsKey($Name)) { return $null }
-    "$($Kind.name) '$Name': the project holds that name as kind $($Kind.sharesNamesWith), which the document would replace. Nothing imported: delete that object first if it is to change kind, or give the document another name."
+    $null
 }
 
 # The name TIA gave an imported object when it is not the one asked for, else $null. TIA can answer an import with another
@@ -399,7 +406,7 @@ function Invoke-ImportTool($a) {
         elseif (-not $ex -and ($why = Get-NamesakeRefusal $k $root $f.objectName $cache)) { $item.refused = $why }
         else {
             $fDocument = -not $safety -and $k.scope -in 'plc', 'library' -and (Test-FBlockDocument $f.file)
-            $refusal = Get-ImportRefusal -KindName $k.name -Name $f.objectName -Existing $ex -Override $override -Safety $safety -FDocument $fDocument
+            $refusal = Get-ImportRefusal -KindName $k.name -Name $f.objectName -Existing $ex -Override $override -Safety $safety -FDocument $fDocument -SystemKnowHow ([bool]$k.systemKnowHow)
             if ($refusal) { $item.refused = $(if ($k.noOverride) { "$refusal $($k.noOverride)" } else { $refusal }) }
             elseif ($k.precheck) {
                 $g = & $k.precheck $f $cache $entries
@@ -844,11 +851,15 @@ function Register-ObjectTools {
         '(give the .s7dcl or .s7res path; the pair goes together; a .s7dcl with LF line ends is first rewritten as CRLF in place, since TIA indents an SCL body deeper on every round trip otherwise), .xml via Import. library_type: the documents in the folder of the given file (SD or SimaticML, ' +
         'refused when the folder holds both) into the version in work through CreateFromDocuments; the file names the type in its file-safe form (Ns:Block in Ns_Block.s7dcl), ' +
         'refused when that fits two types or the document declares neither that type nor a project instance of it; what it makes in the PLC beside the type (copies name_1 on old versions, from any document) is named in copiesBack. Every other kind: the name the document declares is the object, whatever the file is called. ' +
-        'Refused: a document declaring a second object, or one with a keyword whose object cannot be read, a document of another kind (an FB under db, a DB under block, a tag table, watch table, force table or HMI document under block, db or type; a DB, OB, tag table, watch table, force table or HMI document under library_type; a block, DB, data type or HMI document, or another of the three tables, under plc_tag_table, watch_table or force_table), a document of a name the other of block and db holds, and for PLC objects and library types a file that is no .s7dcl or .xml; plc_tag_table, watch_table, force_table and the HMI kinds take .xml only. ' +
+        'Refused: a document declaring a second object, or one with a keyword whose object cannot be read, a document of another kind (an FB under db, a DB under block, a tag table, watch table, force table, technology object or HMI document under block, db or type; a DB, OB, tag table, watch table, force table, technology object or HMI document under library_type; a block, DB, data type or HMI document, or another of the three tables or a technology object, under plc_tag_table, watch_table or force_table; any other document under technology_object), a new object of a name another of block, db and technology_object holds, and for PLC objects and library types a file that is no .s7dcl or .xml; plc_tag_table, watch_table, force_table, technology_object and the HMI kinds take .xml only. ' +
         'An import TIA answers with another name than the document declares is not ok, though the object is in TIA: the item has importedAs, the result namedOtherwise and what to do. ' +
         'watch_table: a row naming a symbol the PLC does not have makes TIA answer OK and leave the table not consistent with none of its rows; the bridge fails that item (error TiaBridge.NotConsistent, naming the table) and the call rolls back. Over an existing table the save is then refused until that table is imported good, after a rollback too, and without a transaction the table also stays not consistent and empty; a new table rolled back is not in the project and holds nothing. ' +
         'force_table: the PLC''s one force table, over itself only: a file of another name is refused before TIA sees it, as TIA makes no other. A row naming a symbol the PLC does not have fails the import (TIA throws, or leaves the table not consistent: TiaBridge.NotConsistent), and the call rolls back with the table as it was; without a transaction the table stays as TIA left it, not consistent or partly imported. Either way the save is then refused until the table is imported good. ' +
         'The result''s online says what the import does not do: it changes the offline table only, nothing in the CPU, and a file cannot set a force mark (ForceIntention is read-only); whether a row marked in TIA keeps its mark through an import was not tried. Forcing stays the user''s, online in TIA. ' +
+        "technology_object: tried on a real TIA, each made new from a file and round tripped identically: $(@($script:TechnologyObjectsTried.Keys) -join ', '), the axes as virtual axes without a drive. " +
+        'Each item names its kind as the document writes it (technology: element and version) and whether it was tried; the result''s technology says which were and which not. A kind not tried goes in: TIA refuses a kind or version it does not have, and the call rolls back; one it has it takes as the file writes it, unchecked. ' +
+        'A new object keeps the file''s number; a number another block has stands until the compile, which gives it a free one. After an import the object and a block that uses it read not consistent, and TIA refuses the object''s export, until the PLC is compiled; next says so. ' +
+        'A new object of a name a block or DB has is refused, and so is a new block or DB of a technology object''s name. The know-how mark TIA sets on a technology object refuses nothing. ' +
         'An existing object is replaced where it is; a new one goes to ' +
         'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables and cycles. ' +
         'override defaults to true, except hmi_template and hmi_tag_table (an existing one is refused). ' +
@@ -874,7 +885,7 @@ function Register-ObjectTools {
     Register-McpTool -Name 'delete' -Handler { param($a) Invoke-DeleteTool $a } -Description (
         'Delete objects by exact name (e.g. test blocks from bisecting, objects after a rename). Counts as a write: compile afterwards. ' +
         'Refused per name: the test instance of a library type in work (release the version in work first, or discard it with library_discard_type); an F-block without safety: true (an F-compliant PLC data type is not recognised here); a know-how protected block without knowhow: true (its code cannot be exported, so only a project archive can restore it: the session archive, unless it was skipped); the other names go on. ' +
-        'Refused per call: the kinds the bridge only exports, hmi_cycle (a delete was not tried on a real TIA), and force_table (the PLC''s one force table, which TIA keeps).') -Schema @{
+        'Refused per call: the kinds the bridge only exports, hmi_cycle and technology_object (a delete was not tried on a real TIA), and force_table (the PLC''s one force table, which TIA keeps).') -Schema @{
         type = 'object'; required = @('kind', 'names')
         properties = @{ kind = @{ type = 'string'; enum = $kinds }; names = @{ type = 'array'; items = @{ type = 'string' } }; safety = $script:SafetyArgument
                         knowhow = @{ type = 'boolean'; description = 'allows the delete of know-how protected blocks. Only when the user asked for this delete; never to get past the refusal' }; device = $device } }
