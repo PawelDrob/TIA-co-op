@@ -21,8 +21,8 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   a project closed in your TIA.
 - Refuses to change F-blocks unless you asked for that change. Refuses an import over a know-how protected block whatever
   you ask: remove the protection in TIA first. Deletes one, or replaces it from a master copy, only when you asked for that.
-  A technology object can read know-how protected in TIA, by Siemens' own protection of its system block (a PID_Compact
-  2.4 does, an external encoder 6.0 does not): the bridge imports over one.
+  A technology object can read know-how protected in TIA though nobody protected it (a PID_Compact 2.4 does, an external
+  encoder 6.0 does not): the bridge imports over one.
 - Refuses an HMI screen whose number another screen of the device has, as that ended TIA, and names that screen.
 - Exports HMI cycles full and imports them from that export. A cycle file an older version exported minimal is refused, as
   TIA reads one as "start at starting point" off. Export the cycles again first: the next change report then shows the
