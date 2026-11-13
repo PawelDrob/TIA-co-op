@@ -305,8 +305,7 @@ Register-ObjectKind 'technology_object' @{
     noDelete = 'Deleting a technology object was not tried on a real TIA. Delete it in TIA.'
     # TIA reports a PID_Compact 2.4 as know-how protected although nobody protected it; an external encoder 6.0 reads
     # not protected. The guard against an import over a know-how protected block would refuse every import over such an
-    # object, and the PID_Compact's export imported back identically. So the guard does not apply to technology objects
-    # (the maintainer's word, 2026-11-12)
+    # object, and the PID_Compact's export imported back identically. So the guard does not apply to technology objects.
     systemKnowHow = $true
     compileWhy = 'the PLC as a whole: until then the technology object reads not consistent and TIA refuses its export, and a block that uses it may read not consistent'
     items = { param($plc) Get-GroupTree $plc.TechnologicalObjectGroup 'TechnologicalObjects' 'Groups' }

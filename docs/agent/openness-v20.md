@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T20:30:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T20:13:21-05:00 }
 ---
 
 # TIA Openness V20 facts for agents

@@ -308,8 +308,8 @@ function Get-InWorkRefusal([string]$KindName, [string]$Name, $Obj, [string]$Cann
 }
 
 # Why a file must not be imported over the existing object, or $null. Existing: entry of the kind's items, or $null.
-# Safety: the call's safety argument. FDocument: the file is the document of an F-block. SystemKnowHow: the kind is one
-# whose objects TIA reports as know-how protected although nobody protected them, so for it that mark refuses nothing.
+# Safety: the call's safety argument. FDocument: the file is the document of an F-block. SystemKnowHow: TIA reports
+# some of the kind's objects as know-how protected although nobody protected them, so for the kind that mark refuses nothing.
 function Get-ImportRefusal([string]$KindName, [string]$Name, $Existing, [bool]$Override, [bool]$Safety = $false, [bool]$FDocument = $false, [bool]$SystemKnowHow = $false) {
     if ($Existing -and -not $Override) { return "$KindName '$Name' exists and override is false; nothing imported." }
     # by the object too: a file with the F mark taken out would turn the F-block into a standard one

@@ -4,7 +4,7 @@ title: Known issues
 description: What TIA Openness V20 cannot do and which problems of the tools are not solved, for anyone changing the tools.
 tags: [dev, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T20:30:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T20:13:21-05:00 }
 ---
 
 # Known issues
