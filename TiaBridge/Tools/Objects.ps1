@@ -3,8 +3,8 @@
 #
 # A kind is a hashtable: scope ('plc'|'hmi'|'library'|'project'), dir (repo folder), description, defaultOverride,
 # exportOnly (import and delete refused), noOverride (why import never replaces one: override refused), noDelete (why
-# delete is refused), systemKnowHow ($true: its objects can read know-how protected though nobody protected them, and
-# the import guard of know-how protected blocks passes them), sharesNamesWith (the kinds whose names are one list in TIA with its own: a new
+# delete is refused), systemKnowHow ($true: TIA reports some of its objects as know-how protected although nobody
+# protected them, so the guard that refuses an import over a know-how protected block does not apply to the kind), sharesNamesWith (the kinds whose names are one list in TIA with its own: a new
 # object of such a name is refused), compileWhy (why the compile that next names is due), importDir (the one folder it
 # imports from, where the HMI validator looks), and scriptblocks items(root) -> @{ obj; name; folder }, info(entry),
 # export(entry, dir, options), import(root, folder, file, override), precheck, whoseFile, afterImport. A kind without
@@ -308,8 +308,8 @@ function Get-InWorkRefusal([string]$KindName, [string]$Name, $Obj, [string]$Cann
 }
 
 # Why a file must not be imported over the existing object, or $null. Existing: entry of the kind's items, or $null.
-# Safety: the call's safety argument. FDocument: the file is the document of an F-block. SystemKnowHow: the kind's
-# objects can read know-how protected though nobody protected them (a technology object), so that mark refuses nothing.
+# Safety: the call's safety argument. FDocument: the file is the document of an F-block. SystemKnowHow: the kind is one
+# whose objects TIA reports as know-how protected although nobody protected them, so for it that mark refuses nothing.
 function Get-ImportRefusal([string]$KindName, [string]$Name, $Existing, [bool]$Override, [bool]$Safety = $false, [bool]$FDocument = $false, [bool]$SystemKnowHow = $false) {
     if ($Existing -and -not $Override) { return "$KindName '$Name' exists and override is false; nothing imported." }
     # by the object too: a file with the F mark taken out would turn the F-block into a standard one
@@ -863,7 +863,7 @@ function Register-ObjectTools {
         "technology_object: tried on a real TIA, each made new from a file and round tripped identically: $(@($script:TechnologyObjectsTried.Keys) -join ', '), the axes as virtual axes without a drive. " +
         'Each item names the system library element and version the document writes (technology) and whether they were tried; the result''s technology says which were and which not. An element or version not tried goes in: TIA refuses one it does not have, and the call rolls back; one it has it takes as the file writes it, unchecked. An import over an object of another element or version is refused before TIA sees it: it was not tried. ' +
         'A new object keeps the file''s number; a number another block has stands until the compile, which gives it a free one. After an import the object reads not consistent, and TIA refuses its export, until the PLC is compiled, and a block that uses it may read not consistent until then; next says so. ' +
-        'A new object of a name a block or DB has is refused, and so is a new block or DB of a technology object''s name. A technology object can read know-how protected in TIA though nobody protected it (a PID_Compact 2.4 does, an external encoder 6.0 does not); the bridge imports over one. ' +
+        'A new object of a name a block or DB has is refused, and so is a new block or DB of a technology object''s name. The bridge refuses an import over a block TIA reports as know-how protected, but not over a technology object: TIA reports some technology objects that way although nobody protected them (seen on a PID_Compact 2.4), and the refusal would stop every import over such an object. So the bridge imports over an existing technology object. ' +
         'An existing object is replaced where it is; a new one goes to ' +
         'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables and cycles. ' +
         'override defaults to true, except hmi_template and hmi_tag_table (an existing one is refused). ' +
