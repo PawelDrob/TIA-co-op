@@ -211,10 +211,30 @@ function Get-ObjectExportReason($Kind, $Entry, $State, $Old, [string]$Device) {
     $null
 }
 
+# Why a tag table's export now differs from its file in the repo, or $null. Its date is no signal: a tag renamed through
+# Openness moved no date of the table, and the table's file changed [PROBE] (2026-11-17, V20 Update 7). So the table
+# is exported once to a temporary file and compared as an export compares (Test-OnlyExportTimeDiffers); tables are few.
+# When the compare cannot be made, it differs.
+function Get-TagTableDifference($Kind, $Entry, [string]$Device) {
+    $file = Join-Path (Get-KindDir $Kind $Entry.folder '' $Device) "$(ConvertTo-SafeFileName $Entry.name).xml"
+    if (-not [System.IO.File]::Exists($file)) { return 'its file is not in the repo' }
+    $temp = Join-Path ([System.IO.Path]::GetTempPath()) "tiabridge-$PID-$([guid]::NewGuid().ToString('N')).xml"
+    try {
+        $Entry.obj.Export([System.IO.FileInfo]::new($temp), (Get-PlcExportOptions $false))
+        if (Test-OnlyExportTimeDiffers $temp $file) { $null } else { 'its export differs from its file in the repo' }
+    }
+    catch {
+        if (Test-TiaEndedError $_) { throw }
+        "its export for the compare failed ($($_.Exception.Message))"
+    }
+    finally { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
+}
+
 # Why every object of a PLC is exported, or $null. Old: its record entries (ConvertTo-EntryMap); Objects: key -> @{ kind; entry;
-# state }. A name or a data type, a tag or an interface is used by other blocks: their files may change with no date of
-# theirs moving, so any change of one exports them all. Names compare with case: a block renamed Fb1 -> FB1 is named so
-# in its callers' files, and PowerShell's -contains and hashtables ignore case.
+# state }. A block names other blocks and tags in its code, and a renamed one moved no date of a block naming it: the
+# compile after it did [PROBE] (2026-11-17, steps 6, 7, 13 and 16 of ticket 339's e2e run). Until that compile, which
+# rewrites the callers, any of these exports them all. Names compare with case: a block renamed Fb1 -> FB1 is named so in
+# its callers' files, and PowerShell's -contains and hashtables ignore case.
 function Get-PlcExportReason([hashtable]$Old, [hashtable]$Objects) {
     $gone = @($Old.Keys | Where-Object { -not $Objects.ContainsKey($_) })
     $new = @($Objects.Keys | Where-Object { -not $Old.ContainsKey($_) })
@@ -224,9 +244,23 @@ function Get-PlcExportReason([hashtable]$Old, [hashtable]$Objects) {
     }
     foreach ($key in @($Objects.Keys | Sort-Object)) {
         $o = $Objects[$key]; $was = $Old[$key]
-        $same = (Get-StateText $o.state) -ceq (Get-StateText $was.state)
-        if ($o.kind -eq 'type' -and -not $same) { return "the data type $($o.entry.name) changed" }
-        if ($o.kind -eq 'plc_tag_table' -and -not $same) { return "the tag table $($o.entry.name) changed" }
+        if ($o.kind -ne 'plc_tag_table') { continue }
+        if ((Get-StateText $o.state) -cne (Get-StateText $was.state)) { return "the tag table $($o.entry.name) changed" }
+        if ($o.differs) { return "the tag table $($o.entry.name) changed: $($o.differs)" }
+    }
+    $null
+}
+
+# Why the objects of a PLC that were exported as SimaticML are exported, or $null: a data type changed, or the interface of
+# a block or DB. A block that uses it turned not consistent, and the compile that rewrote it moved its own dates, so its own
+# values say so [PROBE] (2026-11-17, steps 4, 10 to 12 and 31 to 36 of ticket 339's e2e run, blocks exported as SD). A block
+# exported as SimaticML (an OB, a know-how protected block, one whose SD export TIA refused) holds the parameters of what it
+# calls and the members of the types it uses in its file; whether that file follows the other one before its own compile
+# was not tried, so these few are exported.
+function Get-SimaticMlReason([hashtable]$Old, [hashtable]$Objects) {
+    foreach ($key in @($Objects.Keys | Sort-Object)) {
+        $o = $Objects[$key]; $was = $Old[$key]
+        if ($o.kind -eq 'type' -and (Get-StateText $o.state) -cne (Get-StateText $was.state)) { return "the data type $($o.entry.name) changed" }
         if ($o.kind -in 'block', 'db' -and (Get-StateValue $o.state 'InterfaceModifiedDate') -cne (Get-StateValue $was.state 'InterfaceModifiedDate')) {
             return "the interface of $($o.entry.name) changed"
         }
@@ -254,14 +288,20 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
             $d.entries[$kn] = @(Get-KindItems $k $s.software)
             foreach ($e in $d.entries[$kn]) {
                 $key = "$kn|$($e.name)"
-                $d.objects[$key] = @{ kind = $kn; entry = $e; state = (Read-ExportState $k $e); old = $(if ($null -ne $old) { $old[$key] }); export = $null }
+                $o = @{ kind = $kn; entry = $e; state = (Read-ExportState $k $e); old = $(if ($null -ne $old) { $old[$key] }); export = $null }
+                if ($kn -eq 'plc_tag_table' -and -not $plan.all -and $null -ne $old) { $o.differs = Get-TagTableDifference $k $e $device }
+                $d.objects[$key] = $o
             }
         }
         if ($plan.all) { $d.all = $plan.all }
         elseif ($null -eq $old) { $d.all = "the record holds nothing of $device" }
         else { $d.all = Get-PlcExportReason $old $d.objects }
+        $xml = if (-not $d.all) { Get-SimaticMlReason $old $d.objects }
         foreach ($o in @($d.objects.Values | Where-Object { $_.kind -ne 'db' }) + @($d.objects.Values | Where-Object { $_.kind -eq 'db' })) {
             $o.export = $(if ($d.all) { $d.all } else { Get-ObjectExportReason (Get-ObjectKind $o.kind) $o.entry $o.state $o.old $device })
+            if (-not $o.export -and $xml -and $o.kind -ne 'plc_tag_table' -and @((Get-EntryFiles $o.old).Keys | Where-Object { $_ -like '*.xml' }).Count) {
+                $o.export = "$xml, and its SimaticML may show it"
+            }
             # an instance DB's export holds its FB's interface
             if (-not $o.export -and $o.kind -eq 'db') {
                 $fb = Get-StateValue $o.state 'InstanceOfName'

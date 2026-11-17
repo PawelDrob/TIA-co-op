@@ -505,6 +505,7 @@ function Invoke-FullExportTool($a) {
 
     # what TIA says of the skipping kinds, read before any export; no plan: every object is exported, as before
     $plan = $null; $planNote = $null
+    $planWatch = [System.Diagnostics.Stopwatch]::StartNew()
     if (@($selected | Where-Object { $script:SkipKinds -contains $_.kind }).Count -and @($software | Where-Object { $_.kind -eq 'plc' }).Count) {
         if ($script:Bridge.background -and $script:Bridge.background.plain) { $planNote = 'a plain export folder keeps no record' }
         else {
@@ -512,6 +513,7 @@ function Invoke-FullExportTool($a) {
             catch { $planNote = "what TIA says of the objects did not read: $((ConvertTo-BridgeError $_).message)" }
         }
     }
+    $planMs = [int]$planWatch.ElapsedMilliseconds
 
     # (part, device) pairs of every part, selected or not: a folder is mirrored only when every part that writes it ran
     $jobs = @(foreach ($p in $script:FullExportParts) {
@@ -616,7 +618,9 @@ function Invoke-FullExportTool($a) {
         $d
     })
     $exported = 0; $skipped = 0; foreach ($r in $records) { $exported += [int]$r.exported; $skipped += [int]$r.skipped }
+    $saveWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $recordError = if ($plan -and -not $stopped) { Save-ExportRecord $plan $records }
+    $saveMs = [int]$saveWatch.ElapsedMilliseconds
     $result = [ordered]@{
         ok = (-not $failed.Count -and -not $stopped -and -not $removeErrors.Count -and -not $gitError)
         exported = $exported; skipped = $skipped; unchanged = (Get-UnchangedExportCount @($records | ForEach-Object { $_.written })); failedCount = $failed.Count; removedCount = $removed.Count; keptCount = $keptUncommitted.Count; totalMs = [int]$started.ElapsedMilliseconds
@@ -645,6 +649,8 @@ function Invoke-FullExportTool($a) {
         if ($byPlc.Count) { $result.exportedAllOf = $byPlc }
     }
     if ($recordError) { $result.recordError = $recordError }
+    # what the skipping costs: the read of TIA's values and the record's files before the export, the record's write after
+    if ($plan) { $result.planMs = $planMs; $result.saveMs = $saveMs }
     $folderNotes = @(foreach ($s in $software) {
         Get-SharedFolderNote 'Device' ([string]$s.device) @($software | Where-Object { $_.kind -eq $s.kind } | ForEach-Object { [string]$_.device })
     })
@@ -672,7 +678,7 @@ function Register-FullExportTool {
         'are listed (keptUncommitted: import, commit or delete each before committing); a git repo inside such a folder stays whole and is listed (keptRepos), an object whose own export folder holds one is refused and in failed, and a repo around such a folder loses nothing, gets the new files and is listed too; the export of an object still replaces uncommitted edits of its own files, as export does. ' +
         'A file that differs from the one in the repo only in what TIA writes anew per export (the export time; in an .xlsx also its relationship Ids) stays as it is: a full_export with no change in TIA changes no file; unchanged counts the files left so. ' +
         'Blocks, DBs, data types and PLC tag tables TIA has not changed since the last full_export are not exported and keep their files (skipped counts them): it compares the dates and other values TIA keeps of each, for unequal, and the files the last export left (.tiabridge-export.json, ignored by git); ' +
-        'it exports an object when a value differs, it moved, it is not consistent, its last export failed, a file of it was edited, removed or added beside it in the repo, or it is an instance DB of an exported FB; every object of a PLC when a data type, a tag table or an interface changed or an object was added, deleted or renamed (exportedAllOf); ' +
+        'it exports an object when a value differs, it moved, it is not consistent, its last export failed, a file of it was edited, removed or added beside it in the repo, or it is an instance DB of an exported FB; a block written as SimaticML also when a data type or an interface changed (its users written as SD export by their own values: TIA holds them not consistent until the compile, which moves their dates); every object of a PLC when a tag table exports differently or an object was added, deleted or renamed (exportedAllOf); ' +
         'everything when there is no usable record, or the project, TIA version, project languages, PLC devices or the bridge differ from it (exportedAll); details counts per part why objects were exported. HMI, library and the other parts export every time. full: true exports everything. ' +
         'hmi\generated, gen, library\changes, changes, logs, archives and standards are never touched. Read only: works under connect and in a background session. Long: about minutes per thousand objects; ' +
         'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part, failed items, ' +

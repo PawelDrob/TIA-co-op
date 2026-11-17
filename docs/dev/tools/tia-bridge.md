@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T14:29:20-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T16:35:59-05:00 }
 ---
 
 # TiaBridge internals
@@ -183,8 +183,9 @@ One per project, under `projectsRoot`, made by `connect`:
 - **A failed export leaves the old file.** Exports are written next to their target and replace it only on success.
 - **`full_export` skips what TIA has not changed** (decided 2026-11-17; `full: true` exports everything). Before any export it reads the dates and other values of every block, DB, data type and tag table of each PLC (`$script:ExportStateAttributes`), and compares them for unequal with `.tiabridge-export.json`, which holds them per object with the SHA-256 of each file its export left. The facts it rests on are the `[PROBE]` table under Dates in [the Openness facts](../../agent/openness-v20.md).
   - **Everything is exported** when the record is missing or does not read, or its head differs: the project (in a background session the source it copied), TIA's version (`Siemens.Engineering.dll`), the project's languages, the PLC devices, or a hash of the bridge's own `*.ps1`. The result names the reason (`exportedAll`).
-  - **Every object of a PLC** when an object of it was added, deleted or renamed, a data type or tag table changed, or the interface date of a block or DB moved: other blocks name them, and their files may change with no date of theirs moving (`exportedAllOf`).
+  - **Every object of a PLC** when an object of it was added, deleted or renamed, or a tag table exports differently: other blocks name them, and a rename moves no date of a block naming it until the compile rewrites that block (`exportedAllOf`). A tag table's dates are not its signal: a tag renamed through Openness moved none, so the plan exports each table to a temporary file and compares it with its file in the repo (`Get-TagTableDifference`).
   - **One object** when a value differs, it moved to another folder, it is not consistent, its last export failed, it reads no date or a value that does not read, a file of it differs from the record or one of another format lies beside it, or it is an instance DB of an FB that is exported. `details` counts the reasons per part (`why`).
+  - **A data type or an interface changed** (a type's values, or the interface date of a block or DB): the blocks that use it export by their own values, as TIA holds them not consistent until the compile, and the compile that rewrites them moves their dates (ticket 339's e2e run). Every object last written as SimaticML exports too (`Get-SimaticMlReason`): such a file holds the parameters and members of what it uses, and whether it follows them before its own compile was not tried.
   - A skipped object's files count as written, so the mirror removes what a full export removes. A PLC's entries are one snapshot: a run that listed all four kinds of it replaces them, any other leaves them, and a run that stopped writes nothing.
 
 ## The reviewed change

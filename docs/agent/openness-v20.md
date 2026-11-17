@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T14:29:20-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T16:35:59-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -57,8 +57,9 @@ SimaticML, a namespace prefix in a block's. Whether TIA takes prefixes in other 
 
 **Dates.** The agent's own import moves every date of the object (`CreationDate` included), and its compile moves
 them again. A block changed by a person after the agent's last import and compile shows a newer `ModifiedDate`
-`[PROBE]`. `full_export` skips a block, DB, data type or tag table whose values below read as at the last export
-(TiaBridge's README says what else it checks); every reason it skips rests on this table.
+`[PROBE]`. `full_export` skips a block, DB or data type whose values below read as at the last export, and a tag table
+whose export reads as its file (TiaBridge's README says what else it checks); every reason it skips rests on this table
+and the list after it.
 
 Probed on 2026-10-08 on a real project, V20 Update 7, with a person making the edits in TIA and a script reading the
 values between the steps `[PROBE]`. The objects: an SCL FB, a LAD FB, a global DB, a data type, a PLC tag table, and an
@@ -87,6 +88,31 @@ consistent and changes on every compile after a change: one value per PLC, which
 
 A getter that throws reads `$null` in PowerShell, as an attribute the object does not have: TiaBridge reads these values
 by reflection, so one TIA refuses counts as unread and its object is exported `[PROBE]` (2026-11-17, Windows PowerShell 5.1).
+
+Probed again on 2026-11-17, V20 Update 7, on a copy of a test project without a window, through the calls an agent makes
+and edits Openness makes in place; after each change the default `full_export` and `full: true` left the same files
+`[PROBE]` (ticket 339's e2e run):
+
+- **Import, compile:** an `Override` import moves every date of the object, `InterfaceModifiedDate` too, also when only its
+  code changed. The compile after an interface change rewrote both callers (each got the new input) and moved their
+  `ModifiedDate`, `CodeModifiedDate` and `CompileDate`. Before it they read not consistent.
+- **Data type:** a member added by import left every block and DB using it not consistent and changed only the type's file;
+  the compile after it changed no other file. A member added to a global DB that 43 blocks use moved the dates of those the
+  compile rewrote; a member renamed left the users it broke not consistent.
+- **Rename in place** (`SetAttribute('Name')`): the block's key changes; no date of a caller moves and no caller's file
+  changes until the compile, which rewrote both callers and moved their dates.
+- **Number in place** (`AutoNumber` off, `Number`): `ModifiedDate` and `InterfaceModifiedDate` move, the callers turn not
+  consistent, only the block's own file changes.
+- **A tag renamed in place:** no date of its tag table moves, and the table's file changes. The block using the tag turns
+  not consistent, its file stays, and the compile after it rewrote it and moved its dates. A tag's address or comment set
+  in place moves the table's `ModifiedTimeStamp`.
+- **Closed without saving** after an import and compile: the next session reads the dates from before the import.
+- **Library type** edited and released: the version's `Guid`, `State` and `ModifiedDate` moved with its files.
+- **Not settable through Openness** on an FB or FC: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, `IsIECCheckEnabled`,
+  `SetENOAutomatically` ("'set_HeaderVersion' is not supported by type 'Siemens.Engineering.SW.Blocks.FC'"); a block has no
+  `Comment` attribute. Whether editing them in TIA's dialogs moves a date is not probed.
+- **Candidates for skipping:** system blocks have the dates of a block, but no step changed one; the force table has no date
+  (`IsConsistent` only); no technology object or watch table was in the project. They are exported every time.
 
 **User folders** `[PROBE]` (V20 Update 7, 2026-11-02, on a copy: block, PLC data type and PLC tag table folders of a PLC;
 screen, template, pop-up and HMI tag folders of a Comfort panel):
