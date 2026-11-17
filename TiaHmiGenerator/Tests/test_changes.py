@@ -1483,6 +1483,25 @@ class MemberChangesTest(RepoCase):
         self.assertEqual({'before': silo, 'after': silo}, tl['usedBy'])
         self.assertIn('adoc', tl)              # the page draws symbolic I/O fields from it
 
+    def test_a_graphic_list_is_used_by_the_screen_whose_graphic_io_field_links_it(self):
+        gl = ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Engineering version="V20" />'
+              '<Hmi.TextGraphicList.GraphicList ID="0"><AttributeList><Name>glState</Name></AttributeList><ObjectList>'
+              '<Hmi.TextGraphicList.GraphicListEntry ID="1" CompositionName="Entries"><AttributeList><From>0</From>'
+              '<To>0</To></AttributeList><LinkList><Picture TargetID="@OpenLink"><Name>%s</Name></Picture></LinkList>'
+              '</Hmi.TextGraphicList.GraphicListEntry></ObjectList></Hmi.TextGraphicList.GraphicList></Document>\n')
+        gio = item('Hmi.Screen.GraphicIOField', 'state',
+                   '<LinkList><PictureList TargetID="@OpenLink"><Name>glState</Name></PictureList></LinkList>',
+                   Left=10, Top=90, Width=40, Height=40)
+        self.repo.write('hmi/graphiclists/glState.xml', gl % 'Home')
+        self.repo.export('screen', 'Silo', document('screen', 'Silo', [gio], Number=1))
+        self.repo.commit()
+        self.repo.write('hmi/graphiclists/glState.xml', gl % 'Up_Arrow')
+
+        result = self.compare('HEAD')
+
+        silo = [{'kind': 'screen', 'name': 'Silo'}]
+        self.assertEqual({'before': silo, 'after': silo}, self.obj(result, 'glState')['usedBy'])
+
     def test_root_attributes_of_a_table(self):
         self.repo.write('hmi/cycles/Fast.xml', tag_table('Fast', []).replace('<Name>Fast</Name>',
                                                                             '<Name>Fast</Name><Time>100</Time>'))

@@ -313,7 +313,7 @@ def field_uses(tree):
 
 def uses(tree):
     """{(link kind, name)} a drawn document links, its text fields too: 'Tag' by its HMI tag, 'TextList',
-    'GraphicList', 'Template', 'Picture' (Picture, PictureOff, PictureOn, ...)."""
+    'GraphicList' (a PictureList link, as TIA names it), 'Template', 'Picture' (Picture, PictureOff, PictureOn, ...)."""
     out = set()
     for e in tree.iter():
         if e.get('TargetID') == '@OpenLink':
@@ -324,6 +324,8 @@ def uses(tree):
                 out.add(('Tag', tag_base(n)))
             elif e.tag in USED:
                 out.add((e.tag, n))
+            elif e.tag == 'PictureList':
+                out.add(('GraphicList', n))
             elif e.tag.startswith('Picture'):
                 out.add(('Picture', n))
     return out | field_uses(tree)

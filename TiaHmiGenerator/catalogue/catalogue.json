@@ -5081,7 +5081,7 @@
      }
     },
     {
-     "name": "link:GraphicList",
+     "name": "link:PictureList",
      "display": "Graphic list",
      "displayKnown": true,
      "group": "General",
@@ -5089,7 +5089,11 @@
      "default": null,
      "description": "Graphic list whose entries the tag's value selects.",
      "nameSeen": false,
-     "access": null
+     "access": {
+      "professional": "-",
+      "advanced": "-",
+      "panel": "-"
+     }
     },
     {
      "name": "link:PictureOff",
@@ -5873,7 +5877,7 @@
    ],
    "links": [
     "Authorization",
-    "GraphicList",
+    "PictureList",
     "PictureOff",
     "PictureOn",
     "StyleItem",
@@ -7346,15 +7350,18 @@
      }
     },
     {
-     "name": "link:GraphicList",
+     "name": "link:PictureList",
      "display": "Graphic list",
      "displayKnown": true,
      "group": "General",
      "kind": "link",
      "default": null,
      "description": "Graphic list whose entries the tag's value selects.",
-     "nameSeen": false,
-     "access": null
+     "access": {
+      "professional": "-",
+      "advanced": "-",
+      "panel": "-"
+     }
     },
     {
      "name": "link:PictureOff",
@@ -7737,7 +7744,7 @@
    ],
    "links": [
     "Authorization",
-    "GraphicList",
+    "PictureList",
     "PictureOff",
     "PictureOn"
    ],

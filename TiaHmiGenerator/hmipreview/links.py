@@ -2,8 +2,9 @@
 
 Link kinds and where they are read:
   textlist       <TextList> link (symbolic I/O field)
+  graphiclist    <PictureList> link (graphic I/O field; TIA's name for the link, refused as GraphicList)
   template       <Template> link of a screen root
-  picture        <Picture...> links (graphic view Picture, button PictureOn / PictureOff, ...)
+  picture        the other <Picture...> links (graphic view Picture, button PictureOn / PictureOff, ...)
   authorization  <Authorization> link, and the Value link of a faceplate interface property named Authorization
   screen         Value link of the 'Screen name' parameter of ActivateScreen
   popup          Value link of the 'Name of the screen' parameter of ShowPopupScreen
@@ -15,8 +16,8 @@ Link kinds and where they are read:
                  the exported object actually copied (its ObjectName, and the export document when known).
 Tag, StyleItem and links to the own document (TargetID '#0') are not resolved. A link without a Name is left open.
 
-exists:  screens, templates, pop-ups and text lists: a TIA export of that kind and name. Faceplate type versions:
-         the exported project library (library/faceplates, TiaBridge export kind faceplate_type; model.py) lists
+exists:  screens, templates, pop-ups, text lists and graphic lists: a TIA export of that kind and name.
+         Faceplate type versions: the exported project library (library/faceplates, TiaBridge export kind faceplate_type; model.py) lists
          the type with that version, in the library folder the FaceplateTypeName names (its segments between the
          first, '_Library', and the last). A version used on an exported screen does not count: the screen may be
          older than the library. Without library/faceplates every faceplate link is unknown, with a note to export
@@ -44,7 +45,7 @@ EXISTS = 'exists'
 PLANNED = 'planned'
 UNKNOWN = 'unknown'
 
-KINDS = ('style', 'textlist', 'template', 'picture', 'faceplate', 'screen', 'popup', 'authorization')
+KINDS = ('style', 'textlist', 'graphiclist', 'template', 'picture', 'faceplate', 'screen', 'popup', 'authorization')
 DOC_KINDS = ('screen', 'template', 'popup', 'textlist')
 FP_SEP = '@$@'
 
@@ -129,6 +130,8 @@ def raw_links(doc):
                     add(owner, 'textlist', name)
                 elif l.tag == 'Template':
                     add(owner, 'template', name)
+                elif l.tag == 'PictureList':
+                    add(owner, 'graphiclist', name)
                 elif l.tag.startswith('Picture'):
                     add(owner, 'picture', name)
                 elif l.tag == 'Authorization':
@@ -200,6 +203,7 @@ class Resolver:
                 if kind in ('authorization', 'style'):
                     self.known[kind].add(name)
         self.known['picture'].update(repo.graphics)     # hmi/graphics.json, as TIA lists the project's graphics
+        self.known['graphiclist'].update(d.name for d in repo.graphic_lists)
         self.generated = {(d.kind, d.name) for d in repo.generated}
         self.planned = {}
         for p in repo.planned_items:

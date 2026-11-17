@@ -102,6 +102,37 @@ class LinkTest(unittest.TestCase):
         return links_of(validate(self.repo.path, for_import=for_import))
 
 
+def graphic_io(name, graphiclist):
+    """Graphic I/O field linking a graphic list: TIA names the link PictureList (GraphicList is refused)."""
+    return item('Hmi.Screen.GraphicIOField', name, link_list('PictureList', graphiclist), Left=10, Top=90, Width=40,
+                Height=40)
+
+
+def graphiclist_doc(name):
+    return ('<?xml version="1.0" encoding="utf-8"?>\n<Document><Engineering version="V20" />'
+            '<Hmi.TextGraphicList.GraphicList ID="0"><AttributeList><Name>%s</Name></AttributeList>'
+            '</Hmi.TextGraphicList.GraphicList></Document>\n' % name)
+
+
+class GraphicListLinkTest(LinkTest):
+    def test_graphic_list_in_the_exports_exists(self):
+        self.repo.write('hmi/graphiclists/glState.xml', graphiclist_doc('glState'))
+        self.screen([graphic_io('state', 'glState')])
+        self.assertEqual([], self.check(for_import=True))
+
+    def test_graphic_list_not_exported_is_an_unknown_graphic_list_not_a_picture(self):
+        self.repo.write('hmi/graphics.json', json.dumps(['glNone']))     # a graphic of that name does not count
+        path = self.screen([graphic_io('state', 'glNone')])
+        found = [f for f in validate(self.repo.path) if f.rule == 'links.unknown']
+        self.assertEqual([('error', 'links.unknown', path, 'state')], links_of(found))
+        self.assertIn("graphiclist 'glNone'", found[0].message)
+
+    def test_planned_graphic_list(self):
+        self.repo.planned([{'kind': 'graphiclist', 'name': 'glNew', 'note': 'made by hand in TIA'}])
+        path = self.screen([graphic_io('state', 'glNew')])
+        self.assertEqual([('warning', 'links.planned', path, 'state')], self.check())
+
+
 class TextListLinkTest(LinkTest):
     def test_text_list_in_the_exports_exists(self):
         self.repo.export('textlist', 'tlMode', textlist_doc('tlMode'))

@@ -9,6 +9,9 @@ load() reads one device: the device given, else tiabridge.json hmiDevice, else t
                                                              (kind 'tagtable'), apart from the documents above
   <hmi>/cycles                                               cycles as TIA exports them, which TiaBridge also imports
                                                              from there: Repo.cycles (kind 'cycle'), apart too
+  <hmi>/graphiclists                                         graphic lists as TIA exports them: Repo.graphic_lists
+                                                             (kind 'graphiclist'), apart too; the links rules read
+                                                             their names
   hmi/<other device>/{screens,templates,popups,textlists}    exports of the other HMI devices: vocabulary only
   hmi/references/<source>/{screens,templates,popups,...}     full exports of another project (e.g. a sister project) whose
                                                              objects a generator copies: they feed the vocabulary
@@ -49,8 +52,9 @@ from .sides import KIND_DIRS as _TOP_KIND_DIRS
 KINDS = ('screen', 'template', 'popup', 'textlist')
 TAG_TABLE = 'tagtable'    # the kind of a tag table document; not one of KINDS: no screen rule reads it
 CYCLE = 'cycle'           # the kind of a cycle document; not one of KINDS either
+GRAPHIC_LIST = 'graphiclist'   # the kind of a graphic list document; not one of KINDS either
 KIND_DIRS = {'screen': 'screens', 'template': 'templates', 'popup': 'popups', 'textlist': 'textlists',
-             TAG_TABLE: 'tags', CYCLE: 'cycles'}
+             TAG_TABLE: 'tags', CYCLE: 'cycles', GRAPHIC_LIST: 'graphiclists'}
 EXPORT = 'export'
 REFERENCE = 'reference'
 REFERENCE_DIR = 'hmi/references'
@@ -168,6 +172,7 @@ class Repo:
                                                        # then generated
     other_tag_tables: list = field(default_factory=list)  # tag table exports of the other devices and the references
     cycles: list = field(default_factory=list)         # this device's cycles (Document, kind 'cycle'), from <hmi>/cycles
+    graphic_lists: list = field(default_factory=list)  # this device's graphic list exports (Document, kind 'graphiclist')
 
     @property
     def base(self):
@@ -444,6 +449,8 @@ def load(repo_path, overlay=None, device=None):
                         + _load_references(repo_path, [], overlay, (TAG_TABLE,)))
     # TiaBridge imports a cycle from here: one that cannot be read is a finding
     cycles = _load_docs(repo_path, base, EXPORT, findings, overlay, (CYCLE,))
+    # an export that cannot be read is left out without a finding: only its name is read
+    graphic_lists = _load_docs(repo_path, base, EXPORT, [], overlay, (GRAPHIC_LIST,))
     tid, problem = _resolution.select_type_identifier(config, folder or device, folder_name)
     device_problem = device_problem or problem
     hardware = _resolution.resolve(tid)
@@ -459,4 +466,4 @@ def load(repo_path, overlay=None, device=None):
     return Repo(repo_path, config, exports, generated, planned, handbuilt, panel or hardware, findings, generation,
                 tid, device_problem, faceplate_types, panel, hardware, references, graphics, folder, folders, others,
                 tag_types=_tag_types(tag_tables), tag_tables=tag_tables, other_tag_tables=other_tag_tables,
-                cycles=cycles)
+                cycles=cycles, graphic_lists=graphic_lists)

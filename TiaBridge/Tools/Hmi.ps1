@@ -304,8 +304,10 @@ Register-ObjectKind 'hmi_cycle' @{
 }
 
 # Graphic lists: a new one from a file, entries linking a graphic by name (<LinkList><Picture><Name>), went in and round
-# tripped identically [PROBE] (2026-11-12, test project). An entry naming a graphic the project lacks is refused before
-# TIA sees it (Test-GraphicListFile). Not deleted: that was not tried, and screens name a graphic list.
+# tripped identically, the minimal export too, and a graphic I/O field linking the list (<PictureList>) exported the same
+# after an import over it [PROBE] (2026-11-12 and 2026-11-17, test project). An entry naming a graphic the project lacks
+# is refused before TIA sees it (Test-GraphicListFile): TIA takes it and the HMI compile then fails. Not deleted: that
+# was not tried, and screens name a graphic list.
 Register-ObjectKind 'hmi_graphiclist' @{
     scope = 'hmi'; dir = 'hmi\graphiclists'; defaultOverride = $true
     noDelete = 'Deleting a graphic list was not tried on a real TIA, and screens name it. Delete it in TIA.'
@@ -318,13 +320,14 @@ Register-ObjectKind 'hmi_graphiclist' @{
 }
 
 # The precheck of hmi_graphiclist: SimaticML of a graphic list, whose entries name graphics the project has. Cache.graphics
-# holds the project's graphic names for every file of the call. Matched with case: whether TIA links a name written in
-# another case was not tried.
+# holds the project's graphic names for every file of the call. Matched without case, as TIA links them: an entry naming
+# 'home' linked the graphic Home, which the export then wrote [PROBE] (2026-11-17, test project). An entry naming a graphic
+# the project lacks TIA imported as written, and the HMI compile failed: "A graphic is missing in graphics list".
 function Test-GraphicListFile($File, [hashtable]$Cache) {
     $doc = Read-HmiDocumentObject $File 'Hmi.TextGraphicList.GraphicList' 'graphic list'
     if ($doc.refused) { return $doc }
     if (-not $Cache.ContainsKey('graphics')) {
-        $names = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
+        $names = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
         try { foreach ($g in @(Read-TiaList { foreach ($g in (Get-TiaProject).Graphics) { $g } })) { $names[[string]$g.Name] = $true } }
         catch { $Cache.graphicsFailed = "The project's graphics could not be read, so no graphic list is imported unchecked: $($_.Exception.Message)" }
         $Cache.graphics = $names
@@ -334,7 +337,7 @@ function Test-GraphicListFile($File, [hashtable]$Cache) {
     foreach ($node in @($doc.node.SelectNodes('.//LinkList/Picture/Name'))) {
         $graphic = $node.InnerText
         if (-not $Cache.graphics.ContainsKey($graphic)) {
-            return @{ ok = $false; refused = "Graphic list '$name' names the graphic '$graphic', which the project does not have, written so. Nothing imported: import the graphic first (kind graphic), or name one the project has as its name is written (whether TIA links a name in another case was not tried)." }
+            return @{ ok = $false; refused = "Graphic list '$name' names the graphic '$graphic', which the project does not have. Nothing imported: TIA would take the entry, and the HMI compile then fails (a graphic is missing in the list). Import the graphic first (kind graphic), or name one the project has." }
         }
     }
 }

@@ -7,7 +7,8 @@
 # 2026-10-30: nothing read the .aml and it took most of the time.
 
 # Project graphics: TIA took back its export with the image folder beside it identically, and a replaced image and a new
-# graphic landed; a graphic list naming the graphic exported the same after it [PROBE] (2026-11-12, test project).
+# graphic landed; a graphic list naming the graphic exported the same after it [PROBE] (2026-11-12, test project). The
+# same through this bridge, and a document naming no image went in as a graphic with no image [PROBE] (2026-11-17).
 Register-ObjectKind 'graphic' @{
     scope = 'project'; dir = 'project\graphics'; defaultOverride = $true
     usedBy = 'hmi'
@@ -31,9 +32,9 @@ function Test-GraphicFile($File) {
     $name = if ($File.objectName) { [string]$File.objectName } else { [string]$File.name }
     $dir = [System.IO.Path]::GetDirectoryName($File.file)
     $images = @($doc.node.SelectNodes(".//*[@external='path']"))
-    # every export seen names its DefaultImageStream; what TIA makes of a graphic without one was not tried
+    # every export seen names its DefaultImageStream; TIA takes a document without one as a graphic with no image
     if (-not $images.Count) {
-        return @{ ok = $false; refused = "Graphic '$name' names no image (an element with external=`"path`", as DefaultImageStream in an export): what TIA does with such a graphic was not tried. Nothing imported." }
+        return @{ ok = $false; refused = "Graphic '$name' names no image (an element with external=`"path`", as DefaultImageStream in an export): TIA would make it a graphic with no image, which shows nothing. Nothing imported: name its image as the export does." }
     }
     foreach ($node in $images) {
         $image = $node.InnerText.Trim()

@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen objects
 description: Every object of the WinCC Comfort toolbox with every option, its TIA display name and group, export name, default, allowed values and what the HMI preview draws; generated from TiaHmiGenerator/catalogue/catalogue.json.
 tags: [hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-03T16:23:01-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T13:36:28-05:00 }
 sources:
   - id: catalogue
     resource: ../../TiaHmiGenerator/catalogue/catalogue.json
@@ -384,7 +384,7 @@ A button the operator presses to run functions (events); shows a text, a graphic
 
 Preview: drawn (BackFillStyle decides: Solid draws BackColor whatever UseFirstGradient says, Gradient... a vertical gradient top to bottom; an invisible button is the black frame with dots of the editor, in Inspect mode, PNGs and the change report, and shows nothing in Run mode, as on the panel; CornerRadius only when CornerStyle is Round; EdgeStyle Style3D drawn as Solid; a graphic button draws its picture when the caller gives it, else the picture name). Not drawn: `UseFirstGradient` (BackFillStyle decides); `UseSecondGradient` (BackFillStyle decides); `FirstGradientOffset` (meaning not documented); `SecondGradientOffset` (meaning not documented); `FocusColor` (runtime focus); `FocusWidth` (runtime focus); `HorizontalPictureAlignment` (the picture fills the margins when PictureAutoSizing is StretchPicture); `VerticalPictureAlignment` (the picture fills the margins when PictureAutoSizing is StretchPicture); `TextOrientation` (only Horizontal drawn).
 
-In exports: links: `Authorization`, `GraphicList`, `PictureOff`, `PictureOn`, `StyleItem`, `TextList`; events seen: `Click`, `Press`, `Release`; animations seen: `RangeAppearanceAnimation`, `VisibilityAnimation`.
+In exports: links: `Authorization`, `PictureList`, `PictureOff`, `PictureOn`, `StyleItem`, `TextList`; events seen: `Click`, `Press`, `Release`; animations seen: `RangeAppearanceAnimation`, `VisibilityAnimation`.
 
 | Group | Display name | Export name | Kind | Default | Values | Greyed when | Description |
 |---|---|---|---|---|---|---|---|
@@ -407,7 +407,7 @@ In exports: links: `Authorization`, `GraphicList`, `PictureOff`, `PictureOn`, `S
 | Fill pattern | Offset gradient 2 (fill pattern) | `SecondGradientOffset` | number | `15` |  |  | Position of the second gradient stop, in percent. |
 | Flashing | Flashing | `Flashing` | enum | `None` (Disabled) | `None`, `Standard`; enum `GraphX.FlashingType` |  | Whether the object flashes in runtime. |
 | General | Bit number | `BitNumber` | number | `0` |  |  | Bit of the tag that switches the object, when the tag is used bit by bit. |
-| General | Graphic list | `link:GraphicList` (not seen) | link |  |  |  | Graphic list whose entries the tag's value selects. |
+| General | Graphic list | `link:PictureList` (not seen) | link |  |  |  | Graphic list whose entries the tag's value selects. |
 | General | Graphic OFF | `link:PictureOff` | link |  |  |  | Graphic in the OFF state (the graphic of a graphic button). |
 | General | Graphic ON | `link:PictureOn` (not seen) | link |  |  |  | Graphic in the ON state. |
 | General | Hotkey | `HotKey` | number | `0` (None) |  |  | Function key that presses the button. |
@@ -512,7 +512,7 @@ Shows the graphic-list entry that a tag's value selects; in an input mode the op
 
 Preview: none (a hatched 'not drawn' box).
 
-In exports: links: `Authorization`, `GraphicList`, `PictureOff`, `PictureOn`.
+In exports: links: `Authorization`, `PictureList`, `PictureOff`, `PictureOn`.
 
 | Group | Display name | Export name | Kind | Default | Values | Greyed when | Description |
 |---|---|---|---|---|---|---|---|
@@ -529,7 +529,7 @@ In exports: links: `Authorization`, `GraphicList`, `PictureOff`, `PictureOn`.
 | Flashing | Flash on limit violation | `FlashingOnLimitViolation` | bool | `false` |  |  | Flashes while the tag's value is outside its limits. |
 | Flashing | Flashing | `Flashing` | enum | `None` (Disabled) | `None`, `Standard`; enum `GraphX.FlashingType` |  | Whether the object flashes in runtime. |
 | General | Bit number | `BitNumber` | number | `0` |  |  | Bit of the tag that switches the object, when the tag is used bit by bit. |
-| General | Graphic list | `link:GraphicList` (not seen) | link |  |  |  | Graphic list whose entries the tag's value selects. |
+| General | Graphic list | `link:PictureList` | link |  |  |  | Graphic list whose entries the tag's value selects. |
 | General | Graphic OFF | `link:PictureOff` (not seen) | link |  |  |  | Graphic in the OFF state (the graphic of a graphic button). |
 | General | Graphic ON | `link:PictureOn` (not seen) | link |  |  |  | Graphic in the ON state. |
 | General | Mode | `Mode` | enum | `InOutput` (Input/output) | `InOutput`, `Input`, `Output`; enum `GraphX.GraphicIOFieldType` |  | What the object does: output only, input, both; for a button text, graphic or invisible; for a switch its kind. |

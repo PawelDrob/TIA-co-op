@@ -968,7 +968,7 @@ Describe 'import of project graphics' {
         Write-TextFile (Join-Path $repo 'project\graphics\zzList.xml') '<Document><Hmi.TextGraphicList.GraphicList ID="0"><AttributeList><Name>zzList</Name></AttributeList></Hmi.TextGraphicList.GraphicList></Document>'
         Write-TextFile (Join-Path $repo 'project\graphics\zzBroken.xml') '<Document><Hmi.Globalization.MultiLingualGraphic ID="0">'
         Write-TextFile (Join-Path $repo 'project\graphics\zzSd.s7dcl') 'x'
-        foreach ($case in @(@('zzBare.xml', "^Graphic 'zzBare' names no image"), @('zzList.xml', "holds Hmi\.TextGraphicList\.GraphicList, no graphic: import it with its own kind"),
+        foreach ($case in @(@('zzBare.xml', "^Graphic 'zzBare' names no image .*TIA would make it a graphic with no image"), @('zzList.xml', "holds Hmi\.TextGraphicList\.GraphicList, no graphic: import it with its own kind"),
                             @('zzBroken.xml', 'cannot be read as XML'), @('zzSd.s7dcl', 'SimaticML'))) {
             $r = Invoke-GraphicImport @("project\graphics\$($case[0])")
             $r.ok | Should Be $false
@@ -1031,14 +1031,14 @@ Describe 'import of graphic lists' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[1].refused | Should Match "^Graphic list 'zzLost' names the graphic 'zzNoSuchGraphic', which the project does not have"
-        $r.items[1].refused | Should Match 'import the graphic first \(kind graphic\)'
+        $r.items[1].refused | Should Match 'TIA would take the entry, and the HMI compile then fails'
+        $r.items[1].refused | Should Match 'Import the graphic first \(kind graphic\)'
     }
 
-    It 'refuses a graphic named in another case than the project writes it: whether TIA links it was not tried' {
+    It 'imports an entry naming a graphic in another case than the project writes it, as TIA links it' {
         $r = Invoke-GraphicListImport @('hmi\graphiclists\zzCase.xml')
-        $r.items[0].refused | Should Match "names the graphic 'home', which the project does not have, written so"
-        $r.items[0].refused | Should Match 'whether TIA links a name in another case was not tried'
-        @($script:imported).Count | Should Be 0
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'zzCase Override'
     }
 
     It 'refuses a text list under hmi_graphiclist, and every graphic list when the project''s graphics cannot be read' {
