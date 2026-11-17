@@ -63,8 +63,9 @@ RENAMEABLE = ('screen', 'template', 'popup', 'slidein')
 BROWSER_IMAGES = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg')     # no browser draws .emf or .wmf
 MEMBERS = {'tagtable': 'Hmi.Tag.Tag', 'textlist': 'Hmi.TextGraphicList.TextListEntry',
            'graphiclist': 'Hmi.TextGraphicList.GraphicListEntry'}
-USED = {'TextList': 'textlist', 'GraphicList': 'graphiclist', 'Template': 'template'}   # link kind -> object kind
-FIELD_LINKS = {'HmiTag': 'Tag', 'HmiTextList': 'TextList', 'HmiGraphicList': 'GraphicList'}    # a field's link type
+# link kind -> object kind; a graphic I/O field links its graphic list as PictureList, TIA's name (GraphicList is refused)
+USED = {'TextList': 'textlist', 'PictureList': 'graphiclist', 'Template': 'template'}
+FIELD_LINKS = {'HmiTag': 'Tag', 'HmiTextList': 'TextList', 'HmiGraphicList': 'PictureList'}    # a field's link type
 CONTAINERS = ('AttributeList', 'ObjectList', 'LinkList')
 QUIET = {'TabIndex', 'SetTabOrderInFront', 'ActiveLayer', 'GridColor'}   # engineering only, no visible effect
 
@@ -313,7 +314,7 @@ def field_uses(tree):
 
 def uses(tree):
     """{(link kind, name)} a drawn document links, its text fields too: 'Tag' by its HMI tag, 'TextList',
-    'GraphicList' (a PictureList link, as TIA names it), 'Template', 'Picture' (Picture, PictureOff, PictureOn, ...)."""
+    'PictureList' (a graphic list), 'Template', 'Picture' (Picture, PictureOff, PictureOn, ...)."""
     out = set()
     for e in tree.iter():
         if e.get('TargetID') == '@OpenLink':
@@ -324,8 +325,6 @@ def uses(tree):
                 out.add(('Tag', tag_base(n)))
             elif e.tag in USED:
                 out.add((e.tag, n))
-            elif e.tag == 'PictureList':
-                out.add(('GraphicList', n))
             elif e.tag.startswith('Picture'):
                 out.add(('Picture', n))
     return out | field_uses(tree)

@@ -29,8 +29,8 @@ exists:  screens, templates, pop-ups, text lists and graphic lists: a TIA export
          document when there is one): a generator may key its templates by alias ('S-Title' -> txtTitleLarge).
 planned: an entry in planned.json [{kind, name, note}] that does not exist; or, for screens, templates, pop-ups
          and text lists, a generated document of that kind and name (the run brings it into TIA).
-unknown: anything else; always an error (rule links.unknown). For a faceplate the note says why; for a recorded
-         style preset the note names the source (and its document).
+unknown: anything else; always an error (rule links.unknown). For a faceplate the note says why, for a graphic list
+         how to make it known; for a recorded style preset the note names the source (and its document).
 
 Open planned item = a planned.json entry that does not exist and is not generated in the repo. A document that uses
 one gets the finding links.planned: a warning in the preview, an error with for_import. A planned item that exists
@@ -79,6 +79,8 @@ def parse_faceplate(name):
     return folder, typ.strip(), version.strip() if version else None
 
 
+NO_GRAPHIC_LIST = ('a graphic list is known from its export only (hmi/[<device>/]graphiclists, not from the screens '
+                   'that link it): export it with TiaBridge export kind hmi_graphiclist, a new one after its import')
 NO_LIBRARY = ('the faceplate types are not exported (no library/faceplates in the repo); export them first with '
               'TiaBridge export kind faceplate_type')
 
@@ -239,6 +241,8 @@ class Resolver:
             return PLANNED, self.planned[key], True
         if kind == 'faceplate':
             return UNKNOWN, faceplate_problem(self.repo.faceplate_types, name), False
+        if kind == 'graphiclist':
+            return UNKNOWN, NO_GRAPHIC_LIST, False
         if copied:
             return UNKNOWN, '%s, which is not in %s either' % (
                 copied, 'that export' if source.get('document') else 'any reference export'), False

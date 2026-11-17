@@ -889,7 +889,7 @@ class FieldUsesTest(RepoCase):
         for why, info, expected in (
                 ('both links', fieldinfo(), {('TextList', 'Modes'), ('Tag', 'modeNow')}),
                 ('a graphic list', '<fieldinfo><reference><name>Vendor.Hmi.Lists.HmiGraphicList:Lamps</name>'
-                                   '</reference></fieldinfo>', {('GraphicList', 'Lamps')}),
+                                   '</reference></fieldinfo>', {('PictureList', 'Lamps')}),
                 ('deeper down', '<fieldinfo><domaindata><link><name>%s</name></link></domaindata></fieldinfo>'
                                 % (TAG % 'modeNow'), {('Tag', 'modeNow')}),
                 ('the name as the text of the link', '<fieldinfo><reference> %s </reference></fieldinfo>'

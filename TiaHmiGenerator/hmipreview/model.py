@@ -449,8 +449,8 @@ def load(repo_path, overlay=None, device=None):
                         + _load_references(repo_path, [], overlay, (TAG_TABLE,)))
     # TiaBridge imports a cycle from here: one that cannot be read is a finding
     cycles = _load_docs(repo_path, base, EXPORT, findings, overlay, (CYCLE,))
-    # an export that cannot be read is left out without a finding: only its name is read
-    graphic_lists = _load_docs(repo_path, base, EXPORT, [], overlay, (GRAPHIC_LIST,))
+    # the links rules read their names: one that cannot be read is a finding, not a silent unknown link
+    graphic_lists = _load_docs(repo_path, base, EXPORT, findings, overlay, (GRAPHIC_LIST,))
     tid, problem = _resolution.select_type_identifier(config, folder or device, folder_name)
     device_problem = device_problem or problem
     hardware = _resolution.resolve(tid)

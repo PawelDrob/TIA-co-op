@@ -126,6 +126,13 @@ class GraphicListLinkTest(LinkTest):
         found = [f for f in validate(self.repo.path) if f.rule == 'links.unknown']
         self.assertEqual([('error', 'links.unknown', path, 'state')], links_of(found))
         self.assertIn("graphiclist 'glNone'", found[0].message)
+        self.assertIn('export it with TiaBridge export kind hmi_graphiclist', found[0].message)
+
+    def test_a_graphic_list_export_that_cannot_be_read_is_a_finding(self):
+        self.repo.write('hmi/graphiclists/glBroken.xml', '<Document><Hmi.TextGraphicList.GraphicList ID="0">')
+        self.screen([graphic_io('state', 'glBroken')])
+        found = [(f.rule, f.document) for f in validate(self.repo.path) if f.rule == 'document.parse']
+        self.assertEqual([('document.parse', 'hmi/graphiclists/glBroken.xml')], found)
 
     def test_planned_graphic_list(self):
         self.repo.planned([{'kind': 'graphiclist', 'name': 'glNew', 'note': 'made by hand in TIA'}])
