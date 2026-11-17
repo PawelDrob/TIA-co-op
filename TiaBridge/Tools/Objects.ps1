@@ -208,12 +208,13 @@ function Export-KindEntry($Kind, $Entry, $Options, [string]$Device = '', [string
 function New-Refusal([string]$Reason) { @{ ok = $false; refused = $Reason } }
 
 # The progress line of one exported object (Write-BridgeProgress): n of the m objects the call (or full_export part)
-# exports, after its export.
-function Write-ObjectProgress([string]$Kind, [int]$N, [int]$Of, $Item, [string]$Part = '', [string]$Device = '') {
+# exports, after its export. Skipped: full_export left it as TIA has not changed it (skipped = true in the line).
+function Write-ObjectProgress([string]$Kind, [int]$N, [int]$Of, $Item, [string]$Part = '', [string]$Device = '', [switch]$Skipped) {
     $p = [ordered]@{ event = 'object' }
     if ($Part) { $p.part = $Part }
     if ($Device) { $p.device = $Device }
     $p.kind = $Kind; $p.n = $N; $p.of = $Of; $p.name = [string]$Item.name; $p.ok = [bool]$Item.ok
+    if ($Skipped) { $p.skipped = $true }
     Write-BridgeProgress $p
 }
 

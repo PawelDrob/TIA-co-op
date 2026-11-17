@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T14:07:25-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T14:29:20-05:00 }
 ---
 
 # TiaBridge internals
@@ -45,6 +45,7 @@ Tools return paths, counts, states and messages. Bulk content goes through files
 | `Tools\LibraryChange.ps1` | The reviewed change |
 | `Tools\Background.ps1` | `background_open`, `background_close` |
 | `Tools\FullExport.ps1` | `full_export` |
+| `Tools\ExportRecord.ps1` | What `full_export` skips: the record of the last export, and why it exports an object |
 | `Tools\Safety.ps1`, `Probe.ps1`, `Report.ps1` | `safety_login`, `probe`, `change_report` |
 | `Tests\` | [Testing](../testing.md) |
 
@@ -147,7 +148,7 @@ For a client that shows a long call. Beside the human lines, stderr carries one 
 | `tia` | `pid` | The background TIA's process id, as soon as it starts |
 | `step` | `step`, `state`, `ms`, `pid`, `upgrade` | Background session: around each long call, and after each tool call |
 | `part` | `part`, `device`, `state`, `exported`, `count`, `failed`, `ms` | `full_export`, around each part and device |
-| `object` | `part`, `device`, `kind`, `n`, `of`, `name`, `ok` | `export` and `full_export`, after each object |
+| `object` | `part`, `device`, `kind`, `n`, `of`, `name`, `ok`, `skipped` | `export` and `full_export`, after each object; `skipped` when `full_export` left it |
 
 A reader takes the JSON after `progress ` and ignores fields it does not know.
 
@@ -173,12 +174,18 @@ One per project, under `projectsRoot`, made by `connect`:
   logs\                  one JSON per tool call (committed: they pair with the change)
   archives\              .zap20 files (ignored by git)
   .tiabridge-session.json   the session record (ignored by git)
+  .tiabridge-export.json    the record of the last full_export (ignored by git)
 ```
 
 - **Several devices.** With several PLC or HMI devices, each has its own `plc\<device>\` or `hmi\<device>\`, generated documents and panel included. One-device repos keep the layout above.
 - **Folders mirror the TIA tree.**
 - **`full_export` mirrors the project.** Committed files in a folder the export writes, which no part wrote this time, are removed and listed in `removed`, but only when every part writing that folder ran and listed its objects. Uncommitted files stay, and so does everything when git cannot tell. Never touched: `hmi\[<device>\]generated\`, `handbuilt.json`, `panel.json`, `gen\`, `standards\`, `library\changes\`, `changes\`, `logs\`, `archives\`, `docs\`, `tiabridge.json`.
 - **A failed export leaves the old file.** Exports are written next to their target and replace it only on success.
+- **`full_export` skips what TIA has not changed** (decided 2026-11-17; `full: true` exports everything). Before any export it reads the dates and other values of every block, DB, data type and tag table of each PLC (`$script:ExportStateAttributes`), and compares them for unequal with `.tiabridge-export.json`, which holds them per object with the SHA-256 of each file its export left. The facts it rests on are the `[PROBE]` table under Dates in [the Openness facts](../../agent/openness-v20.md).
+  - **Everything is exported** when the record is missing or does not read, or its head differs: the project (in a background session the source it copied), TIA's version (`Siemens.Engineering.dll`), the project's languages, the PLC devices, or a hash of the bridge's own `*.ps1`. The result names the reason (`exportedAll`).
+  - **Every object of a PLC** when an object of it was added, deleted or renamed, a data type or tag table changed, or the interface date of a block or DB moved: other blocks name them, and their files may change with no date of theirs moving (`exportedAllOf`).
+  - **One object** when a value differs, it moved to another folder, it is not consistent, its last export failed, it reads no date or a value that does not read, a file of it differs from the record or one of another format lies beside it, or it is an instance DB of an FB that is exported. `details` counts the reasons per part (`why`).
+  - A skipped object's files count as written, so the mirror removes what a full export removes. A PLC's entries are one snapshot: a run that listed all four kinds of it replaces them, any other leaves them, and a run that stopped writes nothing.
 
 ## The reviewed change
 

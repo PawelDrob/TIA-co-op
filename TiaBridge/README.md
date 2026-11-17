@@ -17,6 +17,14 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   objects from master copies. It lists what a master copy holds, but cannot export those objects' contents: see
   [Limitations](../README.md#limitations).
 - Exports a whole project into its repo, and writes a [change report](../TiaChangeReports/README.md) for a commit.
+  - A whole-project export skips the blocks, DBs, data types and PLC tag tables TIA has not changed since the last one,
+    and says how many it skipped. It goes by the dates TIA keeps of each object, which every edit moves, and by the files
+    the last export left in the repo (in `.tiabridge-export.json`, kept out of git).
+  - Where it cannot tell, it exports. A changed data type, tag table or interface, or an object added, deleted or
+    renamed, exports every object of that PLC, as others may name it. So does an object TIA holds not consistent, a file
+    edited, removed or added in the repo, another TIA version, other project languages or another version of the bridge.
+  - HMI objects, library types, system blocks, technology objects, watch and force tables and the project's settings
+    are exported every time. Ask for a full export to export everything.
 - Opens a project in a TIA with a window when you name it. When you ask, works in a TIA without a window: on a copy, or on
   a project closed in your TIA.
 - Refuses to change F-blocks unless you asked for that change. Refuses an import over a know-how protected block whatever

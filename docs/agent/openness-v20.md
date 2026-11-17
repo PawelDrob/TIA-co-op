@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T14:07:25-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T14:29:20-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -57,7 +57,36 @@ SimaticML, a namespace prefix in a block's. Whether TIA takes prefixes in other 
 
 **Dates.** The agent's own import moves every date of the object (`CreationDate` included), and its compile moves
 them again. A block changed by a person after the agent's last import and compile shows a newer `ModifiedDate`
-`[PROBE]`.
+`[PROBE]`. `full_export` skips a block, DB, data type or tag table whose values below read as at the last export
+(TiaBridge's README says what else it checks); every reason it skips rests on this table.
+
+Probed on 2026-10-08 on a real project, V20 Update 7, with a person making the edits in TIA and a script reading the
+values between the steps `[PROBE]`. The objects: an SCL FB, a LAD FB, a global DB, a data type, a PLC tag table, and an
+FB made a project library type with its instance. Every date reads as a `DateTime` of `Kind` `Utc`; a read costs about
+0.6 ms (one attribute of all 331 blocks of the project: 197 ms; the walk of the block tree: 1.1 s).
+
+| Step | Dates that move | Also |
+|---|---|---|
+| `ExportAsDocuments` | none | |
+| Compile with nothing changed | none, not even `CompileDate` | |
+| A comment only (an interface member, a network title, a DB or data type member, a tag) | `ModifiedDate`; a tag table's `ModifiedTimeStamp` | a LAD network title makes the FB not consistent |
+| Code: an SCL statement, a LAD contact, a DB start value | `ModifiedDate`, `CodeModifiedDate`; a tag table's `ModifiedTimeStamp` for a tag's address | not consistent |
+| A data type member's default value | `ModifiedDate`, `InterfaceModifiedDate` | not consistent |
+| An interface member added (FB, DB, data type), a tag added | `ModifiedDate`, `CodeModifiedDate`, `InterfaceModifiedDate`, `ParameterModified`, `StructureModified` | |
+| Compile after a change | FB: `ModifiedDate`, `CodeModifiedDate`, `CompileDate` (code regenerated); DB: `CompileDate` only | consistent again |
+| Rename | `ModifiedDate` | number and `CreationDate` kept; not consistent |
+| Move to another group | none | not consistent |
+| `ImportFromDocuments` with `Override`, of the unchanged export | every date, `CreationDate` too; `CompileDate` reads `0001-01-01` | the object made anew, number and group kept |
+| Save, close and reopen | none: every date, `IsConsistent` and the library versions' `Guid`, `State` and `ModifiedDate` read the same to the millisecond | only `Project.LastModified` moves |
+
+Library types: **Edit type** makes a new version, `InWork`, with its own `Guid` and `ModifiedDate` `0001-01-01`, and moves
+the instance's `ModifiedDate`. **Release** gives the version a new `Guid`, sets its `ModifiedDate` to the release time,
+compiles the instance and deletes the old version. Comfort HMI objects list only `Name` in `GetAttributeInfos` (an HMI tag
+table also `IsSystemObject`): no signal short of an export. `PlcChecksumProvider.Software` is empty while any block is not
+consistent and changes on every compile after a change: one value per PLC, which names no object `[PROBE]`.
+
+A getter that throws reads `$null` in PowerShell, as an attribute the object does not have: TiaBridge reads these values
+by reflection, so one TIA refuses counts as unread and its object is exported `[PROBE]` (2026-11-17, Windows PowerShell 5.1).
 
 **User folders** `[PROBE]` (V20 Update 7, 2026-11-02, on a copy: block, PLC data type and PLC tag table folders of a PLC;
 screen, template, pop-up and HMI tag folders of a Comfort panel):

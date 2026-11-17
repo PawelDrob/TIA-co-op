@@ -4,7 +4,10 @@
 # project: files of objects no longer in it are removed, only in the folders the export writes (decided
 # 2026-10-30), unless git has no commit of them as they are: those stay and are listed (keptUncommitted); a git
 # repo inside such a folder stays whole and is listed (keptRepos). The hardware part (CAx/AutomationML) was removed
-# 2026-10-30: nothing read the .aml and it took most of the time.
+# 2026-10-30: nothing read the .aml and it took most of the time. Blocks, DBs, data types and PLC tag tables TIA has not
+# changed since the last export are skipped (Tools\ExportRecord.ps1), unless full: true.
+
+. (Join-Path $PSScriptRoot 'ExportRecord.ps1')
 
 # Project graphics: TIA took back its export with the image folder beside it identically, and a replaced image and a new
 # graphic landed; a graphic list naming the graphic exported the same after it [PROBE] (2026-11-12, test project). The
@@ -349,24 +352,38 @@ function Get-DeviceNameRefusal($Part, [string]$Device) {
        message = "Device '$Device' holds $($same.Count) $($Part.scope) software items, and their files would land in one folder, one over the other: nothing of the device is exported and its files stay as they are. The bridge cannot tell them apart by the device's name; report it." }
 }
 
-# One kind part: every object, SD refusals again as SimaticML (fallback). Returns the part record.
-function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record) {
+# One kind part: every object, SD refusals again as SimaticML (fallback). Returns the part record. Plan (Get-ExportPlan):
+# the objects of a skipping kind come from it, and one it does not export keeps its files, which count as written.
+function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan = $null) {
     $Record.listError = Get-DeviceNameRefusal $Part $Device
     if ($Record.listError) { return }
     $k = Get-ObjectKind $Part.kind
-    $entries = @(Get-KindItems $k $Root)
+    $dp = if ($Plan -and $Plan.devices.ContainsKey($Device) -and $Plan.devices[$Device].entries.ContainsKey($k.name)) { $Plan.devices[$Device] }
+    $entries = @(if ($dp) { $dp.entries[$k.name] } else { Get-KindItems $k $Root })
     if ($Part.filter) { $entries = @($entries | Where-Object { & $Part.filter $_ }) }
     $Record.count = $entries.Count
     $collisions = Get-ExportCollisions $k $entries $Root '' $Device
     $none = New-Object psobject
     $n = 0
     foreach ($e in $entries) {
+        $o = if ($dp) { $dp.objects["$($k.name)|$($e.name)"] }
+        if ($o -and -not $o.export -and -not $collisions[(Get-ExportBase $k $e '' $Device)]) {
+            $o.recorded = $o.old
+            $Record.skipped++
+            foreach ($f in (Get-EntryFiles $o.old).Keys) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) }
+            if ($k.name -eq 'block' -and (Get-StateValue $o.state 'IsKnowHowProtected') -eq 'True') { [void]$Record.knowHowProtected.Add($e.name) }
+            $n++
+            Write-ObjectProgress $k.name $n $entries.Count @{ name = $e.name; ok = $true } -Part $Part.name -Device $Device -Skipped
+            continue
+        }
+        if ($o) { $Record.why[$o.export] = 1 + [int]$Record.why[$o.export] }
         $item = Export-KindEntry $k $e $none $Device '' $collisions
         if (-not $item.ok -and -not $item.collision -and $Part.fallback -and (Test-TiaAlive)) {
             $why = if ($item.error) { $item.error.message } else { @($item.messages.messages | ForEach-Object { $_.description }) -join ' | ' }
             $retry = Export-KindEntry $k $e (New-Object psobject -Property @{ format = 'xml' }) $Device
             if ($retry.ok) { $item = $retry; $item.fellBack = "SimaticML: TIA refused the SD export: $why" }
         }
+        if ($o) { $o.recorded = New-ExportRecordEntry $o $item }
         $n++
         Write-ObjectProgress $k.name $n $entries.Count $item -Part $Part.name -Device $Device
         if ($item.ok) {
@@ -451,7 +468,7 @@ function Invoke-FullExportFilePart($Part, $Root, [string]$Device, $Record) {
 # Holds nothing that can fail: a part's failure goes into its record, and the record into the result. The caller sets
 # dir inside the part's try.
 function New-PartRecord($Part, [string]$Device) {
-    [ordered]@{ part = $Part.name; device = $Device; dir = $null; count = 0; exported = 0; ms = 0
+    [ordered]@{ part = $Part.name; device = $Device; dir = $null; count = 0; exported = 0; skipped = 0; why = [ordered]@{}; ms = 0
                 failed = (New-Object System.Collections.ArrayList); fellBack = (New-Object System.Collections.ArrayList)
                 knowHowProtected = (New-Object System.Collections.ArrayList); notExported = (New-Object System.Collections.ArrayList)
                 removed = (New-Object System.Collections.ArrayList); keptUncommitted = (New-Object System.Collections.ArrayList)
@@ -465,6 +482,7 @@ function Format-PartLine($R) {
     if ($R.leftOut) { return "$s$($R.count) not exportable" }
     if ($R.none) { return "${s}none" }
     $s += "$($R.exported)/$($R.count), $([Math]::Round($R.ms / 1000.0, 1)) s"
+    if ($R.skipped) { $s += ", $($R.skipped) skipped" }
     if ($R.failed.Count) { $s += ", $($R.failed.Count) failed" }
     if ($R.notExported.Count) { $s += ", $($R.notExported.Count) not exportable" }
     if ($R.fellBack.Count) { $s += ", $($R.fellBack.Count) as SimaticML" }
@@ -483,6 +501,17 @@ function Invoke-FullExportTool($a) {
     $project = Get-TiaProject
     $started = [System.Diagnostics.Stopwatch]::StartNew()
     $script:UnchangedExports.Clear()
+    $full = Get-OptionalBool $a 'full' $false
+
+    # what TIA says of the skipping kinds, read before any export; no plan: every object is exported, as before
+    $plan = $null; $planNote = $null
+    if (@($selected | Where-Object { $script:SkipKinds -contains $_.kind }).Count -and @($software | Where-Object { $_.kind -eq 'plc' }).Count) {
+        if ($script:Bridge.background -and $script:Bridge.background.plain) { $planNote = 'a plain export folder keeps no record' }
+        else {
+            try { $plan = Get-ExportPlan $software $project $full }
+            catch { $planNote = "what TIA says of the objects did not read: $((ConvertTo-BridgeError $_).message)" }
+        }
+    }
 
     # (part, device) pairs of every part, selected or not: a folder is mirrored only when every part that writes it ran
     $jobs = @(foreach ($p in $script:FullExportParts) {
@@ -505,7 +534,7 @@ function Invoke-FullExportTool($a) {
             $rec.dir = Get-PartDir $p $j.device
             $root = switch ($p.scope) { { $_ -in 'plc', 'hmi' } { $j.software } 'project' { $project } 'library' { $project.ProjectLibrary } }
             if ($p.counter) { $rec.count = @(& $p.counter $root).Count; if ($rec.count) { $rec.leftOut = $p.leftOut } else { $rec.none = $true } }
-            elseif ($p.kind) { Invoke-FullExportKindPart $p $root $j.device $rec }
+            elseif ($p.kind) { Invoke-FullExportKindPart $p $root $j.device $rec $plan }
             else { Invoke-FullExportFilePart $p $root $j.device $rec }
         }
         catch {
@@ -586,10 +615,11 @@ function Invoke-FullExportTool($a) {
         foreach ($k in $r.Keys) { if ($k -notin 'written', 'kept') { $d[$k] = $r[$k] } }
         $d
     })
-    $exported = 0; foreach ($r in $records) { $exported += [int]$r.exported }
+    $exported = 0; $skipped = 0; foreach ($r in $records) { $exported += [int]$r.exported; $skipped += [int]$r.skipped }
+    $recordError = if ($plan -and -not $stopped) { Save-ExportRecord $plan $records }
     $result = [ordered]@{
         ok = (-not $failed.Count -and -not $stopped -and -not $removeErrors.Count -and -not $gitError)
-        exported = $exported; unchanged = (Get-UnchangedExportCount @($records | ForEach-Object { $_.written })); failedCount = $failed.Count; removedCount = $removed.Count; keptCount = $keptUncommitted.Count; totalMs = [int]$started.ElapsedMilliseconds
+        exported = $exported; skipped = $skipped; unchanged = (Get-UnchangedExportCount @($records | ForEach-Object { $_.written })); failedCount = $failed.Count; removedCount = $removed.Count; keptCount = $keptUncommitted.Count; totalMs = [int]$started.ElapsedMilliseconds
         parts = @($records | ForEach-Object { Format-PartLine $_ })
         failed = $failed; leftOut = $leftOut; limits = $script:FullExportLimits
         removed = @($removed); keptUncommitted = @($keptUncommitted); keptRepos = @($keptRepos | Select-Object -Unique); details = $details
@@ -607,6 +637,14 @@ function Invoke-FullExportTool($a) {
     }
     if ($script:Bridge.background -and $script:Bridge.background.plain) { $result.next = 'Plain export folder: nothing to commit. Read failed and leftOut; the log holds every part in details.' }
     if ($removeErrors.Count) { $result.removeErrors = $removeErrors }
+    # why objects of the skipping kinds were exported whole: everything, or every one of a PLC
+    if ($planNote) { $result.exportedAll = $planNote }
+    elseif ($plan -and $plan.all) { $result.exportedAll = $plan.all }
+    elseif ($plan) {
+        $byPlc = @(foreach ($dev in @($plan.devices.Keys | Sort-Object)) { if ($plan.devices[$dev].all) { "$dev`: $($plan.devices[$dev].all)" } })
+        if ($byPlc.Count) { $result.exportedAllOf = $byPlc }
+    }
+    if ($recordError) { $result.recordError = $recordError }
     $folderNotes = @(foreach ($s in $software) {
         Get-SharedFolderNote 'Device' ([string]$s.device) @($software | Where-Object { $_.kind -eq $s.kind } | ForEach-Object { [string]$_.device })
     })
@@ -633,11 +671,15 @@ function Register-FullExportTool {
         'objects no longer in it are removed from the folders the export writes (removed), except files not committed (untracked, ignored or changed), which stay and ' +
         'are listed (keptUncommitted: import, commit or delete each before committing); a git repo inside such a folder stays whole and is listed (keptRepos), an object whose own export folder holds one is refused and in failed, and a repo around such a folder loses nothing, gets the new files and is listed too; the export of an object still replaces uncommitted edits of its own files, as export does. ' +
         'A file that differs from the one in the repo only in what TIA writes anew per export (the export time; in an .xlsx also its relationship Ids) stays as it is: a full_export with no change in TIA changes no file; unchanged counts the files left so. ' +
+        'Blocks, DBs, data types and PLC tag tables TIA has not changed since the last full_export are not exported and keep their files (skipped counts them): it compares the dates and other values TIA keeps of each, for unequal, and the files the last export left (.tiabridge-export.json, ignored by git); ' +
+        'it exports an object when a value differs, it moved, it is not consistent, its last export failed, a file of it was edited, removed or added beside it in the repo, or it is an instance DB of an exported FB; every object of a PLC when a data type, a tag table or an interface changed or an object was added, deleted or renamed (exportedAllOf); ' +
+        'everything when there is no usable record, or the project, TIA version, project languages, PLC devices or the bridge differ from it (exportedAll); details counts per part why objects were exported. HMI, library and the other parts export every time. full: true exports everything. ' +
         'hmi\generated, gen, library\changes, changes, logs, archives and standards are never touched. Read only: works under connect and in a background session. Long: about minutes per thousand objects; ' +
         'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part, failed items, ' +
         'leftOut (what Openness cannot export, with the reason); the log has details. Objects whose names give one file name are in failed: neither is exported, the files there stay and are not mirrored away; rename one in TIA. ' +
         'Devices whose names give one folder each get a folder with a mark (deviceFolders); a device holding two software items of one kind is refused and in failed: nothing of it is exported, its files stay. In a TIA with a window, boxes of the call with the icon Success or Information are acknowledged; every other box and every question stays with the user, who may have to close it; all notifications are listed with their icon (prompts). Commit the repo afterwards.') -Schema @{
         type = 'object'
         properties = @{ parts = @{ type = 'array'; items = @{ type = 'string'; enum = @($script:FullExportParts | ForEach-Object { $_.name }) }
-                                   description = 'only these parts; default all' } } }
+                                   description = 'only these parts; default all' }
+                        full = @{ type = 'boolean'; description = 'export every object, also those TIA says it has not changed since the last export; default false' } } }
 }
