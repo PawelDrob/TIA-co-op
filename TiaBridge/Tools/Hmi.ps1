@@ -1,5 +1,6 @@
 # Tools\Hmi.ps1 - WinCC Comfort/Advanced kinds for list/export/import/delete (Tools\Objects.ps1):
-# hmi_screen, hmi_template, hmi_popup, hmi_tag_table, hmi_textlist, hmi_cycle, and the HMI kinds the bridge only exports.
+# hmi_screen, hmi_template, hmi_popup, hmi_tag_table, hmi_textlist, hmi_cycle, hmi_graphiclist, and the HMI kinds the
+# bridge only exports.
 # All SimaticML; see docs/agent/wincc-comfort-openness.md.
 
 function Get-HmiExportOptions([bool]$Full) {
@@ -304,10 +305,11 @@ Register-ObjectKind 'hmi_cycle' @{
 }
 
 # Graphic lists: a new one from a file, entries linking a graphic by name (<LinkList><Picture><Name>), went in and round
-# tripped identically, the minimal export too, and a graphic I/O field linking the list (<PictureList>) exported the same
-# after an import over it [PROBE] (2026-11-12 and 2026-11-17, test project). An entry naming a graphic the project lacks
-# is refused before TIA sees it (Test-GraphicListFile): TIA takes it and the HMI compile then fails. Not deleted: that
-# was not tried, and screens name a graphic list.
+# tripped identically; the minimal export imported over the list left its full export identical, entries of
+# non-default values (flashing, transparent colours, a range) and the comment too; a graphic I/O field linking the list
+# (<PictureList>) exported the same after an import over it [PROBE] (2026-11-12 and 2026-11-17, test project). An entry
+# naming a graphic the project lacks is refused before TIA sees it (Test-GraphicListFile): TIA takes it and the HMI
+# compile then fails. Not deleted: that was not tried, and screens name a graphic list.
 Register-ObjectKind 'hmi_graphiclist' @{
     scope = 'hmi'; dir = 'hmi\graphiclists'; defaultOverride = $true
     noDelete = 'Deleting a graphic list was not tried on a real TIA, and screens name it. Delete it in TIA.'

@@ -7,8 +7,8 @@
 # protected them, so the guard that refuses an import over a know-how protected block does not apply to the kind), sharesNamesWith (the kinds whose names are one list in TIA with its own: a new
 # object of such a name is refused), compileWhy (why the compile that next names is due), importDir (the one folder it
 # imports from, where the HMI validator looks), usedBy (of a project kind: the scope whose devices use its objects, so an
-# import counts as a write on each of them), and scriptblocks items(root) -> @{ obj; name; folder }, info(entry),
-# export(entry, dir, options), import(root, folder, file, override), precheck, whoseFile, afterImport. A kind without
+# import counts as a write on each of them, recorded as <kind>:<name>), and scriptblocks
+# items(root) -> @{ obj; name; folder }, info(entry), export(entry, dir, options), import(root, folder, file, override), precheck, whoseFile, afterImport. A kind without
 # export or import does not support it.
 # Kinds with a folder tree also give tree(root) -> top folder and groups, the name of its subfolder collection
 # (master copies are placed through them).
@@ -381,6 +381,9 @@ function Invoke-ImportTool($a) {
     $writeDevice = if ($k.scope -in 'plc', 'hmi') { Get-TiaDeviceName $k.scope ([string]$a.device) }
     $sharedDevices = if ($k.scope -in 'library', 'project') { @{ plc = @(Get-TiaDeviceNames 'plc'); hmi = @(Get-TiaDeviceNames 'hmi') } }
     $writeScope = if ($k.usedBy) { $k.usedBy } else { $k.scope }
+    # an object of the project is recorded under its kind (graphic:Home), as a library type is (type:<name>): a block,
+    # screen or pop-up of the same name on a device is another object, whose record it must neither hold nor clear
+    $writePrefix = if ($k.scope -eq 'project') { "$($k.name):" } else { '' }
     $entries = @(Get-KindItems $k $root)
     # without case, as TIA; not by culture as @{}, which takes spellings for one that TIA keeps apart
     $existing = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
@@ -464,16 +467,22 @@ function Invoke-ImportTool($a) {
     $absent = @(Get-FailedNamesNotCreated $k $root $plan)
     if ($absent.Count) {
         if ($writeDevice) { Clear-ObjectWrites $session $k.scope $writeDevice $absent }
-        else {
+        elseif ($k.scope -eq 'library') {
             foreach ($sc in 'plc', 'hmi') { Clear-ObjectWrites $session $sc $sharedDevices[$sc] $absent }
-            foreach ($n in $absent) { Register-LibraryWrite $session -Name $(if ($k.scope -eq 'library') { "type:$n" } else { $n }) -Ok $true }
+            foreach ($n in $absent) { Register-LibraryWrite $session -Name "type:$n" -Ok $true }
+        }
+        else {
+            # an object of the project: only the devices of the scope that uses it, under its own key
+            $keys = @($absent | ForEach-Object { "$writePrefix$_" })
+            Clear-ObjectWrites $session $writeScope $sharedDevices[$writeScope] $keys
+            foreach ($n in $keys) { Register-LibraryWrite $session -Name $n -Ok $true }
         }
     }
     # rolled back: only the failure is remembered (save rule 1); otherwise everything that reached TIA counts as written
     # a library type reports the scope of its instances (plc or hmi); a library write without one counts by rule 1 only
     # refused by the kind: TIA was not asked and nothing changed, so it is no write, and what is on record for the name stands
     $written = @($items | Where-Object { -not $_.notAttempted -and -not $_.rolledBack -and -not $_.refused -and $absent -notcontains $_.name } |
-        ForEach-Object { @{ name = $(if ($_.importedAs) { $_.importedAs } else { $_.name }); ok = [bool]$_.ok; scope = $(if ($_.scope) { $_.scope } else { $writeScope }) } })
+        ForEach-Object { @{ name = $writePrefix + $(if ($_.importedAs) { $_.importedAs } else { $_.name }); ok = [bool]$_.ok; scope = $(if ($_.scope) { $_.scope } else { $writeScope }) } })
     foreach ($g in $written | Group-Object { $_.scope }) {
         if ($writeDevice) { Register-Write $session -Scope $g.Name -Device $writeDevice -Items @($g.Group) }
         elseif ($g.Name -in 'plc', 'hmi') { foreach ($w1 in $g.Group) { Register-LibraryTypeWrite $session $g.Name $sharedDevices[$g.Name] $w1.name $w1.ok } }

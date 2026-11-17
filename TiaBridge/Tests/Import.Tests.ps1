@@ -910,12 +910,13 @@ Describe 'import of project graphics' {
     Write-Graphic 'Home'
     Write-Graphic 'zzNew'
 
-    # the project holds the graphic Home
+    # the project holds the graphic Home; TIA fails the import of a name in failNames, and makes nothing of it
     function Get-KindRoot {
         $graphics = New-Object System.Collections.ArrayList
         [void]$graphics.Add([pscustomobject]@{ Name = 'Home' })
         Add-Member -InputObject $graphics ScriptMethod Import { param($file, $options)
             $name = [regex]::Match([System.IO.File]::ReadAllText($file.FullName), '<Name>([^<]*)</Name>').Groups[1].Value
+            if ($script:failNames -contains $name) { throw "TIA did not take $name" }
             $script:imported += @("$name $options")
             , @([pscustomobject]@{ Name = $name }) }
         [pscustomobject]@{ Graphics = $graphics }
@@ -928,6 +929,7 @@ Describe 'import of project graphics' {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
         Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
         Register-Archive (Get-BridgeSession)
+        $script:failNames = @()
     }
 
     It 'imports a graphic over itself with Override, and names the compile of the HMI as a write on each HMI device' {
@@ -936,7 +938,7 @@ Describe 'import of project graphics' {
         $script:imported -join ',' | Should Be 'Home Override'
         $script:committed | Should Be $true
         $r.next | Should Match '^compile the hmi scope'
-        @((Get-BridgeSession).pending.Values) -join ' ' | Should Be 'hmi@HMI_1:Home'
+        @((Get-BridgeSession).pending.Values) -join ' ' | Should Be 'hmi@HMI_1:graphic:Home'
     }
 
     It 'imports a new graphic, as a write on every HMI device of a project with several, and on none of its PLC' {
@@ -944,7 +946,22 @@ Describe 'import of project graphics' {
         $r = Invoke-GraphicImport @('project\graphics\zzNew.xml')
         $r.ok | Should Be $true
         $script:imported -join ',' | Should Be 'zzNew Override'
-        @((Get-BridgeSession).pending.Values | Sort-Object) -join ' ' | Should Be 'hmi@HMI_A:zzNew hmi@HMI_B:zzNew'
+        @((Get-BridgeSession).pending.Values | Sort-Object) -join ' ' | Should Be 'hmi@HMI_A:graphic:zzNew hmi@HMI_B:graphic:zzNew'
+    }
+
+    It 'keeps what a block and a screen of its name wait for when a new graphic fails and is not in TIA' {
+        function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf) {
+            @{ output = @(& $Body); transaction = $false; rolledBack = $false; commitError = $null; note = $null }
+        }
+        Write-Graphic 'Motor'
+        $s = Get-BridgeSession
+        Register-Write $s -Scope 'plc' -Device 'PLC_1' -Items @(@{ name = 'Motor'; ok = $true })
+        Register-Write $s -Scope 'hmi' -Device 'HMI_1' -Items @(@{ name = 'Motor'; ok = $true })
+        $script:failNames = @('Motor')
+        $r = Invoke-GraphicImport @('project\graphics\Motor.xml')
+        $r.ok | Should Be $false
+        @($s.pending.Values | Sort-Object) -join ' ' | Should Be 'hmi@HMI_1:Motor plc@PLC_1:Motor'
+        $s.failed.Count | Should Be 0
     }
 
     It 'does not delete a graphic' {
