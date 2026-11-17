@@ -20,10 +20,10 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   - A whole-project export skips the blocks, DBs, data types and PLC tag tables TIA has not changed since the last one,
     and says how many it skipped. It goes by the dates TIA keeps of each object, which every edit moves, and by the files
     the last export left in the repo (in `.tiabridge-export.json`, kept out of git).
-  - Where it cannot tell, it exports. A tag table that exports differently, or an object added, deleted or renamed,
-    exports every object of that PLC, as other blocks name them. A changed data type or interface exports the blocks that
-    use it through their own state: TIA holds them not consistent until the compile, which then moves their dates. It
-    also exports every block written as SimaticML (OBs, for one). An object TIA holds not consistent is exported, and so
+  - Where it cannot tell, it exports. A changed data type, a tag table that exports differently, or an object added,
+    deleted or renamed exports every object of that PLC, as other blocks name them or hold their members. A changed block
+    or DB exports the blocks that call or use it through their own state: TIA holds them not consistent until the
+    compile, which then moves their dates. It also exports every block written as SimaticML (OBs, for one). An object TIA holds not consistent is exported, and so
     is one whose file was edited, removed or added in the repo. Another TIA version, other project languages or another
     version of the bridge exports everything.
   - HMI objects, library types, system blocks, technology objects, watch and force tables and the project's settings

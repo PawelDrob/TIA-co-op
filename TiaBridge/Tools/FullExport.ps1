@@ -367,6 +367,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
     $n = 0
     foreach ($e in $entries) {
         $o = if ($dp) { $dp.objects["$($k.name)|$($e.name)"] }
+        # an object sharing its file with another is never skipped; it cannot be reached either, as both failed last time
         if ($o -and -not $o.export -and -not $collisions[(Get-ExportBase $k $e '' $Device)]) {
             $o.recorded = $o.old
             $Record.skipped++
@@ -678,7 +679,7 @@ function Register-FullExportTool {
         'are listed (keptUncommitted: import, commit or delete each before committing); a git repo inside such a folder stays whole and is listed (keptRepos), an object whose own export folder holds one is refused and in failed, and a repo around such a folder loses nothing, gets the new files and is listed too; the export of an object still replaces uncommitted edits of its own files, as export does. ' +
         'A file that differs from the one in the repo only in what TIA writes anew per export (the export time; in an .xlsx also its relationship Ids) stays as it is: a full_export with no change in TIA changes no file; unchanged counts the files left so. ' +
         'Blocks, DBs, data types and PLC tag tables TIA has not changed since the last full_export are not exported and keep their files (skipped counts them): it compares the dates and other values TIA keeps of each, for unequal, and the files the last export left (.tiabridge-export.json, ignored by git); ' +
-        'it exports an object when a value differs, it moved, it is not consistent, its last export failed, a file of it was edited, removed or added beside it in the repo, or it is an instance DB of an exported FB; a block written as SimaticML also when a data type or an interface changed (its users written as SD export by their own values: TIA holds them not consistent until the compile, which moves their dates); every object of a PLC when a tag table exports differently or an object was added, deleted or renamed (exportedAllOf); ' +
+        'it exports an object when a value differs, it moved, it is not consistent, its last export failed, a file of it was edited, removed or added beside it in the repo, or it is an instance DB of an exported FB; a block written as SimaticML also when another block or DB changed (its users written as SD export by their own values: TIA holds them not consistent until the compile, which moves their dates); every object of a PLC when a data type changed, a tag table exports differently or an object was added, deleted or renamed (exportedAllOf); ' +
         'everything when there is no usable record, or the project, TIA version, project languages, PLC devices or the bridge differ from it (exportedAll); details counts per part why objects were exported. HMI, library and the other parts export every time. full: true exports everything. ' +
         'hmi\generated, gen, library\changes, changes, logs, archives and standards are never touched. Read only: works under connect and in a background session. Long: about minutes per thousand objects; ' +
         'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part, failed items, ' +

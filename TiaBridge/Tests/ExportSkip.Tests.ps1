@@ -185,6 +185,20 @@ Describe 'full_export exports everything when the record cannot be used' {
         }
     }
 
+    Context 'what TIA says does not read' {
+    It 'exports everything when what TIA says of the objects does not read, and keeps the record' {
+        Initialize-SkipTest 'plan-fails'
+        $f = Join-Path $script:repo '.tiabridge-export.json'
+        $before = [System.IO.File]::ReadAllText($f)
+        Mock Read-ExportState { throw 'busy' }
+        $r = Invoke-FullExportTool $script:parts
+        $r.exportedAll | Should Match '^what TIA says of the objects did not read: busy'
+        $r.skipped | Should Be 0
+        Get-Exported | Should Be 'DB1,FB1,FC1,IDB1,UDT1'
+        [System.IO.File]::ReadAllText($f) | Should Be $before
+    }
+    }
+
     It 'binds a background session to the source it copied, not to its copy' {
         Initialize-SkipTest 'background'
         $script:Bridge.background = @{ source = 'C:\P.ap20'; plain = $false; session = (New-SessionState) }
@@ -250,8 +264,23 @@ Describe 'full_export exports every object of a PLC after a change there that ma
         Reset-Exports
         $script:o.UDT1.IsKnowHowProtected = 'False'
         $r = Invoke-FullExportTool $script:parts
-        Get-Exported | Should Be 'UDT1'
-        @($r.details | Where-Object { $_.part -eq 'types' })[0].why['changed in TIA'] | Should Be 1
+        $r.exportedAllOf | Should Be 'PLC_1: the data type UDT1 changed'
+    }
+
+    It 'a data type changed, its users consistent (a default value): they may hold its members' {
+        Initialize-SkipTest 'udt'
+        $script:o.UDT1.text = 'UDT1 with another default'; Step-Date $script:o.UDT1; Step-Date $script:o.UDT1 'InterfaceModifiedDate'
+        $script:o.DB1.text = 'DB1 without the start value the new default makes the same'
+        $r = Assert-SameAsFull
+        $r.exportedAllOf | Should Be 'PLC_1: the data type UDT1 changed'
+        $script:exportedByDefault | Should Be 'DB1,FB1,FC1,IDB1,UDT1'
+    }
+
+    It 'a tag table whose file is not in the repo' {
+        Initialize-SkipTest 'tag-file-gone'
+        Remove-Item (Join-Path $script:repo 'plc\tags\Tags.xml')
+        $r = Assert-SameAsFull
+        $r.exportedAllOf | Should Be 'PLC_1: the tag table Tags changed: its file is not in the repo'
     }
 
 
@@ -317,6 +346,16 @@ Describe 'full_export exports one object when' {
     It 'another value of it changed, its dates not (a number)' {
         Initialize-SkipTest 'number'
         $script:o.FC1 | Add-Member NoteProperty Number 7
+        $null = Invoke-FullExportTool $script:parts
+        Get-Exported | Should Be 'FC1'
+    }
+
+    It 'a header value of it changed, its dates not (its version, which its file holds)' {
+        Initialize-SkipTest 'header'
+        $script:o.FC1 | Add-Member NoteProperty HeaderVersion '0.1'
+        $null = Invoke-FullExportTool $script:parts
+        Reset-Exports
+        $script:o.FC1.HeaderVersion = '0.2'
         $null = Invoke-FullExportTool $script:parts
         Get-Exported | Should Be 'FC1'
     }
@@ -418,13 +457,13 @@ Describe 'full_export exports one object when' {
         @($r.details | Where-Object { $_.part -eq 'blocks' })[0].why['a value of it does not read'] | Should Be 1
     }
 
-    It 'a data type it uses changed: TIA holds it not consistent, and only the two export' {
-        Initialize-SkipTest 'udt'
-        $script:o.UDT1.text = 'UDT1 with a member'; Step-Date $script:o.UDT1; Step-Date $script:o.UDT1 'InterfaceModifiedDate'
-        $script:o.FB1.text = 'FB1 as the data type changed it'; $script:o.FB1.IsConsistent = $false
+    It 'a block it calls changed its interface, and TIA holds it not consistent until the compile' {
+        Initialize-SkipTest 'not-consistent'
+        Step-Date $script:o.FC1; Step-Date $script:o.FC1 'InterfaceModifiedDate'
+        $script:o.FB1.IsConsistent = $false
         $r = Assert-SameAsFull
         $r.exportedAllOf | Should BeNullOrEmpty
-        $script:exportedByDefault | Should Be 'FB1,IDB1,UDT1'
+        $script:exportedByDefault | Should Be 'FB1,FC1,IDB1'
     }
 
     It "the interface of a block it calls changed, and the compile rewrote it: its own dates moved" {
@@ -436,21 +475,19 @@ Describe 'full_export exports one object when' {
         $script:exportedByDefault | Should Be 'FB1,FC1,IDB1'
     }
 
-    It 'it was written as SimaticML, and a data type changed' {
-        Initialize-SkipTest 'xml-udt' -SimaticMl 'DB1'
+    It 'it was written as SimaticML, and another block changed in TIA, its interface or only its code' {
+        Initialize-SkipTest 'xml-code' -SimaticMl 'DB1'
         Test-Path (Join-Path $script:repo 'plc\blocks\DB1.xml') | Should Be $true
-        Step-Date $script:o.UDT1
-        $r = Assert-SameAsFull
-        $script:exportedByDefault | Should Be 'DB1,UDT1'
-        @($r.details | Where-Object { $_.part -eq 'dbs' })[0].why['the data type UDT1 changed, and its SimaticML may show it'] | Should Be 1
-    }
-
-    It 'it was written as SimaticML, and the interface of a block changed' {
-        Initialize-SkipTest 'xml-interface' -SimaticMl 'DB1'
-        Step-Date $script:o.FC1; Step-Date $script:o.FC1 'InterfaceModifiedDate'
+        Step-Date $script:o.FC1
         $r = Assert-SameAsFull
         $script:exportedByDefault | Should Be 'DB1,FC1'
-        @($r.details | Where-Object { $_.part -eq 'dbs' })[0].why['the interface of FC1 changed, and its SimaticML may show it'] | Should Be 1
+        @($r.details | Where-Object { $_.part -eq 'dbs' })[0].why['FC1 changed in TIA, and its SimaticML may show it'] | Should Be 1
+    }
+
+    It 'not when it was written as SimaticML and nothing else changed in TIA' {
+        Initialize-SkipTest 'xml-nothing' -SimaticMl 'DB1'
+        $r = Invoke-FullExportTool $script:parts
+        Get-Exported | Should Be ''
     }
 
     It 'it is an instance DB of an FB that is exported' {

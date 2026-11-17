@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T16:35:59-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T16:50:55-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -91,7 +91,7 @@ by reflection, so one TIA refuses counts as unread and its object is exported `[
 
 Probed again on 2026-11-17, V20 Update 7, on a copy of a test project without a window, through the calls an agent makes
 and edits Openness makes in place; after each change the default `full_export` and `full: true` left the same files
-`[PROBE]` (ticket 339's e2e run):
+`[PROBE]`:
 
 - **Import, compile:** an `Override` import moves every date of the object, `InterfaceModifiedDate` too, also when only its
   code changed. The compile after an interface change rewrote both callers (each got the new input) and moved their

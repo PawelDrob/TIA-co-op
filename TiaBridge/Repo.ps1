@@ -452,8 +452,8 @@ $script:SessionTempIgnore = '.tiabridge-session.json.*.tmp'
 
 # The record of the last full_export (Tools\ExportRecord.ps1): of this PC's exports, not of the project; with its
 # temporary file.
-$script:ExportRecordIgnore = '.tiabridge-export.json'
-$script:ExportRecordTempIgnore = '.tiabridge-export.json.*.tmp'
+$script:ExportRecordName = '.tiabridge-export.json'
+$script:ExportRecordTempIgnore = "$script:ExportRecordName.*.tmp"
 
 $script:RepoGitignore = @"
 archives/
@@ -461,7 +461,7 @@ archives/
 .obsidian/
 .tiabridge-session.json
 $script:SessionTempIgnore
-$script:ExportRecordIgnore
+$script:ExportRecordName
 $script:ExportRecordTempIgnore
 changes/reports/
 $script:WorkPathIgnore
@@ -665,7 +665,7 @@ function Initialize-ProjectRepo([string]$Root, [string]$ProjectName, [string]$Pr
     }
     # repos made before these ignore lines existed (the session file: 2026-10-06; the export record: 2026-11-17) get them
     $gi = Join-Path $repo '.gitignore'
-    foreach ($line in '.tiabridge-session.json', $script:SessionTempIgnore, $script:WorkPathIgnore, $script:ExportRecordIgnore, $script:ExportRecordTempIgnore) {
+    foreach ($line in '.tiabridge-session.json', $script:SessionTempIgnore, $script:WorkPathIgnore, $script:ExportRecordName, $script:ExportRecordTempIgnore) {
         if ((Test-Path -LiteralPath $gi) -and -not (Select-String -LiteralPath $gi -SimpleMatch $line -Quiet)) {
             [System.IO.File]::AppendAllText($gi, "`n$line`n", $script:Utf8NoBom)
         }

@@ -8,7 +8,6 @@
 # now, whenever the entry was written. The head binds the record as a whole (project, TIA version, languages, PLC
 # devices, the bridge's own code): any of it different, and everything is exported.
 
-$script:ExportRecordName = '.tiabridge-export.json'
 $script:ExportRecordForm = 1
 
 # The kinds that skip; every other kind exports as before: HMI has no signal, and the rest is not probed yet.
@@ -16,21 +15,20 @@ $script:SkipKinds = @('block', 'db', 'type', 'plc_tag_table')
 
 # What is read of each object and compared for unequal, never for newer: a project closed without saving after an import
 # reads older dates. An attribute an object does not have reads $null and is left out. The dates: what each edit moves
-# [PROBE] (2026-10-08); the rest changes what its export writes.
+# [PROBE] (2026-10-08). The rest is written into its file (the header: S7_Author, S7_Family, S7_UserDefinedId, S7_Version,
+# S7_IECCheck, S7_GenerateENOforSCL), and whether editing it in TIA moves a date is not probed: Openness cannot set it.
+$script:BlockHeaderAttributes = @('HeaderAuthor', 'HeaderFamily', 'HeaderName', 'HeaderVersion', 'IsIECCheckEnabled', 'SetENOAutomatically', 'Namespace')
 $script:ExportStateAttributes = @{
     block = @('ModifiedDate', 'CodeModifiedDate', 'InterfaceModifiedDate', 'ParameterModified', 'StructureModified', 'CompileDate', 'CreationDate',
-              'IsConsistent', 'Number', 'ProgrammingLanguage', 'MemoryLayout', 'IsKnowHowProtected')
+              'IsConsistent', 'Number', 'ProgrammingLanguage', 'MemoryLayout', 'IsKnowHowProtected') + $script:BlockHeaderAttributes
     db = @('ModifiedDate', 'CodeModifiedDate', 'InterfaceModifiedDate', 'ParameterModified', 'StructureModified', 'CompileDate', 'CreationDate',
-           'IsConsistent', 'Number', 'MemoryLayout', 'IsKnowHowProtected', 'InstanceOfName')
+           'IsConsistent', 'Number', 'MemoryLayout', 'IsKnowHowProtected', 'InstanceOfName') + $script:BlockHeaderAttributes
     type = @('ModifiedDate', 'CodeModifiedDate', 'InterfaceModifiedDate', 'ParameterModified', 'StructureModified', 'CompileDate', 'CreationDate',
-             'IsConsistent', 'IsKnowHowProtected')
+             'IsConsistent', 'IsKnowHowProtected') + $script:BlockHeaderAttributes
     plc_tag_table = @('ModifiedTimeStamp')
 }
 # An object that reads none of these has no signal: it is exported.
 $script:ExportSignalAttributes = @('ModifiedDate', 'ModifiedTimeStamp')
-
-# The record of the last plan (Get-ExportPlan), for Save-ExportRecord.
-$script:ExportPlan = $null
 
 # The version of the Openness TIA runs (Siemens.Engineering.dll, as TIA's own: 2000.7.201.2 is V20 Update 7); '' unread.
 function Get-TiaVersionText {
@@ -43,25 +41,18 @@ function Get-BridgeCodeHash {
     if (-not $script:BridgeCodeHash) {
         $root = Split-Path -Parent $PSScriptRoot
         $files = @(@(Get-ChildItem -LiteralPath $root -Filter *.ps1 -File) + @(Get-ChildItem -LiteralPath (Join-Path $root 'Tools') -Filter *.ps1 -File) | Sort-Object Name)
-        $sha = [System.Security.Cryptography.SHA256]::Create()
-        try {
-            foreach ($f in $files) {
-                $b = [System.IO.File]::ReadAllBytes($f.FullName)
-                $null = $sha.TransformBlock($b, 0, $b.Length, $null, 0)
-            }
-            $null = $sha.TransformFinalBlock(@(), 0, 0)
-            $script:BridgeCodeHash = [BitConverter]::ToString($sha.Hash).Replace('-', '')
-        }
-        finally { $sha.Dispose() }
+        $script:BridgeCodeHash = Get-Sha256Text ([System.Text.Encoding]::ASCII.GetBytes((@($files | ForEach-Object { "$($_.Name)=$(Get-FileSha256 $_.FullName)" }) -join "`n")))
     }
     $script:BridgeCodeHash
 }
 
-function Get-FileSha256([string]$Path) {
+function Get-Sha256Text([byte[]]$Bytes) {
     $sha = [System.Security.Cryptography.SHA256]::Create()
-    try { [BitConverter]::ToString($sha.ComputeHash([System.IO.File]::ReadAllBytes($Path))).Replace('-', '') }
+    try { [BitConverter]::ToString($sha.ComputeHash($Bytes)).Replace('-', '') }
     finally { $sha.Dispose() }
 }
+
+function Get-FileSha256([string]$Path) { Get-Sha256Text ([System.IO.File]::ReadAllBytes($Path)) }
 
 # The project's languages: the reference language, then the active ones. A new language changes every block's .s7res.
 function Get-ProjectLanguageText($Project) {
@@ -231,10 +222,12 @@ function Get-TagTableDifference($Kind, $Entry, [string]$Device) {
 }
 
 # Why every object of a PLC is exported, or $null. Old: its record entries (ConvertTo-EntryMap); Objects: key -> @{ kind; entry;
-# state }. A block names other blocks and tags in its code, and a renamed one moved no date of a block naming it: the
-# compile after it did [PROBE] (2026-11-17, steps 6, 7, 13 and 16 of ticket 339's e2e run). Until that compile, which
-# rewrites the callers, any of these exports them all. Names compare with case: a block renamed Fb1 -> FB1 is named so in
-# its callers' files, and PowerShell's -contains and hashtables ignore case.
+# state }. A block names other blocks and tags in its code, and a renamed one moved no date of a block naming it until the
+# compile rewrote that block [PROBE] (2026-11-17, docs\agent\openness-v20.md, Dates): an object added, deleted or renamed,
+# or a tag table that exports differently, exports them all. So does a changed data type: its members and their defaults
+# show in the DBs and blocks that use it, and only a member added was tried, which left its users not consistent. Names
+# compare with case: a block renamed Fb1 -> FB1 is named so in its callers' files, and PowerShell's -contains and
+# hashtables ignore case.
 function Get-PlcExportReason([hashtable]$Old, [hashtable]$Objects) {
     $gone = @($Old.Keys | Where-Object { -not $Objects.ContainsKey($_) })
     $new = @($Objects.Keys | Where-Object { -not $Old.ContainsKey($_) })
@@ -244,26 +237,24 @@ function Get-PlcExportReason([hashtable]$Old, [hashtable]$Objects) {
     }
     foreach ($key in @($Objects.Keys | Sort-Object)) {
         $o = $Objects[$key]; $was = $Old[$key]
+        $same = (Get-StateText $o.state) -ceq (Get-StateText $was.state)
+        if ($o.kind -eq 'type' -and -not $same) { return "the data type $($o.entry.name) changed" }
         if ($o.kind -ne 'plc_tag_table') { continue }
-        if ((Get-StateText $o.state) -cne (Get-StateText $was.state)) { return "the tag table $($o.entry.name) changed" }
+        if (-not $same) { return "the tag table $($o.entry.name) changed" }
         if ($o.differs) { return "the tag table $($o.entry.name) changed: $($o.differs)" }
     }
     $null
 }
 
-# Why the objects of a PLC that were exported as SimaticML are exported, or $null: a data type changed, or the interface of
-# a block or DB. A block that uses it turned not consistent, and the compile that rewrote it moved its own dates, so its own
-# values say so [PROBE] (2026-11-17, steps 4, 10 to 12 and 31 to 36 of ticket 339's e2e run, blocks exported as SD). A block
-# exported as SimaticML (an OB, a know-how protected block, one whose SD export TIA refused) holds the parameters of what it
-# calls and the members of the types it uses in its file; whether that file follows the other one before its own compile
-# was not tried, so these few are exported.
+# Why the objects of a PLC that were exported as SimaticML are exported, or $null: a block or DB of it changed in TIA. A block
+# that calls or uses a changed block or DB turned not consistent, and the compile that rewrote it moved its own dates, so its
+# own values say so [PROBE] (2026-11-17, docs\agent\openness-v20.md, Dates; blocks exported as SD). A block exported as
+# SimaticML (an OB, a know-how protected block, one whose SD export TIA refused) holds the parameters and members of what it
+# calls in its file; whether that file follows the other one before its own compile was not tried, so these few are exported.
 function Get-SimaticMlReason([hashtable]$Old, [hashtable]$Objects) {
     foreach ($key in @($Objects.Keys | Sort-Object)) {
-        $o = $Objects[$key]; $was = $Old[$key]
-        if ($o.kind -eq 'type' -and (Get-StateText $o.state) -cne (Get-StateText $was.state)) { return "the data type $($o.entry.name) changed" }
-        if ($o.kind -in 'block', 'db' -and (Get-StateValue $o.state 'InterfaceModifiedDate') -cne (Get-StateValue $was.state 'InterfaceModifiedDate')) {
-            return "the interface of $($o.entry.name) changed"
-        }
+        $o = $Objects[$key]
+        if ($o.kind -in 'block', 'db' -and (Get-StateText $o.state) -cne (Get-StateText $Old[$key].state)) { return "$($o.entry.name) changed in TIA" }
     }
     $null
 }
@@ -296,11 +287,11 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
         if ($plan.all) { $d.all = $plan.all }
         elseif ($null -eq $old) { $d.all = "the record holds nothing of $device" }
         else { $d.all = Get-PlcExportReason $old $d.objects }
-        $xml = if (-not $d.all) { Get-SimaticMlReason $old $d.objects }
+        $simaticMlWhy = if (-not $d.all) { Get-SimaticMlReason $old $d.objects }
         foreach ($o in @($d.objects.Values | Where-Object { $_.kind -ne 'db' }) + @($d.objects.Values | Where-Object { $_.kind -eq 'db' })) {
             $o.export = $(if ($d.all) { $d.all } else { Get-ObjectExportReason (Get-ObjectKind $o.kind) $o.entry $o.state $o.old $device })
-            if (-not $o.export -and $xml -and $o.kind -ne 'plc_tag_table' -and @((Get-EntryFiles $o.old).Keys | Where-Object { $_ -like '*.xml' }).Count) {
-                $o.export = "$xml, and its SimaticML may show it"
+            if (-not $o.export -and $simaticMlWhy -and $o.kind -ne 'plc_tag_table' -and @((Get-EntryFiles $o.old).Keys | Where-Object { $_ -like '*.xml' }).Count) {
+                $o.export = "$simaticMlWhy, and its SimaticML may show it"
             }
             # an instance DB's export holds its FB's interface
             if (-not $o.export -and $o.kind -eq 'db') {
