@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T17:05:06-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T12:57:40-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -79,6 +79,7 @@ their findings stay in this guide, and the git history of this repo keeps them.
 |---|---|
 | `export` / `import` / `delete` kinds `hmi_screen`, `hmi_popup`, `hmi_template`, `hmi_tag_table`, `hmi_textlist` | SimaticML out of and into TIA; exports go to `hmi\screens\`, `hmi\popups\`, ...; screens, pop-ups and templates are always exported full (section 2.3), tag tables and text lists minimal unless `options.full`; screens, pop-ups, templates and tag tables are imported only from `hmi\[<device>\]generated\<kind>\` (tag tables: `generated\tags\`) and only after the HMI validator passed (section 3); a new one goes to the folder its path there mirrors (`hmi\[<device>\]generated\screens\zzStaging\x.xml` -> `zzStaging`), an existing one is replaced where it is; faceplate guard before every screen import |
 | `export` / `import` kind `hmi_cycle` | always the full export, into `hmi\[<device>\]cycles\`, and imported from there only, after the HMI validator passed: a cycle document that is no full export is refused (`cycle.not-full`), as TIA imports a minimal one with `StartAtStartingPoint` false ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses it |
+| `export` / `import` kinds `graphic`, `hmi_graphiclist` | a project graphic as `project\graphics\<name>.xml` with its image in `<name> files\`, imported with that folder: an image the document names that is not there is refused; a graphic list in `hmi\[<device>\]graphiclists\`, minimal unless `options.full`, imported from any path: an entry naming a graphic the project does not have is refused, so import graphics first ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses both |
 | `compile(hmi)` | the full compiler message tree |
 | `list` / `export` kind `faceplate_type`, `probe` | faceplate type versions and metadata; reflection on any object |
 | `TiaHmiGenerator\hmixml.py` | Python: builds screens and text lists from object dicts, using exported objects as templates, and tag tables from tag dicts, with `Length` and `HmiDataType` from the data type; writes only through a run (`begin` / `plan` / `add` / `finish`) into `hmi\[<device>\]generated\` |

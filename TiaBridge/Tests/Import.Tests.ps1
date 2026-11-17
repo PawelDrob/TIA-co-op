@@ -46,7 +46,7 @@ Describe 'import of a kind that has no import' {
         Register-Archive (Get-BridgeSession)
         Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = @('Any.xml') })
     }
-    foreach ($kind in 'system_block', 'graphic', 'hmi_slidein', 'hmi_screen_global', 'hmi_graphiclist', 'hmi_vbscript', 'hmi_connection') {
+    foreach ($kind in 'system_block', 'hmi_slidein', 'hmi_screen_global', 'hmi_vbscript', 'hmi_connection') {
         It "$kind is export only, and no library tool is named as the way to change it" {
             $r = Invoke-ImportOfKind $kind
             $r.ok | Should Be $false
@@ -892,5 +892,161 @@ Describe 'import of technology objects' {
         $r.ok | Should Be $false
         $r.refused | Should Match 'not tried on a real TIA'
         @($script:deleted).Count | Should Be 0
+    }
+}
+
+# A project graphic goes back as its export wrote it: <name>.xml with the image folder '<name> files' beside it, which the
+# document names by relative path (ticket bridge/329). It belongs to the project, and the HMI devices show it.
+Describe 'import of project graphics' {
+    $repo = Join-Path $TestDrive 'Graphics'
+    # a multilingual graphic as TIA exports it, and its image unless NoImage
+    function Write-Graphic([string]$Name, [string]$Image = "$Name files\DefaultImageStream.png", [switch]$NoImage, [string]$Dir = 'project\graphics') {
+        $stream = if ($Image) { "<DefaultImageStream external=`"path`">$Image</DefaultImageStream>" } else { '' }
+        Write-TextFile (Join-Path $repo "$Dir\$Name.xml") ("<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><Engineering version=`"V20`" />" +
+            "<Hmi.Globalization.MultiLingualGraphic ID=`"0`"><AttributeList><DefaultDithering>false</DefaultDithering>$stream" +
+            "<DefaultSmoothness>false</DefaultSmoothness><Name>$Name</Name></AttributeList></Hmi.Globalization.MultiLingualGraphic></Document>")
+        if ($Image -and -not $NoImage) { Write-TextFile (Join-Path $repo "$Dir\$Image") 'png' }
+    }
+    Write-Graphic 'Home'
+    Write-Graphic 'zzNew'
+
+    # the project holds the graphic Home
+    function Get-KindRoot {
+        $graphics = New-Object System.Collections.ArrayList
+        [void]$graphics.Add([pscustomobject]@{ Name = 'Home' })
+        Add-Member -InputObject $graphics ScriptMethod Import { param($file, $options)
+            $name = [regex]::Match([System.IO.File]::ReadAllText($file.FullName), '<Name>([^<]*)</Name>').Groups[1].Value
+            $script:imported += @("$name $options")
+            , @([pscustomobject]@{ Name = $name }) }
+        [pscustomobject]@{ Graphics = $graphics }
+    }
+    function Invoke-GraphicImport([string[]]$Paths) {
+        $script:imported = @(); $script:committed = $null
+        Invoke-ImportTool ([pscustomobject]@{ kind = 'graphic'; paths = $Paths })
+    }
+    BeforeEach {
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Register-Archive (Get-BridgeSession)
+    }
+
+    It 'imports a graphic over itself with Override, and names the compile of the HMI as a write on each HMI device' {
+        $r = Invoke-GraphicImport @('project\graphics\Home.xml')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'Home Override'
+        $script:committed | Should Be $true
+        $r.next | Should Match '^compile the hmi scope'
+        @((Get-BridgeSession).pending.Values) -join ' ' | Should Be 'hmi@HMI_1:Home'
+    }
+
+    It 'imports a new graphic, as a write on every HMI device of a project with several, and on none of its PLC' {
+        function Get-TiaSoftwareList { @(@{ device = 'PLC_1'; kind = 'plc' }, @{ device = 'HMI_A'; kind = 'hmi' }, @{ device = 'HMI_B'; kind = 'hmi' }) }
+        $r = Invoke-GraphicImport @('project\graphics\zzNew.xml')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'zzNew Override'
+        @((Get-BridgeSession).pending.Values | Sort-Object) -join ' ' | Should Be 'hmi@HMI_A:zzNew hmi@HMI_B:zzNew'
+    }
+
+    It 'does not delete a graphic' {
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'graphic'; names = @('Home') })
+        $r.ok | Should Be $false
+        $r.refused | Should Match '^Kind graphic is not deleted by the bridge\. Deleting a graphic was not tried on a real TIA'
+    }
+
+    It 'refuses a graphic whose image file is not beside it before TIA is asked, naming the file' {
+        Write-Graphic 'zzLost' -NoImage
+        $r = Invoke-GraphicImport @('project\graphics\zzNew.xml', 'project\graphics\zzLost.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].notAttempted | Should Be $true
+        $r.items[1].refused | Should Match "^Graphic 'zzLost' names the image 'zzLost files\\DefaultImageStream\.png', which is not beside its document"
+        $r.items[1].refused | Should Match 'copy the image folder with the \.xml'
+    }
+
+    It 'refuses a document that names no image, holds no graphic or cannot be read, before TIA is asked' {
+        Write-Graphic 'zzBare' -Image ''
+        Write-TextFile (Join-Path $repo 'project\graphics\zzList.xml') '<Document><Hmi.TextGraphicList.GraphicList ID="0"><AttributeList><Name>zzList</Name></AttributeList></Hmi.TextGraphicList.GraphicList></Document>'
+        Write-TextFile (Join-Path $repo 'project\graphics\zzBroken.xml') '<Document><Hmi.Globalization.MultiLingualGraphic ID="0">'
+        Write-TextFile (Join-Path $repo 'project\graphics\zzSd.s7dcl') 'x'
+        foreach ($case in @(@('zzBare.xml', "^Graphic 'zzBare' names no image"), @('zzList.xml', "holds Hmi\.TextGraphicList\.GraphicList, no graphic: import it with its own kind"),
+                            @('zzBroken.xml', 'cannot be read as XML'), @('zzSd.s7dcl', 'SimaticML'))) {
+            $r = Invoke-GraphicImport @("project\graphics\$($case[0])")
+            $r.ok | Should Be $false
+            $r.items[0].refused | Should Match $case[1]
+            @($script:imported).Count | Should Be 0
+        }
+    }
+}
+
+# A graphic list of an HMI device: its entries link the project's graphics by name (<Picture><Name>), and one naming a
+# graphic the project lacks is refused before TIA sees it (ticket bridge/329).
+Describe 'import of graphic lists' {
+    $repo = Join-Path $TestDrive 'GraphicLists'
+    function Write-GraphicList([string]$Name, [string[]]$Pictures) {
+        $entries = @(for ($i = 0; $i -lt $Pictures.Count; $i++) {
+            "<Hmi.TextGraphicList.GraphicListEntry ID=`"$(3 + $i)`" CompositionName=`"Entries`"><AttributeList><From>$i</From><To>$i</To></AttributeList>" +
+            "<LinkList><Picture TargetID=`"@OpenLink`"><Name>$($Pictures[$i])</Name></Picture></LinkList></Hmi.TextGraphicList.GraphicListEntry>"
+        }) -join ''
+        Write-TextFile (Join-Path $repo "hmi\graphiclists\$Name.xml") ("<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><Engineering version=`"V20`" />" +
+            "<Hmi.TextGraphicList.GraphicList ID=`"0`"><AttributeList><ListRange>Decimal</ListRange><Mode>Simple</Mode><Name>$Name</Name></AttributeList>" +
+            "<ObjectList>$entries</ObjectList></Hmi.TextGraphicList.GraphicList></Document>")
+    }
+    Write-GraphicList 'glState' @('Home', 'Up_Arrow')
+    Write-GraphicList 'zzNew' @('home')
+    Write-GraphicList 'zzLost' @('Home', 'zzNoSuchGraphic')
+
+    # the project holds the graphics Home and Up_Arrow; the HMI device the graphic list glState
+    function Get-TiaProject { [pscustomobject]@{ Graphics = @([pscustomobject]@{ Name = 'Home' }, [pscustomobject]@{ Name = 'Up_Arrow' }) } }
+    function Get-KindRoot {
+        $lists = New-Object System.Collections.ArrayList
+        [void]$lists.Add([pscustomobject]@{ Name = 'glState' })
+        Add-Member -InputObject $lists ScriptMethod Import { param($file, $options)
+            $name = [regex]::Match([System.IO.File]::ReadAllText($file.FullName), '<Name>([^<]*)</Name>').Groups[1].Value
+            $script:imported += @("$name $options")
+            , @([pscustomobject]@{ Name = $name }) }
+        [pscustomobject]@{ GraphicLists = $lists }
+    }
+    function Invoke-GraphicListImport([string[]]$Paths) {
+        $script:imported = @(); $script:committed = $null
+        Invoke-ImportTool ([pscustomobject]@{ kind = 'hmi_graphiclist'; paths = $Paths })
+    }
+    BeforeEach {
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Register-Archive (Get-BridgeSession)
+    }
+
+    It 'imports a graphic list over itself with Override and a new one naming a graphic in another case, and names the compile of the HMI' {
+        $r = Invoke-GraphicListImport @('hmi\graphiclists\glState.xml', 'hmi\graphiclists\zzNew.xml')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'glState Override,zzNew Override'
+        $script:committed | Should Be $true
+        $r.next | Should Match '^compile the hmi scope'
+        @((Get-BridgeSession).pending.Values | Sort-Object) -join ' ' | Should Be 'hmi@HMI_1:glState hmi@HMI_1:zzNew'
+    }
+
+    It 'refuses a graphic list whose entry names a graphic the project does not have, before TIA is asked' {
+        $r = Invoke-GraphicListImport @('hmi\graphiclists\glState.xml', 'hmi\graphiclists\zzLost.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[1].refused | Should Match "^Graphic list 'zzLost' names the graphic 'zzNoSuchGraphic', which the project does not have"
+        $r.items[1].refused | Should Match 'import the graphic first \(kind graphic\)'
+    }
+
+    It 'refuses a text list under hmi_graphiclist, and every graphic list when the project''s graphics cannot be read' {
+        Write-TextFile (Join-Path $repo 'hmi\graphiclists\tlState.xml') '<Document><Hmi.TextGraphicList.TextList ID="0"><AttributeList><Name>tlState</Name></AttributeList></Hmi.TextGraphicList.TextList></Document>'
+        $r = Invoke-GraphicListImport @('hmi\graphiclists\tlState.xml')
+        $r.items[0].refused | Should Match 'holds Hmi\.TextGraphicList\.TextList, no graphic list: import it with its own kind'
+        function Get-TiaProject { throw 'TIA did not answer' }
+        $r = Invoke-GraphicListImport @('hmi\graphiclists\glState.xml', 'hmi\graphiclists\zzNew.xml')
+        $r.items[0].refused | Should Match "^The project's graphics could not be read, so no graphic list is imported unchecked: TIA did not answer"
+        $r.items[1].refused | Should Match "^The project's graphics could not be read"
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'does not delete a graphic list' {
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'hmi_graphiclist'; names = @('glState') })
+        $r.ok | Should Be $false
+        $r.refused | Should Match '^Kind hmi_graphiclist is not deleted by the bridge\. Deleting a graphic list was not tried on a real TIA'
     }
 }

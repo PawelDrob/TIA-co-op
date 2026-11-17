@@ -127,6 +127,20 @@ function Test-HmiFileFormat($File) {
     if ($why) { @{ ok = $false; refused = $why } }
 }
 
+# The object of a SimaticML that must hold one of Class (Hmi.Globalization.MultiLingualGraphic), for a kind whose
+# composition takes that class only: @{ node } of it, else @{ refused }. What: the kind's objects in words, for the refusal.
+function Read-HmiDocumentObject($File, [string]$Class, [string]$What) {
+    $refusal = Test-HmiFileFormat $File
+    if ($refusal) { return $refusal }
+    try { $node = (Read-DocumentXml $File.file).SelectSingleNode($script:DocumentObjectsXPath) }
+    catch { return @{ ok = $false; refused = "$($File.file) cannot be read as XML ($($_.Exception.GetBaseException().Message)); nothing imported." } }
+    if (-not $node -or $node.Name -ne $Class) {
+        $holds = if ($node) { $node.Name } else { 'no object' }
+        return @{ ok = $false; refused = "$($File.file) holds $holds, no $What`: import it with its own kind." }
+    }
+    @{ node = $node }
+}
+
 function Test-HmiScreenFile($File, [hashtable]$Cache) {
     $refusal = Test-HmiFileFormat $File
     if ($refusal) { return $refusal }
@@ -289,6 +303,41 @@ Register-ObjectKind 'hmi_cycle' @{
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
 }
 
+# Graphic lists: a new one from a file, entries linking a graphic by name (<LinkList><Picture><Name>), went in and round
+# tripped identically [PROBE] (2026-11-12, ticket 323). An entry naming a graphic the project lacks is refused before
+# TIA sees it (Test-GraphicListFile). Not deleted: that was not tried, and screens name a graphic list.
+Register-ObjectKind 'hmi_graphiclist' @{
+    scope = 'hmi'; dir = 'hmi\graphiclists'; defaultOverride = $true
+    noDelete = 'Deleting a graphic list was not tried on a real TIA, and screens name it. Delete it in TIA.'
+    description = 'graphic lists (no folders); an entry naming a graphic the project does not have is refused; not deleted'
+    items = { param($hmi) foreach ($t in $hmi.GraphicLists) { @{ obj = $t; name = $t.Name; folder = '' } } }
+    export = { param($e, $dir, $opt) Export-HmiObject $e $dir $opt }
+    precheck = { param($file, $cache) Test-GraphicListFile $file $cache }
+    import = { param($hmi, $folder, $file, $override) Import-HmiFile $hmi.GraphicLists $file $override }
+    whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
+}
+
+# The precheck of hmi_graphiclist: SimaticML of a graphic list, whose entries name graphics the project has. Cache.graphics
+# holds the project's graphic names for every file of the call.
+function Test-GraphicListFile($File, [hashtable]$Cache) {
+    $doc = Read-HmiDocumentObject $File 'Hmi.TextGraphicList.GraphicList' 'graphic list'
+    if ($doc.refused) { return $doc }
+    if (-not $Cache.ContainsKey('graphics')) {
+        $names = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
+        try { foreach ($g in @(Read-TiaList { foreach ($g in (Get-TiaProject).Graphics) { $g } })) { $names[[string]$g.Name] = $true } }
+        catch { $Cache.graphicsFailed = "The project's graphics could not be read, so no graphic list is imported unchecked: $($_.Exception.Message)" }
+        $Cache.graphics = $names
+    }
+    if ($Cache.graphicsFailed) { return @{ ok = $false; refused = $Cache.graphicsFailed } }
+    $name = if ($File.objectName) { [string]$File.objectName } else { [string]$File.name }
+    foreach ($node in @($doc.node.SelectNodes('.//LinkList/Picture/Name'))) {
+        $graphic = $node.InnerText
+        if (-not $Cache.graphics.ContainsKey($graphic)) {
+            return @{ ok = $false; refused = "Graphic list '$name' names the graphic '$graphic', which the project does not have. Nothing imported: import the graphic first (kind graphic), or name one the project has." }
+        }
+    }
+}
+
 # Export only: SimaticML through Export [PROBE] (2026-10-30, project A).
 
 Register-ObjectKind 'hmi_slidein' @{
@@ -306,13 +355,6 @@ Register-ObjectKind 'hmi_screen_global' @{
     items = { param($hmi)
         foreach ($n in 'ScreenGlobalElements', 'ScreenOverview') { $o = $hmi.$n; if ($null -ne $o) { @{ obj = $o; name = $n; folder = '' } } } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
-}
-
-Register-ObjectKind 'hmi_graphiclist' @{
-    scope = 'hmi'; dir = 'hmi\graphiclists'; exportOnly = $true
-    description = 'graphic lists (export only)'
-    items = { param($hmi) foreach ($t in $hmi.GraphicLists) { @{ obj = $t; name = $t.Name; folder = '' } } }
-    export = { param($e, $dir, $opt) Export-HmiObject $e $dir $opt }
 }
 
 Register-ObjectKind 'hmi_vbscript' @{

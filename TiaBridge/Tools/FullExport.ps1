@@ -6,14 +6,41 @@
 # repo inside such a folder stays whole and is listed (keptRepos). The hardware part (CAx/AutomationML) was removed
 # 2026-10-30: nothing read the .aml and it took most of the time.
 
+# Project graphics: TIA took back its export with the image folder beside it identically, and a replaced image and a new
+# graphic landed; a graphic list naming the graphic exported the same after it [PROBE] (2026-11-12, ticket 323).
 Register-ObjectKind 'graphic' @{
-    scope = 'project'; dir = 'project\graphics'; exportOnly = $true
-    description = 'project graphics (multilingual graphics of the HMI; export only)'
+    scope = 'project'; dir = 'project\graphics'; defaultOverride = $true
+    usedBy = 'hmi'
+    noDelete = 'Deleting a graphic was not tried on a real TIA, and graphic lists and screens name it. Delete it in TIA.'
+    description = 'project graphics (multilingual graphics of the HMI): <name>.xml with its image folder ''<name> files'' beside it, as the export writes them; an image the document names that is not there is refused; not deleted'
     items = { param($p) foreach ($g in $p.Graphics) { @{ obj = $g; name = $g.Name; folder = '' } } }
     # a multilingual graphic writes its images beside the .xml
     export = { param($e, $dir, $opt)
         $files = @(Export-ObjectFolder $e.obj $dir (ConvertTo-SafeFileName $e.name) ([Siemens.Engineering.ExportOptions]::WithDefaults))
         @{ ok = $true; format = 'xml'; files = $files } }
+    precheck = { param($file, $cache) Test-GraphicFile $file }
+    import = { param($p, $folder, $file, $override) Import-SimaticMlFile $p.Graphics $file $override }
+    whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
+}
+
+# The precheck of kind graphic: SimaticML of a multilingual graphic, and every image it names (external="path", relative
+# to the .xml) there, as TIA reads them from beside the document.
+function Test-GraphicFile($File) {
+    $doc = Read-HmiDocumentObject $File 'Hmi.Globalization.MultiLingualGraphic' 'graphic'
+    if ($doc.refused) { return $doc }
+    $name = if ($File.objectName) { [string]$File.objectName } else { [string]$File.name }
+    $dir = [System.IO.Path]::GetDirectoryName($File.file)
+    $images = @($doc.node.SelectNodes(".//*[@external='path']"))
+    # every export seen names its DefaultImageStream; what TIA makes of a graphic without one was not tried
+    if (-not $images.Count) {
+        return @{ ok = $false; refused = "Graphic '$name' names no image (an element with external=`"path`", as DefaultImageStream in an export): what TIA does with such a graphic was not tried. Nothing imported." }
+    }
+    foreach ($node in $images) {
+        $image = $node.InnerText.Trim()
+        if (-not $image -or -not (Test-Path -LiteralPath ([System.IO.Path]::Combine($dir, $image)) -PathType Leaf)) {
+            return @{ ok = $false; refused = "Graphic '$name' names the image '$image', which is not beside its document ($dir). TIA reads the images from where the document names them, relative to it, as the export writes them into '<name> files': copy the image folder with the .xml." }
+        }
+    }
 }
 
 # ------------------------------------------------------------------ file parts (one export call writes a file)
