@@ -379,7 +379,7 @@ function Invoke-ImportTool($a) {
     # the save rules: a plc or hmi kind writes to the device resolved here; a library type counts for every device of its
     # scope, and an object of the project for every device of the scope that uses it (usedBy)
     $writeDevice = if ($k.scope -in 'plc', 'hmi') { Get-TiaDeviceName $k.scope ([string]$a.device) }
-    $typeDevices = if ($k.scope -in 'library', 'project') { @{ plc = @(Get-TiaDeviceNames 'plc'); hmi = @(Get-TiaDeviceNames 'hmi') } }
+    $sharedDevices = if ($k.scope -in 'library', 'project') { @{ plc = @(Get-TiaDeviceNames 'plc'); hmi = @(Get-TiaDeviceNames 'hmi') } }
     $writeScope = if ($k.usedBy) { $k.usedBy } else { $k.scope }
     $entries = @(Get-KindItems $k $root)
     # without case, as TIA; not by culture as @{}, which takes spellings for one that TIA keeps apart
@@ -465,7 +465,7 @@ function Invoke-ImportTool($a) {
     if ($absent.Count) {
         if ($writeDevice) { Clear-ObjectWrites $session $k.scope $writeDevice $absent }
         else {
-            foreach ($sc in 'plc', 'hmi') { Clear-ObjectWrites $session $sc $typeDevices[$sc] $absent }
+            foreach ($sc in 'plc', 'hmi') { Clear-ObjectWrites $session $sc $sharedDevices[$sc] $absent }
             foreach ($n in $absent) { Register-LibraryWrite $session -Name $(if ($k.scope -eq 'library') { "type:$n" } else { $n }) -Ok $true }
         }
     }
@@ -476,7 +476,7 @@ function Invoke-ImportTool($a) {
         ForEach-Object { @{ name = $(if ($_.importedAs) { $_.importedAs } else { $_.name }); ok = [bool]$_.ok; scope = $(if ($_.scope) { $_.scope } else { $writeScope }) } })
     foreach ($g in $written | Group-Object { $_.scope }) {
         if ($writeDevice) { Register-Write $session -Scope $g.Name -Device $writeDevice -Items @($g.Group) }
-        elseif ($g.Name -in 'plc', 'hmi') { foreach ($w1 in $g.Group) { Register-LibraryTypeWrite $session $g.Name $typeDevices[$g.Name] $w1.name $w1.ok } }
+        elseif ($g.Name -in 'plc', 'hmi') { foreach ($w1 in $g.Group) { Register-LibraryTypeWrite $session $g.Name $sharedDevices[$g.Name] $w1.name $w1.ok } }
         else { foreach ($w1 in $g.Group) { Register-LibraryWrite $session -Name "type:$($w1.name)" -Ok $w1.ok } }
     }
     # a type whose import threw has no scope and is held as type:<name>: its good import, with a scope, clears that too
@@ -868,7 +868,7 @@ function Register-ObjectTools {
         'A new object keeps the file''s number; a number another block has stands until the compile, which gives it a free one. After an import the object reads not consistent, and TIA refuses its export, until the PLC is compiled, and a block that uses it may read not consistent until then; next says so. ' +
         'A new object of a name a block or DB has is refused, and so is a new block or DB of a technology object''s name. The bridge refuses an import over a block TIA reports as know-how protected, but not over a technology object: TIA reports some technology objects that way although nobody protected them (seen on a PID_Compact 2.4), and the refusal would stop every import over such an object. So the bridge imports over an existing technology object. ' +
         'graphic: a project graphic, from its .xml with the image folder the export writes beside it (<name> files\), which the document names by relative path: a document naming an image that is not there, or no image, is refused before TIA sees it. ' +
-        'It counts as a write on every HMI device, and next names the compile of the HMI. hmi_graphiclist: an entry links a graphic by name (<LinkList><Picture><Name>); one naming a graphic the project does not have is refused before TIA sees it: import the graphic first. ' +
+        'It counts as a write on every HMI device, and next names the compile of the HMI. hmi_graphiclist: an entry links a graphic by name (<LinkList><Picture><Name>); one naming a graphic the project does not have, as its name is written, is refused before TIA sees it: import the graphic first. ' +
         'An existing object is replaced where it is; a new one goes to ' +
         'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables and cycles. ' +
         'override defaults to true, except hmi_template and hmi_tag_table (an existing one is refused). ' +

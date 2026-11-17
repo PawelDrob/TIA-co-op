@@ -127,8 +127,8 @@ function Test-HmiFileFormat($File) {
     if ($why) { @{ ok = $false; refused = $why } }
 }
 
-# The object of a SimaticML that must hold one of Class (Hmi.Globalization.MultiLingualGraphic), for a kind whose
-# composition takes that class only: @{ node } of it, else @{ refused }. What: the kind's objects in words, for the refusal.
+# The object of a SimaticML for a kind whose composition takes one class of object only: @{ node } when it is of Class (such
+# as Hmi.Globalization.MultiLingualGraphic), else @{ refused }. What: the kind's objects in words, for the refusal.
 function Read-HmiDocumentObject($File, [string]$Class, [string]$What) {
     $refusal = Test-HmiFileFormat $File
     if ($refusal) { return $refusal }
@@ -304,7 +304,7 @@ Register-ObjectKind 'hmi_cycle' @{
 }
 
 # Graphic lists: a new one from a file, entries linking a graphic by name (<LinkList><Picture><Name>), went in and round
-# tripped identically [PROBE] (2026-11-12, ticket 323). An entry naming a graphic the project lacks is refused before
+# tripped identically [PROBE] (2026-11-12, test project). An entry naming a graphic the project lacks is refused before
 # TIA sees it (Test-GraphicListFile). Not deleted: that was not tried, and screens name a graphic list.
 Register-ObjectKind 'hmi_graphiclist' @{
     scope = 'hmi'; dir = 'hmi\graphiclists'; defaultOverride = $true
@@ -318,12 +318,13 @@ Register-ObjectKind 'hmi_graphiclist' @{
 }
 
 # The precheck of hmi_graphiclist: SimaticML of a graphic list, whose entries name graphics the project has. Cache.graphics
-# holds the project's graphic names for every file of the call.
+# holds the project's graphic names for every file of the call. Matched with case: whether TIA links a name written in
+# another case was not tried.
 function Test-GraphicListFile($File, [hashtable]$Cache) {
     $doc = Read-HmiDocumentObject $File 'Hmi.TextGraphicList.GraphicList' 'graphic list'
     if ($doc.refused) { return $doc }
     if (-not $Cache.ContainsKey('graphics')) {
-        $names = New-Object System.Collections.Hashtable ([StringComparer]::OrdinalIgnoreCase)
+        $names = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
         try { foreach ($g in @(Read-TiaList { foreach ($g in (Get-TiaProject).Graphics) { $g } })) { $names[[string]$g.Name] = $true } }
         catch { $Cache.graphicsFailed = "The project's graphics could not be read, so no graphic list is imported unchecked: $($_.Exception.Message)" }
         $Cache.graphics = $names
@@ -333,7 +334,7 @@ function Test-GraphicListFile($File, [hashtable]$Cache) {
     foreach ($node in @($doc.node.SelectNodes('.//LinkList/Picture/Name'))) {
         $graphic = $node.InnerText
         if (-not $Cache.graphics.ContainsKey($graphic)) {
-            return @{ ok = $false; refused = "Graphic list '$name' names the graphic '$graphic', which the project does not have. Nothing imported: import the graphic first (kind graphic), or name one the project has." }
+            return @{ ok = $false; refused = "Graphic list '$name' names the graphic '$graphic', which the project does not have, written so. Nothing imported: import the graphic first (kind graphic), or name one the project has as its name is written (whether TIA links a name in another case was not tried)." }
         }
     }
 }

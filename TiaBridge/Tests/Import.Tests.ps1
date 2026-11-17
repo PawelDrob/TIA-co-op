@@ -896,7 +896,7 @@ Describe 'import of technology objects' {
 }
 
 # A project graphic goes back as its export wrote it: <name>.xml with the image folder '<name> files' beside it, which the
-# document names by relative path (ticket bridge/329). It belongs to the project, and the HMI devices show it.
+# document names by relative path. It belongs to the project, and the HMI devices show it.
 Describe 'import of project graphics' {
     $repo = Join-Path $TestDrive 'Graphics'
     # a multilingual graphic as TIA exports it, and its image unless NoImage
@@ -979,7 +979,7 @@ Describe 'import of project graphics' {
 }
 
 # A graphic list of an HMI device: its entries link the project's graphics by name (<Picture><Name>), and one naming a
-# graphic the project lacks is refused before TIA sees it (ticket bridge/329).
+# graphic the project lacks is refused before TIA sees it.
 Describe 'import of graphic lists' {
     $repo = Join-Path $TestDrive 'GraphicLists'
     function Write-GraphicList([string]$Name, [string[]]$Pictures) {
@@ -992,7 +992,8 @@ Describe 'import of graphic lists' {
             "<ObjectList>$entries</ObjectList></Hmi.TextGraphicList.GraphicList></Document>")
     }
     Write-GraphicList 'glState' @('Home', 'Up_Arrow')
-    Write-GraphicList 'zzNew' @('home')
+    Write-GraphicList 'zzNew' @('Home')
+    Write-GraphicList 'zzCase' @('home')
     Write-GraphicList 'zzLost' @('Home', 'zzNoSuchGraphic')
 
     # the project holds the graphics Home and Up_Arrow; the HMI device the graphic list glState
@@ -1016,7 +1017,7 @@ Describe 'import of graphic lists' {
         Register-Archive (Get-BridgeSession)
     }
 
-    It 'imports a graphic list over itself with Override and a new one naming a graphic in another case, and names the compile of the HMI' {
+    It 'imports a graphic list over itself with Override and a new one, and names the compile of the HMI' {
         $r = Invoke-GraphicListImport @('hmi\graphiclists\glState.xml', 'hmi\graphiclists\zzNew.xml')
         $r.ok | Should Be $true
         $script:imported -join ',' | Should Be 'glState Override,zzNew Override'
@@ -1031,6 +1032,13 @@ Describe 'import of graphic lists' {
         @($script:imported).Count | Should Be 0
         $r.items[1].refused | Should Match "^Graphic list 'zzLost' names the graphic 'zzNoSuchGraphic', which the project does not have"
         $r.items[1].refused | Should Match 'import the graphic first \(kind graphic\)'
+    }
+
+    It 'refuses a graphic named in another case than the project writes it: whether TIA links it was not tried' {
+        $r = Invoke-GraphicListImport @('hmi\graphiclists\zzCase.xml')
+        $r.items[0].refused | Should Match "names the graphic 'home', which the project does not have, written so"
+        $r.items[0].refused | Should Match 'whether TIA links a name in another case was not tried'
+        @($script:imported).Count | Should Be 0
     }
 
     It 'refuses a text list under hmi_graphiclist, and every graphic list when the project''s graphics cannot be read' {

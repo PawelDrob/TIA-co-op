@@ -7,7 +7,7 @@
 # 2026-10-30: nothing read the .aml and it took most of the time.
 
 # Project graphics: TIA took back its export with the image folder beside it identically, and a replaced image and a new
-# graphic landed; a graphic list naming the graphic exported the same after it [PROBE] (2026-11-12, ticket 323).
+# graphic landed; a graphic list naming the graphic exported the same after it [PROBE] (2026-11-12, test project).
 Register-ObjectKind 'graphic' @{
     scope = 'project'; dir = 'project\graphics'; defaultOverride = $true
     usedBy = 'hmi'
