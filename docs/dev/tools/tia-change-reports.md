@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T13:16:38-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T13:30:08-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -60,11 +60,7 @@ Both block formats read into one model, so an OB compares and draws like any oth
 
 `twoformats.py` shows where the report reads a SimaticML export otherwise than the `.s7dcl` of the same block. Its input is a repo where every commit holds both formats of the same objects, as the two-format benchmark run's does: `.s7dcl` under `plc\` and `library\`, SimaticML under `simaticml\`. That repo is not in the clone. The bed reads its commits and changes nothing in it.
 
-```
-.venv\Scripts\python.exe -X utf8 -m TiaChangeReports.twoformats <repo> [--since REV] [--until REV] [--check nothing|same|both] [--json out.json]
-```
-
-Run it from the clone's folder, which `-m` needs. It starts at the first commit with a file under `simaticml\` unless `--since` names another, and ends at `--until`, by default the commit checked out (`HEAD`). It runs both checks unless `--check` names one.
+Run it from the clone's folder as `-m TiaChangeReports.twoformats <repo>`; `--help` lists its options.
 
 - **Nothing changed:** per commit, the report from its `.s7dcl` to its SimaticML. Each object and network the report lists is a difference. Its first line names the first commit, the last and the one with the most objects, each with the objects and, in brackets, the networks listed. Per cause it then prints, at each of the three, the objects and networks, and in brackets the networks with no other cause.
 - **The same change:** per commit, the report of the commit from `.s7dcl` and from SimaticML. Each object whose two reports differ is a difference. Per cause it prints the commits and the objects (an object counted once in each commit it differs in), and in brackets the commits where the cause is the only one.

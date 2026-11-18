@@ -901,8 +901,10 @@ def main(argv=None):
                                 'under simaticml/')
     p.add_argument('--since', help='first commit (default: the first with a file under simaticml/)')
     p.add_argument('--until', help='last commit (default: HEAD)')
-    p.add_argument('--check', choices=('nothing', 'same', 'both'), default='both')
-    p.add_argument('--json', help='also write every difference with its causes to this file')
+    p.add_argument('--check', choices=('nothing', 'same', 'both'), default='both',
+                   help='nothing changed, the same change, or both (default: both)')
+    p.add_argument('--json', help='also write every difference with its causes, and for the same change the facts '
+                                  'each report alone holds, to this file')
     a = p.parse_args(argv)
     checks = ('nothing', 'same') if a.check == 'both' else (a.check,)
 
