@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T10:46:10-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T10:51:36-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -111,12 +111,13 @@ and edits Openness makes in place; after each change the default `full_export` a
 - **Not settable through Openness** on an FB or FC: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, `IsIECCheckEnabled`,
   `SetENOAutomatically` ("'set_HeaderVersion' is not supported by type 'Siemens.Engineering.SW.Blocks.FC'"); a block has no
   `Comment` attribute. Whether editing them in TIA's dialogs moves a date is not probed.
-- **Read only through `GetAttribute`** `[PROBE]` (2026-11-18, a copy of another test project): `IsIECCheckEnabled` and
-  `SetENOAutomatically` have no .NET property. `GetAttributeInfos` names both on an FB, an FC and an OB, only
-  `IsIECCheckEnabled` on an F-FB, and neither on a global DB or a data type, where `GetAttribute` throws "... is not
-  supported". For the five blocks written as `.s7dcl` (four FBs, an F-FB among them, and an FC) the values read match the
-  file: `True` where it holds `S7_IECCheck` or `S7_GenerateENOforSCL` as `TRUE`, `False` where it leaves them out. The OB's
-  SimaticML was not compared.
+- **Read only through `GetAttribute`** `[PROBE]` (2026-11-18, V20 Update 7, a copy of another test project):
+  `IsIECCheckEnabled` and `SetENOAutomatically` have no .NET property. `GetAttributeInfos` names both on an FB, an FC and
+  an OB, only `IsIECCheckEnabled` on an F-FB, and neither on a global DB or a data type, where `GetAttribute` throws
+  "... is not supported". For the five blocks written as `.s7dcl` (four FBs, an F-FB among them, and an FC) the values
+  read match the file: `True` where it holds `S7_IECCheck` or `S7_GenerateENOforSCL` as `TRUE`, `False` where it leaves
+  them out. The OB's SimaticML was not compared. The values TiaBridge reads for `full_export` hold both for an FB and an
+  FC, only `IsIECCheckEnabled` for an F-FB, neither for a DB or a data type, and nothing unread.
 - **Candidates for skipping:** system blocks have the dates of a block, but no step changed one; the force table has no date
   (`IsConsistent` only); no technology object or watch table was in the project. They are exported every time.
 
@@ -130,7 +131,8 @@ updateSourceLanguage)` took back the `.xlsx` that `ExportProjectTexts` wrote, wi
 - a translation changed: an OB's title;
 - the reference language's text (`updateSourceLanguage` true): an FC's title.
 
-A block's title and a network title also turned the block not consistent; a member's comment did not. The `.s7res` of the
+A block's title and a network title also turned the block not consistent; the data type's and the DB's member comments
+left them consistent (the FB's member comment was edited while the FB was not consistent already). The `.s7res` of the
 FB, FC, DB and data type changed with each edit. The OB is written as SimaticML: after its edit that export failed, in both
 runs alike, so no file of it changed; no compile was tried. After each edit, saved and read in a new session, the default
 `full_export` left the same files as `full: true`.
