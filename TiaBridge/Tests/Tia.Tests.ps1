@@ -309,11 +309,11 @@ Describe 'Read-TiaList' {
 
 Describe 'Test-TiaAlive in the times of a full_export' {
     It 'gives the read of the project''s name to tia_alive and the look for TIA''s process to process_lookup' {
-        $ms = [System.Diagnostics.Stopwatch]::Frequency / 1000
+        $ticksPerMs = [System.Diagnostics.Stopwatch]::Frequency / 1000
         $project = New-Object psobject
-        $project | Add-Member ScriptProperty Name { [TiaBridgeTimes]::TestTicks += [long](5 * [System.Diagnostics.Stopwatch]::Frequency / 1000); 'P' }
+        $project | Add-Member ScriptProperty Name ({ [TiaBridgeTimes]::TestTicks += [long](5 * $ticksPerMs); 'P' }.GetNewClosure())
         $script:Bridge = @{ project = $project; processId = $PID }
-        Mock Get-Process { [TiaBridgeTimes]::TestTicks += [long](7 * $ms); New-Object psobject }
+        Mock Get-Process { [TiaBridgeTimes]::TestTicks += [long](7 * $ticksPerMs); New-Object psobject }
         [TiaBridgeTimes]::TestTicks = 0
         Start-ExportTimes
         try {

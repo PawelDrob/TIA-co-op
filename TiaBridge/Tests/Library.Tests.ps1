@@ -239,8 +239,8 @@ Describe 'Export-LibraryTypeDocuments for a type of a global library' {
         finally { Stop-ExportTimesClock }
         $r.ok | Should Be $true
         $s = $t.once.steps
-        "$($s.tia_properties.n) $($s.tia_export_s7dcl.n) $($s.work_folder.n) $($s.result.n)" | Should Be '2 1 1 1'
-        $s.move.n | Should BeGreaterThan 1
+        # move: the copies of the old subfolders, the step around Move-ExportIntoPlace, and Move-ExportIntoPlace itself
+        "$($s.tia_properties.n) $($s.tia_export_s7dcl.n) $($s.work_folder.n) $($s.result.n) $($s.move.n)" | Should Be '2 1 1 1 3'
     }
 
     It 'passes the whole format name when the type supports one format or the caller names one (2026-10-08)' {
