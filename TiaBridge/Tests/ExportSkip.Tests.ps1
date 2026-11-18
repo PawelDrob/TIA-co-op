@@ -362,6 +362,29 @@ Describe 'full_export exports one object when' {
         Get-Exported | Should Be 'FC1'
     }
 
+    It 'its IEC check changed, its dates not: a value only GetAttribute reads, where TIA names it' {
+        Initialize-SkipTest 'iec'
+        # as TIA: no .NET property, the attribute infos name it, GetAttribute reads it; FB1 is an F-block naming only the IEC check
+        foreach ($b in $script:o.FC1, $script:o.FB1) {
+            $b | Add-Member NoteProperty attrs @{ IsIECCheckEnabled = $false }
+            $b | Add-Member ScriptMethod GetAttributeInfos { @($this.attrs.Keys | ForEach-Object { [pscustomobject]@{ Name = $_ } }) }
+            $b | Add-Member ScriptMethod GetAttribute { param($n) if (-not $this.attrs.ContainsKey($n)) { throw "'$n' is not supported" }; $this.attrs[$n] }
+        }
+        $script:o.FC1.attrs.SetENOAutomatically = $false
+        $null = Invoke-FullExportTool $script:parts
+        Reset-Exports
+        $null = Invoke-FullExportTool $script:parts
+        Get-Exported | Should Be ''
+        $script:o.FC1.attrs.IsIECCheckEnabled = $true
+        $r = Invoke-FullExportTool $script:parts
+        Get-Exported | Should Be 'FC1'
+        @($r.details | Where-Object { $_.part -eq 'blocks' })[0].why['changed in TIA'] | Should Be 1
+        Reset-Exports
+        $script:o.FC1.attrs.SetENOAutomatically = $true
+        $null = Invoke-FullExportTool $script:parts
+        Get-Exported | Should Be 'FC1'
+    }
+
     It 'it moved to another folder: its old files go as by full: true' {
         Initialize-SkipTest 'moved'
         $script:blocks.Blocks = @($script:blocks.Blocks | Where-Object { $_.Name -ne 'FC1' })

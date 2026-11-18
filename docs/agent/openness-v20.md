@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T10:24:17-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T10:40:59-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -111,22 +111,27 @@ and edits Openness makes in place; after each change the default `full_export` a
 - **Not settable through Openness** on an FB or FC: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, `IsIECCheckEnabled`,
   `SetENOAutomatically` ("'set_HeaderVersion' is not supported by type 'Siemens.Engineering.SW.Blocks.FC'"); a block has no
   `Comment` attribute. Whether editing them in TIA's dialogs moves a date is not probed.
+- **Read only through `GetAttribute`** `[PROBE]` (2026-11-18, a copy of another test project): `IsIECCheckEnabled` and `SetENOAutomatically` have no .NET property.
+  `GetAttributeInfos` names both on an FB, an FC and an OB, only `IsIECCheckEnabled` on an F-FB, and neither on a global DB
+  or a data type, where `GetAttribute` throws "... is not supported". The values read match the block's file: `TRUE` where
+  it holds `S7_IECCheck` or `S7_GenerateENOforSCL`, `False` where it leaves them out.
 - **Candidates for skipping:** system blocks have the dates of a block, but no step changed one; the force table has no date
   (`IsConsistent` only); no technology object or watch table was in the project. They are exported every time.
 
 **Texts edited through the project texts** `[PROBE]` (2026-11-18, V20 Update 7, without a window, on a copy of a test
 project given a second language: reference en-US, de-DE added). `Project.ImportProjectTexts(FileInfo path, bool
 updateSourceLanguage)` took back the `.xlsx` that `ExportProjectTexts` wrote, with one cell changed; its result reads `State`
-`Info` and names a log TIA writes under the project's `Logs`. Each edit moved the object's `ModifiedDate`, and its `.s7res`
-changed:
+`Info` and names a log TIA writes under the project's `Logs`. Each edit moved the object's `ModifiedDate`:
 
 - a translation added where there was none: an FB's title, an FB interface member's comment, a data type member's comment, a
   DB member's comment, an FB's network title;
 - a translation changed: an OB's title;
 - the reference language's text (`updateSourceLanguage` true): an FC's title.
 
-A title or a network title also turns the block not consistent; the OB's SimaticML export then fails until the compile.
-After each edit, saved and read in a new session, the default `full_export` left the same files as `full: true`.
+A block's title and a network title also turned the block not consistent; a member's comment did not. The `.s7res` of the
+FB, FC, DB and data type changed with each edit. The OB is written as SimaticML: after its edit that export failed, in both
+runs alike, so no file of it changed; no compile was tried. After each edit, saved and read in a new session, the default
+`full_export` left the same files as `full: true`.
 
 **User folders** `[PROBE]` (V20 Update 7, 2026-11-02, on a copy: block, PLC data type and PLC tag table folders of a PLC;
 screen, template, pop-up and HMI tag folders of a Comfort panel):

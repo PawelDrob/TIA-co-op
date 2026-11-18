@@ -27,7 +27,7 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
     of its table.
   - The files the last export left in the repo are compared too (`.tiabridge-export.json`, kept out of git), so a file
     edited, removed or added by hand is written again.
-  - A comment-only edit and a move to another folder were tried by a person in TIA, not by an agent's run.
+  - A comment edited in TIA's editors and a move to another folder were tried by a person in TIA, not by an agent's run.
   - Not tried: block properties edited in TIA's dialogs. Those Openness reads (author, family, name, version, IEC check,
     ENO, namespace) are compared as they are.
   - HMI objects, library types, system blocks, technology objects, watch and force tables and the project's settings

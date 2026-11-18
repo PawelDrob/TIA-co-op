@@ -18,6 +18,7 @@ $script:SkipKinds = @('block', 'db', 'type', 'plc_tag_table')
 # reads older dates. An attribute an object does not have reads $null and is left out. The dates: what each edit moves
 # [PROBE] (2026-10-08). The rest is written into its file (the header: S7_Author, S7_Family, S7_UserDefinedId, S7_Version,
 # S7_IECCheck, S7_GenerateENOforSCL), and whether editing it in TIA moves a date is not probed: Openness cannot set it.
+# IsIECCheckEnabled and SetENOAutomatically have no .NET property and are read through GetAttribute (Read-TiaAttribute).
 $script:BlockHeaderAttributes = @('HeaderAuthor', 'HeaderFamily', 'HeaderName', 'HeaderVersion', 'IsIECCheckEnabled', 'SetENOAutomatically', 'Namespace')
 $script:ExportStateAttributes = @{
     block = @('ModifiedDate', 'CodeModifiedDate', 'InterfaceModifiedDate', 'ParameterModified', 'StructureModified', 'CompileDate', 'CreationDate',
@@ -121,11 +122,25 @@ function Read-ObjectProperty($Obj, [string]$Name) {
     catch [System.Reflection.TargetInvocationException] { throw $_.Exception.InnerException }
 }
 
+# Attributes with no .NET property, which only GetAttribute reads [PROBE] (2026-11-18, V20 Update 7): an FB, FC or OB
+# names both in GetAttributeInfos, an F-block only IsIECCheckEnabled, a global DB and a data type neither (GetAttribute
+# throws "not supported" there). Their values are S7_IECCheck and S7_GenerateENOforSCL of the block's file.
+$script:GetAttributeOnly = @('IsIECCheckEnabled', 'SetENOAutomatically')
+function Read-TiaAttribute($Obj, [string]$Name) {
+    if (-not $Obj.PSObject.Methods['GetAttributeInfos']) { return @{ has = $false; value = $null } }
+    if (@($Obj.GetAttributeInfos() | ForEach-Object { [string]$_.Name }) -notcontains $Name) { return @{ has = $false; value = $null } }
+    @{ has = $true; value = $Obj.GetAttribute($Name) }
+}
+
 # The values of an object compared for unequal: name -> text, the dates in round trip form ('o', with their Kind).
 function Read-ExportState($Kind, $Entry) {
     $s = [ordered]@{}
     foreach ($a in $script:ExportStateAttributes[$Kind.name]) {
-        try { $v = (Read-ObjectProperty $Entry.obj $a).value }
+        try {
+            $r = Read-ObjectProperty $Entry.obj $a
+            if (-not $r.has -and $script:GetAttributeOnly -contains $a) { $r = Read-TiaAttribute $Entry.obj $a }
+            $v = $r.value
+        }
         catch {
             if (Test-TiaEndedError $_) { throw }
             $s[$a] = "unread: $($_.Exception.Message)"; $s.unread = 'true'; continue
