@@ -143,8 +143,8 @@ function fold(k){var b=r.querySelector('section.blk.on .bh .fa button:nth-child(
 key({o:1,show:'Ctrl+B',text:'Hide or show the project tree',keys:['Ctrl+b'],run:function(){off(!r.classList.contains('rail-off'))}});
 key({o:2,show:'Alt+Up',text:'Previous object',keys:['Alt+ArrowUp'],run:function(){step(-1)}});
 key({o:3,show:'Alt+Down',text:'Next object',keys:['Alt+ArrowDown'],run:function(){step(1)}});
-if(!app){key({o:4,show:'C',text:'Collapse every network and interface member of this object',keys:['c'],run:function(){fold(0)}});
-key({o:5,show:'E',text:'Expand every network and interface member of this object',keys:['e'],run:function(){fold(1)}});
+if(!app){key({o:4,show:'C',text:'Collapse every network, interface section and member of this object',keys:['c'],run:function(){fold(0)}});
+key({o:5,show:'E',text:'Expand every network, interface section and member of this object',keys:['e'],run:function(){fold(1)}});
 key({o:8,show:'T',text:'Back to top',keys:['t'],run:function(){var f=r.querySelector('.fcs');
  if(f&&!f.hidden)((f.ldiffFrame&&f.ldiffFrame())||f).scrollTo({top:0,behavior:'smooth'});else if(top)top.click()}})}
 var kl={o:9,show:'Ctrl+K or /',text:'Lookup program blocks',keys:['Ctrl+k','/'],run:function(){lookup(blocks)}};

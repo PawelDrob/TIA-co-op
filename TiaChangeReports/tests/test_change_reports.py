@@ -3277,9 +3277,9 @@ class NetworkTagsAndFoldAll(unittest.TestCase):
         d = compare_blocks(fb(('SCL', 'A', FAULTS), ('SCL', 'B', TIMERS)), fb(('SCL', 'A', FAULTS_EDITED), ('SCL', 'B', TIMERS)))
         for html in (render([d], 'b', 'a'), render([d], 'b', 'a', fragment=True)):
             head = re.search(r'<div class="bh".*?</div>', html).group(0)
-            self.assertIn('<span class="fa"><button type="button" title="Collapse every network and interface member of '
-                          'this block">Collapse all</button><button type="button" title="Expand every network and '
-                          'interface member of this block">Expand all</button></span></div>', head)
+            self.assertIn('<span class="fa"><button type="button" title="Collapse every network, interface section and '
+                          'member of this block">Collapse all</button><button type="button" title="Expand every network, '
+                          'interface section and member of this block">Expand all</button></span></div>', head)
             self.assertIn("n.classList.toggle('fold',!k)", html)
             self.assertIn('@media print{.ldiff .bh .fa{display:none}}', html)
 

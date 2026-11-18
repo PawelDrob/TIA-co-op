@@ -573,9 +573,9 @@ NET_NOT_SHOWN = 'differs in something this report does not show'
 # Collapse all / expand all: fold or unfold every network of the block, as a click on each title bar, and every
 # interface section and member with members; in the block header, before the page's previous / next. A block with
 # nothing to fold has none.
-FOLD_ALL = ('<span class="fa"><button type="button" title="Collapse every network and interface member of this block">'
-            'Collapse all</button><button type="button" title="Expand every network and interface member of this block">'
-            'Expand all</button></span>')
+FOLD_ALL = ('<span class="fa"><button type="button" title="Collapse every network, interface section and member of this '
+            'block">Collapse all</button><button type="button" title="Expand every network, interface section and member '
+            'of this block">Expand all</button></span>')
 
 
 def folds(itf_html):
