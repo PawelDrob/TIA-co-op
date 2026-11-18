@@ -1,9 +1,9 @@
 """Double-click: .s7dcl files open in the viewer, for the current user only (HKEY_CURRENT_USER\\Software\\Classes), and
 back. Nothing else registers: a person runs `--register` and `--unregister`. Standard library only (winreg).
 
-  register(...)   the program id PROGID with its open command (command()), .s7dcl's default set to it (the one there
-                  before kept, to put back), PROGID among .s7dcl's OpenWithProgids. Returns the lines to print
-  unregister(...) all of that taken back: PROGID removed, .s7dcl's default as it was before, the key gone when empty
+  register(...)   the program id PROGID with its open command (command()), .s7dcl's default set to it (the program there
+                  last kept, to put back), PROGID among .s7dcl's OpenWithProgids. Returns the lines to print
+  unregister(...) all of that taken back: PROGID removed, .s7dcl's default back to that program, the key gone when empty
 
 classes: the key under HKEY_CURRENT_USER both work in, a test's own key in a test. choice: where Windows keeps a
 choice the person made in "Open with" (UserChoice), which beats a default and which no program may write: register
