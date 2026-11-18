@@ -416,6 +416,8 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
                 try { $retry = Export-KindEntry $k $e (New-Object psobject -Property @{ format = 'xml' }) $Device }
                 finally { Exit-ExportRetry }
                 if ($retry.ok) { $item = $retry; $item.fellBack = "SimaticML: TIA refused the SD export: $why" }
+                # the SD attempt was asked about before the retry: a TIA that ended in the retry is told by the retry's item
+                elseif (Test-ItemEndedTia $retry) { $item = $retry }
             }
             if ($o) { $o.recorded = New-ExportRecordEntry $o $item }
             $n++
@@ -440,7 +442,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
                 $f = [ordered]@{ name = $item.name; folder = $item.folder }
                 if ($item.error) { $f.error = $item.error } elseif ($item.messages) { $f.messages = $item.messages }
                 [void]$Record.failed.Add($f)
-                # Set-ItemError asked TIA after the object's failure: its answer stands
+                # Set-ItemError asked TIA after the object's last call into TIA (the retry's, when that ended TIA): its answer stands
                 if (Test-ItemEndedTia $item) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
             }
         }

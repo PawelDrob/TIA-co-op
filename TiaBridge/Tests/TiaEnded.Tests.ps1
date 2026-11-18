@@ -192,6 +192,23 @@ Describe 'full_export that ends TIA' {
     }
     $quiet = @{ name = 'quiet'; scope = 'project'; kind = 'fakequiet' }
 
+    Register-ObjectKind 'fakeretry' @{
+        scope = 'project'; dir = 'project\retry'; description = 'test kind whose SD export TIA refuses for R; TIA ends in its SimaticML retry'
+        items = { param($root) foreach ($n in 'R', 'C') { @{ name = $n; folder = ''; obj = [pscustomobject]@{ Name = $n } } } }
+        export = { param($e, $dir, $opt)
+            $script:exported += @("$($e.name):$(if ($opt.format) { $opt.format } else { 'sd' })")
+            if ($e.name -ne 'R') { return @{ ok = $true; format = 'sd'; files = @() } }
+            if ($opt.format -ne 'xml') { throw [System.InvalidOperationException]::new('SD refused') }
+            $script:tiaGone = $true; throw [System.InvalidOperationException]::new('TIA said no') }
+    }
+
+    It 'stops at an object whose SimaticML retry ended TIA' {
+        try { $r = Invoke-FakeFullExport @(@{ name = 'retried'; scope = 'project'; kind = 'fakeretry'; fallback = $true }, $next) } finally { $script:tiaGone = $false }
+        Assert-Ended $r
+        $r.note | Should Match 'TIA Portal ended at part retried'
+        $script:exported -join ',' | Should Be 'R:sd,R:xml'
+    }
+
     It 'stops at the part where TIA ended, though nothing in it failed' {
         try { $r = Invoke-FakeFullExport @($quiet, $next) } finally { $script:tiaGone = $false }
         Assert-Ended $r
