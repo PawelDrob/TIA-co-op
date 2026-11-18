@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T11:16:36-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T13:16:38-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -58,7 +58,18 @@ Both block formats read into one model, so an OB compares and draws like any oth
 
 ## The two formats against each other
 
-`twoformats.py` checks that the report says the same from `.s7dcl` as from SimaticML. Its usage is in [the README](../../../TiaChangeReports/README.md#checking-the-two-formats-against-each-other). Its input is a repo where every commit holds both formats of the same objects, as the two-format benchmark run's does: `.s7dcl` under `plc\` and `library\`, SimaticML under `simaticml\`. That repo is not in the clone.
+`twoformats.py` shows where the report reads a SimaticML export otherwise than the `.s7dcl` of the same block. Its input is a repo where every commit holds both formats of the same objects, as the two-format benchmark run's does: `.s7dcl` under `plc\` and `library\`, SimaticML under `simaticml\`. That repo is not in the clone. The bed reads its commits and changes nothing in it.
+
+```
+.venv\Scripts\python.exe -X utf8 -m TiaChangeReports.twoformats <repo> [--since REV] [--until REV] [--check nothing|same|both] [--json out.json]
+```
+
+Run it from the clone's folder, which `-m` needs. It starts at the first commit with a file under `simaticml\` unless `--since` names another, and ends at `--until`, by default the commit checked out (`HEAD`). It runs both checks unless `--check` names one.
+
+- **Nothing changed:** per commit, the report from its `.s7dcl` to its SimaticML. Each object and network the report lists is a difference. Its first line names the first commit, the last and the one with the most objects, each with the objects and, in brackets, the networks listed. Per cause it then prints, at each of the three, the objects and networks, and in brackets the networks with no other cause.
+- **The same change:** per commit, the report of the commit from `.s7dcl` and from SimaticML. Each object whose two reports differ is a difference. Per cause it prints the commits and the objects (an object counted once in each commit it differs in), and in brackets the commits where the cause is the only one.
+
+Each cause prints with its kind: a reader that reads a format otherwise, a field only one format writes, the note, the drawing, the diff, or an object in one format only; what the bed cannot name, `unknown`. `--json` writes every difference with its causes, and for the second check the facts each report alone holds. Both checks over 530 commits take about half an hour in the foreground: a process started at low priority, as a background job may be, runs the first check several times slower.
 
 **The sides.** Both are `GitSnapshot`s of one commit, restricted to `plc\blocks\`, `plc\types\` and `library\types\`: the folders both formats hold. The SimaticML side is the `simaticml\` folder, read whole (`_laid_out` off), as its root is no project repo's. The report is `compare_snapshots`, the same call the page makes.
 
@@ -66,7 +77,7 @@ Both block formats read into one model, so an OB compares and draws like any oth
 
 **Causes.** A cause has an id and a kind (`CAUSES`), named from what differs, never from the kind of object alone. For an element the two readers read otherwise, `element_causes` finds the fewest normalisations (`STEPS`: quotes around member names, pin case, pin direction, pin order, templates one side lacks, ENO) that make the two equal. A property is named by its values (`property_cause`): `DB retain` only where SimaticML has none. For a file one format moved and the other did not, and for a note one report has and the other not, `xml_moved` lists what differs in the SimaticML, order and ids left out, and `field_causes` names it from `XML_FIELDS`; a field the `.s7dcl` report shows and the SimaticML one leaves to its note from `XML_UNREAD`. An object with a file in one format only is `SimaticML missing` (SimaticML of it in another commit), `SimaticML never` or `.s7dcl missing`: what is seen, not why, which the run's log tells; so is an object a report joins to it (a rename, a move, its library type), and nothing else is looked for on it. Rung order names only marks of elements moved in a network tagged as in another order. An object or network both reports list in another state, kind or language, and a network title or comment that differs, is `unknown`; one a single report lists takes the causes of its other facts. What fits no rule has no kind: `unknown: ...`, or a field by its path (`SimaticML field: ...`, `SimaticML unread: ...`, `.s7dcl field: ...`). A field neither reader reads gives both reports the same note: the second check cannot see it, and in the first it is part of `note: files`.
 
-**In the hook.** The full run takes about half an hour and needs the benchmark repo: not in the hook. `tests\test_two_formats.py` runs it on three real commits from that repo, copied into `tests\fixtures\twoformats\`, in about three seconds.
+**In the hook.** The full run takes half an hour and needs the benchmark repo: not in the hook. `tests\test_two_formats.py` runs it on three real commits from that repo, copied into `tests\fixtures\twoformats\`, in about three seconds.
 
 ## Files
 
