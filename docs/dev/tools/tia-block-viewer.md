@@ -4,7 +4,7 @@ title: Block viewer internals
 description: How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click, and what its tests cover.
 tags: [dev, change-reports, plc]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T11:39:59-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T12:08:57-05:00 }
 ---
 
 # Block viewer internals
@@ -21,7 +21,7 @@ One block export in, one page in the default browser out. What it does for a use
 | Interface | `iface.html(blk, blk, whole=True)`: the block compared with itself, every member open |
 | A LAD network | `render_lad.Layout` in the report's frame (`page._lad_pane`), with no diff: nothing marked |
 | An SCL network | `s7dcl.scl_lines`, one side of the report's text table |
-| Style and script | `page.CSS` and `page.JS`: the folds of networks and members, Collapse all and Expand all, zoom, pan and minimap as in the report |
+| Style and script | `page.CSS` and `page.JS`: the folds of networks, sections and members, Collapse all and Expand all, zoom, pan and minimap as in the report |
 
 The title bar, the comment field and the text table are written in `view.py`: the report's classes, with one side where the report writes two. `.panes`, `.nwt` and `.nwc` are the report's grids with one column. A change to that markup in `page.py` does not reach the viewer; a change to the drawing does. `test_viewer.Drawing` holds every LAD network of a made-up project to the bytes of the SVG the report draws for it with `--all`.
 
@@ -54,6 +54,6 @@ The title bar, the comment field and the text table are written in `view.py`: th
 In the report's suite, so a change to the drawing runs them:
 
 - `test_viewer.py`: the drawing against the report, the source and the files it cannot draw, the opening with a stand-in for `os.startfile`, and the registration in a key of the test's own under `HKEY_CURRENT_USER`, removed after.
-- `test_interface_fold.py`: the interface fold of the viewer and of the report, one member at a time and all at once by Collapse all, Expand all, C and E, in headless Edge or Chrome, skipped without one.
+- `test_interface_fold.py`: the interface fold of the viewer and of the report, one section or member at a time and all at once by Collapse all, Expand all, C and E, in headless Edge or Chrome, skipped without one.
 
 No test opens a window or the default browser.

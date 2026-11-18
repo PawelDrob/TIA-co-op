@@ -15,7 +15,9 @@ members moved to another section or struct.
 rows(before, after) -> [Row]: every member of both versions in the order of the after version, removed ones after
 their former predecessor. html(...) shows them as TIA's interface editor does (sections as tree rows, members under
 their parent, TIA's attribute columns): the changed rows with their parents, the unchanged ones folded in place. A
-member with members folds and opens on a click, as a network does (page.JS): its name cell holds its level (data-d)."""
+member with members, and a section, folds and opens on a click, as a network does (page.JS): its first cell holds its
+level (data-d), a section's 0; a table with something that folds, a section or a member below the top level,
+says so (data-folds)."""
 import copy
 import re
 from dataclasses import dataclass, field
@@ -726,7 +728,7 @@ def html(bblock, ablock, whole=False):
         if r.state != 'same':
             keep.update(r.path[:k] for k in range(1, len(r.path) + 1))    # the row and its parents
     parents = {r.path[:-1] for r in rs}
-    parts = []
+    parts, folds = [], False
     if keep:
         body = ['<tr class="hd"><td>Name</td><td>Data type</td><td>%s</td>%s%s<td>Comment</td></tr>'
                 % (vhead, '<td>Retain</td>' if has_retain else '',
@@ -738,6 +740,7 @@ def html(bblock, ablock, whole=False):
                 continue
             if top:
                 body.append(_sec_row('Static' if sec == 'UDT' else label, ncols, kind, has_retain, has_attrs))
+            folds = folds or bool(top) or any(len(r.path) > 1 for r in srows)
             k = 0
             while k < len(srows):
                 r = srows[k]
@@ -752,19 +755,19 @@ def html(bblock, ablock, whole=False):
                     continue
                 body.append(_row(r, '', top, parents, kind, has_retain, has_attrs, safety))
                 k += 1
-        parts.append('<table class="itf">%s</table>' % ''.join(body))
+        parts.append('<table class="itf"%s>%s</table>' % (' data-folds' if folds else '', ''.join(body)))
     return ''.join(parts)
 
 
 def _sec_row(label, ncols, kind, has_retain, has_attrs):
-    """A section as a tree row; with TIA's attribute columns, their boxes disabled and empty as TIA draws them (a DB
-    also Retain)."""
+    """A section as a tree row, at level 0 (data-d) so that it folds its members; with TIA's attribute columns, their
+    boxes disabled and empty as TIA draws them (a DB also Retain)."""
     name = '<span class="tw">▼</span>%s' % label
     if not has_attrs:
-        return '<tr class="sec"><td colspan="%d">%s</td></tr>' % (ncols, name)
+        return '<tr class="sec"><td colspan="%d" data-d="0">%s</td></tr>' % (ncols, name)
     cells = [name, '', ''] + ([_box(False, True) if kind == 'DATA_BLOCK' else ''] if has_retain else [])
     cells += [_box(False, True)] * 4 + ['']
-    return '<tr class="sec">%s</tr>' % ''.join('<td%s>%s</td>' % (' class="nm"' if i == 0 else
+    return '<tr class="sec">%s</tr>' % ''.join('<td%s>%s</td>' % (' class="nm" data-d="0"' if i == 0 else
                                                                   ' class="c"' if 'class="cb' in c else '', c)
                                                for i, c in enumerate(cells))
 

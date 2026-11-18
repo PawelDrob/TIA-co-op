@@ -280,18 +280,19 @@ r.querySelectorAll('section.blk').forEach(function(s){var f=s.querySelector('.bh
 })();
 """
 
-# A member with members folds and opens in the interface table, as a network does: a click on its name cell (iface.py:
-# its level in data-d). Everything opens at first. A row under a fold is hidden (mf-hid) whatever else shows or hides it
-# (ctx, skip). A fold that hides a changed row (ins, del, chg, mov) says "holds a change" (mf-holds), decided from
-# the rows it hides, wherever the diff placed them, so a fold never hides that a change is there; the change itself
-# shows again when it opens. An "unchanged members" row (skip, its data-d the shallowest level of the rows it stands
-# for) ends no fold: it hides with a fold only when all of its rows are under it. Folded rows stay folded in print, as
-# networks do. Its classes (mf-...) are its own: the HMI part styles .hc and .shut (hmi.css). The block's Collapse all
-# and Expand all (and so the keys C and E) fold or open every member with members (t.ldiffFold), with the networks.
+# A member with members, and a section (Static, Input, ...), folds and opens in the interface table, as a network does:
+# a click on its first cell (iface.py: its level in data-d, a section's 0). Everything opens at first. A row under a
+# fold is hidden (mf-hid) whatever else shows or hides it (ctx, skip). A fold that hides a changed row (ins, del, chg,
+# mov) says "holds a change" (mf-holds), decided from the rows it hides, wherever the diff placed them, so a fold never
+# hides that a change is there; the change itself shows again when it opens. An "unchanged members" row (skip, its
+# data-d the shallowest level of the rows it stands for) ends no fold: it hides with a fold only when all of its rows
+# are under it. Folded rows stay folded in print, as networks do. Its classes (mf-...) are its own: the HMI part styles
+# .hc and .shut (hmi.css). The block's Collapse all and Expand all (and so the keys C and E) fold or open every section
+# and member with members (t.ldiffFold), with the networks.
 CSS += """
 .ldiff table.itf tr.mf-hid{display:none!important}
-.ldiff table.itf tr.mf-pa td.nm{cursor:pointer}
-.ldiff table.itf tr.mf-shut.mf-holds td.nm::after{content:'holds a change';margin-left:8px;padding:0 5px;font-size:11px;
+.ldiff table.itf tr.mf-pa>td:first-child{cursor:pointer}
+.ldiff table.itf tr.mf-shut.mf-holds>td:first-child::after{content:'holds a change';margin-left:8px;padding:0 5px;font-size:11px;
   background:var(--chg-bg);border:1px solid var(--chg);white-space:nowrap}
 """
 JS += """
@@ -311,9 +312,10 @@ function lay(t){var rows=[].slice.call(t.rows),shut=[];
   w=x.cells[0].querySelector('.tw');if(w)w.textContent=x.classList.contains('mf-shut')?'\\u25b6':'\\u25bc';
   if(x.classList.contains('mf-shut'))shut.push({v:v,x:x})})}
 r.querySelectorAll('table.itf').forEach(function(t){lay(t);
- t.ldiffFold=function(shut){[].forEach.call(t.rows,function(x){x.classList.toggle('mf-shut',shut&&x.classList.contains('mf-pa'))});lay(t)};
+ t.ldiffFold=function(shut){[].forEach.call(t.rows,function(x){x.classList.toggle('mf-shut',shut&&x.classList.contains('mf-pa'))});
+  lay(t)};
  t.addEventListener('click',function(e){
- var c=e.target.closest('td.nm'),x=c&&c.parentNode;if(!x||!x.classList.contains('mf-pa')||String(getSelection()))return;
+ var c=e.target.closest('td'),x=c&&c.parentNode;if(!x||c!=x.cells[0]||!x.classList.contains('mf-pa')||String(getSelection()))return;
  x.classList.toggle('mf-shut');lay(t)})})})();
 """
 
@@ -569,15 +571,16 @@ NOT_SHOWN = 'the file differs in something this report does not show'
 NET_NOT_SHOWN = 'differs in something this report does not show'
 
 # Collapse all / expand all: fold or unfold every network of the block, as a click on each title bar, and every
-# interface member with members; in the block header, before the page's previous / next. A block with neither has none.
+# interface section and member with members; in the block header, before the page's previous / next. A block with
+# nothing to fold has none.
 FOLD_ALL = ('<span class="fa"><button type="button" title="Collapse every network and interface member of this block">'
             'Collapse all</button><button type="button" title="Expand every network and interface member of this block">'
             'Expand all</button></span>')
 
 
 def folds(itf_html):
-    """Whether an interface table drawn holds a member with members: a row below the top level (iface.html, data-d)."""
-    return bool(re.search(r'data-d="[2-9]', itf_html or ''))
+    """Whether an interface table drawn holds something that folds: a section, or a member with members (iface.html)."""
+    return '<table class="itf" data-folds' in (itf_html or '')
 
 
 def block_keys(diffs):

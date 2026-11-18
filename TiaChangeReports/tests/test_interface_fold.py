@@ -41,9 +41,21 @@ NETWORK = '''    { S7_Language := "LAD" }
         END_RUNG
     END_NETWORK
 '''
-# The Mixer with a network, changed in the after side as its member b is.
-WITH_NETWORK = tuple(t.replace('END_FUNCTION_BLOCK', NETWORK + 'END_FUNCTION_BLOCK') for t in (BEFORE, AFTER))
+# Input and Static, a change in each.
+SECTIONS = tuple(t.replace('    VAR\n', '    VAR_INPUT\n        go : %s;\n    END_VAR\n    VAR\n' % g, 1)
+                 for t, g in ((BEFORE, 'Bool'), (AFTER, 'Int')))
+# Those with a network, changed in the after side as its members are.
+WITH_NETWORK = tuple(t.replace('END_FUNCTION_BLOCK', NETWORK + 'END_FUNCTION_BLOCK') for t in SECTIONS)
 WITH_NETWORK = WITH_NETWORK[0], WITH_NETWORK[1].replace('Contact( #c )', 'Contact( #s.a )')
+
+
+def _udt(members):
+    return 'TYPE\n    "typeLine" : STRUCT\n%s    END_STRUCT;\nEND_TYPE\n' % members
+
+
+# A UDT with a struct one level deep, a member of it changed: the audit's case of 2026-11-18, fifth round.
+LINE_MEMBERS = '        speed : Int;\n        motor : STRUCT\n            run : Bool;\n            fault : Bool;\n        END_STRUCT;\n'
+TYPE_LINE = _udt(LINE_MEMBERS), _udt(LINE_MEMBERS.replace('fault : Bool;', 'fault : Int;'))
 
 # Changes a fold could hide, as (before, after): the audit's cases of 2026-11-18, where the diff places a removed
 # member elsewhere than under its own struct, and a change beside unchanged members that a "show all" opens.
@@ -120,13 +132,19 @@ INSIDE = ("cell('inner').click();cell('s').click();var out=[].filter.call(t.rows
 LOOK = ("cell('s').click();function look(n){var y=cell(n).parentNode,st=getComputedStyle(y);"
         "return [st.borderTopWidth,st.borderTopStyle,st.cursor,st.backgroundColor,getComputedStyle(y.cells[1]).backgroundColor]}"
         "var out={s:look('s'),c:look('c'),mark:mark(cell('s').parentNode)};")
-# Collapse all, then Expand all, by the block's buttons or by the keys C and E (HOW): the folded members, the member
-# rows shown, s's mark and the networks folded, at first and after each.
+# Each section folded alone: its mark and the member rows still shown; then, all opened again, the rows shown.
+SECTION = ("var out=[];function shown(){return [].filter.call(t.rows,function(y){return y.cells[0]&&"
+           "y.cells[0].hasAttribute('data-d')&&!y.classList.contains('skip')&&seen(y)}).map(name)}"
+           "[].forEach.call(t.rows,function(x){if(!x.classList.contains('sec'))return;x.cells[0].click();"
+           "out.push({row:name(x),mark:mark(x),shown:shown()});x.cells[0].click()});out.push(shown());")
+# Collapse all, then Expand all, by the block's buttons or by the keys C and E (HOW): the folded rows, the rows shown,
+# the sections' marks and the networks folded, at first and after each.
 ALL_FOLDS = ("function press(k){if(HOW=='key')document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'ce'[k],bubbles:true}));"
              "else document.querySelectorAll('.bh .fa button')[k].click()}"
              "var out=[];function note(){out.push({shut:[].filter.call(t.rows,function(y){return y.classList.contains('mf-shut')})"
              ".map(name),shown:[].filter.call(t.rows,function(y){return y.cells[0]&&y.cells[0].hasAttribute('data-d')&&"
-             "!y.classList.contains('skip')&&seen(y)}).map(name),mark:mark(cell('s').parentNode),"
+             "!y.classList.contains('skip')&&seen(y)}).map(name),"
+             "marks:[].filter.call(t.rows,function(y){return y.classList.contains('sec')}).map(mark),"
              "nets:document.querySelectorAll('.nw.fold').length})}note();press(0);note();press(1);note();")
 
 
@@ -178,13 +196,23 @@ class Rows(unittest.TestCase):
         for html in (report, viewer):
             self.assertEqual(re.findall(r'data-u style="[^"]*"><span class="tw">[^<]*</span>(\w+)<', html), ['low', 'high'])
 
-    def test_collapse_all_without_networks_only_when_a_member_has_members(self):
+    def test_collapse_all_without_networks_only_when_something_folds(self):
+        """A section folds, so every block with one has the buttons; a UDT has none, so only a member with members."""
         flat = _fb('        c : Bool;\n'), _fb('        c : Int;\n')
-        for name, (before, after), want in (('nested', (BEFORE, AFTER), True), ('flat', flat, False)):
+        flat_udt = _udt('        speed : Int;\n'), _udt('        speed : DInt;\n')
+        for k, (name, (before, after), want) in enumerate((('nested', (BEFORE, AFTER), True),
+                                                           ('flat, a section', flat, True),
+                                                           ('UDT, a struct one level deep', TYPE_LINE, True),
+                                                           ('UDT, flat', flat_udt, False))):
             with self.subTest(name):
-                folder = os.path.join(self.dir, name)
+                folder = os.path.join(self.dir, str(k))
                 for html in (_report(folder, before, after), _viewer(folder, after)):
                     self.assertEqual('<span class="fa">' in html, want)
+
+    def test_a_section_row_has_level_0(self):
+        for html in (_report(self.dir, *SECTIONS), _viewer(self.dir, SECTIONS[1])):
+            self.assertEqual(re.findall(r'<td class="nm" data-d="0"><span class="tw">▼</span>(\w+)</td>', html),
+                             ['Input', 'Static'])
 
     def test_the_viewer_gives_every_member_its_level(self):
         html = _viewer(self.dir, AFTER)
@@ -228,13 +256,13 @@ class InTheBrowser(unittest.TestCase):
                     self.assertIn('x', [h for f in folds for h in f['hidden']])
                 if case == 'one change beside unchanged members':        # all shown: s folds a and b
                     s = next(f for f in folds if f['row'] == 's')
-                    self.assertEqual(s['shown'], ['s', 'c', 'd'])
+                    self.assertEqual(s['shown'], ['Static', 's', 'c', 'd'])
 
     def test_a_fold_inside_a_fold_hides_the_unchanged_members_under_both(self):
         html = _report(self.dir, *NESTED)
         for all_ in (False, True):
             with self.subTest(show_all=all_):
-                self.assertEqual(self.run_in(html, INSIDE, all_), ['s', 'c'])
+                self.assertEqual(self.run_in(html, INSIDE, all_), ['Static', 's', 'c'])
 
     def test_the_mark_looks_the_same_beside_an_hmi_part(self):
         """A report with HMI changes loads the HMI part's style (hmi.css), whose classes the fold must not share: the
@@ -252,18 +280,42 @@ class InTheBrowser(unittest.TestCase):
         self.assertEqual((shut['b'], shut['tw'], shut['mark']), (False, '▶', '"holds a change"'))
         self.assertEqual((again['b'], again['tw'], again['mark']), (True, '▼', 'none'))
 
-    def test_collapse_all_and_expand_all_fold_the_members_with_the_networks(self):
-        """In the report and in the viewer, by the buttons and by C and E: every member with members folds, the
-        outermost says it holds a change when it hides one, and everything opens again."""
+    def test_collapse_all_and_expand_all_fold_the_sections_and_members_with_the_networks(self):
+        """In the report and in the viewer, by the buttons and by C and E: every section and member with members
+        folds (the maintainer's ruling of 2026-11-18), only the section headings stay, each says it holds a change
+        when it hides one, and everything opens again."""
         pages = {'report': _report(self.dir, *WITH_NETWORK), 'viewer': _viewer(self.dir, WITH_NETWORK[1])}
         for (where, html), how in itertools.product(pages.items(), ('button', 'key')):
             with self.subTest(where=where, how=how):
                 start, shut, opened = self.run_in(html, "var HOW='%s';" % how + ALL_FOLDS)
-                every = ['s', 'a', 'inner', 'x', 'b', 'c', 'd']
-                self.assertEqual(start, {'shut': [], 'shown': every, 'mark': 'none', 'nets': 0})
-                self.assertEqual(shut, {'shut': ['s', 'inner'], 'shown': ['s', 'c', 'd'],
-                                        'mark': '"holds a change"' if where == 'report' else 'none', 'nets': 1})
+                every = ['Input', 'go', 'Static', 's', 'a', 'inner', 'x', 'b', 'c', 'd']
+                self.assertEqual(start, {'shut': [], 'shown': every, 'marks': ['none', 'none'], 'nets': 0})
+                mark = '"holds a change"' if where == 'report' else 'none'
+                self.assertEqual(shut, {'shut': ['Input', 'Static', 's', 'inner'], 'shown': ['Input', 'Static'],
+                                        'marks': [mark, mark], 'nets': 1})
                 self.assertEqual(opened, start)
+
+    def test_a_section_folds_its_members(self):
+        """Its heading folds and opens what is under it down to the next section; in the report it says it holds a
+        change."""
+        every = ['Input', 'go', 'Static', 's', 'a', 'inner', 'x', 'b', 'c', 'd']
+        for where, html in (('report', _report(self.dir, *SECTIONS)), ('viewer', _viewer(self.dir, SECTIONS[1]))):
+            with self.subTest(where):
+                inp, static, opened = self.run_in(html, SECTION)
+                mark = '"holds a change"' if where == 'report' else 'none'
+                self.assertEqual(inp, {'row': 'Input', 'mark': mark, 'shown': [x for x in every if x != 'go']})
+                self.assertEqual(static, {'row': 'Static', 'mark': mark, 'shown': ['Input', 'go', 'Static']})
+                self.assertEqual(opened, every)
+
+    def test_a_section_of_an_fc_folds_by_its_one_cell(self):
+        """An FC's interface has no attribute columns: a section row is one cell over the table."""
+        fc = ('FUNCTION "Mixer" : Void\n    VAR_INPUT\n        go : %s;\n    END_VAR\n    VAR_TEMP\n        t : Int;\n'
+              '    END_VAR\nEND_FUNCTION\n')
+        html = _report(self.dir, fc % 'Bool', fc % 'Int')
+        self.assertRegex(html, r'<tr class="sec"><td colspan="\d+" data-d="0"><span class="tw">▼</span>Input</td>')
+        inp, opened = self.run_in(html, SECTION)
+        self.assertEqual(inp, {'row': 'Input', 'mark': '"holds a change"', 'shown': ['Input']})
+        self.assertEqual(opened, ['Input', 'go'])
 
     def test_a_struct_folds_in_the_viewer_and_one_inside_it_stays_folded(self):
         start, inner, shut, again = self.run_in(_viewer(self.dir, AFTER), STEPS)
