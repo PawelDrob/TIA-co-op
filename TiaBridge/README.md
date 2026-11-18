@@ -32,6 +32,9 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
     ENO, namespace) are compared as they are.
   - HMI objects, library types, system blocks, technology objects, watch and force tables and the project's settings
     are exported every time.
+  - Its log (`logs\<time>_full_export.json`, under `times`) says where the time went: per part and step, the calls into
+    Openness (`tia_*`) apart from the bridge's own work, and the slowest objects of each part with the size of their
+    files. The answer to the agent says only where the times are.
 - Opens a project in a TIA with a window when you name it. When you ask, works in a TIA without a window: on a copy, or on
   a project closed in your TIA.
 - Refuses to change F-blocks unless you asked for that change. Refuses an import over a know-how protected block whatever

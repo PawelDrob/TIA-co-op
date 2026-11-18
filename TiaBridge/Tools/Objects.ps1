@@ -13,6 +13,8 @@
 # Kinds with a folder tree also give tree(root) -> top folder and groups, the name of its subfolder collection
 # (master copies are placed through them).
 
+. (Join-Path (Split-Path -Parent $PSScriptRoot) 'Times.ps1')   # the steps of a full_export
+
 $script:ObjectKinds = [ordered]@{}
 
 function Register-ObjectKind([string]$Name, [hashtable]$Definition) {
@@ -27,7 +29,11 @@ function Get-ObjectKind([string]$Name) {
 }
 
 # The objects of a kind under Root (its items), read again when TIA changed a list during the read (Read-TiaList).
-function Get-KindItems($Kind, $Root) { Read-TiaList { & $Kind.items $Root } }
+function Get-KindItems($Kind, $Root) {
+    $step = Enter-ExportStep 'tia_list'
+    try { Read-TiaList { & $Kind.items $Root } }
+    finally { Exit-ExportStep $step }
+}
 
 # Library: '' for the project library, else the name of a global library opened with library_open.
 function Get-KindRoot($Kind, [string]$Device, [string]$Library = '') {
@@ -121,20 +127,24 @@ function Get-ExportBase($Kind, $Entry, [string]$Library = '', [string]$Device = 
 # and of every kind writing the folder (block and db share plc\blocks), as an export also removes the other format's files
 # of its base. Entries: of Kind; Root: where the other kinds' items are read.
 function Get-ExportCollisions($Kind, [object[]]$Entries, $Root, [string]$Library = '', [string]$Device = '') {
-    $byBase = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
-    $add = { param($k, $e)
-        $b = Get-ExportBase $k $e $Library $Device
-        if (-not $byBase.ContainsKey($b)) { $byBase[$b] = New-Object System.Collections.ArrayList }
-        [void]$byBase[$b].Add([string]$e.name)
+    $step = Enter-ExportStep 'collisions'
+    try {
+        $byBase = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
+        $add = { param($k, $e)
+            $b = Get-ExportBase $k $e $Library $Device
+            if (-not $byBase.ContainsKey($b)) { $byBase[$b] = New-Object System.Collections.ArrayList }
+            [void]$byBase[$b].Add([string]$e.name)
+        }
+        foreach ($e in $Entries) { & $add $Kind $e }
+        foreach ($o in $script:ObjectKinds.Values) {
+            if ($o.name -eq $Kind.name -or $o.dir -ne $Kind.dir -or -not $o.export) { continue }
+            foreach ($e in @(Get-KindItems $o $Root)) { & $add $o $e }
+        }
+        $hits = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
+        foreach ($b in $byBase.Keys) { if ($byBase[$b].Count -gt 1) { $hits[$b] = @($byBase[$b] | Sort-Object) } }
+        $hits
     }
-    foreach ($e in $Entries) { & $add $Kind $e }
-    foreach ($o in $script:ObjectKinds.Values) {
-        if ($o.name -eq $Kind.name -or $o.dir -ne $Kind.dir -or -not $o.export) { continue }
-        foreach ($e in @(Get-KindItems $o $Root)) { & $add $o $e }
-    }
-    $hits = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
-    foreach ($b in $byBase.Keys) { if ($byBase[$b].Count -gt 1) { $hits[$b] = @($byBase[$b] | Sort-Object) } }
-    $hits
+    finally { Exit-ExportStep $step }
 }
 
 # The refusal of an object that shares its file with others (Get-ExportCollisions). Nothing is written, so what the file
@@ -154,10 +164,14 @@ function Get-CollisionError($Kind, $Entry, [string[]]$Names, [string]$Library = 
 # One SimaticML file through Obj.Export(file, options). Export refuses to overwrite, and a failed export must not
 # delete the last good file: export next to it, then replace it (Move-ExportIntoPlace, Repo.ps1).
 function Export-ObjectFile($Obj, [string]$File, $Options) {
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $File) | Out-Null
+    $step = Enter-ExportStep 'work_folder'
+    try { New-Item -ItemType Directory -Force -Path (Split-Path -Parent $File) | Out-Null }
+    finally { Exit-ExportStep $step }
     $partial = New-ExportWorkPath $File
+    $step = Enter-ExportStep 'tia_export_xml'
     try { $Obj.Export([System.IO.FileInfo]::new($partial), $Options) }
     catch { Remove-Item -LiteralPath $partial -ErrorAction SilentlyContinue; throw }
+    finally { Exit-ExportStep $step }
     Move-ExportIntoPlace $partial $File
 }
 
@@ -166,17 +180,29 @@ function Export-ObjectFile($Obj, [string]$File, $Options) {
 # folder moved into Dir. Returns the files, those inside a moved folder too (the full_export mirror keeps them).
 function Export-ObjectFolder($Obj, [string]$Dir, [string]$Name, $Options) {
     $partial = New-ExportWorkPath (Join-Path $Dir $Name)
-    New-Item -ItemType Directory -Force -Path $partial | Out-Null
+    $step = Enter-ExportStep 'work_folder'
+    try { New-Item -ItemType Directory -Force -Path $partial | Out-Null }
+    finally { Exit-ExportStep $step }
     try {
-        $Obj.Export([System.IO.FileInfo]::new((Join-Path $partial "$Name.xml")), $Options)
-        @(foreach ($f in @(Get-ChildItem -LiteralPath $partial)) {
-            $dest = Join-Path $Dir $f.Name
-            Move-ExportIntoPlace $f.FullName $dest
-            if ($f.PSIsContainer) { @(Get-ChildItem -LiteralPath $dest -File -Recurse) | ForEach-Object { $_.FullName } }
-            else { $dest }
-        })
+        $step = Enter-ExportStep 'tia_export_xml'
+        try { $Obj.Export([System.IO.FileInfo]::new((Join-Path $partial "$Name.xml")), $Options) }
+        finally { Exit-ExportStep $step }
+        $step = Enter-ExportStep 'move'
+        try {
+            @(foreach ($f in @(Get-ChildItem -LiteralPath $partial)) {
+                $dest = Join-Path $Dir $f.Name
+                Move-ExportIntoPlace $f.FullName $dest
+                if ($f.PSIsContainer) { @(Get-ChildItem -LiteralPath $dest -File -Recurse) | ForEach-Object { $_.FullName } }
+                else { $dest }
+            })
+        }
+        finally { Exit-ExportStep $step }
     }
-    finally { Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue }
+    finally {
+        $step = Enter-ExportStep 'work_folder'
+        Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue
+        Exit-ExportStep $step
+    }
 }
 
 # One object of a kind into the repo -> the item of an export result (name, folder, ok, format, files, removed,
@@ -210,12 +236,16 @@ function New-Refusal([string]$Reason) { @{ ok = $false; refused = $Reason } }
 # The progress line of one exported object (Write-BridgeProgress): n of the m objects the call (or full_export part)
 # exports, after its export. Skipped: full_export left it as TIA has not changed it (skipped = true in the line).
 function Write-ObjectProgress([string]$Kind, [int]$N, [int]$Of, $Item, [string]$Part = '', [string]$Device = '', [switch]$Skipped) {
-    $p = [ordered]@{ event = 'object' }
-    if ($Part) { $p.part = $Part }
-    if ($Device) { $p.device = $Device }
-    $p.kind = $Kind; $p.n = $N; $p.of = $Of; $p.name = [string]$Item.name; $p.ok = [bool]$Item.ok
-    if ($Skipped) { $p.skipped = $true }
-    Write-BridgeProgress $p
+    $step = Enter-ExportStep 'progress'
+    try {
+        $p = [ordered]@{ event = 'object' }
+        if ($Part) { $p.part = $Part }
+        if ($Device) { $p.device = $Device }
+        $p.kind = $Kind; $p.n = $N; $p.of = $Of; $p.name = [string]$Item.name; $p.ok = [bool]$Item.ok
+        if ($Skipped) { $p.skipped = $true }
+        Write-BridgeProgress $p
+    }
+    finally { Exit-ExportStep $step }
 }
 
 function Get-OptionalBool($Arguments, [string]$Name, [bool]$Default) {

@@ -19,6 +19,20 @@ Describe 'Invoke-BridgeTool (error contract and logs on every call)' {
         ($d.text | ConvertFrom-Json).error.message | Should Be 'locked'
     }
 
+    It 'writes the times of a call into the log only, with the time the log took, and says so in the answer' {
+        Initialize-BridgeContext @{ projectsRoot = $root; maxResponseChars = 20000 }
+        $repo = Join-Path $root 'P1'
+        Set-BridgeProject -Name 'P1' -Path 'C:\P1.ap20' -Repo $repo
+        $d = Invoke-BridgeTool 'full_export' { param($a) [ordered]@{ ok = $true; times = [ordered]@{ ms = 5; parts = @([ordered]@{ part = 'blocks'; ms = 5 }) } } } (New-Object psobject)
+        $d.result.times | Should Match '^in the log file'
+        $d.text | Should Not Match '"parts"'
+        ($d.text | ConvertFrom-Json).times | Should Match '^in the log file'
+        $log = [System.IO.File]::ReadAllText((Join-Path $repo $d.result.log)) | ConvertFrom-Json
+        $log.times.parts[0].part | Should Be 'blocks'
+        $log.times.logMs.GetType().Name | Should Be 'Int32'
+        $log.times.logMs | Should Not BeLessThan 0
+    }
+
     It 'adds project and repo, and logs into the repo once connected' {
         Initialize-BridgeContext @{ projectsRoot = $root; maxResponseChars = 20000 }
         $repo = Join-Path $root 'P1'

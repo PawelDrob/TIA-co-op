@@ -304,6 +304,8 @@ function Invoke-BridgeToolCall($Name, $Handler, $Arguments, [object[]]$Secrets) 
         $dir = Join-Path $script:Bridge.settings.projectsRoot '_bridge'
         $r.log = Join-Path $dir (Write-ToolLog -Repo $dir -Tool $Name -Result $r)
     }
+    # the times of a full_export are for whoever reads the log after it, not for the answer (Times.ps1)
+    if ($r -is [System.Collections.IDictionary] -and $r.Contains('times')) { $r.times = 'in the log file: per part and step, Openness apart, and the slowest objects' }
     @{ result = $r; text = (Limit-ToolResponse $r $script:Bridge.settings.maxResponseChars) }
 }
 

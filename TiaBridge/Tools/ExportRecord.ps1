@@ -127,13 +127,23 @@ function Read-ObjectProperty($Obj, [string]$Name) {
 # throws "not supported" there). Their values are S7_IECCheck and S7_GenerateENOforSCL of the block's file.
 $script:GetAttributeOnly = @('IsIECCheckEnabled', 'SetENOAutomatically')
 function Read-TiaAttribute($Obj, [string]$Name) {
-    if (-not $Obj.PSObject.Methods['GetAttributeInfos']) { return @{ has = $false; value = $null } }
-    if (@($Obj.GetAttributeInfos() | ForEach-Object { [string]$_.Name }) -notcontains $Name) { return @{ has = $false; value = $null } }
-    @{ has = $true; value = $Obj.GetAttribute($Name) }
+    $step = Enter-ExportStep 'tia_attribute'
+    try {
+        if (-not $Obj.PSObject.Methods['GetAttributeInfos']) { return @{ has = $false; value = $null } }
+        if (@($Obj.GetAttributeInfos() | ForEach-Object { [string]$_.Name }) -notcontains $Name) { return @{ has = $false; value = $null } }
+        @{ has = $true; value = $Obj.GetAttribute($Name) }
+    }
+    finally { Exit-ExportStep $step }
 }
 
 # The values of an object compared for unequal: name -> text, the dates in round trip form ('o', with their Kind).
 function Read-ExportState($Kind, $Entry) {
+    $step = Enter-ExportStep 'tia_state'
+    try { Read-ExportStateValues $Kind $Entry }
+    finally { Exit-ExportStep $step }
+}
+
+function Read-ExportStateValues($Kind, $Entry) {
     $s = [ordered]@{}
     foreach ($a in $script:ExportStateAttributes[$Kind.name]) {
         try {
@@ -183,6 +193,12 @@ function Get-EntryFiles($Old) {
 # Why the files in the repo are not those the last export left (Old: record entry), or $null. Base: the object's path
 # without extension; with Others, the files of the other formats there too (an export of a block removes them).
 function Get-FileDifference($Old, [string]$Base, [switch]$Others) {
+    $step = Enter-ExportStep 'record_files'
+    try { Get-EntryFileDifference $Old $Base -Others:$Others }
+    finally { Exit-ExportStep $step }
+}
+
+function Get-EntryFileDifference($Old, [string]$Base, [switch]$Others) {
     $files = Get-EntryFiles $Old
     # an export TIA answered Success without writing a file of it (Export-PlcObject: ok, no files) is recorded with none
     if (-not $files.Count) { return 'the record holds no file of it' }
@@ -227,7 +243,9 @@ function Get-TagTableDifference($Kind, $Entry, [string]$Device) {
     if (-not [System.IO.File]::Exists($file)) { return 'its file is not in the repo' }
     $temp = Join-Path ([System.IO.Path]::GetTempPath()) "tiabridge-$PID-$([guid]::NewGuid().ToString('N')).xml"
     try {
-        $Entry.obj.Export([System.IO.FileInfo]::new($temp), (Get-PlcExportOptions $false))
+        $step = Enter-ExportStep 'tia_export_tag_table'
+        try { $Entry.obj.Export([System.IO.FileInfo]::new($temp), (Get-PlcExportOptions $false)) }
+        finally { Exit-ExportStep $step }
         if (Test-OnlyExportTimeDiffers $temp $file) { $null } else { 'its export differs from its file in the repo' }
     }
     catch {
@@ -280,8 +298,12 @@ function Get-SimaticMlReason([hashtable]$Old, [hashtable]$Objects) {
 #    devices = device -> @{ all; entries = kind -> entries; objects = key -> @{ kind; entry; state; old; export = why, or $null } } }
 # A key is '<kind>|<name>'. Full: everything is exported (full: true), the record is written all the same.
 function Get-ExportPlan($Software, $Project, [bool]$Full) {
-    $head = Get-ExportRecordHead $Software $Project
-    $read = Read-ExportRecord $script:Bridge.repo
+    $step = Enter-ExportStep 'record_read'
+    try {
+        $head = Get-ExportRecordHead $Software $Project
+        $read = Read-ExportRecord $script:Bridge.repo
+    }
+    finally { Exit-ExportStep $step }
     $unusable = $read.error
     if (-not $unusable) { $unusable = Get-HeadDifference $read.record.head $head }
     $plan = @{ head = $head; old = $read.record; unusable = $unusable; all = $(if ($Full) { 'full: true' } else { $unusable }); devices = @{} }
@@ -289,7 +311,9 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
         $device = [string]$s.device
         $d = @{ all = $null; entries = @{}; objects = (New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)) }
         $plan.devices[$device] = $d
-        $old = if (-not $unusable) { ConvertTo-EntryMap $read.record.devices.$device }
+        $step = Enter-ExportStep 'record_read'
+        try { $old = if (-not $unusable) { ConvertTo-EntryMap $read.record.devices.$device } }
+        finally { Exit-ExportStep $step }
         foreach ($kn in $script:SkipKinds) {
             $k = Get-ObjectKind $kn
             $d.entries[$kn] = @(Get-KindItems $k $s.software)
@@ -322,13 +346,17 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
 
 # The record entry of an object after its export: Item is the export's (files repo-relative); failed when it did not export.
 function New-ExportRecordEntry($Object, $Item) {
-    $e = [ordered]@{ folder = [string]$Object.entry.folder; state = $Object.state }
-    if ($Item.ok) {
-        $files = [ordered]@{}
-        foreach ($f in @($Item.files | Where-Object { $_ })) { $files[$f] = Get-FileSha256 (Join-Path $script:Bridge.repo $f) }
-        $e.files = $files
-    } else { $e.failed = $true }
-    $e
+    $step = Enter-ExportStep 'record'
+    try {
+        $e = [ordered]@{ folder = [string]$Object.entry.folder; state = $Object.state }
+        if ($Item.ok) {
+            $files = [ordered]@{}
+            foreach ($f in @($Item.files | Where-Object { $_ })) { $files[$f] = Get-FileSha256 (Join-Path $script:Bridge.repo $f) }
+            $e.files = $files
+        } else { $e.failed = $true }
+        $e
+    }
+    finally { Exit-ExportStep $step }
 }
 
 # Writes the record after an export that did not stop. A PLC's entries are one snapshot, taken by one run: the plan's
@@ -336,6 +364,12 @@ function New-ExportRecordEntry($Object, $Item) {
 # another keeps the one of the record, if usable, which still says what an export gave then (Get-PlcExportReason
 # compares with it). Records: the part records of the run. Returns an error text, or $null.
 function Save-ExportRecord($Plan, $Records) {
+    $step = Enter-ExportStep 'record_save'
+    try { Write-ExportRecord $Plan $Records }
+    finally { Exit-ExportStep $step }
+}
+
+function Write-ExportRecord($Plan, $Records) {
     try {
         $devices = [ordered]@{}
         if (-not $Plan.unusable) { foreach ($p in $Plan.old.devices.PSObject.Properties) { $devices[$p.Name] = $p.Value } }

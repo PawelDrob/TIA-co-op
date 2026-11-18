@@ -272,6 +272,12 @@ function Get-MirrorRemovals([string]$Dir, [string[]]$Written, [string[]]$Kept) {
 # Invoke-GitRaw: its pipe decodes git's UTF-8 with the console code page, a non-ASCII name would not be found and its
 # file removed. -z: names as they are, not quoted; --no-renames: one name per entry.
 function Get-GitUncommittedFiles([string]$Repo) {
+    $step = Enter-ExportStep 'git'
+    try { Read-GitUncommittedFiles $Repo }
+    finally { Exit-ExportStep $step }
+}
+
+function Read-GitUncommittedFiles([string]$Repo) {
     if (-not (Test-Path -LiteralPath (Join-Path $Repo '.git'))) { return @{ paths = @{}; error = "$Repo is not a git repo (no .git)" } }
     Clear-GitContext
     $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -366,45 +372,73 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
     $none = New-Object psobject
     $n = 0
     foreach ($e in $entries) {
-        $o = if ($dp) { $dp.objects["$($k.name)|$($e.name)"] }
-        # an object sharing its file with another is never skipped; it cannot be reached either, as both failed last time
-        if ($o -and -not $o.export -and -not $collisions[(Get-ExportBase $k $e '' $Device)]) {
-            $o.recorded = $o.old
-            $Record.skipped++
-            foreach ($f in (Get-EntryFiles $o.old).Keys) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) }
-            if ($k.name -eq 'block' -and (Get-StateValue $o.state 'IsKnowHowProtected') -eq 'True') { [void]$Record.knowHowProtected.Add($e.name) }
+        # the object's time, from here to its progress line and what follows it (Times.ps1)
+        $mark = Get-ObjectTimeMark
+        $item = $null; $kept = $null
+        try {
+            $o = if ($dp) { $dp.objects["$($k.name)|$($e.name)"] }
+            # an object sharing its file with another is never skipped; it cannot be reached either, as both failed last time
+            if ($o -and -not $o.export -and -not $collisions[(Get-ExportBase $k $e '' $Device)]) {
+                $step = Enter-ExportStep 'record'
+                try {
+                    $o.recorded = $o.old
+                    $Record.skipped++
+                    $kept = @((Get-EntryFiles $o.old).Keys)
+                    foreach ($f in $kept) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) }
+                    if ($k.name -eq 'block' -and (Get-StateValue $o.state 'IsKnowHowProtected') -eq 'True') { [void]$Record.knowHowProtected.Add($e.name) }
+                }
+                finally { Exit-ExportStep $step }
+                $n++
+                Write-ObjectProgress $k.name $n $entries.Count @{ name = $e.name; ok = $true } -Part $Part.name -Device $Device -Skipped
+                continue
+            }
+            if ($o) { $Record.why[$o.export] = 1 + [int]$Record.why[$o.export] }
+            $item = Export-KindEntry $k $e $none $Device '' $collisions
+            if (-not $item.ok -and -not $item.collision -and $Part.fallback -and (Test-TiaAliveStep)) {
+                $why = if ($item.error) { $item.error.message } else { @($item.messages.messages | ForEach-Object { $_.description }) -join ' | ' }
+                Enter-ExportRetry
+                try { $retry = Export-KindEntry $k $e (New-Object psobject -Property @{ format = 'xml' }) $Device }
+                finally { Exit-ExportRetry }
+                if ($retry.ok) { $item = $retry; $item.fellBack = "SimaticML: TIA refused the SD export: $why" }
+            }
+            if ($o) { $o.recorded = New-ExportRecordEntry $o $item }
             $n++
-            Write-ObjectProgress $k.name $n $entries.Count @{ name = $e.name; ok = $true } -Part $Part.name -Device $Device -Skipped
-            continue
+            Write-ObjectProgress $k.name $n $entries.Count $item -Part $Part.name -Device $Device
+            if ($item.ok) {
+                $Record.exported++
+                foreach ($f in $item.files) { if ($f) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) } }
+                foreach ($f in $item.removed) { if ($f) { [void]$Record.removed.Add($f) } }
+                if ($item.fellBack) { [void]$Record.fellBack.Add([ordered]@{ name = $item.name; folder = $item.folder; note = $item.fellBack }) }
+                if ($k.name -eq 'block') {
+                    $step = Enter-ExportStep 'tia_properties'
+                    try { $khp = $e.obj.IsKnowHowProtected }
+                    finally { Exit-ExportStep $step }
+                    if ($khp) { [void]$Record.knowHowProtected.Add($item.name) }
+                }
+            } else {
+                $dir = Get-KindDir $k $e.folder '' $Device
+                [void]$Record.kept.Add((Join-Path $dir (ConvertTo-SafeFileName $e.name)))
+                if (-not $e.name) { [void]$Record.kept.Add("$dir\") }
+                $why = Get-LeftOutReason $item
+                if ($why) { [void]$Record.notExported.Add([ordered]@{ name = $item.name; folder = $item.folder; reason = $why; message = $item.error.message }); continue }
+                $f = [ordered]@{ name = $item.name; folder = $item.folder }
+                if ($item.error) { $f.error = $item.error } elseif ($item.messages) { $f.messages = $item.messages }
+                [void]$Record.failed.Add($f)
+                if ($item.error -and -not (Test-TiaAliveStep)) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
+            }
         }
-        if ($o) { $Record.why[$o.export] = 1 + [int]$Record.why[$o.export] }
-        $item = Export-KindEntry $k $e $none $Device '' $collisions
-        if (-not $item.ok -and -not $item.collision -and $Part.fallback -and (Test-TiaAlive)) {
-            $why = if ($item.error) { $item.error.message } else { @($item.messages.messages | ForEach-Object { $_.description }) -join ' | ' }
-            $retry = Export-KindEntry $k $e (New-Object psobject -Property @{ format = 'xml' }) $Device
-            if ($retry.ok) { $item = $retry; $item.fellBack = "SimaticML: TIA refused the SD export: $why" }
-        }
-        if ($o) { $o.recorded = New-ExportRecordEntry $o $item }
-        $n++
-        Write-ObjectProgress $k.name $n $entries.Count $item -Part $Part.name -Device $Device
-        if ($item.ok) {
-            $Record.exported++
-            foreach ($f in $item.files) { if ($f) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) } }
-            foreach ($f in $item.removed) { if ($f) { [void]$Record.removed.Add($f) } }
-            if ($item.fellBack) { [void]$Record.fellBack.Add([ordered]@{ name = $item.name; folder = $item.folder; note = $item.fellBack }) }
-            if ($k.name -eq 'block' -and $e.obj.IsKnowHowProtected) { [void]$Record.knowHowProtected.Add($item.name) }
-        } else {
-            $dir = Get-KindDir $k $e.folder '' $Device
-            [void]$Record.kept.Add((Join-Path $dir (ConvertTo-SafeFileName $e.name)))
-            if (-not $e.name) { [void]$Record.kept.Add("$dir\") }
-            $why = Get-LeftOutReason $item
-            if ($why) { [void]$Record.notExported.Add([ordered]@{ name = $item.name; folder = $item.folder; reason = $why; message = $item.error.message }); continue }
-            $f = [ordered]@{ name = $item.name; folder = $item.folder }
-            if ($item.error) { $f.error = $item.error } elseif ($item.messages) { $f.messages = $item.messages }
-            [void]$Record.failed.Add($f)
-            if ($item.error -and -not (Test-TiaAlive)) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
+        finally {
+            if ($null -ne $kept) { Add-ObjectTime $mark ([string]$e.name) ([string]$e.folder) $kept -Skipped }
+            else { Add-ObjectTime $mark ([string]$e.name) ([string]$e.folder) @($item.files) }
         }
     }
+}
+
+# Test-TiaAlive as a step of its own: it asks TIA.
+function Test-TiaAliveStep {
+    $step = Enter-ExportStep 'tia_alive'
+    try { Test-TiaAlive }
+    finally { Exit-ExportStep $step }
 }
 
 # Copies a file, making its folder.
@@ -421,9 +455,14 @@ function Invoke-FullExportFilePart($Part, $Root, [string]$Device, $Record) {
     if ($Record.listError) { return }
     $dir = Join-Path $script:Bridge.repo (Get-PartDir $Part $Device)
     $partial = "$dir.partial"
-    if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Recurse -Force }
-    New-Item -ItemType Directory -Force -Path $partial | Out-Null
+    $step = Enter-ExportStep 'work_folder'
     try {
+        if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Recurse -Force }
+        New-Item -ItemType Directory -Force -Path $partial | Out-Null
+    }
+    finally { Exit-ExportStep $step }
+    try {
+        $step = Enter-ExportStep 'tia_export_file'
         try { $r = & $Part.file $Root $partial }
         catch {
             $err = ConvertTo-BridgeError $_
@@ -432,6 +471,9 @@ function Invoke-FullExportFilePart($Part, $Root, [string]$Device, $Record) {
             foreach ($d in (Get-NestedRepos $dir)) { [void]$Record.keptRepos.Add((Get-RepoRelative $d)) }
             return
         }
+        finally { Exit-ExportStep $step }
+        # the files put in place: the folder's listing, git, the compare, the moves and removals
+        $step = Enter-ExportStep 'move'
         if ($r.notes) { $Record.notes = @($r.notes) }
         # Asked after the export, as Split-MirrorRemovals asks git: a repo made during a long export counts.
         $repos = Get-NestedRepos $dir
@@ -463,7 +505,12 @@ function Invoke-FullExportFilePart($Part, $Root, [string]$Device, $Record) {
         foreach ($f in $s.remove) { [void]$Record.removed.Add((Get-RepoRelative $f)) }
         foreach ($f in $s.keep) { [void]$Record.keptUncommitted.Add((Get-RepoRelative $f)) }
     }
-    finally { Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue }
+    finally {
+        # from move, or from the part's own step after a failed export, back to the part's own step (other)
+        $null = Enter-ExportStep 'work_folder'
+        Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue
+        Exit-ExportStep 'other'
+    }
 }
 
 # Holds nothing that can fail: a part's failure goes into its record, and the record into the result. The caller sets
@@ -492,14 +539,29 @@ function Format-PartLine($R) {
     $s
 }
 
+# The run with its times (Times.ps1) in result.times, which the bridge writes into the log only (Bridge.ps1).
 function Invoke-FullExportTool($a) {
+    Start-ExportTimes
+    try {
+        $r = Invoke-FullExportRun $a
+        if ($r -is [System.Collections.IDictionary] -and -not $r.refused) { $r.times = Stop-ExportTimes }
+        $r
+    }
+    finally { $script:ExportTimes = $null }
+}
+
+function Invoke-FullExportRun($a) {
     $null = Get-BridgeSession
     $want = @($a.parts | Where-Object { $_ })
     $unknown = @($want | Where-Object { -not (Get-FullExportPart $_) })
     if ($unknown.Count) { return New-Refusal "Unknown part(s): $($unknown -join ', '). Parts: $(@($script:FullExportParts | ForEach-Object { $_.name }) -join ', ')." }
     $selected = @($script:FullExportParts | Where-Object { -not $want.Count -or $want -contains $_.name })
-    $software = @(Get-TiaSoftwareList)
-    $project = Get-TiaProject
+    $step = Enter-ExportStep 'tia_list'
+    try {
+        $software = @(Get-TiaSoftwareList)
+        $project = Get-TiaProject
+    }
+    finally { Exit-ExportStep $step }
     $started = [System.Diagnostics.Stopwatch]::StartNew()
     $script:UnchangedExports.Clear()
     $full = Get-OptionalBool $a 'full' $false
@@ -510,8 +572,10 @@ function Invoke-FullExportTool($a) {
     if (@($selected | Where-Object { $script:SkipKinds -contains $_.kind }).Count -and @($software | Where-Object { $_.kind -eq 'plc' }).Count) {
         if ($script:Bridge.background -and $script:Bridge.background.plain) { $planNote = 'a plain export folder keeps no record' }
         else {
+            Enter-PartTimes 'plan'
             try { $plan = Get-ExportPlan $software $project $full }
             catch { $planNote = "what TIA says of the objects did not read: $((ConvertTo-BridgeError $_).message)" }
+            finally { Exit-PartTimes -Plan }
         }
     }
     $planMs = [int]$planWatch.ElapsedMilliseconds
@@ -528,15 +592,23 @@ function Invoke-FullExportTool($a) {
         $rec = New-PartRecord $p $j.device
         [void]$records.Add($rec)
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        Enter-PartTimes $p.name $j.device
+        $step = Enter-ExportStep 'progress'
         Write-BridgeLog "full_export $($p.name)$(if ($j.device) { " @ $($j.device)" }) ..."
         $pp = [ordered]@{ event = 'part'; part = $p.name }
         if ($j.device) { $pp.device = $j.device }
         $pp.state = 'start'
         Write-BridgeProgress $pp
+        Exit-ExportStep $step
         try {
             $rec.dir = Get-PartDir $p $j.device
             $root = switch ($p.scope) { { $_ -in 'plc', 'hmi' } { $j.software } 'project' { $project } 'library' { $project.ProjectLibrary } }
-            if ($p.counter) { $rec.count = @(& $p.counter $root).Count; if ($rec.count) { $rec.leftOut = $p.leftOut } else { $rec.none = $true } }
+            if ($p.counter) {
+                $step = Enter-ExportStep 'tia_list'
+                try { $rec.count = @(& $p.counter $root).Count }
+                finally { Exit-ExportStep $step }
+                if ($rec.count) { $rec.leftOut = $p.leftOut } else { $rec.none = $true }
+            }
             elseif ($p.kind) { Invoke-FullExportKindPart $p $root $j.device $rec $plan }
             else { Invoke-FullExportFilePart $p $root $j.device $rec }
         }
@@ -546,16 +618,20 @@ function Invoke-FullExportTool($a) {
             Set-PartStopped $rec $rec.listError
         }
         $rec.ms = [int]$sw.ElapsedMilliseconds
+        Exit-PartTimes $rec.ms
+        $step = Enter-ExportStep 'progress'
         Write-BridgeLog "full_export $(Format-PartLine $rec)"
         $pp.state = $(if ($rec.listError -or $rec.stopped) { 'failed' } else { 'done' })
         $pp.exported = [int]$rec.exported; $pp.count = [int]$rec.count; $pp.failed = $rec.failed.Count; $pp.ms = $rec.ms
         Write-BridgeProgress $pp
+        Exit-ExportStep $step
         if ($rec.stopped) { $stopped = $true; break }
     }
 
     # mirror: per folder of the kind parts, once every part writing it ran and listed its objects
     $removed = New-Object System.Collections.ArrayList; $removeErrors = @()
     $keptUncommitted = New-Object System.Collections.ArrayList; $keptRepos = New-Object System.Collections.ArrayList; $gitError = $null
+    $step = Enter-ExportStep 'mirror'
     if (-not $stopped) {
         # A failure here costs the mirror, never the summary. No folder can be told for one part: nothing is mirrored,
         # the folder it shares with another part may hold its files.
@@ -588,6 +664,9 @@ function Invoke-FullExportTool($a) {
             catch { $removeErrors += "$($recs[0].dir): $($_.Exception.Message)" }
         }
     }
+    Exit-ExportStep $step
+    # the result: its lines, the record, the count of unchanged files
+    $step = Enter-ExportStep 'summary'
     foreach ($r in $records) {
         foreach ($f in $r.removed) { [void]$removed.Add($f) }
         foreach ($f in $r.keptUncommitted) { [void]$keptUncommitted.Add($f) }
@@ -622,9 +701,12 @@ function Invoke-FullExportTool($a) {
     $saveWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $recordError = if ($plan -and -not $stopped) { Save-ExportRecord $plan $records }
     $saveMs = [int]$saveWatch.ElapsedMilliseconds
+    $countStep = Enter-ExportStep 'unchanged_count'
+    $unchanged = Get-UnchangedExportCount @($records | ForEach-Object { $_.written })
+    Exit-ExportStep $countStep
     $result = [ordered]@{
         ok = (-not $failed.Count -and -not $stopped -and -not $removeErrors.Count -and -not $gitError)
-        exported = $exported; skipped = $skipped; unchanged = (Get-UnchangedExportCount @($records | ForEach-Object { $_.written })); failedCount = $failed.Count; removedCount = $removed.Count; keptCount = $keptUncommitted.Count; totalMs = [int]$started.ElapsedMilliseconds
+        exported = $exported; skipped = $skipped; unchanged = $unchanged; failedCount = $failed.Count; removedCount = $removed.Count; keptCount = $keptUncommitted.Count; totalMs = [int]$started.ElapsedMilliseconds
         parts = @($records | ForEach-Object { Format-PartLine $_ })
         failed = $failed; leftOut = $leftOut; limits = $script:FullExportLimits
         removed = @($removed); keptUncommitted = @($keptUncommitted); keptRepos = @($keptRepos | Select-Object -Unique); details = $details
@@ -665,6 +747,7 @@ function Invoke-FullExportTool($a) {
         $result.note = "TIA Portal ended at part $($at.part). $(Set-TiaEnded $at.endedBy)"
         $result.next = 'Do not commit a partial export as the whole project. ' + $(if ($script:Bridge.background) { 'Open the session again, then run full_export again.' } else { 'Connect again, then run full_export again.' })
     }
+    Exit-ExportStep $step
     $result
 }
 
@@ -684,7 +767,7 @@ function Register-FullExportTool {
         'everything when there is no usable record, or the project, TIA version, project languages, PLC devices or the bridge differ from it (exportedAll); details counts per part why objects were exported. HMI, library and the other parts export every time. full: true exports everything. ' +
         'hmi\generated, gen, library\changes, changes, logs, archives and standards are never touched. Read only: works under connect and in a background session. Long: about minutes per thousand objects; ' +
         'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part, failed items, ' +
-        'leftOut (what Openness cannot export, with the reason); the log has details. Objects whose names give one file name are in failed: neither is exported, the files there stay and are not mirrored away; rename one in TIA. ' +
+        'leftOut (what Openness cannot export, with the reason); the log has details, and times: where the time went, per part and step (tia_* are the calls into Openness), with the slowest objects of each part. Objects whose names give one file name are in failed: neither is exported, the files there stay and are not mirrored away; rename one in TIA. ' +
         'Devices whose names give one folder each get a folder with a mark (deviceFolders); a device holding two software items of one kind is refused and in failed: nothing of it is exported, its files stay. In a TIA with a window, boxes of the call with the icon Success or Information are acknowledged; every other box and every question stays with the user, who may have to close it; all notifications are listed with their icon (prompts). Commit the repo afterwards.') -Schema @{
         type = 'object'
         properties = @{ parts = @{ type = 'array'; items = @{ type = 'string'; enum = @($script:FullExportParts | ForEach-Object { $_.name }) }

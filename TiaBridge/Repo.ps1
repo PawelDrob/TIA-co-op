@@ -3,6 +3,7 @@
 
 # also here: tests load this file alone
 . (Join-Path $PSScriptRoot 'Guides.ps1')
+. (Join-Path $PSScriptRoot 'Times.ps1')
 
 $script:Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
@@ -188,6 +189,7 @@ function Test-SameZipParts([string]$A, [string]$B, [scriptblock]$Normalize) {
 # Whether the export New differs from the file Old in the repo at most in what TIA writes anew per export (above), by the
 # extension of Old: .xml, .dat, .xlsx; any other file only when equal. A file that cannot be read differs.
 function Test-OnlyExportTimeDiffers([string]$New, [string]$Old) {
+    $step = Enter-ExportStep 'compare'
     try {
         if (-not [System.IO.File]::Exists($New) -or -not [System.IO.File]::Exists($Old)) { return $false }
         $a = $script:Latin1.GetString([System.IO.File]::ReadAllBytes($New))
@@ -201,6 +203,7 @@ function Test-OnlyExportTimeDiffers([string]$New, [string]$Old) {
         $false
     }
     catch { $false }
+    finally { Exit-ExportStep $step }
 }
 
 # The files of the repo an export left as they were (full paths), for the count export and full_export give (unchanged):
@@ -234,47 +237,51 @@ function Restore-UnchangedExports([string]$Partial, [string]$Destination) {
 # A file that differs from the old one only in the export time keeps the old one (Test-OnlyExportTimeDiffers), in a
 # folder too: an export of an object nobody changed changes nothing in the repo.
 function Move-ExportIntoPlace([string]$Partial, [string]$Destination, [int]$RetryMs = 2000) {
-    $isDir = [System.IO.Directory]::Exists($Partial)
-    if ($isDir -and [System.IO.Directory]::Exists($Destination)) {
-        $git = Get-GitRepoFolders $Destination | Select-Object -First 1
-        if ($git) {
-            Remove-Item -LiteralPath $Partial -Recurse -Force -ErrorAction SilentlyContinue
-            throw (New-Object System.IO.IOException "The export did not replace '$Destination': it holds a git repo ($git), which the replacement would destroy. The previous version is kept. Move the repo out of the folder and export again.")
-        }
-    }
-    if ($isDir) { Restore-UnchangedExports $Partial $Destination }
-    elseif (Test-OnlyExportTimeDiffers $Partial $Destination) {
-        Remove-Item -LiteralPath $Partial -Force -ErrorAction SilentlyContinue
-        [void]$script:UnchangedExports.Add([System.IO.Path]::GetFullPath($Destination))
-        return
-    }
-    $deadline = [DateTime]::UtcNow.AddMilliseconds($RetryMs)
-    while ($true) {
-        try {
-            if ($isDir) {
-                $old = New-ExportWorkPath $Destination
-                $hadOld = [System.IO.Directory]::Exists($Destination)
-                if ($hadOld) { [System.IO.Directory]::Move($Destination, $old) }
-                try { [System.IO.Directory]::Move($Partial, $Destination) }
-                catch { if ($hadOld) { [System.IO.Directory]::Move($old, $Destination) }; throw }
-                if ($hadOld) { try { [System.IO.Directory]::Delete($old, $true) } catch { Write-BridgeLog "Could not remove $old`: $($_.Exception.Message)" } }
-            } elseif ([System.IO.File]::Exists($Destination)) {
-                [System.IO.File]::Replace($Partial, $Destination, [NullString]::Value)   # $null would arrive as ""
-            } else {
-                [System.IO.File]::Move($Partial, $Destination)
+    $step = Enter-ExportStep 'move'
+    try {
+        $isDir = [System.IO.Directory]::Exists($Partial)
+        if ($isDir -and [System.IO.Directory]::Exists($Destination)) {
+            $git = Get-GitRepoFolders $Destination | Select-Object -First 1
+            if ($git) {
+                Remove-Item -LiteralPath $Partial -Recurse -Force -ErrorAction SilentlyContinue
+                throw (New-Object System.IO.IOException "The export did not replace '$Destination': it holds a git repo ($git), which the replacement would destroy. The previous version is kept. Move the repo out of the folder and export again.")
             }
+        }
+        if ($isDir) { Restore-UnchangedExports $Partial $Destination }
+        elseif (Test-OnlyExportTimeDiffers $Partial $Destination) {
+            Remove-Item -LiteralPath $Partial -Force -ErrorAction SilentlyContinue
+            [void]$script:UnchangedExports.Add([System.IO.Path]::GetFullPath($Destination))
             return
-        } catch {
-            $ex = $_.Exception
-            while ($ex -is [System.Management.Automation.MethodInvocationException] -and $ex.InnerException) { $ex = $ex.InnerException }
-            $transient = $ex -is [System.IO.IOException] -or $ex -is [System.UnauthorizedAccessException]
-            if ($transient -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100; continue }
-            if ($isDir) { Remove-Item -LiteralPath $Partial -Recurse -Force -ErrorAction SilentlyContinue }
-            else { Remove-Item -LiteralPath $Partial -Force -ErrorAction SilentlyContinue }
-            throw (New-Object System.IO.IOException ("The export could not replace '$Destination' (another process holds it open?); " +
-                "the previous version is kept: $($ex.Message)"), $ex)
+        }
+        $deadline = [DateTime]::UtcNow.AddMilliseconds($RetryMs)
+        while ($true) {
+            try {
+                if ($isDir) {
+                    $old = New-ExportWorkPath $Destination
+                    $hadOld = [System.IO.Directory]::Exists($Destination)
+                    if ($hadOld) { [System.IO.Directory]::Move($Destination, $old) }
+                    try { [System.IO.Directory]::Move($Partial, $Destination) }
+                    catch { if ($hadOld) { [System.IO.Directory]::Move($old, $Destination) }; throw }
+                    if ($hadOld) { try { [System.IO.Directory]::Delete($old, $true) } catch { Write-BridgeLog "Could not remove $old`: $($_.Exception.Message)" } }
+                } elseif ([System.IO.File]::Exists($Destination)) {
+                    [System.IO.File]::Replace($Partial, $Destination, [NullString]::Value)   # $null would arrive as ""
+                } else {
+                    [System.IO.File]::Move($Partial, $Destination)
+                }
+                return
+            } catch {
+                $ex = $_.Exception
+                while ($ex -is [System.Management.Automation.MethodInvocationException] -and $ex.InnerException) { $ex = $ex.InnerException }
+                $transient = $ex -is [System.IO.IOException] -or $ex -is [System.UnauthorizedAccessException]
+                if ($transient -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100; continue }
+                if ($isDir) { Remove-Item -LiteralPath $Partial -Recurse -Force -ErrorAction SilentlyContinue }
+                else { Remove-Item -LiteralPath $Partial -Force -ErrorAction SilentlyContinue }
+                throw (New-Object System.IO.IOException ("The export could not replace '$Destination' (another process holds it open?); " +
+                    "the previous version is kept: $($ex.Message)"), $ex)
+            }
         }
     }
+    finally { Exit-ExportStep $step }
 }
 
 # $null when git is on PATH, else what to do. The bridge keeps the PATH it started with.
@@ -673,13 +680,25 @@ function Initialize-ProjectRepo([string]$Root, [string]$ProjectName, [string]$Pr
     @{ repo = $repo; created = $created; pathChanged = $otherPath; oldPath = $oldPath; standardsNote = $standardsNote }
 }
 
-# Full, untruncated result -> logs\<yyyyMMdd_HHmmss>_<tool>.json; returns the path relative to the repo.
+# Full, untruncated result -> logs\<yyyyMMdd_HHmmss>_<tool>.json; returns the path relative to the repo. A result with
+# times (full_export, Times.ps1) gets times.logMs: how long the text of this file took to make, which only the text can hold.
 function Write-ToolLog([string]$Repo, [string]$Tool, $Result, [datetime]$At = (Get-Date)) {
     $base = "logs\$($At.ToString('yyyyMMdd_HHmmss'))_$Tool"
     $rel = "$base.json"
     $n = 2
     while (Test-Path (Join-Path $Repo $rel)) { $rel = "${base}_$n.json"; $n++ }
-    Write-TextFile (Join-Path $Repo $rel) (ConvertTo-Json $Result -Depth 64)
+    $mark = 'tiabridge:log-ms'
+    $timed = $Result -is [System.Collections.IDictionary] -and $Result.Contains('times') -and $Result.times -is [System.Collections.IDictionary]
+    if ($timed) { $Result.times.logMs = $mark }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $json = ConvertTo-Json $Result -Depth 64
+    if ($timed) {
+        $ms = [int]$sw.ElapsedMilliseconds
+        $pos = $json.LastIndexOf("`"$mark`"")
+        $json = $json.Remove($pos, $mark.Length + 2).Insert($pos, [string]$ms)
+        $Result.times.logMs = $ms
+    }
+    Write-TextFile (Join-Path $Repo $rel) $json
     $rel
 }
 

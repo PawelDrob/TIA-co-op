@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T10:40:59-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T11:27:10-05:00 }
 ---
 
 # TiaBridge internals
@@ -46,6 +46,7 @@ Tools return paths, counts, states and messages. Bulk content goes through files
 | `Tools\Background.ps1` | `background_open`, `background_close` |
 | `Tools\FullExport.ps1` | `full_export` |
 | `Tools\ExportRecord.ps1` | What `full_export` skips: the record of the last export, and why it exports an object |
+| `Times.ps1` | Where the time of a `full_export` goes: the steps of each part, and its slowest objects |
 | `Tools\Safety.ps1`, `Probe.ps1`, `Report.ps1` | `safety_login`, `probe`, `change_report` |
 | `Tests\` | [Testing](../testing.md) |
 
@@ -187,6 +188,10 @@ One per project, under `projectsRoot`, made by `connect`:
   - **One object** when a value differs, it moved to another folder, it is not consistent, its last export failed, it reads no date or a value that does not read, a file of it differs from the record or one of another format lies beside it, or it is an instance DB of an FB that is exported. `details` counts the reasons per part (`why`).
   - **A block or DB changed in TIA**, its interface too: the blocks that call or use it export by their own values, as TIA holds them not consistent until the compile, and the compile that rewrites them moves their dates. Every object last written as SimaticML exports with it (`Get-SimaticMlReason`): such a file holds the parameters and members of what it calls, and whether it follows them before its own compile was not tried.
   - A skipped object's files count as written, so the mirror removes what a full export removes. A PLC's entries are one snapshot: a run that listed all four kinds of it replaces them, any other leaves them, and a run that stopped writes nothing.
+- **`full_export` says where its time goes,** in `times` of its log (`Times.ps1`); the answer has one line in its place (`Invoke-BridgeToolCall`). One stopwatch gives its ticks to one step at a time, and a step entered inside another takes its time from the outer one, so the steps of a part add up to the part's `ms`. A step costs about 20 µs (`stepChanges` counts them) and no call into TIA.
+  - `plan`: what TIA says of the objects before any part (`Get-ExportPlan`). `parts`: one entry per part and device, with `objects` (median, 90th percentile, slowest) and `slowest`, the ten objects that took longest, with their time in Openness and the size of their files. `once`: the rest, the session, the mirror, git, the count of unchanged files, the record and the result. `logMs`: the making of the log's text, written in by `Write-ToolLog`.
+  - Steps named `tia_*` are calls into Openness: `tia_list` (the walk of TIA's tree), `tia_properties` (an object's class and know-how protection; a library type's formats and versions), `tia_state` and `tia_attribute` (the values the plan compares), `tia_export_s7dcl`, `tia_export_xml`, `tia_export_retry` (the SimaticML export after a refused SD export), `tia_export_tag_table` (the plan's compare), `tia_export_file` (a file part's export), `tia_alive`.
+  - The bridge's own: `result` (TIA's result made into the bridge's), `collisions` (names that give one file), `work_folder`, `compare` (with the file in place), `move`, `remove` (the other format's old files), `record`, `record_read`, `record_files`, `record_save`, `progress` (the progress lines), `mirror`, `git`, `unchanged_count`, `summary`, and `other`, what no step names.
 
 ## The reviewed change
 

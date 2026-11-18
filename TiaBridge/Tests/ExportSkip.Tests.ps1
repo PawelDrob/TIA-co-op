@@ -138,6 +138,20 @@ Describe 'full_export skips what TIA has not changed' {
         Assert-MockCalled Write-BridgeProgress -Scope It -ParameterFilter { $Fields.event -eq 'object' -and $Fields.name -eq 'FB1' -and $Fields.skipped }
         Assert-MockCalled Write-BridgeProgress -Scope It -Times 0 -ParameterFilter { $Fields.event -eq 'object' -and $Fields.name -eq 'FC1' -and $Fields.skipped }
     }
+
+    It 'times the plan apart: the values read of TIA, the record, its files, the tag table''s export for the compare' {
+        Initialize-SkipTest 'times'
+        Step-Date $script:o.FC1
+        $t = (Invoke-FullExportTool $script:parts).times
+        foreach ($s in 'tia_list', 'tia_state', 'record_read', 'record_files', 'tia_export_tag_table', 'compare', 'other') { $t.plan.steps.Contains($s) | Should Be $true }
+        $t.plan.steps.tia_state.n | Should Be 6
+        $t.plan.steps.tia_export_tag_table.n | Should Be 1
+        $blocks = $t.parts | Where-Object { $_.part -eq 'blocks' }
+        "$($blocks.steps.tia_export_s7dcl.n) $($blocks.steps.record.n)" | Should Be '1 2'
+        @($blocks.slowest | Where-Object { $_.skipped } | ForEach-Object { $_.name }) | Should Be 'FB1'
+        @($blocks.slowest | Where-Object { -not $_.skipped } | ForEach-Object { $_.name }) | Should Be 'FC1'
+        ($t.once.steps.Keys -contains 'record_save') | Should Be $true
+    }
 }
 
 Describe 'full_export exports everything when the record cannot be used' {

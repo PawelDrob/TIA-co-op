@@ -308,7 +308,9 @@ function Export-LibraryTypeDocuments($Entry, [string]$Dir, [switch]$Released, [s
     # global library" [PROBE] (2026-10-06). Their version metadata exports, as for faceplate types.
     $formats = if ($Format) { @($Format) } else {
         try {
-            $supported = @($type.GetSupportedExportFormats() | ForEach-Object { [string]$_ })
+            $step = Enter-ExportStep 'tia_properties'
+            try { $supported = @($type.GetSupportedExportFormats() | ForEach-Object { [string]$_ }) }
+            finally { Exit-ExportStep $step }
             $current = Get-LibraryTypeRepoFormat (Join-Path $Dir (ConvertTo-SafeFileName $Entry.name)) $Entry.name
             @(Resolve-LibraryExportFormat $supported $As $current | Where-Object { $_ })
         }
@@ -323,8 +325,12 @@ function Export-LibraryTypeDocuments($Entry, [string]$Dir, [switch]$Released, [s
     # ("The export format 'S' is not supported", 2026-10-08)
     $formats = @($formats | Where-Object { $_ })
     if (-not $formats.Count) { return Export-LibraryTypeVersions $Entry $Dir }
-    $work = if ($Released) { $null } else { Select-TypeVersion -Versions @($type.Versions) -InWork }
-    $version = if ($work) { $work } else { Select-TypeVersion -Versions @($type.Versions) }
+    $step = Enter-ExportStep 'tia_properties'
+    try {
+        $work = if ($Released) { $null } else { Select-TypeVersion -Versions @($type.Versions) -InWork }
+        $version = if ($work) { $work } else { Select-TypeVersion -Versions @($type.Versions) }
+    }
+    finally { Exit-ExportStep $step }
     $folder = ConvertTo-SafeFileName $Entry.name
     if ($Released) { $folder += '.released' }
     $target = Join-Path $Dir $folder
@@ -333,8 +339,12 @@ function Export-LibraryTypeDocuments($Entry, [string]$Dir, [switch]$Released, [s
     $partial = New-ExportWorkPath $target
     New-Item -ItemType Directory -Force -Path $partial | Out-Null
     try {
-        $r = $version.ExportAsDocuments([System.IO.DirectoryInfo]::new($partial), (ConvertTo-SafeFileName $Entry.name), $format,
-                                        [Siemens.Engineering.Library.LibraryExportOptions]::WithLibraryVersionInfoFile)
+        $step = Enter-ExportStep $(if ($format -eq 'SimaticSD') { 'tia_export_s7dcl' } else { 'tia_export_xml' })
+        try {
+            $r = $version.ExportAsDocuments([System.IO.DirectoryInfo]::new($partial), (ConvertTo-SafeFileName $Entry.name), $format,
+                                            [Siemens.Engineering.Library.LibraryExportOptions]::WithLibraryVersionInfoFile)
+        }
+        finally { Exit-ExportStep $step }
         # copied, not moved: until the swap below the old folder is whole, and a failure leaves it as it was
         foreach ($sub in @(Get-ChildItem -LiteralPath $target -Directory -Force -ErrorAction SilentlyContinue)) {
             Copy-Item -LiteralPath $sub.FullName -Destination (Join-Path $partial $sub.Name) -Recurse -Force -ErrorAction Stop

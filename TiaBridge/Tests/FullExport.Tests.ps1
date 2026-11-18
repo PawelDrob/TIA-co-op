@@ -985,3 +985,77 @@ Describe 'a full_export with no change in TIA' {
         [System.IO.File]::ReadAllBytes($f) -join ',' | Should Not Be ($before -join ',')
     }
 }
+
+Describe 'the times of a full_export' {
+    $repo = Join-Path $TestDrive 'timed'
+    Initialize-BridgeContext @{ maxResponseChars = 20000 }
+    Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+    # a block TIA takes long over, with files of 1000 bytes
+    $slow = New-Block 'Slow'
+    $slow | Add-Member -Force ScriptMethod ExportAsDocuments { param($d, $n)
+        Start-Sleep -Milliseconds 80
+        foreach ($x in '.s7dcl', '.s7res') { [System.IO.File]::WriteAllText((Join-Path $d.FullName "$n$x"), ('x' * 500)) }
+        [pscustomobject]@{ State = 'Success'; Messages = @() } }
+    $script:timedPlc = [pscustomobject]@{ BlockGroup = [pscustomobject]@{ Blocks = @((New-Block 'A'), (New-Block 'B' 'Failure'), $slow); Groups = @() }
+                                          ExternalSourceGroup = [pscustomobject]@{ ExternalSources = @([pscustomobject]@{ Name = 'Src' }); Groups = @() } }
+    $script:timedHmi = New-FakeHmi @(New-XmlObject 'S1')
+    Mock Get-TiaSoftwareList { @(@{ device = 'PLC_1'; kind = 'plc'; software = $script:timedPlc }, @{ device = 'HMI_1'; kind = 'hmi'; software = $script:timedHmi }) }
+    Mock Get-TiaProject { [pscustomobject]@{ Name = 'P'; ProjectLibrary = $null } }
+    Mock Test-IsDataBlock { $Block.Name -like 'DB*' }
+
+    It 'adds up the steps of each part to the time of the part, within 5 %' {
+        Write-Old $repo 'plc\blocks\Old.s7dcl'
+        Save-TestRepo $repo
+        # dbs too: plc\blocks is mirrored, which asks git
+        $script:timed = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'dbs', 'hmi_screens', 'external_sources') })
+        $t = $script:timed.times
+        @($t.parts | ForEach-Object { "$($_.part)@$($_.device)" }) -join '|' | Should Be 'blocks@PLC_1|dbs@PLC_1|external_sources@PLC_1|hmi_screens@HMI_1'
+        foreach ($p in $t.parts) {
+            $line = $script:timed.details | Where-Object { $_.part -eq $p.part -and $_.device -eq $p.device }
+            $p.ms | Should Be $line.ms
+            $sum = 0.0; foreach ($s in $p.steps.Values) { $sum += $s.ms }
+            [Math]::Abs($sum - $line.ms) | Should Not BeGreaterThan ([Math]::Max(0.05 * $line.ms, 1.5))
+        }
+        $sum = $t.once.ms + $t.plan.ms; foreach ($p in $t.parts) { $sum += $p.ms }
+        [Math]::Abs($sum - $t.ms) | Should Not BeGreaterThan ([Math]::Max(0.05 * $t.ms, 1.5))
+        $script:timed.totalMs | Should Not BeGreaterThan $t.ms
+        $script:ExportTimes | Should Be $null
+    }
+
+    It 'names the calls into Openness apart, the export after a refused one apart, and the bridge''s steps' {
+        $t = $script:timed.times
+        $blocks = $t.parts[0]
+        "$($blocks.steps.tia_export_s7dcl.n) $($blocks.steps.tia_export_retry.n)" | Should Be '3 1'
+        $blocks.steps.Contains('tia_export_xml') | Should Be $false
+        foreach ($s in 'tia_properties', 'result', 'work_folder', 'move', 'compare', 'collisions', 'tia_list', 'progress', 'other') { $blocks.steps.Contains($s) | Should Be $true }
+        $blocks.tiaMs | Should Not BeLessThan 80
+        $t.parts[2].steps.Contains('tia_list') | Should Be $true
+        $t.parts[3].steps.tia_export_xml.n | Should Be 1
+        foreach ($s in 'tia_list', 'mirror', 'git', 'unchanged_count', 'summary') { $t.once.steps.Contains($s) | Should Be $true }
+        $t.tiaMs | Should Not BeLessThan 80
+        $t.stepChanges | Should BeGreaterThan 0
+    }
+
+    It 'lists the slowest objects of a part with their time in Openness and the size of their files' {
+        $blocks = $script:timed.times.parts[0]
+        $blocks.objects.n | Should Be 3
+        $s = $blocks.slowest[0]
+        "$($s.name) $($s.bytes) $($s.files)" | Should Be 'Slow 1000 2'
+        $s.ms | Should Not BeLessThan 80
+        $s.tiaMs | Should Not BeLessThan 80
+        @($blocks.slowest | ForEach-Object { $_.name } | Sort-Object) -join ',' | Should Be 'A,B,Slow'
+        $blocks.objects.maxMs | Should Be $s.ms
+    }
+
+    It 'gives a refusal no times' {
+        (Invoke-FullExportTool ([pscustomobject]@{ parts = @('nope') })).Contains('times') | Should Be $false
+    }
+
+    Context 'a run that throws' {
+        It 'stops measuring' {
+            Mock Invoke-FullExportRun { throw 'broken' }
+            { Invoke-FullExportTool ([pscustomobject]@{}) } | Should Throw 'broken'
+            $script:ExportTimes | Should Be $null
+        }
+    }
+}
