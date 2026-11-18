@@ -68,11 +68,13 @@ class Inner(Member):
     """A member inside a UDT, struct or array of a DB that only a start value line names; type, comment and default
     value (inherited, shown gray) and attributes from the UDT when the input holds it; up: the accessible,
     writable and visible of its parent, which limit its own; decl: the member as the UDT declares it, whose
-    children are the members of a struct (or of an array element's struct) in the UDT."""
+    children are the members of a struct (or of an array element's struct) in the UDT; under_in_out: opened under an
+    in-out (the viewer's _unfold), every box empty, as the in-out's own."""
     inherited: Optional[str] = None
     dflt: Optional[str] = None
     up: tuple = (True, True, True)
     decl: Optional[Member] = None
+    under_in_out: bool = False
 
 
 def tia_type(t):
@@ -239,8 +241,7 @@ def _unfold(node, types, opened_udts):
             for k in owner.root.children:
                 kid = _new_inner(node, k, types, None)
                 kid.section = node.section
-                if node.section == 'IN_OUT':
-                    kid.up = (False, False, False)
+                kid.under_in_out = node.section == 'IN_OUT'
                 node.children[k] = kid
             opened_udts += (name,) if block is not None else ()
     for m in node.children.values():
@@ -634,7 +635,8 @@ def _off(m, kind='', safety=False):
 
 def _boxes(m, safety=False):
     """TIA's checkboxes (accessible, writable, visible, setpoint) of a member, disabled where TIA disables them
-    (_off: a disabled box, not a blank), all empty for an in-out of a structured type; '' for temp,
+    (_off: a disabled box, not a blank), all empty for an in-out of a structured type and a UDT's member opened under
+    one (under_in_out); '' for temp,
     constants and Return, a UDT's member opened there too (an array element there has boxes, as the report has drawn
     it). Setpoint without a setting: setpoint_default, never for a struct. A member inside a UDT
     instance or array that a DB start value names (Inner): ticked from the UDT's settings (an array element: the
@@ -642,7 +644,7 @@ def _boxes(m, safety=False):
     if m.section in NO_BOXES and not (isinstance(m, Inner) and m.name.endswith(']')):
         return ('',) * 4
     t = (m.type or '').strip()
-    if m.section == 'IN_OUT' and structured(t) and not isinstance(m, Inner):
+    if m.section == 'IN_OUT' and structured(t) and not isinstance(m, Inner) or getattr(m, 'under_in_out', False):
         return (_box(False, True),) * 4                  # empty in TIA, whatever the export sets
     sp = _setpoint(m)
     sp = not _no_sp(t) and (setpoint_default(t, m.section, safety) if sp is None else sp.lower() == 'true')

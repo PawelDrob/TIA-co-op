@@ -301,6 +301,7 @@ END_TYPE
 HW_RES = 'MultiLingualTexts:\n  - id: MLC_l\n    en-US: low level reached\n'
 PROBE = '''TYPE
     Probe : STRUCT
+        { S7_SetPoint := "True" }
         up : Bool;
         down : Int := 5;
     END_STRUCT;

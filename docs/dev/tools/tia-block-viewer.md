@@ -4,7 +4,7 @@ title: Block viewer internals
 description: How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click, and what its tests cover.
 tags: [dev, change-reports, plc]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T13:28:17-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T13:45:21-05:00 }
 ---
 
 # Block viewer internals
@@ -27,7 +27,7 @@ The title bar, the comment field and the text table are written in `view.py`: th
 
 **The project** (`view.project_root`): the nearest folder above the file with `plc`, `hmi` and `library`, a TiaBridge repo; else the nearest git repo's top; else the file's folder. The lookup lists that folder only when a call or type is asked for.
 
-**A UDT member's members:** the export lists them only where a DB's start values name them, which is all the report opens. The viewer reads the UDT's own file through `blk.callees`, nested UDTs and the UDT's structs too, each in its parent's section, as `iface.Inner` rows (the lighter grey of an opened member, its comment and default value from the UDT; in Temp and Return no default and no boxes, under an in-out empty boxes, as their parent). An array, an FB instance and a UDT the project lacks stay closed, with no arrow.
+**A UDT member's members:** the export lists them only where a DB's start values name them, which is all the report opens. The viewer reads the UDT's own file through `blk.callees`, nested UDTs and the UDT's structs too, each in its parent's section, as `iface.Inner` rows (the lighter grey of an opened member, its comment and default value from the UDT; in Temp and Return no default and no boxes, under an in-out every box empty, as their parent's). An array of a UDT, an array inside an opened UDT, an FB instance and a UDT the project lacks stay closed, with no arrow; an array of struct declared in the block opens onto its first element, as in the report.
 
 **A SimaticML export** is read in any case of its extension: `source.from_file` takes a lower-case `.xml` only, so `view.block_of` passes an upper-case one's text to the reader as SimaticML.
 
