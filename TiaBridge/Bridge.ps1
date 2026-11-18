@@ -7,7 +7,7 @@ function Initialize-BridgeContext([System.Collections.IDictionary]$Settings) {
     $script:Bridge = @{
         settings = $Settings
         portal = $null; project = $null; processId = 0     # Openness objects (Tia.ps1)
-        aliveFor = $null                                    # the project TIA answered for in this call (Test-TiaAlive)
+        aliveProject = $null                                    # the project TIA answered for in this call (Test-TiaAlive)
         software = $null                                    # cached device software list (Tia.ps1)
         reconnected = $null                                 # note for the next result after a lost connection
         projectName = $null; projectPath = $null; repo = $null
@@ -247,7 +247,7 @@ function Invoke-BridgeTool($Name, $Handler, $Arguments) {
 
 function Invoke-BridgeToolCall($Name, $Handler, $Arguments, [object[]]$Secrets) {
     $started = Get-Date
-    if ($script:Bridge) { $script:Bridge.aliveFor = $null }   # each call asks TIA anew (Test-TiaAliveInCall)
+    if ($script:Bridge) { $script:Bridge.aliveProject = $null }   # each call asks TIA anew (Test-TiaAliveInCall)
     $script:CommittedFacts = $null
     $refusal = Get-ReportRunToolRefusal $Name
     if (-not $refusal) { $refusal = Get-BackgroundRefusal $Name $Arguments }

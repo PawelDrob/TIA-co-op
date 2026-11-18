@@ -174,16 +174,27 @@ Describe 'full_export that ends TIA' {
         $r.note | Should Match 'does not answer'
     }
 
-    It 'stops at the part where TIA ended, though nothing failed before it' {
-        Register-ObjectKind 'fakequiet' @{
-            scope = 'project'; dir = 'project\quiet'; description = 'test kind whose TIA ends after its last object'
-            items = { param($root) @{ name = 'Q'; folder = ''; obj = [pscustomobject]@{ Name = 'Q' } } }
-            export = { param($e, $dir, $opt) $script:tiaGone = $true; @{ ok = $true; format = 'xml'; files = @() } }
-        }
-        try { $r = Invoke-FakeFullExport @(@{ name = 'quiet'; scope = 'project'; kind = 'fakequiet' }, $next) } finally { $script:tiaGone = $false }
+    Register-ObjectKind 'fakequiet' @{
+        scope = 'project'; dir = 'project\quiet'; description = 'test kind whose TIA ends after its last object'
+        items = { param($root) @{ name = 'Q'; folder = ''; obj = [pscustomobject]@{ Name = 'Q' } } }
+        export = { param($e, $dir, $opt) $script:tiaGone = $true; @{ ok = $true; format = 'xml'; files = @() } }
+    }
+    $quiet = @{ name = 'quiet'; scope = 'project'; kind = 'fakequiet' }
+
+    It 'stops at the part where TIA ended, though nothing in it failed' {
+        try { $r = Invoke-FakeFullExport @($quiet, $next) } finally { $script:tiaGone = $false }
         Assert-Ended $r
-        $r.note | Should Match 'TIA Portal ended at part next'
+        $r.note | Should Match 'TIA Portal ended at part quiet'
         $r.note | Should Match 'does not answer'
+    }
+
+    It 'stops at the last part too, and mirrors nothing' {
+        try { $r = Invoke-FakeFullExport @($next, $quiet) } finally { $script:tiaGone = $false }
+        $r.ok | Should Be $false
+        $r.tiaEnded | Should Be $true
+        $r.stopped | Should Match 'no folder was mirrored'
+        $r.note | Should Match 'TIA Portal ended at part quiet'
+        { Get-TiaProject } | Should Throw 'call connect'
     }
 
     It 'goes on after a plain failure while TIA answers' {

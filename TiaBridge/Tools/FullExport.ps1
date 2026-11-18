@@ -355,7 +355,14 @@ function Get-LeftOutReason($Item) {
 # process is still up (TIA ends it seconds later), or when TIA does not answer after it. Err: ConvertTo-BridgeError.
 function Set-PartStopped($Record, $Err) {
     if ($Err.tiaEnded) { $Record.stopped = $true; $Record.endedBy = $Err.type }
-    elseif (-not (Test-TiaAlive)) { $Record.stopped = $true; $Record.endedBy = 'it does not answer any more' }
+    else { $null = Stop-PartIfTiaGone $Record }
+}
+
+# The run stops at a part after which TIA does not answer. Returns whether it stopped.
+function Stop-PartIfTiaGone($Record) {
+    if (Test-TiaAlive) { return $false }
+    $Record.stopped = $true; $Record.endedBy = 'it does not answer any more'
+    $true
 }
 
 # The refusal of a device with several software items of a scope, or $null. Each item has its device's name (two CPUs of one
@@ -619,20 +626,19 @@ function Invoke-FullExportRun($a) {
         Write-BridgeProgress $pp
         [TiaBridgeTimes]::Exit($step)
         try {
-            # TIA is asked once before each part; the paths of its objects do not ask again (Test-TiaAliveInCall)
-            if (-not (Test-TiaAlive)) { $rec.stopped = $true; $rec.endedBy = 'it does not answer any more' }
-            else {
-                $rec.dir = Get-PartDir $p $j.device
-                $root = switch ($p.scope) { { $_ -in 'plc', 'hmi' } { $j.software } 'project' { $project } 'library' { $project.ProjectLibrary } }
-                if ($p.counter) {
-                    $step = [TiaBridgeTimes]::Enter('tia_list')
-                    try { $rec.count = @(& $p.counter $root).Count }
-                    finally { [TiaBridgeTimes]::Exit($step) }
-                    if ($rec.count) { $rec.leftOut = $p.leftOut } else { $rec.none = $true }
-                }
-                elseif ($p.kind) { Invoke-FullExportKindPart $p $root $j.device $rec $plan }
-                else { Invoke-FullExportFilePart $p $root $j.device $rec }
+            $rec.dir = Get-PartDir $p $j.device
+            $root = switch ($p.scope) { { $_ -in 'plc', 'hmi' } { $j.software } 'project' { $project } 'library' { $project.ProjectLibrary } }
+            if ($p.counter) {
+                $step = [TiaBridgeTimes]::Enter('tia_list')
+                try { $rec.count = @(& $p.counter $root).Count }
+                finally { [TiaBridgeTimes]::Exit($step) }
+                if ($rec.count) { $rec.leftOut = $p.leftOut } else { $rec.none = $true }
             }
+            elseif ($p.kind) { Invoke-FullExportKindPart $p $root $j.device $rec $plan }
+            else { Invoke-FullExportFilePart $p $root $j.device $rec }
+            # TIA is asked once a part, after it: the paths of its objects do not ask (Test-TiaAliveInCall), and a skipped
+            # object makes no call into TIA
+            if (-not $rec.stopped -and -not $rec.listError) { $null = Stop-PartIfTiaGone $rec }
         }
         catch {
             # the part's folder or objects could not be told: nothing of the part is mirrored
