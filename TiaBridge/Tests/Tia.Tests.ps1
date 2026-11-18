@@ -324,3 +324,66 @@ Describe 'Test-TiaAlive in the times of a full_export' {
         "$($t.once.steps.tia_alive.ms) $($t.once.steps.process_lookup.ms) $($t.tiaMs)" | Should Be '5 7 5'
     }
 }
+
+Describe 'Get-TiaProject asks TIA once in a call' {
+    function New-AliveProject {
+        $script:nameReads = 0; $script:lookups = 0
+        $project = New-Object psobject
+        $project | Add-Member ScriptProperty Name { $script:nameReads++; 'P' }
+        $script:Bridge = @{ projectPath = 'C:\P\P.ap20'; project = $project; processId = $PID; portal = $null; software = $null; background = $null; tiaEnded = $null }
+    }
+    Mock Get-Process { $script:lookups++; if ($script:processGone) { throw 'gone' }; New-Object psobject }
+
+    It 'looks for TIA''s process at the first path of a call, not at every path after it' {
+        New-AliveProject
+        foreach ($i in 1..4) { $null = Get-TiaProject }
+        "$script:nameReads $script:lookups" | Should Be '1 1'
+    }
+
+    It 'asks again once the connection was reset' {
+        New-AliveProject
+        $null = Get-TiaProject
+        $project = $script:Bridge.project
+        Reset-TiaConnection
+        $script:Bridge.project = $project; $script:Bridge.processId = $PID
+        $null = Get-TiaProject
+        $script:lookups | Should Be 2
+    }
+
+    It 'keeps a yes for the project it was asked for: another project bound in the call asks again' {
+        New-AliveProject
+        $null = Get-TiaProject
+        $script:Bridge.project = [pscustomobject]@{ Name = 'Other' }
+        (Get-TiaProject).Name | Should Be 'Other'
+        $script:lookups | Should Be 2
+    }
+
+    It 'gives no project once none is bound, though TIA answered before in the call' {
+        New-AliveProject
+        $script:Bridge.background = @{ processId = $PID }
+        $null = Get-TiaProject
+        $script:Bridge.project = $null
+        { Get-TiaProject } | Should Throw 'background_close'
+    }
+
+    It 'keeps no "no": after TIA did not answer, the next path asks again' {
+        New-AliveProject
+        $script:Bridge.background = @{ processId = $PID }
+        $script:processGone = $true
+        try { { Get-TiaProject } | Should Throw 'background_close' } finally { $script:processGone = $false }
+        $null = Get-TiaProject
+        $script:lookups | Should Be 2
+    }
+
+    It 'asks again after Test-TiaAlive found TIA gone, even after a yes before it in the call' {
+        New-AliveProject
+        $script:Bridge.background = @{ processId = $PID }
+        $null = Get-TiaProject
+        $script:processGone = $true
+        try {
+            Test-TiaAlive | Should Be $false
+            { Get-TiaProject } | Should Throw 'background_close'
+        }
+        finally { $script:processGone = $false }
+    }
+}

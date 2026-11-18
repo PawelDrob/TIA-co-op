@@ -566,16 +566,20 @@ Describe 'the record of full_export' {
         $r.exportedAllOf | Should Be 'PLC_1: the tag table Tags changed'
     }
 
-    It 'a run that stopped writes no record' {
-        Initialize-SkipTest 'stopped'
-        $f = Join-Path $script:repo '.tiabridge-export.json'
-        $before = [System.IO.File]::ReadAllText($f)
-        Step-Date $script:o.FC1
-        Mock Test-TiaAlive { $false }
-        $script:o.FC1 | Add-Member ScriptMethod ExportAsDocuments { param($d, $n) throw 'TIA ended' } -Force
-        $r = Invoke-FullExportTool $script:parts
-        $r.tiaEnded | Should Be $true
-        [System.IO.File]::ReadAllText($f) | Should Be $before
+    Context 'TIA ends at an object' {
+        It 'a run that stopped writes no record' {
+            Initialize-SkipTest 'stopped'
+            $f = Join-Path $script:repo '.tiabridge-export.json'
+            $before = [System.IO.File]::ReadAllText($f)
+            Step-Date $script:o.FC1
+            $script:fc1Ended = $false
+            Mock Test-TiaAlive { -not $script:fc1Ended }
+            $script:o.FC1 | Add-Member ScriptMethod ExportAsDocuments { param($d, $n) $script:fc1Ended = $true; throw 'TIA ended' } -Force
+            $r = Invoke-FullExportTool $script:parts
+            $r.tiaEnded | Should Be $true
+            $r.note | Should Match 'TIA Portal ended at part blocks'
+            [System.IO.File]::ReadAllText($f) | Should Be $before
+        }
     }
 
     It 'is ignored by git in a new repo' {

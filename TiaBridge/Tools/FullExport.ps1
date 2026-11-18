@@ -619,16 +619,20 @@ function Invoke-FullExportRun($a) {
         Write-BridgeProgress $pp
         [TiaBridgeTimes]::Exit($step)
         try {
-            $rec.dir = Get-PartDir $p $j.device
-            $root = switch ($p.scope) { { $_ -in 'plc', 'hmi' } { $j.software } 'project' { $project } 'library' { $project.ProjectLibrary } }
-            if ($p.counter) {
-                $step = [TiaBridgeTimes]::Enter('tia_list')
-                try { $rec.count = @(& $p.counter $root).Count }
-                finally { [TiaBridgeTimes]::Exit($step) }
-                if ($rec.count) { $rec.leftOut = $p.leftOut } else { $rec.none = $true }
+            # TIA is asked once before each part; the paths of its objects do not ask again (Test-TiaAliveInCall)
+            if (-not (Test-TiaAlive)) { $rec.stopped = $true; $rec.endedBy = 'it does not answer any more' }
+            else {
+                $rec.dir = Get-PartDir $p $j.device
+                $root = switch ($p.scope) { { $_ -in 'plc', 'hmi' } { $j.software } 'project' { $project } 'library' { $project.ProjectLibrary } }
+                if ($p.counter) {
+                    $step = [TiaBridgeTimes]::Enter('tia_list')
+                    try { $rec.count = @(& $p.counter $root).Count }
+                    finally { [TiaBridgeTimes]::Exit($step) }
+                    if ($rec.count) { $rec.leftOut = $p.leftOut } else { $rec.none = $true }
+                }
+                elseif ($p.kind) { Invoke-FullExportKindPart $p $root $j.device $rec $plan }
+                else { Invoke-FullExportFilePart $p $root $j.device $rec }
             }
-            elseif ($p.kind) { Invoke-FullExportKindPart $p $root $j.device $rec $plan }
-            else { Invoke-FullExportFilePart $p $root $j.device $rec }
         }
         catch {
             # the part's folder or objects could not be told: nothing of the part is mirrored

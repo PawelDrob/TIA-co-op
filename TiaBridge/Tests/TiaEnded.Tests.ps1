@@ -174,6 +174,18 @@ Describe 'full_export that ends TIA' {
         $r.note | Should Match 'does not answer'
     }
 
+    It 'stops at the part where TIA ended, though nothing failed before it' {
+        Register-ObjectKind 'fakequiet' @{
+            scope = 'project'; dir = 'project\quiet'; description = 'test kind whose TIA ends after its last object'
+            items = { param($root) @{ name = 'Q'; folder = ''; obj = [pscustomobject]@{ Name = 'Q' } } }
+            export = { param($e, $dir, $opt) $script:tiaGone = $true; @{ ok = $true; format = 'xml'; files = @() } }
+        }
+        try { $r = Invoke-FakeFullExport @(@{ name = 'quiet'; scope = 'project'; kind = 'fakequiet' }, $next) } finally { $script:tiaGone = $false }
+        Assert-Ended $r
+        $r.note | Should Match 'TIA Portal ended at part next'
+        $r.note | Should Match 'does not answer'
+    }
+
     It 'goes on after a plain failure while TIA answers' {
         $script:listFailure = [System.InvalidOperationException]::new('no list')
         $r = Invoke-FakeFullExport @(@{ name = 'listed'; scope = 'project'; kind = 'fakelist' }, $next)

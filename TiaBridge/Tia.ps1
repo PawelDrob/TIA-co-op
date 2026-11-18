@@ -261,9 +261,14 @@ function Get-TiaProcesses {
 function Reset-TiaConnection {
     if ($script:Bridge.portal) { try { $script:Bridge.portal.Dispose() } catch { } }   # detaches; TIA stays open
     $script:Bridge.portal = $null; $script:Bridge.project = $null; $script:Bridge.processId = 0; $script:Bridge.software = $null
+    $script:Bridge.aliveFor = $null
 }
 
+# Asks TIA whether it is alive. A yes holds for Get-TiaProject (aliveFor, the project it was for) until the next tool call
+# (Invoke-BridgeToolCall), the next part of a full_export, the next ask or another project bound; a no is never kept.
+# Where the answer changes what the bridge does (before a part, after a failure, after a call threw), call this.
 function Test-TiaAlive {
+    $script:Bridge.aliveFor = $null
     if (-not $script:Bridge.project) { return $false }
     # a project closed under the bridge reads an empty name, with no exception (2026-11-04). Timed apart: the name is a call
     # into TIA, the process looked up is the bridge's own (3.3 ms a call in a full_export of the benchmark project, 2026-11-18).
@@ -272,10 +277,17 @@ function Test-TiaAlive {
         $name = $script:Bridge.project.Name
         [TiaBridgeTimes]::Exit($step); $step = [TiaBridgeTimes]::Enter('process_lookup')
         $null = Get-Process -Id $script:Bridge.processId -ErrorAction Stop
-        [bool]$name
+        if ($name) { $script:Bridge.aliveFor = $script:Bridge.project }
     }
-    catch { $false }
+    catch { }
     finally { [TiaBridgeTimes]::Exit($step) }
+    $null -ne $script:Bridge.aliveFor
+}
+
+# Alive, asked of TIA once in a call: every path of an object comes through Get-TiaProject.
+function Test-TiaAliveInCall {
+    if ($script:Bridge.project -and [object]::ReferenceEquals($script:Bridge.aliveFor, $script:Bridge.project)) { return $true }
+    Test-TiaAlive
 }
 
 # The project at Path in an attached TIA. No other project stands in for it: writes would go to the wrong one. Detaches
@@ -305,12 +317,12 @@ function Get-TiaProject {
     if (-not $script:Bridge.projectPath) { throw 'Not connected to a project: call connect first.' }
     # the TIA of a background session is the bridge's own: nothing to reconnect to when it is gone
     if ($script:Bridge.background) {
-        if (Test-TiaAlive) { return $script:Bridge.project }
+        if (Test-TiaAliveInCall) { return $script:Bridge.project }
         throw "The background TIA Portal (process $($script:Bridge.background.processId)) ended or dropped the connection. Call background_close, then background_open again."
     }
     # no reconnect after TIA ended (Set-TiaEnded): it would attach to the process that is still ending
     if ($script:Bridge.tiaEnded) { throw $script:Bridge.tiaEnded }
-    if (-not (Test-TiaAlive)) {
+    if (-not (Test-TiaAliveInCall)) {
         $wasAttached = [bool]$script:Bridge.project
         Reset-TiaConnection
         Import-Openness $script:Bridge.settings.tiaRoot

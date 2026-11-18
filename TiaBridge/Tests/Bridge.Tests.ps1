@@ -125,3 +125,17 @@ Describe 'Invoke-OnStaThread' {
         { Invoke-OnStaThread { throw 'from the block' } } | Should Throw 'from the block'
     }
 }
+
+Describe 'Invoke-BridgeTool and the alive check of Get-TiaProject' {
+    It 'asks TIA anew at the first path of each tool call' {
+        Initialize-BridgeContext @{ projectsRoot = (Join-Path $TestDrive 'projects'); maxResponseChars = 20000 }
+        $script:Bridge.projectPath = 'C:\P\P.ap20'; $script:Bridge.processId = $PID
+        $script:Bridge.project = [pscustomobject]@{ Name = 'P' }
+        $script:lookups = 0
+        Mock Get-Process { $script:lookups++; New-Object psobject }
+        $handler = { param($a) $null = Get-TiaProject; $null = Get-TiaProject; @{ ok = $true } }
+        $null = Invoke-BridgeTool 'list' $handler (New-Object psobject)
+        $null = Invoke-BridgeTool 'list' $handler (New-Object psobject)
+        $script:lookups | Should Be 2
+    }
+}
