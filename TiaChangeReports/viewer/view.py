@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 from TiaChangeReports import iface
 from TiaChangeReports.compare import BlockDiff, Callees
-from TiaChangeReports.page import CSS, JS, _lad_pane, version_html
+from TiaChangeReports.page import CSS, FOLD_ALL, JS, _lad_pane, folds, version_html
 from TiaChangeReports.render_lad import Layout
 from TiaChangeReports.s7dcl import parse_block, scl_lines
 from TiaChangeReports.source import REPO_MARKS, FolderSnapshot, from_file, name_of
@@ -98,11 +98,12 @@ def heading(blk):
 
 
 def block_html(blk, src, rel):
-    """The block drawn: header, properties, interface, every network."""
+    """The block drawn: header, properties, interface, every network. The report's Collapse all and Expand all when
+    something folds."""
     itf = iface.html(blk, blk, whole=True)
-    parts = ['<div class="bh"><b>%s</b>%s<span class="paths">%s</span></div>'
-             % (escape(heading(blk)), version_html(src.version, src.version),
-                escape(rel)),
+    parts = ['<div class="bh"><b>%s</b>%s<span class="paths">%s</span>%s</div>'
+             % (escape(heading(blk)), version_html(src.version, src.version), escape(rel),
+                FOLD_ALL if blk.networks or folds(itf) else ''),
              _props_html(blk)]
     if itf:
         parts.append('<div class="nw itfw"><div class="nwh"><b>Interface</b><span class="tag">DECLARATION</span></div>'
@@ -175,7 +176,8 @@ main{padding:0 16px 40px}
 """
 
 # The switch: Drawing / Source, by its buttons or D and S. A file opens on its drawing, one that cannot be drawn on its
-# source; the source shown is #source in the address, so that a reload keeps it.
+# source; the source shown is #source in the address, so that a reload keeps it. C and E press Collapse all and Expand
+# all while the drawing shows, as in the report.
 SWITCH_JS = """
 (function(){var bs=document.querySelectorAll('.vbar .sw button'),vs={};
 document.querySelectorAll('.view').forEach(function(v){vs[v.getAttribute('data-view')]=v});
@@ -183,8 +185,11 @@ function show(k,keep){if(!vs[k]||document.querySelector('.vbar .sw button[data-v
  bs.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view')==k?'true':'false')});
  for(var x in vs)vs[x].hidden=x!=k;if(keep)history.replaceState(null,'',k=='source'?'#source':location.pathname)}
 bs.forEach(function(b){b.onclick=function(){show(b.getAttribute('data-view'),true)}});
+var fa=document.querySelectorAll('.view[data-view=drawing] .bh .fa button');
+fa.forEach(function(b,k){b.title+=k?' (E)':' (C)'});
 document.addEventListener('keydown',function(e){if(e.ctrlKey||e.altKey||e.metaKey||/^(INPUT|TEXTAREA)$/.test(e.target.tagName))return;
- var k={d:'drawing',s:'source'}[e.key.toLowerCase()];if(k){e.preventDefault();show(k,true)}});
+ var c=e.key.toLowerCase(),k={d:'drawing',s:'source'}[c],f={c:0,e:1}[c];if(k){e.preventDefault();show(k,true)}
+ else if(f!==undefined&&fa[f]&&!vs.drawing.hidden){e.preventDefault();fa[f].click()}});
 if(location.hash=='#source')show('source',false)})();
 """
 

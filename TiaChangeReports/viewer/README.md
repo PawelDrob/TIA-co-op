@@ -8,7 +8,7 @@ Opens one PLC block export in your default browser, drawn as the [change report]
 
 - Draws one `.s7dcl` file: its properties, its interface and every network, LAD as TIA draws it, SCL as text. The
   drawing is the change report's own, so the two always look the same. A network, and an interface member with
-  members, folds on a click.
+  members, folds on a click; Collapse all and Expand all (or the keys C and E) fold or open them all.
 - Reads the titles and comments from the `.s7res` beside the file, and a call's pins and the types it uses from the
   other exports of the project the file is in (the folder that holds `plc`, `hmi` and `library`, else the git repo,
   else the file's own folder).

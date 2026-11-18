@@ -275,20 +275,23 @@ r.querySelectorAll('.nw').forEach(function(n){
  n.addEventListener('ldiffzoom',function(){minimaps(n)})});
 r.querySelectorAll('section.blk').forEach(function(s){var f=s.querySelector('.bh .fa');if(!f)return;
  f.querySelectorAll('button').forEach(function(b,k){b.onclick=function(){s.querySelectorAll('.nw').forEach(function(n){
-  if(n.querySelector('.nwt'))n.classList.toggle('fold',!k)})}})});
+  if(n.querySelector('.nwt'))n.classList.toggle('fold',!k)});
+  s.querySelectorAll('table.itf').forEach(function(t){if(t.ldiffFold)t.ldiffFold(!k)})}})});
 })();
 """
 
 # A member with members folds and opens in the interface table, as a network does: a click on its name cell (iface.py:
-# its level in data-d). Everything opens at first. A row under a fold is hidden (fz) whatever else shows or hides it
-# (ctx, skip). A fold that hides a changed row (ins, del, chg, mov) says "holds a change" (hc), decided from the rows it
-# hides, wherever the diff placed them, so a fold never hides that a change is there; the change itself shows again
-# when it opens. An "unchanged members" row (skip, its data-d the shallowest level of the rows it stands for) ends no
-# fold: it hides with a fold only when all of its rows are under it. Folded rows stay folded in print, as networks do.
+# its level in data-d). Everything opens at first. A row under a fold is hidden (mf-hid) whatever else shows or hides it
+# (ctx, skip). A fold that hides a changed row (ins, del, chg, mov) says "holds a change" (mf-holds), decided from
+# the rows it hides, wherever the diff placed them, so a fold never hides that a change is there; the change itself
+# shows again when it opens. An "unchanged members" row (skip, its data-d the shallowest level of the rows it stands
+# for) ends no fold: it hides with a fold only when all of its rows are under it. Folded rows stay folded in print, as
+# networks do. Its classes (mf-...) are its own: the HMI part styles .hc and .shut (hmi.css). The block's Collapse all
+# and Expand all (and so the keys C and E) fold or open every member with members (t.ldiffFold), with the networks.
 CSS += """
-.ldiff table.itf tr.fz{display:none!important}
-.ldiff table.itf tr.pa td.nm{cursor:pointer}
-.ldiff table.itf tr.shut.hc td.nm::after{content:'holds a change';margin-left:8px;padding:0 5px;font-size:11px;
+.ldiff table.itf tr.mf-hid{display:none!important}
+.ldiff table.itf tr.mf-pa td.nm{cursor:pointer}
+.ldiff table.itf tr.mf-shut.mf-holds td.nm::after{content:'holds a change';margin-left:8px;padding:0 5px;font-size:11px;
   background:var(--chg-bg);border:1px solid var(--chg);white-space:nowrap}
 """
 JS += """
@@ -297,19 +300,21 @@ var CHANGED=/(^|\\s)(ins|del|chg|mov)(\\s|$)/;
 function lvl(x){var c=x.cells[0];return c&&c.hasAttribute('data-d')?+c.getAttribute('data-d'):-1}
 function skip(x){return x.classList.contains('skip')}
 function lay(t){var rows=[].slice.call(t.rows),shut=[];
- rows.forEach(function(x,k){var v=lvl(x),n=k+1,w;x.classList.remove('hc');
+ rows.forEach(function(x,k){var v=lvl(x),n=k+1,w;x.classList.remove('mf-holds');
   if(v<0){shut=[];return}
-  if(skip(x)){x.classList.toggle('fz',shut.length>0&&v>shut[0].v);return}
+  if(skip(x)){x.classList.toggle('mf-hid',shut.length>0&&v>shut[0].v);return}
   while(shut.length&&shut[shut.length-1].v>=v)shut.pop();
-  x.classList.toggle('fz',shut.length>0);
-  if(shut.length&&CHANGED.test(x.className))shut.forEach(function(s){s.x.classList.add('hc')});
+  x.classList.toggle('mf-hid',shut.length>0);
+  if(shut.length&&CHANGED.test(x.className))shut.forEach(function(s){s.x.classList.add('mf-holds')});
   while(n<rows.length&&skip(rows[n]))n++;
-  x.classList.toggle('pa',n<rows.length&&lvl(rows[n])>v);if(!x.classList.contains('pa'))return;
-  w=x.cells[0].querySelector('.tw');if(w)w.textContent=x.classList.contains('shut')?'\\u25b6':'\\u25bc';
-  if(x.classList.contains('shut'))shut.push({v:v,x:x})})}
-r.querySelectorAll('table.itf').forEach(function(t){lay(t);t.addEventListener('click',function(e){
- var c=e.target.closest('td.nm'),x=c&&c.parentNode;if(!x||!x.classList.contains('pa')||String(getSelection()))return;
- x.classList.toggle('shut');lay(t)})})})();
+  x.classList.toggle('mf-pa',n<rows.length&&lvl(rows[n])>v);if(!x.classList.contains('mf-pa'))return;
+  w=x.cells[0].querySelector('.tw');if(w)w.textContent=x.classList.contains('mf-shut')?'\\u25b6':'\\u25bc';
+  if(x.classList.contains('mf-shut'))shut.push({v:v,x:x})})}
+r.querySelectorAll('table.itf').forEach(function(t){lay(t);
+ t.ldiffFold=function(shut){[].forEach.call(t.rows,function(x){x.classList.toggle('mf-shut',shut&&x.classList.contains('mf-pa'))});lay(t)};
+ t.addEventListener('click',function(e){
+ var c=e.target.closest('td.nm'),x=c&&c.parentNode;if(!x||!x.classList.contains('mf-pa')||String(getSelection()))return;
+ x.classList.toggle('mf-shut');lay(t)})})})();
 """
 
 # Back to the top: bottom right, shown once the report's top is half a window above the view and the
@@ -563,10 +568,16 @@ STATE_TEXT = {'version': 'version only'}
 NOT_SHOWN = 'the file differs in something this report does not show'
 NET_NOT_SHOWN = 'differs in something this report does not show'
 
-# Collapse all / expand all: fold or unfold every network of the block, as a click on each title bar;
-# in the block header, before the page's previous / next.
-FOLD_ALL = ('<span class="fa"><button type="button" title="Collapse every network of this block">Collapse all</button>'
-            '<button type="button" title="Expand every network of this block">Expand all</button></span>')
+# Collapse all / expand all: fold or unfold every network of the block, as a click on each title bar, and every
+# interface member with members; in the block header, before the page's previous / next. A block with neither has none.
+FOLD_ALL = ('<span class="fa"><button type="button" title="Collapse every network and interface member of this block">'
+            'Collapse all</button><button type="button" title="Expand every network and interface member of this block">'
+            'Expand all</button></span>')
+
+
+def folds(itf_html):
+    """Whether an interface table drawn holds a member with members: a row below the top level (iface.html, data-d)."""
+    return bool(re.search(r'data-d="[2-9]', itf_html or ''))
 
 
 def block_keys(diffs):
@@ -597,6 +608,7 @@ def block_html(d, full=False, key=None, draw_added_removed=True):
     from . import iface
     b = d.block
     head_only = listed(d, full, draw_added_removed)
+    itf = iface.html(d.before, d.after) if d.itf_changed and not head_only else ''
     head = ('<div class="bh" id="blk-%s"><b>%s [%s%s]</b>%s%s<span class="paths">%s</span>%s</div>'
             % (escape(key or b.name), escape(d.name), escape(d.kind), escape(b.props.get('S7_BlockNumber') or ''),
                version_html(d.ver_b, d.ver_a) + library_html(d),
@@ -604,7 +616,7 @@ def block_html(d, full=False, key=None, draw_added_removed=True):
                 if d.not_shown else '') +
                ('' if d.state == 'changed' else '<span class="st %s">%s</span>' % (d.state, STATE_TEXT.get(d.state, d.state))),
                escape((d.path_b or '') if d.path_b == d.path_a else '%s → %s' % (d.path_b or '–', d.path_a or '–')),
-               '' if head_only or not d.nets else FOLD_ALL))
+               '' if head_only or not (d.nets or folds(itf)) else FOLD_ALL))
     if head_only:
         return '<section class="blk%s">%s</section>' % (' mvd' if d.state == 'moved' else '', head)
     parts = [head]
@@ -619,7 +631,7 @@ def block_html(d, full=False, key=None, draw_added_removed=True):
                      % iface.declaration_html(*d.declaration))
     if d.itf_changed:                                      # also of a new or deleted block drawn: as the list says
         parts.append('<div class="nw itfw"><div class="nwh"><b>Interface</b><span class="tag">%s</span></div>%s</div>'
-                     % ('DECLARATION', iface.html(d.before, d.after)))
+                     % ('DECLARATION', itf))
     parts += [network_html(p, d.before or d.after, d.after or d.before) for p in d.nets]
     return '<section class="blk">%s</section>' % ''.join(parts)
 
