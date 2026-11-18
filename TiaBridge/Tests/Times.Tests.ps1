@@ -6,21 +6,21 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # A clock the test moves: Ms on from where it stands.
 function Start-TestTimes {
+    [TiaBridgeTimes]::TestTicks = 0
     Start-ExportTimes
-    $script:ExportTimes.clock = [pscustomobject]@{ ElapsedTicks = [long]0 }
 }
-function Step-TestClock([double]$Ms) { $script:ExportTimes.clock.ElapsedTicks += [long]($Ms * [System.Diagnostics.Stopwatch]::Frequency / 1000) }
+function Step-TestClock([double]$Ms) { [TiaBridgeTimes]::TestTicks += [long]($Ms * [System.Diagnostics.Stopwatch]::Frequency / 1000) }
 
 Describe 'Enter-ExportStep and Exit-ExportStep' {
     It 'gives each tick to the step that runs; a step inside another stops the outer one' {
         Start-TestTimes
         Enter-PartTimes 'blocks' 'PLC_1'
         Step-TestClock 1                                  # other
-        $w = Enter-ExportStep 'move'; Step-TestClock 2
-        $c = Enter-ExportStep 'compare'; Step-TestClock 5; Exit-ExportStep $c
-        Step-TestClock 3; Exit-ExportStep $w
-        $x = Enter-ExportStep 'tia_export_s7dcl'; Step-TestClock 50; Exit-ExportStep $x
-        $x = Enter-ExportStep 'tia_export_s7dcl'; Step-TestClock 10; Exit-ExportStep $x
+        $w = [TiaBridgeTimes]::Enter('move'); Step-TestClock 2
+        $c = [TiaBridgeTimes]::Enter('compare'); Step-TestClock 5; [TiaBridgeTimes]::Exit($c)
+        Step-TestClock 3; [TiaBridgeTimes]::Exit($w)
+        $x = [TiaBridgeTimes]::Enter('tia_export_s7dcl'); Step-TestClock 50; [TiaBridgeTimes]::Exit($x)
+        $x = [TiaBridgeTimes]::Enter('tia_export_s7dcl'); Step-TestClock 10; [TiaBridgeTimes]::Exit($x)
         Step-TestClock 4                                  # other
         Exit-PartTimes 75
         $r = Stop-ExportTimes
@@ -40,20 +40,22 @@ Describe 'Enter-ExportStep and Exit-ExportStep' {
     It 'counts the export after a refused one apart, as tia_export_retry' {
         Start-TestTimes
         Enter-PartTimes 'blocks'
-        $x = Enter-ExportStep 'tia_export_s7dcl'; Step-TestClock 7; Exit-ExportStep $x
+        $x = [TiaBridgeTimes]::Enter('tia_export_s7dcl'); Step-TestClock 7; [TiaBridgeTimes]::Exit($x)
         Enter-ExportRetry
-        try { $x = Enter-ExportStep 'tia_export_xml'; Step-TestClock 9; Exit-ExportStep $x }
+        try { $x = [TiaBridgeTimes]::Enter('tia_export_xml'); Step-TestClock 9; [TiaBridgeTimes]::Exit($x) }
         finally { Exit-ExportRetry }
-        $x = Enter-ExportStep 'tia_export_xml'; Step-TestClock 2; Exit-ExportStep $x
+        $x = [TiaBridgeTimes]::Enter('tia_export_xml'); Step-TestClock 2; [TiaBridgeTimes]::Exit($x)
         Exit-PartTimes 18
         $p = (Stop-ExportTimes).parts[0]
         "$($p.steps.tia_export_s7dcl.ms) $($p.steps.tia_export_retry.ms) $($p.steps.tia_export_xml.ms)" | Should Be '7 9 2'
     }
 
     It 'measures nothing outside a full_export' {
-        $script:ExportTimes = $null
-        Enter-ExportStep 'move' | Should Be $null
-        Exit-ExportStep 'other'
+        Stop-ExportTimesClock
+        $changes = [TiaBridgeTimes]::Changes
+        [TiaBridgeTimes]::Enter('move') | Should Be $null
+        [TiaBridgeTimes]::Exit('other')
+        [TiaBridgeTimes]::Changes | Should Be $changes
         Enter-PartTimes 'blocks'; Exit-PartTimes 1
         Get-ObjectTimeMark | Should Be $null
         Add-ObjectTime $null 'A' '' @()
@@ -66,12 +68,12 @@ Describe 'Stop-ExportTimes' {
         Start-TestTimes
         Step-TestClock 3                                  # once: other
         Enter-PartTimes 'plan'
-        $x = Enter-ExportStep 'tia_state'; Step-TestClock 20; Exit-ExportStep $x
+        $x = [TiaBridgeTimes]::Enter('tia_state'); Step-TestClock 20; [TiaBridgeTimes]::Exit($x)
         Step-TestClock 1
         Exit-PartTimes -Plan
         Enter-PartTimes 'blocks'; Step-TestClock 30; Exit-PartTimes 30
-        $x = Enter-ExportStep 'mirror'; Step-TestClock 4
-        $g = Enter-ExportStep 'git'; Step-TestClock 6; Exit-ExportStep $g; Exit-ExportStep $x
+        $x = [TiaBridgeTimes]::Enter('mirror'); Step-TestClock 4
+        $g = [TiaBridgeTimes]::Enter('git'); Step-TestClock 6; [TiaBridgeTimes]::Exit($g); [TiaBridgeTimes]::Exit($x)
         $r = Stop-ExportTimes
         "$($r.ms) $($r.tiaMs)" | Should Be '64 20'
         "$($r.plan.ms) $($r.plan.tiaMs) $($r.plan.steps.tia_state.ms) $($r.plan.steps.other.ms)" | Should Be '21 20 20 1'
@@ -79,6 +81,7 @@ Describe 'Stop-ExportTimes' {
         $r.once.ms + $r.plan.ms + $r.parts[0].ms | Should Be $r.ms
         $r.stepChanges | Should BeGreaterThan 0
         $script:ExportTimes | Should Be $null
+        [TiaBridgeTimes]::On | Should Be $false
     }
 
     It 'ends a part still open with the span of its steps' {
@@ -100,7 +103,7 @@ Describe 'the slowest objects of a part' {
         Enter-PartTimes 'blocks'
         foreach ($i in 1..12) {
             $m = Get-ObjectTimeMark
-            $x = Enter-ExportStep 'tia_export_s7dcl'; Step-TestClock $i; Exit-ExportStep $x
+            $x = [TiaBridgeTimes]::Enter('tia_export_s7dcl'); Step-TestClock $i; [TiaBridgeTimes]::Exit($x)
             Step-TestClock 1
             Add-ObjectTime $m "B$i" 'F' @("plc\blocks\B$i.s7dcl", "plc\blocks\B$i.s7res")
         }

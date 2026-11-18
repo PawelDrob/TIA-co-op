@@ -47,42 +47,42 @@ function Get-PlcExportOptions([bool]$Full) {
 # Export of one block or type: format chosen by the guard (OBs and know-how protected blocks as SimaticML).
 function Export-PlcObject($Entry, [string]$Dir, $Options, [bool]$IsBlock) {
     $obj = $Entry.obj
-    $step = Enter-ExportStep 'tia_properties'
+    $step = [TiaBridgeTimes]::Enter('tia_properties')
     try {
         $isOb = $IsBlock -and (Get-PlcBlockClass $obj) -eq 'OB'
         $format = Select-BlockExportFormat -IsOb $isOb -IsKnowHowProtected ([bool]$obj.IsKnowHowProtected) -Requested ([string]$Options.format)
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     $base = ConvertTo-SafeFileName $Entry.name
     # every export goes into a fresh folder first: the previous files are replaced only by a successful export
     # (a refused SD export, e.g. without SimaticSdEnabler, must not delete the last good one)
     $partial = New-ExportWorkPath (Join-Path $Dir $base)
-    $step = Enter-ExportStep 'work_folder'
+    $step = [TiaBridgeTimes]::Enter('work_folder')
     try {
         New-Item -ItemType Directory -Force -Path $Dir | Out-Null
         New-Item -ItemType Directory -Force -Path $partial | Out-Null
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     try {
         if ($format -eq 's7dcl') {
-            $step = Enter-ExportStep 'tia_export_s7dcl'
+            $step = [TiaBridgeTimes]::Enter('tia_export_s7dcl')
             try { $res = $obj.ExportAsDocuments([System.IO.DirectoryInfo]::new($partial), $base) }
-            finally { Exit-ExportStep $step }
-            $step = Enter-ExportStep 'result'
+            finally { [TiaBridgeTimes]::Exit($step) }
+            $step = [TiaBridgeTimes]::Enter('result')
             try { $tree = ConvertTo-ResultTree $res }
-            finally { Exit-ExportStep $step }
+            finally { [TiaBridgeTimes]::Exit($step) }
             $exts = @('.s7dcl', '.s7res')
             $ok = $tree.state -eq 'Success'
         } else {
             $xmlOptions = Get-PlcExportOptions ([bool]$Options.full)
-            $step = Enter-ExportStep 'tia_export_xml'
+            $step = [TiaBridgeTimes]::Enter('tia_export_xml')
             try { $obj.Export([System.IO.FileInfo]::new((Join-Path $partial "$base.xml")), $xmlOptions) }
-            finally { Exit-ExportStep $step }
+            finally { [TiaBridgeTimes]::Exit($step) }
             $tree = $null; $exts = @('.xml'); $ok = $true
         }
         $paths = @(); $removed = @(); $notes = @()
         if ($ok) {
-            $step = Enter-ExportStep 'move'
+            $step = [TiaBridgeTimes]::Enter('move')
             try {
                 foreach ($x in $exts) {
                     $f = Join-Path $Dir "$base$x"
@@ -90,12 +90,12 @@ function Export-PlcObject($Entry, [string]$Dir, $Options, [bool]$IsBlock) {
                     if (Test-Path -LiteralPath $p) { Move-ExportIntoPlace $p $f; $paths += $f }
                 }
             }
-            finally { Exit-ExportStep $step }
+            finally { [TiaBridgeTimes]::Exit($step) }
             # the block's export in the other format, or an .s7res the new export no longer writes, no longer matches
             # the project (seen on a real project: SimaticML of refused SD exports beside the later .s7dcl); removed only once the new
             # export is in place, and listed so the removal goes into the project repo's next commit
             if ($paths -contains (Join-Path $Dir "$base$($exts[0])")) {
-                $step = Enter-ExportStep 'remove'
+                $step = [TiaBridgeTimes]::Enter('remove')
                 try {
                     foreach ($x in @('.s7dcl', '.s7res', '.xml')) {
                         $f = Join-Path $Dir "$base$x"
@@ -104,14 +104,14 @@ function Export-PlcObject($Entry, [string]$Dir, $Options, [bool]$IsBlock) {
                         catch { $notes += "The old export $f could not be removed (another process holds it open?); remove it by hand: $($_.Exception.Message)" }
                     }
                 }
-                finally { Exit-ExportStep $step }
+                finally { [TiaBridgeTimes]::Exit($step) }
             }
         }
     }
     finally {
-        $step = Enter-ExportStep 'work_folder'
+        $step = [TiaBridgeTimes]::Enter('work_folder')
         Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue
-        Exit-ExportStep $step
+        [TiaBridgeTimes]::Exit($step)
     }
     $r = @{ ok = $ok; format = $format; files = $paths }
     if ($removed.Count) { $r.removed = $removed }

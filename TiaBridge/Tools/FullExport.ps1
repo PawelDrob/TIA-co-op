@@ -60,18 +60,18 @@ function Assert-ExportResult($Result, [string]$What) {
 }
 
 function Get-RequiredService($Obj, [type]$Type) {
-    $step = Enter-ExportStep 'tia_properties'
+    $step = [TiaBridgeTimes]::Enter('tia_properties')
     try { $s = Get-TiaService $Obj $Type }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     if (-not $s) { throw "$($Type.Name) is not offered here." }
     $s
 }
 
 # One export call of a file part into TIA (Export): its result, timed as tia_export_file.
 function Invoke-TiaFileExport([scriptblock]$Export) {
-    $step = Enter-ExportStep 'tia_export_file'
+    $step = [TiaBridgeTimes]::Enter('tia_export_file')
     try { & $Export }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # PLC alarm text lists and alarm instance texts as .xlsx: the only file format Openness V20 offers for them
@@ -159,9 +159,9 @@ function Export-DiagnosticsSettings($Project, [string]$Dir) {
 function Export-MasterCopyIndex($Library, [string]$Dir) {
     $k = Get-ObjectKind 'master_copy'
     $list = @(foreach ($e in Get-KindItems $k $Library) {
-        $step = Enter-ExportStep 'tia_properties'
+        $step = [TiaBridgeTimes]::Enter('tia_properties')
         try { $i = & $k.info $e }
-        finally { Exit-ExportStep $step }
+        finally { [TiaBridgeTimes]::Exit($step) }
         [ordered]@{ folder = $e.folder; name = $e.name; author = $i.author; created = $i.created; content = @($i.content) }
     })
     if (-not $list.Count) { return @{ none = $true } }
@@ -283,9 +283,9 @@ function Get-MirrorRemovals([string]$Dir, [string[]]$Written, [string[]]$Kept) {
 # Invoke-GitRaw: its pipe decodes git's UTF-8 with the console code page, a non-ASCII name would not be found and its
 # file removed. -z: names as they are, not quoted; --no-renames: one name per entry.
 function Get-GitUncommittedFiles([string]$Repo) {
-    $step = Enter-ExportStep 'git'
+    $step = [TiaBridgeTimes]::Enter('git')
     try { Read-GitUncommittedFiles $Repo }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 function Read-GitUncommittedFiles([string]$Repo) {
@@ -390,7 +390,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
             $o = if ($dp) { $dp.objects["$($k.name)|$($e.name)"] }
             # an object sharing its file with another is never skipped; it cannot be reached either, as both failed last time
             if ($o -and -not $o.export -and -not $collisions[(Get-ExportBase $k $e '' $Device)]) {
-                $step = Enter-ExportStep 'record'
+                $step = [TiaBridgeTimes]::Enter('record')
                 try {
                     $o.recorded = $o.old
                     $Record.skipped++
@@ -398,7 +398,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
                     foreach ($f in $kept) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) }
                     if ($k.name -eq 'block' -and (Get-StateValue $o.state 'IsKnowHowProtected') -eq 'True') { [void]$Record.knowHowProtected.Add($e.name) }
                 }
-                finally { Exit-ExportStep $step }
+                finally { [TiaBridgeTimes]::Exit($step) }
                 $n++
                 Write-ObjectProgress $k.name $n $entries.Count @{ name = $e.name; ok = $true } -Part $Part.name -Device $Device -Skipped
                 continue
@@ -421,9 +421,9 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
                 foreach ($f in $item.removed) { if ($f) { [void]$Record.removed.Add($f) } }
                 if ($item.fellBack) { [void]$Record.fellBack.Add([ordered]@{ name = $item.name; folder = $item.folder; note = $item.fellBack }) }
                 if ($k.name -eq 'block') {
-                    $step = Enter-ExportStep 'tia_properties'
+                    $step = [TiaBridgeTimes]::Enter('tia_properties')
                     try { $khp = $e.obj.IsKnowHowProtected }
-                    finally { Exit-ExportStep $step }
+                    finally { [TiaBridgeTimes]::Exit($step) }
                     if ($khp) { [void]$Record.knowHowProtected.Add($item.name) }
                 }
             } else {
@@ -460,15 +460,15 @@ function Invoke-FullExportFilePart($Part, $Root, [string]$Device, $Record) {
     if ($Record.listError) { return }
     $dir = Join-Path $script:Bridge.repo (Get-PartDir $Part $Device)
     $partial = "$dir.partial"
-    $step = Enter-ExportStep 'work_folder'
+    $step = [TiaBridgeTimes]::Enter('work_folder')
     try {
         if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Recurse -Force }
         New-Item -ItemType Directory -Force -Path $partial | Out-Null
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     try {
         # the part's own export: its calls into TIA are tia_export_file, the rest (a .dat unpacked, a list written) is file_part
-        $step = Enter-ExportStep 'file_part'
+        $step = [TiaBridgeTimes]::Enter('file_part')
         try { $r = & $Part.file $Root $partial }
         catch {
             $err = ConvertTo-BridgeError $_
@@ -477,16 +477,16 @@ function Invoke-FullExportFilePart($Part, $Root, [string]$Device, $Record) {
             foreach ($d in (Get-NestedRepos $dir)) { [void]$Record.keptRepos.Add((Get-RepoRelative $d)) }
             return
         }
-        finally { Exit-ExportStep $step }
+        finally { [TiaBridgeTimes]::Exit($step) }
         # the files put in place: the folder's listing, git, the compare, the moves; the removals are remove
-        $step = Enter-ExportStep 'move'
+        $step = [TiaBridgeTimes]::Enter('move')
         try { Move-FilePartIntoPlace $r $dir $partial $Record }
-        finally { Exit-ExportStep $step }
+        finally { [TiaBridgeTimes]::Exit($step) }
     }
     finally {
-        $step = Enter-ExportStep 'work_folder'
+        $step = [TiaBridgeTimes]::Enter('work_folder')
         Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue
-        Exit-ExportStep $step
+        [TiaBridgeTimes]::Exit($step)
     }
 }
 
@@ -527,9 +527,9 @@ function Move-FilePartIntoPlace($R, [string]$Dir, [string]$Partial, $Record) {
 
 # Removes files, or a folder with what it holds; the first that fails throws.
 function Remove-PartFiles([string[]]$Paths) {
-    $step = Enter-ExportStep 'remove'
+    $step = [TiaBridgeTimes]::Enter('remove')
     try { foreach ($p in $Paths) { if ($p) { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop } } }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # Holds nothing that can fail: a part's failure goes into its record, and the record into the result. The caller sets
@@ -566,7 +566,7 @@ function Invoke-FullExportTool($a) {
         if ($r -is [System.Collections.IDictionary] -and -not $r.refused) { $r.times = Stop-ExportTimes }
         $r
     }
-    finally { $script:ExportTimes = $null }
+    finally { Stop-ExportTimesClock }
 }
 
 function Invoke-FullExportRun($a) {
@@ -575,12 +575,12 @@ function Invoke-FullExportRun($a) {
     $unknown = @($want | Where-Object { -not (Get-FullExportPart $_) })
     if ($unknown.Count) { return New-Refusal "Unknown part(s): $($unknown -join ', '). Parts: $(@($script:FullExportParts | ForEach-Object { $_.name }) -join ', ')." }
     $selected = @($script:FullExportParts | Where-Object { -not $want.Count -or $want -contains $_.name })
-    $step = Enter-ExportStep 'tia_list'
+    $step = [TiaBridgeTimes]::Enter('tia_list')
     try {
         $software = @(Get-TiaSoftwareList)
         $project = Get-TiaProject
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     $started = [System.Diagnostics.Stopwatch]::StartNew()
     $script:UnchangedExports.Clear()
     $full = Get-OptionalBool $a 'full' $false
@@ -612,20 +612,20 @@ function Invoke-FullExportRun($a) {
         [void]$records.Add($rec)
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         Enter-PartTimes $p.name $j.device
-        $step = Enter-ExportStep 'progress'
+        $step = [TiaBridgeTimes]::Enter('progress')
         Write-BridgeLog "full_export $($p.name)$(if ($j.device) { " @ $($j.device)" }) ..."
         $pp = [ordered]@{ event = 'part'; part = $p.name }
         if ($j.device) { $pp.device = $j.device }
         $pp.state = 'start'
         Write-BridgeProgress $pp
-        Exit-ExportStep $step
+        [TiaBridgeTimes]::Exit($step)
         try {
             $rec.dir = Get-PartDir $p $j.device
             $root = switch ($p.scope) { { $_ -in 'plc', 'hmi' } { $j.software } 'project' { $project } 'library' { $project.ProjectLibrary } }
             if ($p.counter) {
-                $step = Enter-ExportStep 'tia_list'
+                $step = [TiaBridgeTimes]::Enter('tia_list')
                 try { $rec.count = @(& $p.counter $root).Count }
-                finally { Exit-ExportStep $step }
+                finally { [TiaBridgeTimes]::Exit($step) }
                 if ($rec.count) { $rec.leftOut = $p.leftOut } else { $rec.none = $true }
             }
             elseif ($p.kind) { Invoke-FullExportKindPart $p $root $j.device $rec $plan }
@@ -638,19 +638,19 @@ function Invoke-FullExportRun($a) {
         }
         $rec.ms = [int]$sw.ElapsedMilliseconds
         Exit-PartTimes $rec.ms
-        $step = Enter-ExportStep 'progress'
+        $step = [TiaBridgeTimes]::Enter('progress')
         Write-BridgeLog "full_export $(Format-PartLine $rec)"
         $pp.state = $(if ($rec.listError -or $rec.stopped) { 'failed' } else { 'done' })
         $pp.exported = [int]$rec.exported; $pp.count = [int]$rec.count; $pp.failed = $rec.failed.Count; $pp.ms = $rec.ms
         Write-BridgeProgress $pp
-        Exit-ExportStep $step
+        [TiaBridgeTimes]::Exit($step)
         if ($rec.stopped) { $stopped = $true; break }
     }
 
     # mirror: per folder of the kind parts, once every part writing it ran and listed its objects
     $removed = New-Object System.Collections.ArrayList; $removeErrors = @()
     $keptUncommitted = New-Object System.Collections.ArrayList; $keptRepos = New-Object System.Collections.ArrayList; $gitError = $null
-    $step = Enter-ExportStep 'mirror'
+    $step = [TiaBridgeTimes]::Enter('mirror')
     if (-not $stopped) {
         # A failure here costs the mirror, never the summary. No folder can be told for one part: nothing is mirrored,
         # the folder it shares with another part may hold its files.
@@ -683,9 +683,9 @@ function Invoke-FullExportRun($a) {
             catch { $removeErrors += "$($recs[0].dir): $($_.Exception.Message)" }
         }
     }
-    Exit-ExportStep $step
+    [TiaBridgeTimes]::Exit($step)
     # the result: its lines, the record, the count of unchanged files
-    $step = Enter-ExportStep 'summary'
+    $step = [TiaBridgeTimes]::Enter('summary')
     foreach ($r in $records) {
         foreach ($f in $r.removed) { [void]$removed.Add($f) }
         foreach ($f in $r.keptUncommitted) { [void]$keptUncommitted.Add($f) }
@@ -720,9 +720,9 @@ function Invoke-FullExportRun($a) {
     $saveWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $recordError = if ($plan -and -not $stopped) { Save-ExportRecord $plan $records }
     $saveMs = [int]$saveWatch.ElapsedMilliseconds
-    $countStep = Enter-ExportStep 'unchanged_count'
+    $countStep = [TiaBridgeTimes]::Enter('unchanged_count')
     $unchanged = Get-UnchangedExportCount @($records | ForEach-Object { $_.written })
-    Exit-ExportStep $countStep
+    [TiaBridgeTimes]::Exit($countStep)
     $result = [ordered]@{
         ok = (-not $failed.Count -and -not $stopped -and -not $removeErrors.Count -and -not $gitError)
         exported = $exported; skipped = $skipped; unchanged = $unchanged; failedCount = $failed.Count; removedCount = $removed.Count; keptCount = $keptUncommitted.Count; totalMs = [int]$started.ElapsedMilliseconds
@@ -766,7 +766,7 @@ function Invoke-FullExportRun($a) {
         $result.note = "TIA Portal ended at part $($at.part). $(Set-TiaEnded $at.endedBy)"
         $result.next = 'Do not commit a partial export as the whole project. ' + $(if ($script:Bridge.background) { 'Open the session again, then run full_export again.' } else { 'Connect again, then run full_export again.' })
     }
-    Exit-ExportStep $step
+    [TiaBridgeTimes]::Exit($step)
     $result
 }
 

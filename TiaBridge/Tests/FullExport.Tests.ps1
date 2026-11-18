@@ -219,7 +219,7 @@ Describe 'file parts' {
             Exit-PartTimes 0
             $t = Stop-ExportTimes
         }
-        finally { $script:ExportTimes = $null }
+        finally { Stop-ExportTimesClock }
         $s = $t.parts[0].steps
         $s.tia_export_file.ms | Should Not BeLessThan 40
         $s.file_part.ms | Should Not BeLessThan 30
@@ -1045,7 +1045,7 @@ Describe 'the times of a full_export' {
         $sum = $t.once.ms + $t.plan.ms; foreach ($p in $t.parts) { $sum += $p.ms }
         [Math]::Abs($sum - $t.ms) | Should Not BeGreaterThan ([Math]::Max(0.05 * $t.ms, 1.5))
         $script:timed.totalMs | Should Not BeGreaterThan $t.ms
-        $script:ExportTimes | Should Be $null
+        [TiaBridgeTimes]::On | Should Be $false
     }
 
     It 'names the calls into Openness apart, the export after a refused one apart, and the bridge''s steps' {
@@ -1081,7 +1081,7 @@ Describe 'the times of a full_export' {
         It 'stops measuring' {
             Mock Invoke-FullExportRun { throw 'broken' }
             { Invoke-FullExportTool ([pscustomobject]@{}) } | Should Throw 'broken'
-            $script:ExportTimes | Should Be $null
+            [TiaBridgeTimes]::On | Should Be $false
         }
     }
 }

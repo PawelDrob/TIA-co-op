@@ -127,20 +127,20 @@ function Read-ObjectProperty($Obj, [string]$Name) {
 # throws "not supported" there). Their values are S7_IECCheck and S7_GenerateENOforSCL of the block's file.
 $script:GetAttributeOnly = @('IsIECCheckEnabled', 'SetENOAutomatically')
 function Read-TiaAttribute($Obj, [string]$Name) {
-    $step = Enter-ExportStep 'tia_attribute'
+    $step = [TiaBridgeTimes]::Enter('tia_attribute')
     try {
         if (-not $Obj.PSObject.Methods['GetAttributeInfos']) { return @{ has = $false; value = $null } }
         if (@($Obj.GetAttributeInfos() | ForEach-Object { [string]$_.Name }) -notcontains $Name) { return @{ has = $false; value = $null } }
         @{ has = $true; value = $Obj.GetAttribute($Name) }
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # The values of an object compared for unequal: name -> text, the dates in round trip form ('o', with their Kind).
 function Read-ExportState($Kind, $Entry) {
-    $step = Enter-ExportStep 'tia_state'
+    $step = [TiaBridgeTimes]::Enter('tia_state')
     try { Read-ExportStateValues $Kind $Entry }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 function Read-ExportStateValues($Kind, $Entry) {
@@ -193,9 +193,9 @@ function Get-EntryFiles($Old) {
 # Why the files in the repo are not those the last export left (Old: record entry), or $null. Base: the object's path
 # without extension; with Others, the files of the other formats there too (an export of a block removes them).
 function Get-FileDifference($Old, [string]$Base, [switch]$Others) {
-    $step = Enter-ExportStep 'record_files'
+    $step = [TiaBridgeTimes]::Enter('record_files')
     try { Get-EntryFileDifference $Old $Base -Others:$Others }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 function Get-EntryFileDifference($Old, [string]$Base, [switch]$Others) {
@@ -243,9 +243,9 @@ function Get-TagTableDifference($Kind, $Entry, [string]$Device) {
     if (-not [System.IO.File]::Exists($file)) { return 'its file is not in the repo' }
     $temp = Join-Path ([System.IO.Path]::GetTempPath()) "tiabridge-$PID-$([guid]::NewGuid().ToString('N')).xml"
     try {
-        $step = Enter-ExportStep 'tia_export_tag_table'
+        $step = [TiaBridgeTimes]::Enter('tia_export_tag_table')
         try { $Entry.obj.Export([System.IO.FileInfo]::new($temp), (Get-PlcExportOptions $false)) }
-        finally { Exit-ExportStep $step }
+        finally { [TiaBridgeTimes]::Exit($step) }
         if (Test-OnlyExportTimeDiffers $temp $file) { $null } else { 'its export differs from its file in the repo' }
     }
     catch {
@@ -298,12 +298,12 @@ function Get-SimaticMlReason([hashtable]$Old, [hashtable]$Objects) {
 #    devices = device -> @{ all; entries = kind -> entries; objects = key -> @{ kind; entry; state; old; export = why, or $null } } }
 # A key is '<kind>|<name>'. Full: everything is exported (full: true), the record is written all the same.
 function Get-ExportPlan($Software, $Project, [bool]$Full) {
-    $step = Enter-ExportStep 'record_read'
+    $step = [TiaBridgeTimes]::Enter('record_read')
     try {
         $head = Get-ExportRecordHead $Software $Project
         $read = Read-ExportRecord $script:Bridge.repo
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     $unusable = $read.error
     if (-not $unusable) { $unusable = Get-HeadDifference $read.record.head $head }
     $plan = @{ head = $head; old = $read.record; unusable = $unusable; all = $(if ($Full) { 'full: true' } else { $unusable }); devices = @{} }
@@ -311,9 +311,9 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
         $device = [string]$s.device
         $d = @{ all = $null; entries = @{}; objects = (New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)) }
         $plan.devices[$device] = $d
-        $step = Enter-ExportStep 'record_read'
+        $step = [TiaBridgeTimes]::Enter('record_read')
         try { $old = if (-not $unusable) { ConvertTo-EntryMap $read.record.devices.$device } }
-        finally { Exit-ExportStep $step }
+        finally { [TiaBridgeTimes]::Exit($step) }
         foreach ($kn in $script:SkipKinds) {
             $k = Get-ObjectKind $kn
             $d.entries[$kn] = @(Get-KindItems $k $s.software)
@@ -325,7 +325,7 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
             }
         }
         # the compare with the record; the files' hashes in it are record_files
-        $step = Enter-ExportStep 'record_compare'
+        $step = [TiaBridgeTimes]::Enter('record_compare')
         try {
             if ($plan.all) { $d.all = $plan.all }
             elseif ($null -eq $old) { $d.all = "the record holds nothing of $device" }
@@ -344,14 +344,14 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
                 }
             }
         }
-        finally { Exit-ExportStep $step }
+        finally { [TiaBridgeTimes]::Exit($step) }
     }
     $plan
 }
 
 # The record entry of an object after its export: Item is the export's (files repo-relative); failed when it did not export.
 function New-ExportRecordEntry($Object, $Item) {
-    $step = Enter-ExportStep 'record'
+    $step = [TiaBridgeTimes]::Enter('record')
     try {
         $e = [ordered]@{ folder = [string]$Object.entry.folder; state = $Object.state }
         if ($Item.ok) {
@@ -361,7 +361,7 @@ function New-ExportRecordEntry($Object, $Item) {
         } else { $e.failed = $true }
         $e
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # Writes the record after an export that did not stop. A PLC's entries are one snapshot, taken by one run: the plan's
@@ -369,7 +369,7 @@ function New-ExportRecordEntry($Object, $Item) {
 # another keeps the one of the record, if usable, which still says what an export gave then (Get-PlcExportReason
 # compares with it). Records: the part records of the run. Returns an error text, or $null.
 function Save-ExportRecord($Plan, $Records) {
-    $step = Enter-ExportStep 'record_save'
+    $step = [TiaBridgeTimes]::Enter('record_save')
     try {
         $devices = [ordered]@{}
         if (-not $Plan.unusable) { foreach ($p in $Plan.old.devices.PSObject.Properties) { $devices[$p.Name] = $p.Value } }
@@ -395,5 +395,5 @@ function Save-ExportRecord($Plan, $Records) {
         $null
     }
     catch { "The record of this export was not written; the next full_export goes by the one before, whose entries still hold for what they name: $($_.Exception.Message)" }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }

@@ -30,9 +30,9 @@ function Get-ObjectKind([string]$Name) {
 
 # The objects of a kind under Root (its items), read again when TIA changed a list during the read (Read-TiaList).
 function Get-KindItems($Kind, $Root) {
-    $step = Enter-ExportStep 'tia_list'
+    $step = [TiaBridgeTimes]::Enter('tia_list')
     try { Read-TiaList { & $Kind.items $Root } }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # Library: '' for the project library, else the name of a global library opened with library_open.
@@ -107,7 +107,7 @@ function Get-RepoRelative([string]$Path) {
 # Library: a global library's objects go to library\global\<library>\..., apart from the project library's, so an
 # export from one never replaces the other's files (2026-10-06: a failed global export emptied a project one).
 function Get-KindDir($Kind, [string]$Folder, [string]$Library = '', [string]$Device = '') {
-    $step = Enter-ExportStep 'paths'
+    $step = [TiaBridgeTimes]::Enter('paths')
     try {
         $rel = Get-KindRelDir $Kind $Device
         if ($Library) { $rel = Join-Path "library\global\$(Get-UniqueFolderName $Library (Get-GlobalLibraryNames))" ($Kind.dir -replace '^library\\', '') }
@@ -115,7 +115,7 @@ function Get-KindDir($Kind, [string]$Folder, [string]$Library = '', [string]$Dev
         foreach ($part in ($Folder -split '/' | Where-Object { $_ })) { $d = Join-Path $d (ConvertTo-SafeFileName $part) }
         $d
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # The path, without extension, that a kind's export of an entry writes: in lower case, which with an ordinal compare is what
@@ -131,7 +131,7 @@ function Get-ExportBase($Kind, $Entry, [string]$Library = '', [string]$Device = 
 # and of every kind writing the folder (block and db share plc\blocks), as an export also removes the other format's files
 # of its base. Entries: of Kind; Root: where the other kinds' items are read.
 function Get-ExportCollisions($Kind, [object[]]$Entries, $Root, [string]$Library = '', [string]$Device = '') {
-    $step = Enter-ExportStep 'collisions'
+    $step = [TiaBridgeTimes]::Enter('collisions')
     try {
         $byBase = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
         $add = { param($k, $e)
@@ -148,7 +148,7 @@ function Get-ExportCollisions($Kind, [object[]]$Entries, $Root, [string]$Library
         foreach ($b in $byBase.Keys) { if ($byBase[$b].Count -gt 1) { $hits[$b] = @($byBase[$b] | Sort-Object) } }
         $hits
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # The refusal of an object that shares its file with others (Get-ExportCollisions). Nothing is written, so what the file
@@ -168,14 +168,14 @@ function Get-CollisionError($Kind, $Entry, [string[]]$Names, [string]$Library = 
 # One SimaticML file through Obj.Export(file, options). Export refuses to overwrite, and a failed export must not
 # delete the last good file: export next to it, then replace it (Move-ExportIntoPlace, Repo.ps1).
 function Export-ObjectFile($Obj, [string]$File, $Options) {
-    $step = Enter-ExportStep 'work_folder'
+    $step = [TiaBridgeTimes]::Enter('work_folder')
     try { New-Item -ItemType Directory -Force -Path (Split-Path -Parent $File) | Out-Null }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     $partial = New-ExportWorkPath $File
-    $step = Enter-ExportStep 'tia_export_xml'
+    $step = [TiaBridgeTimes]::Enter('tia_export_xml')
     try { $Obj.Export([System.IO.FileInfo]::new($partial), $Options) }
     catch { Remove-Item -LiteralPath $partial -ErrorAction SilentlyContinue; throw }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     Move-ExportIntoPlace $partial $File
 }
 
@@ -184,14 +184,14 @@ function Export-ObjectFile($Obj, [string]$File, $Options) {
 # folder moved into Dir. Returns the files, those inside a moved folder too (the full_export mirror keeps them).
 function Export-ObjectFolder($Obj, [string]$Dir, [string]$Name, $Options) {
     $partial = New-ExportWorkPath (Join-Path $Dir $Name)
-    $step = Enter-ExportStep 'work_folder'
+    $step = [TiaBridgeTimes]::Enter('work_folder')
     try { New-Item -ItemType Directory -Force -Path $partial | Out-Null }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
     try {
-        $step = Enter-ExportStep 'tia_export_xml'
+        $step = [TiaBridgeTimes]::Enter('tia_export_xml')
         try { $Obj.Export([System.IO.FileInfo]::new((Join-Path $partial "$Name.xml")), $Options) }
-        finally { Exit-ExportStep $step }
-        $step = Enter-ExportStep 'move'
+        finally { [TiaBridgeTimes]::Exit($step) }
+        $step = [TiaBridgeTimes]::Enter('move')
         try {
             @(foreach ($f in @(Get-ChildItem -LiteralPath $partial)) {
                 $dest = Join-Path $Dir $f.Name
@@ -200,12 +200,12 @@ function Export-ObjectFolder($Obj, [string]$Dir, [string]$Name, $Options) {
                 else { $dest }
             })
         }
-        finally { Exit-ExportStep $step }
+        finally { [TiaBridgeTimes]::Exit($step) }
     }
     finally {
-        $step = Enter-ExportStep 'work_folder'
+        $step = [TiaBridgeTimes]::Enter('work_folder')
         Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue
-        Exit-ExportStep $step
+        [TiaBridgeTimes]::Exit($step)
     }
 }
 
@@ -240,7 +240,7 @@ function New-Refusal([string]$Reason) { @{ ok = $false; refused = $Reason } }
 # The progress line of one exported object (Write-BridgeProgress): n of the m objects the call (or full_export part)
 # exports, after its export. Skipped: full_export left it as TIA has not changed it (skipped = true in the line).
 function Write-ObjectProgress([string]$Kind, [int]$N, [int]$Of, $Item, [string]$Part = '', [string]$Device = '', [switch]$Skipped) {
-    $step = Enter-ExportStep 'progress'
+    $step = [TiaBridgeTimes]::Enter('progress')
     try {
         $p = [ordered]@{ event = 'object' }
         if ($Part) { $p.part = $Part }
@@ -249,7 +249,7 @@ function Write-ObjectProgress([string]$Kind, [int]$N, [int]$Of, $Item, [string]$
         if ($Skipped) { $p.skipped = $true }
         Write-BridgeProgress $p
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 function Get-OptionalBool($Arguments, [string]$Name, [bool]$Default) {

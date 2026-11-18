@@ -265,11 +265,17 @@ function Reset-TiaConnection {
 
 function Test-TiaAlive {
     if (-not $script:Bridge.project) { return $false }
-    $step = Enter-ExportStep 'tia_alive'
-    # a project closed under the bridge reads an empty name, with no exception (2026-11-04)
-    try { $name = $script:Bridge.project.Name; $null = Get-Process -Id $script:Bridge.processId -ErrorAction Stop; [bool]$name }
+    # a project closed under the bridge reads an empty name, with no exception (2026-11-04). Timed apart: the name is a call
+    # into TIA, the process looked up is the bridge's own (about 3.6 ms, 2026-11-18).
+    $step = [TiaBridgeTimes]::Enter('tia_alive')
+    try {
+        $name = $script:Bridge.project.Name
+        [TiaBridgeTimes]::Exit($step); $step = [TiaBridgeTimes]::Enter('process_lookup')
+        $null = Get-Process -Id $script:Bridge.processId -ErrorAction Stop
+        [bool]$name
+    }
     catch { $false }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # The project at Path in an attached TIA. No other project stands in for it: writes would go to the wrong one. Detaches

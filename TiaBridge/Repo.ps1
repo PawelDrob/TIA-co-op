@@ -189,7 +189,7 @@ function Test-SameZipParts([string]$A, [string]$B, [scriptblock]$Normalize) {
 # Whether the export New differs from the file Old in the repo at most in what TIA writes anew per export (above), by the
 # extension of Old: .xml, .dat, .xlsx; any other file only when equal. A file that cannot be read differs.
 function Test-OnlyExportTimeDiffers([string]$New, [string]$Old) {
-    $step = Enter-ExportStep 'compare'
+    $step = [TiaBridgeTimes]::Enter('compare')
     try {
         if (-not [System.IO.File]::Exists($New) -or -not [System.IO.File]::Exists($Old)) { return $false }
         $a = $script:Latin1.GetString([System.IO.File]::ReadAllBytes($New))
@@ -203,7 +203,7 @@ function Test-OnlyExportTimeDiffers([string]$New, [string]$Old) {
         $false
     }
     catch { $false }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # The files of the repo an export left as they were (full paths), for the count export and full_export give (unchanged):
@@ -237,7 +237,7 @@ function Restore-UnchangedExports([string]$Partial, [string]$Destination) {
 # A file that differs from the old one only in the export time keeps the old one (Test-OnlyExportTimeDiffers), in a
 # folder too: an export of an object nobody changed changes nothing in the repo.
 function Move-ExportIntoPlace([string]$Partial, [string]$Destination, [int]$RetryMs = 2000) {
-    $step = Enter-ExportStep 'move'
+    $step = [TiaBridgeTimes]::Enter('move')
     try {
         $isDir = [System.IO.Directory]::Exists($Partial)
         if ($isDir -and [System.IO.Directory]::Exists($Destination)) {
@@ -281,7 +281,7 @@ function Move-ExportIntoPlace([string]$Partial, [string]$Destination, [int]$Retr
             }
         }
     }
-    finally { Exit-ExportStep $step }
+    finally { [TiaBridgeTimes]::Exit($step) }
 }
 
 # $null when git is on PATH, else what to do. The bridge keeps the PATH it started with.
