@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T10:40:59-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T10:46:10-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -111,10 +111,12 @@ and edits Openness makes in place; after each change the default `full_export` a
 - **Not settable through Openness** on an FB or FC: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, `IsIECCheckEnabled`,
   `SetENOAutomatically` ("'set_HeaderVersion' is not supported by type 'Siemens.Engineering.SW.Blocks.FC'"); a block has no
   `Comment` attribute. Whether editing them in TIA's dialogs moves a date is not probed.
-- **Read only through `GetAttribute`** `[PROBE]` (2026-11-18, a copy of another test project): `IsIECCheckEnabled` and `SetENOAutomatically` have no .NET property.
-  `GetAttributeInfos` names both on an FB, an FC and an OB, only `IsIECCheckEnabled` on an F-FB, and neither on a global DB
-  or a data type, where `GetAttribute` throws "... is not supported". The values read match the block's file: `TRUE` where
-  it holds `S7_IECCheck` or `S7_GenerateENOforSCL`, `False` where it leaves them out.
+- **Read only through `GetAttribute`** `[PROBE]` (2026-11-18, a copy of another test project): `IsIECCheckEnabled` and
+  `SetENOAutomatically` have no .NET property. `GetAttributeInfos` names both on an FB, an FC and an OB, only
+  `IsIECCheckEnabled` on an F-FB, and neither on a global DB or a data type, where `GetAttribute` throws "... is not
+  supported". For the five blocks written as `.s7dcl` (four FBs, an F-FB among them, and an FC) the values read match the
+  file: `True` where it holds `S7_IECCheck` or `S7_GenerateENOforSCL` as `TRUE`, `False` where it leaves them out. The OB's
+  SimaticML was not compared.
 - **Candidates for skipping:** system blocks have the dates of a block, but no step changed one; the force table has no date
   (`IsConsistent` only); no technology object or watch table was in the project. They are exported every time.
 
