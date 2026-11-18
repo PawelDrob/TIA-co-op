@@ -1,0 +1,13 @@
+﻿MultiLingualTexts:
+  - id: MLC_B
+    en-US: Benchmark networks, timers, counters, edges
+  - id: MLC_N1
+    en-US: 14 Counter with fed pins
+  - id: MLC_N2
+    en-US: 15 Edge and flip-flop
+  - id: MLC_N3
+    en-US: 13a Timer in a closed branch from the rail
+  - id: MLC_N4
+    en-US: 13b Timer at the end of an open branch
+  - id: MLC_N5
+    en-US: 14a Counter at the end of an open branch

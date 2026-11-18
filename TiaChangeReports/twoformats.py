@@ -1,0 +1,863 @@
+"""The bed of the two formats: does the report say the same from .s7dcl as from SimaticML? It runs on a repo laid out
+as the two-format benchmark run's (each commit holds .s7dcl under plc/ and library/, and SimaticML of the same
+objects under simaticml/), reads its commits and changes nothing.
+
+A report is reduced to its facts (facts()): the objects it lists, and of each its state, kind, declaration, note,
+library link, the interface and start value rows that differ, the properties, the networks with their state and tags,
+the marks of each drawn LAD element (the element as compared, but for its ENO; the fill; the areas of it marked, from
+its own corner) and the SCL or FBD lines that differ. Two reports say the same when their facts are the same multiset.
+What that cannot see: which of two equal elements of a network carries a mark, where an element stands, the lines and
+wires drawn, the page's text and HTML, the PLC tag tables and the HMI part.
+
+Two checks:
+- nothing changed: per commit, the report from its .s7dcl to its SimaticML. Every object and network it lists is a
+  difference.
+- the same change: per commit, the report of the commit from its .s7dcl and from its SimaticML. Every object whose
+  facts are not the same in both is a difference.
+
+Each difference gets its causes (CAUSES). A cause the tool cannot name is 'unknown: ...', with what it saw."""
+import argparse
+import difflib
+import json
+import os
+import re
+import sys
+import xml.etree.ElementTree as ET
+from collections import Counter
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+if __name__ == '__main__':
+    sys.path.insert(0, os.path.dirname(HERE))
+
+from TiaChangeReports.compare import _other_texts_differ, _unread_differs, compare_snapshots, files_alike  # noqa: E402
+from TiaChangeReports.diff import changed_params                                    # noqa: E402
+from TiaChangeReports.iface import FIELDS, _value, block_rows, props_rows           # noqa: E402
+from TiaChangeReports.render_lad import Layout                                       # noqa: E402
+from TiaChangeReports.s7dcl import scl_lines                                         # noqa: E402
+from TiaChangeReports.source import GitSnapshot, _git, git_snapshots, stem           # noqa: E402
+
+ROOTS = ('plc/blocks/', 'plc/types/', 'library/types/')     # the folders both formats hold, from a side's root
+XML_ROOT = 'simaticml'                                      # the SimaticML side's folder in the repo
+
+READER, ONE_FIELD, NOTE, DRAWING, DIFF, ONE_OBJECT, RUN = (
+    'reader', 'a field only one format writes', "the note's raw comparison", 'the drawing', 'the diff',
+    'an object exported in one format only', "the run's own file")
+
+# id: (kind, what it is). Ids with a colon carry what was seen: 'property: X', 'SimaticML field: path'.
+CAUSES = {
+    'quoted names': (READER, 'a member name .s7dcl writes in quotes ("Db"."step", #"a") and SimaticML without'),
+    'pin case': (READER, 'a pin name in another case (IN, in)'),
+    'pin order': (READER, "a box's pins in another order"),
+    'pin direction': (READER, "a coil's operand read as an output (=>) from .s7dcl and as an input (:=) from SimaticML"),
+    'templates': (ONE_FIELD, 'a type template SimaticML writes and .s7dcl does not (value_type, ptr_type, Card, ...)'),
+    'ENO': (ONE_FIELD, 'DisabledENO: SimaticML writes that a box generates no ENO, .s7dcl does not (tickets 238, 290)'),
+    'rung order': (READER, 'the rungs in another order: SimaticML holds no order, the reader takes the order of the '
+                           "file's elements, which TIA's export varies (ticket 290)"),
+    'FBD lines': (READER, 'an FBD network read into other lines from the two formats'),
+    'note: files': (NOTE, "the block's note compares the raw files, which differ between two formats"),
+    'note: LAD lines': (NOTE, "a LAD network's note compares its text, which the two formats write otherwise"),
+    'note: SimaticML order': (NOTE, 'a SimaticML network written in another order, with other ids, and nothing else'),
+    'type members': (ONE_FIELD, 'SimaticML spells out the members of a type a block uses; .s7dcl names the type'),
+    'block number': (ONE_FIELD, 'the number TIA gives a block, in SimaticML only'),
+    'one format only': (ONE_OBJECT, 'the object has a file in one format only: TIA refused the SimaticML export of an '
+                                    'inconsistent block'),
+    'declaration': (READER, "a block's declaration read with its own name in quotes from SimaticML"),
+    'note: .s7dcl jump label': (NOTE, "a .s7dcl network's note when its jump label changed (ticket 66, from 51)"),
+    'run file': (RUN, 'a file the run wrote in one format that TIA does not hold (no SimaticML of it in any commit)'),
+    'DB retain': (ONE_FIELD, "a DB's S7_StandardRetain: .s7dcl writes it, the SimaticML of these DBs has no "
+                             "IsRetainMemResEnabled"),
+    'instance DB access': (ONE_FIELD, "an instance DB's S7_Optimized: .s7dcl writes it, SimaticML has no MemoryLayout "
+                                      "for an instance DB"),
+    'SCL language': (READER, "an SCL block's language: .s7dcl's S7_EditorMode, SimaticML's ProgrammingLanguage, kept "
+                             "as two properties"),
+    'safety spelling': (READER, 'S7_Safety "True" from .s7dcl, "TRUE" from SimaticML'),
+    'user-defined id': (READER, ".s7dcl's S7_UserDefinedId is SimaticML's HeaderName, which the reader does not read"),
+    'member setpoint': (ONE_FIELD, 'SetPoint on a member of a library type: SimaticML writes it, .s7dcl writes none'),
+    'constant type': (ONE_FIELD, "the type of a literal (ConstantType): SimaticML writes it, .s7dcl writes the "
+                                 "literal alone"),
+    'section attributes': (ONE_FIELD, "the attributes SimaticML writes on every member of a section (Accessibility, "
+                                      "Remanence, ExternalAccessible, ExternalVisible, ExternalWritable, SetPoint); "
+                                      ".s7dcl writes one only where it is set"),
+    'standard access fields': (ONE_FIELD, 'MemoryReserve and IsRetainMemResEnabled, which SimaticML writes for a '
+                                          'block with standard access'),
+    'another kind of block': (ONE_FIELD, 'a block become another kind (FC, FB): SimaticML writes the sections and '
+                                         'attributes of the kind'),
+    'instance DB start values': (READER, "an instance DB's start values: the SimaticML reader leaves them to the "
+                                         "note, the .s7dcl reader shows them"),
+    'library link across formats': (DIFF, "a program block marked as differing from its library type: the two "
+                                           "changes compared as text, each from one format to the other (ticket 145)"),
+    'author': (READER, "a block's author: S7_Author shown from .s7dcl, HeaderAuthor left to the note from SimaticML"),
+}
+# The property or interface attribute a reader keeps -> its cause.
+NAMED = {'property: Retain': 'DB retain', 'property: Optimized access': 'instance DB access',
+         'property: Language': 'SCL language', 'property: S7_EditorMode': 'SCL language',
+         'property: Safety': 'safety spelling', 'property: S7_UserDefinedId': 'user-defined id',
+         'interface: S7_Setpoint': 'member setpoint', 'property: S7_Author': 'author'}
+PREFIXES = {                    # the kind of an id with what was seen
+    'SimaticML field': ONE_FIELD, '.s7dcl field': ONE_FIELD, 'SimaticML unread': READER, 'drawn otherwise': DRAWING,
+}
+
+
+def kind_of(cause):
+    if cause in CAUSES:
+        return CAUSES[cause][0]
+    return PREFIXES.get(cause.split(':', 1)[0], 'unknown')
+
+
+# ---------------------------------------------------------------- the two sides
+
+def _kept(paths):
+    return {stem(p) for p in paths if p.startswith(ROOTS)}
+
+
+def sides_at(repo, rev):
+    """(the .s7dcl side, the SimaticML side) of one commit: snapshots of the folders both formats hold."""
+    sd = GitSnapshot(repo, rev)
+    sd.only = _kept(sd._blobs.tree())
+    xml = GitSnapshot(os.path.join(repo, XML_ROOT), rev)
+    xml._laid_out = False                                   # read whole: its root is no project repo's
+    xml.only = _kept(xml._blobs.tree())
+    return sd, xml
+
+
+def change_of(repo, rev1, rev2):
+    """((before, after) from .s7dcl, (before, after) from SimaticML): the report of rev1 -> rev2 in each format, the
+    blocks with a changed file, as --git takes them."""
+    sd = git_snapshots(repo, rev1, rev2)
+    xml = git_snapshots(os.path.join(repo, XML_ROOT), rev1, rev2)
+    for x in xml:
+        x._laid_out = False
+    for pair in (sd, xml):
+        keep = {s for s in pair[0].only if s.startswith(ROOTS)}
+        for x in pair:
+            x.only = keep
+    return sd, xml
+
+
+def report(before, after):
+    """The report's blocks (compare.BlockDiff), as the page lists them."""
+    return compare_snapshots(before, after)
+
+
+# ---------------------------------------------------------------- facts
+
+def _object(d):
+    """The key of a listed object: its path without the extension, the same in both formats."""
+    return stem(d.path_a or d.path_b)
+
+
+def _net(p):
+    """The key of a network: its number before and after and its title."""
+    return (p.before.index if p.before else None, p.after.index if p.after else None, p.title)
+
+
+def _element(el):
+    """An element as compared, but for ENO generated or not (a mark says that): no element id, no wire name."""
+    return el.sig()[:-1]
+
+
+def _layouts(pair, d):
+    b, a = pair.before, pair.after
+    lb = Layout(b.rungs, d.before.interface, d.before.callees, b.label, pair.label_state, pair.lad.other) if b else None
+    la = Layout(a.rungs, d.after.interface, d.after.callees, a.label, pair.label_state, pair.lad.other) if a else None
+    return lb, la
+
+
+def _marks(pair, d):
+    """The marks of a LAD network: (side, element, fill, the areas of it marked from its own corner)."""
+    out = []
+    lb, la = _layouts(pair, d)
+    for lay, other, side in ((lb, la, 'before'), (la, lb, 'after')):
+        if lay is None:
+            continue
+        at = {el.eid: (el, ex, y) for el, ex, y in lay._placed()}
+        got = {}
+        for eid, fill, layer, x, y, w, h in lay.marks(pair.lad.status, pair.lad.other,
+                                                      'removed' if side == 'before' else 'added', other):
+            el, ex, ey = at[eid]
+            got.setdefault(eid, (el, fill, []))[2].append((layer, round(x - ex), round(y - ey), round(w), round(h)))
+        out += [(side, _element(el), fill, tuple(sorted(areas))) for el, fill, areas in got.values()]
+    return out
+
+
+def _show(v):
+    return tuple(sorted(v.items())) if isinstance(v, dict) else v
+
+
+def facts(diffs):
+    """Counter of the facts of a report (module doc)."""
+    out = Counter()
+    for d in diffs:
+        o = _object(d)
+        out[(o, 'state', d.state)] += 1
+        out[(o, 'kind', d.kind)] += 1
+        if d.declaration:
+            out[(o, 'declaration') + d.declaration] += 1
+        if d.not_shown:
+            out[(o, 'note')] += 1
+        if d.library:
+            out[(o, 'library', d.library.block.name, d.library_differs)] += 1
+        if d.state in ('version', 'moved'):
+            continue
+        if d.before and d.after:
+            for r in block_rows(d.before, d.after):
+                if r.state == 'same':
+                    continue
+                if r.b is None or r.a is None:
+                    out[(o, 'interface', r.path, r.state)] += 1
+                    continue
+                for f in sorted(r.changes):
+                    part = 'start value' if f == 'value' else 'interface'
+                    vals = (_show(_value(r.b, f)), _show(_value(r.a, f))) if f in FIELDS else ()
+                    out[(o, part, r.path, r.state, f) + vals] += 1
+            for name, vb, va in props_rows(d.before.props, d.after.props):
+                out[(o, 'property', name, vb, va)] += 1
+        for p in d.nets:
+            n = _net(p)
+            out[(o, 'network', n, p.state, p.lang)] += 1
+            for tag, on in _tags(p):
+                if on:
+                    out[(o, 'network tag', n, tag)] += 1
+            if p.before and p.after:
+                for f in ('title', 'comment'):
+                    if getattr(p.before, f) != getattr(p.after, f):
+                        out[(o, 'network ' + f, n, getattr(p.before, f), getattr(p.after, f))] += 1
+            if p.lad is not None:
+                for m in _marks(p, d):
+                    out[(o, 'mark', n) + m] += 1
+            elif p.before and p.after:
+                for sign, line in _lines(p):
+                    out[(o, 'line', n, sign, line)] += 1
+    return out
+
+
+def _tags(p):
+    return (('moved', p.moved), ('other order', p.reordered), ('renamed', p.renamed), ('note', p.not_shown),
+            ('label', p.label_state != 'same'))
+
+
+def _lines(p):
+    bl, al = scl_lines(p.before.body), scl_lines(p.after.body)
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, bl, al, autojunk=False).get_opcodes():
+        if op == 'equal':
+            continue
+        yield from (('-', x) for x in bl[i1:i2])
+        yield from (('+', x) for x in al[j1:j2])
+
+
+# ---------------------------------------------------------------- an element read otherwise
+
+def _unquoted(v):
+    return re.sub(r'(?<=[.#])"([^"]+)"', r'\1', v)
+
+
+def _normal(sig, steps, other_templates):
+    instr, inst, call, params, templates, expr = sig
+    ps = list(params)
+    if 'quoted names' in steps:
+        ps = [(n, d, _unquoted(v)) for n, d, v in ps]
+        inst = _unquoted(inst)
+    if 'pin case' in steps:
+        ps = [(n.lower(), d, v) for n, d, v in ps]
+    if 'pin direction' in steps:
+        ps = [(n, '', v) for n, d, v in ps]
+    if 'pin order' in steps:
+        ps = sorted(ps)
+    if 'templates' in steps:
+        templates = tuple(x for x in templates if x[0] in other_templates)
+    return instr, inst, call, tuple(ps), templates, expr
+
+
+STEPS = ('quoted names', 'pin case', 'pin direction', 'pin order', 'templates')
+
+
+def element_causes(x, y):
+    """Why two versions of an element compare unequal, each as compared (_element): the fewest of STEPS that make them
+    equal, each one needed; 'unknown: element' when all of them do not."""
+    if x == y:
+        return set()
+    tx, ty = {k for k, v in x[4]}, {k for k, v in y[4]}
+
+    def same(steps):
+        return _normal(x, steps, ty) == _normal(y, steps, tx)
+    if not same(set(STEPS)):
+        return {'unknown: element %s' % x[0]}
+    return {s for s in STEPS if not same(set(STEPS) - {s})} or {'unknown: element %s' % x[0]}
+
+
+# ---------------------------------------------------------------- what moved in a file
+
+def _local(tag):
+    return tag.rsplit('}', 1)[-1]
+
+
+def xml_fields(element):
+    """Counter of (path, attributes, text) of an element and all under it: no UId or ID (the export numbers them), no
+    order, no DocumentInfo (the export's time and products)."""
+    out = Counter()
+
+    def walk(e, path):
+        tag = _local(e.tag)
+        if tag == 'DocumentInfo':
+            return
+        p = path + '/' + tag
+        out[(p, tuple(sorted((k, v) for k, v in e.attrib.items() if k not in ('UId', 'ID'))),
+             (e.text or '').strip())] += 1
+        for c in e:
+            walk(c, p)
+    walk(element, '')
+    return out
+
+
+NAMED_TAGS = ('BooleanAttribute', 'IntegerAttribute', 'StringAttribute', 'DateAttribute', 'TemplateValue', 'Section')
+
+
+def xml_moved(xb, xa):
+    """What differs between two SimaticML elements (xml_fields), order and ids aside: 'path@attribute', 'path#text',
+    'path added' or 'path removed'; an attribute element by its Name ('.../BooleanAttribute[SetPoint]#text')."""
+    fb, fa = xml_fields(xb), xml_fields(xa)
+    by = {}
+    for k in (fb - fa).elements():
+        by.setdefault((k[0], dict(k[1]).get('Name')), ([], []))[0].append(k)
+    for k in (fa - fb).elements():
+        by.setdefault((k[0], dict(k[1]).get('Name')), ([], []))[1].append(k)
+    out = set()
+    for (path, name), (gone, new) in by.items():
+        label = path + ('[%s]' % name if name and path.rsplit('/', 1)[-1] in NAMED_TAGS else '')
+        for x, y in zip(gone, new):
+            ax, ay = dict(x[1]), dict(y[1])
+            out |= {'%s@%s' % (label, k) for k in set(ax) | set(ay) if ax.get(k) != ay.get(k)}
+            if x[2] != y[2]:
+                out.add(label + '#text')
+        if len(gone) != len(new):
+            out.add(label + (' added' if len(new) > len(gone) else ' removed'))
+    return sorted(out)
+
+
+def _root(text):
+    return ET.fromstring(text.encode('utf-8'))
+
+
+def _typed_db(root):
+    """A DB whose members are its type's: an instance DB, a DB of a UDT."""
+    blk = next((e for e in root if _local(e.tag).startswith('SW.Blocks.')), None)
+    if blk is None:
+        return False
+    return _local(blk.tag) == 'SW.Blocks.InstanceDB' or any(_local(e.tag) == 'InstanceOfName' for e in blk.iter())
+
+
+def sd_moved(tb, ta):
+    """The pragmas (S7_...) of the lines that differ between two .s7dcl texts, else 'lines'."""
+    lb, la = (t.splitlines() if t else [] for t in (tb, ta))
+    out = set()
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, lb, la, autojunk=False).get_opcodes():
+        if op == 'equal':
+            continue
+        for line in lb[i1:i2] + la[j1:j2]:
+            m = re.match(r'\s*(S7_\w+)\s*:=', line)
+            out.add(m.group(1) if m else 'lines')
+    return sorted(out)
+
+
+def _xml_label(path):
+    return re.sub(r'^/(Document/)?SW\.Blocks\.\w+/', '', path)
+
+
+# What xml_moved names -> the cause, the first that matches.
+XML_FIELDS = [
+    (r'/AttributeList/(Number|AutoNumber)#text$', 'block number'),
+    (r'/ConstantType#text$', 'constant type'),
+    (r'/TemplateValue\[\w+\] (added|removed)$', 'templates'),
+    (r'/CallInfo/Parameter@Type$', 'type members'),
+    (r'/Member/AttributeList/BooleanAttribute\[(ExternalAccessible|ExternalVisible|ExternalWritable|SetPoint)\]'
+     r'|/Member@(Accessibility|Remanence)$|/Member/AttributeList (added|removed)$', 'section attributes'),
+    (r'/AttributeList/(MemoryReserve|IsRetainMemResEnabled)\b', 'standard access fields'),
+]
+# What the SimaticML reader reads and shows: a network's note is not on it while something else moved.
+XML_READ = (r'/Access@Scope$', r'/Symbol/Component (added|removed)$', r'/Symbol/Component@Name$',
+            r'/TemplateValue\[\w+\]#text$', r'/ConstantValue#text$', r'/MemoryLayout#text$', r'/NameCon@Name$',
+            r'/Label@Name$', r'/InstanceOfName#text$')
+# What the .s7dcl reader shows and the SimaticML reader leaves to the note.
+XML_UNREAD = [(r'/Member/StartValue', 'instance DB start values'), (r'/HeaderAuthor\b', 'author')]
+SD_FIELDS = {'S7_StandardRetain': 'DB retain'}
+
+
+def field_causes(fmt, moved, typed_db=False, shown=False):
+    """The causes of what one format moved and the other did not, or of what one format's note sees: fmt 'xml' or
+    'sd', moved what xml_moved or sd_moved names; typed_db: of a DB whose members are its type's; shown: the other
+    report shows a property or start value there, which this reader then does not read."""
+    if fmt == 'sd':
+        return {SD_FIELDS.get(f, '.s7dcl field: %s' % f) for f in moved}
+    if any(re.search(r'^/(Document/)?SW\.Blocks\.\w+ (added|removed)$', f) for f in moved):
+        return {'another kind of block'}
+    unread = [f for f in moved if not any(re.search(r, f) for r in XML_READ)] or moved
+    out = set()
+    for f in unread:
+        if shown:
+            out.add(next((c for r, c in XML_UNREAD if re.search(r, f)), 'SimaticML unread: %s' % _xml_label(f)))
+        elif '/Interface/' in f and (typed_db or '/Member/Sections/' in f):
+            out.add('type members')
+        else:
+            out.add(next((c for r, c in XML_FIELDS if re.search(r, f)), 'SimaticML field: %s' % _xml_label(f)))
+    return out
+
+
+# ---------------------------------------------------------------- check 1: nothing changed
+
+def nothing_changed(repo, rev, files=None):
+    """[{object, network, causes}]: every object and network the report from rev's .s7dcl to its SimaticML lists."""
+    files = files or Files(repo)
+    sd, xml = sides_at(repo, rev)
+    out = []
+    for d in report(sd, xml):
+        o = _object(d)
+        if not (d.before and d.after):                    # its file in one format only: so are its networks
+            why = 'one format only' if d.before and o in files.ever_xml() else 'run file'
+            out += [{'object': o, 'network': None, 'causes': [why]}]
+            out += [{'object': o, 'network': list(_net(p)), 'causes': [why]} for p in d.nets]
+            continue
+        nets = [{'object': o, 'network': list(_net(p)), 'causes': sorted(_network_causes(p, d))} for p in d.nets]
+        own = _object_causes(d, sd, xml)
+        if not own and not nets:
+            own = {'unknown: listed, nothing seen'}
+        out.append({'object': o, 'network': None, 'causes': sorted(own.union(*(x['causes'] for x in nets)))})
+        out += nets
+    return out
+
+
+def _object_causes(d, sd, xml):
+    """Why a block is listed between its two formats, apart from its networks."""
+    out = set()
+    if d.declaration:
+        out.add('declaration' if _same_decl(d.declaration, d.block.name) else 'unknown: declaration')
+    if d.not_shown:
+        bsrc, asrc = sd.load(d.path_b), xml.load(d.path_a)
+        if not files_alike(bsrc, asrc):
+            out.add('note: files')
+        if _other_texts_differ(bsrc, asrc):
+            out.add('unknown: note, texts in another language')
+        if _unread_differs(bsrc, asrc, d.before, d.after, d.nets):
+            out.add('unknown: note, unread part')
+    for name, vb, va in props_rows(d.before.props, d.after.props):
+        out.add(_named('property: %s' % name))
+    for r in block_rows(d.before, d.after):
+        if r.state == 'same':
+            continue
+        if r.b is None or r.a is None:
+            out.add(_named('interface: member %s' % r.state))
+        for f in r.changes:
+            if f == 'attrs':
+                ab, aa = r.b.attrs or {}, r.a.attrs or {}
+                out |= {_named('interface: %s' % k) for k in set(ab) | set(aa) if ab.get(k) != aa.get(k)}
+            elif f == 'value' and d.kind == 'Instance DB':
+                out.add('instance DB start values')
+            else:
+                out.add(_named('interface: %s' % f))
+    if d.library_differs:
+        out.add('library link across formats')
+    return out
+
+
+def _named(seen):
+    """The cause of a property or interface field the two readers keep otherwise, else 'unknown: ...'."""
+    return NAMED.get(seen, 'unknown: ' + seen)
+
+
+def _network_causes(p, d):
+    """Why a network is listed between its two formats."""
+    b, a = p.before, p.after
+    if not (b and a):
+        return {'unknown: network %s' % p.state}
+    out = set()
+    if p.reordered or p.moved:
+        out.add('rung order' if p.reordered else 'unknown: network moved')
+    if p.not_shown:
+        out.add('note: LAD lines' if p._unseen() else 'unknown: network note')
+    for f in ('title', 'comment', 'label'):
+        if getattr(b, f) != getattr(a, f):
+            out.add('unknown: network %s' % f)
+    if b.lang != a.lang:
+        out.add('unknown: language')
+    if p.lad is None:
+        if list(_lines(p)):
+            out.add('FBD lines' if b.lang == 'FBD' else 'unknown: %s lines' % b.lang)
+        return out or {'unknown: network'}
+    lb, la = _layouts(p, d)
+    for el, x, y in lb._placed():
+        st, o = p.lad.status.get(el.eid, 'same'), p.lad.other.get(el.eid)
+        if st == 'changed' and o is not None:
+            out |= element_causes(_element(el), _element(o))
+            if el.no_eno != o.no_eno:
+                out.add('ENO')
+        elif st == 'moved':
+            out.add('rung order' if p.reordered else 'unknown: element moved')
+        elif st != 'same':
+            out.add('unknown: element %s' % st)
+        if st in ('same', 'changed') and o is not None and o.eid in la.views:
+            keys = lb.views[el.eid].drawn_otherwise(la.views[o.eid]) - changed_params(el, o)
+            if keys and el.no_eno == o.no_eno and _element(el) == _element(o):
+                out.add('drawn otherwise: %s' % ', '.join(sorted(keys)))
+    for el, x, y in la._placed():
+        if p.lad.status.get(el.eid, 'same') in ('added', 'removed'):
+            out.add('unknown: element %s' % p.lad.status[el.eid])
+    return out or {'unknown: network'}
+
+
+# ---------------------------------------------------------------- check 2: the same change
+
+class Files:
+    """Which files of an object each format holds, per commit, and which objects ever had SimaticML."""
+
+    def __init__(self, repo):
+        self.repo = repo
+        self._trees = {}
+        self._ever = None
+
+    def tree(self, rev):
+        if rev not in self._trees:
+            out = {}
+            for line in _git(self.repo, 'ls-tree', '-r', rev).decode('utf-8').splitlines():
+                meta, path = line.split('\t', 1)
+                out[path] = meta.split()[2]
+            self._trees[rev] = out
+        return self._trees[rev]
+
+    def ever_xml(self):
+        """The objects with SimaticML in any commit."""
+        if self._ever is None:
+            out = _git(self.repo, 'log', '--all', '--format=', '--name-only', '--', XML_ROOT).decode('utf-8')
+            self._ever = {stem(p[len(XML_ROOT) + 1:]) for p in out.splitlines() if p.endswith('.xml')}
+        return self._ever
+
+    def of(self, rev, o):
+        """{'sd': blob id or None, 'xml': blob id or None} of object o at rev."""
+        t = self.tree(rev)
+        return {'sd': t.get(o + '.s7dcl') or t.get(o + '.xml'), 'xml': t.get('%s/%s.xml' % (XML_ROOT, o))}
+
+    def text(self, rev, path):
+        try:
+            return _git(self.repo, 'show', '%s:%s' % (rev, path)).decode('utf-8-sig')
+        except ValueError:
+            return None
+
+    def one_format(self, rev1, rev2, o):
+        """Why object o has a file in one format only at rev1 or rev2, else None: SimaticML missing where an .s7dcl
+        is, with SimaticML of it in another commit, TIA refused it ('one format only'); else the run left it so ('run
+        file')."""
+        for rev in (rev1, rev2):
+            f = self.of(rev, o)
+            if bool(f['sd']) != bool(f['xml']):
+                return 'one format only' if f['sd'] and o in self.ever_xml() else 'run file'
+        return None
+
+
+def same_change(repo, rev1, rev2, files=None):
+    """[{object, causes, sd, xml}]: every object whose facts differ between the report of rev1 -> rev2 from .s7dcl and
+    from SimaticML; sd and xml its facts that only that report holds."""
+    files = files or Files(repo)
+    (sb, sa), (xb, xa) = change_of(repo, rev1, rev2)
+    ds, dx = report(sb, sa), report(xb, xa)
+    fs, fx = facts(ds), facts(dx)
+    if fs == fx:
+        return []
+    by_x = {_object(d): d for d in dx}
+    refs = {}                         # an object -> the objects a listed block of either report joins it with
+    for d in ds + dx:
+        stems = {stem(p) for x in (d, d.library) if x for p in (x.path_b, x.path_a) if p}
+        for s in stems:
+            refs.setdefault(s, set()).update(stems)
+    out = []
+    for o in sorted({k[0] for k in (fs - fx) + (fx - fs)}):
+        os_, ox = Counter({k: v for k, v in fs.items() if k[0] == o}), Counter({k: v for k, v in fx.items() if k[0] == o})
+        causes = _change_causes(o, refs.get(o, {o}) | {o}, by_x.get(o), os_, ox, files, rev1, rev2)
+        out.append({'object': o, 'causes': sorted(causes),
+                    'sd': [list(k[1:]) for k in sorted(os_ - ox, key=str)],
+                    'xml': [list(k[1:]) for k in sorted(ox - os_, key=str)]})
+    return out
+
+
+def _change_causes(o, related, dx, fs, fx, files, rev1, rev2):
+    """related: o and the objects either report joins it with (a rename, a move, its library type or program
+    block): one of them in one format only makes the two reports differ on o too."""
+    for x in sorted(related):
+        why = files.one_format(rev1, rev2, x)
+        if why:
+            return {why}
+    before, after = files.of(rev1, o), files.of(rev2, o)
+    moved_sd, moved_xml = before['sd'] != after['sd'], before['xml'] != after['xml']
+    if moved_sd != moved_xml:
+        return _moved_alone(o, 'sd' if moved_sd else 'xml', files, rev1, rev2)
+    out = _block_part(o, fs, fx, files, rev1, rev2)
+    nets = {k[2] for k in (fs - fx) + (fx - fs) if k[1] in NET_FACTS}
+    for n in sorted(nets, key=str):
+        out |= _net_part(n, dx, fs, fx)
+    return out or {'unknown: object'}
+
+
+NET_FACTS = ('network', 'network tag', 'mark', 'line', 'network title', 'network comment')
+
+
+def _moved_alone(o, fmt, files, rev1, rev2):
+    """The fields of an object that moved in one format and not in the other."""
+    if fmt == 'sd':
+        path = o + '.s7dcl'
+        return field_causes('sd', sd_moved(files.text(rev1, path), files.text(rev2, path)))
+    path = '%s/%s.xml' % (XML_ROOT, o)
+    rb, ra = _root(files.text(rev1, path)), _root(files.text(rev2, path))
+    return field_causes('xml', xml_moved(rb, ra), _typed_db(ra)) or {'unknown: SimaticML moved alone'}
+
+
+BLOCK_FACTS = ('state', 'kind', 'declaration', 'note', 'library', 'interface', 'start value', 'property')
+
+
+def _block_part(o, fs, fx, files, rev1, rev2):
+    """The causes of the block-level facts that differ."""
+    def of(c):
+        return Counter({k: v for k, v in c.items() if k[1] in BLOCK_FACTS})
+    only_s, only_x = of(fs) - of(fx), of(fx) - of(fs)
+    if not (only_s or only_x):
+        return set()
+    out = set()
+    shown_s = [k for k in only_s if k[1] in ('property', 'start value', 'interface')]
+    if (o, 'note') in only_x:
+        tb, ta = (_root(files.text(r, '%s/%s.xml' % (XML_ROOT, o))) for r in (rev1, rev2))
+        moved = xml_moved(_head(tb), _head(ta))
+        out |= field_causes('xml', moved, _typed_db(ta), bool(shown_s))
+        if not moved:
+            out.add('unknown: SimaticML note')
+    if (o, 'note') in only_s:
+        tb, ta = (files.text(r, o + '.s7dcl') for r in (rev1, rev2))
+        out |= {'unknown: .s7dcl note, %s' % f for f in sd_moved(tb, ta)}
+    decl = [k for k in only_s + only_x if k[1] == 'declaration']
+    if decl:
+        name = o.rsplit('/', 1)[-1]
+        out.add('declaration' if len({tuple(_without_name(x, name) for x in k[2:]) for k in decl}) == 1
+                else 'unknown: declaration')
+    for k in only_s + only_x:
+        if k[1] in ('note', 'state', 'kind', 'declaration'):
+            continue
+        if k in shown_s and (o, 'note') in only_x:
+            continue                                      # the SimaticML reader leaves it to the note
+        out.add('unknown: %s' % k[1])
+    if not out:
+        out.add('unknown: block %s' % ', '.join(sorted({k[1] for k in only_s + only_x})))
+    return out
+
+
+def _without_name(decl, name):
+    """A declaration without the block's own name, quoted or not."""
+    return re.sub(r'\s+', ' ', re.sub(r'(?<![\w"])"?%s"?(?![\w"])' % re.escape(name), '', decl)).strip()
+
+
+def _same_decl(pair, name):
+    """(before, after) declarations that differ only in the block's own name, written or not, quoted or not."""
+    return _without_name(pair[0], name) == _without_name(pair[1], name)
+
+
+def _head(root):
+    """A SimaticML export without its networks: what a note on the block reads."""
+    for parent in root.iter():
+        for c in list(parent):
+            if _local(c.tag) == 'ObjectList':
+                parent.remove(c)
+    return root
+
+
+def _net_part(n, dx, fs, fx):
+    """The causes of one network's facts that differ."""
+    def of(c):
+        return Counter({k: v for k, v in c.items() if len(k) > 2 and k[2] == n and k[1] in NET_FACTS})
+    ns, nx = of(fs), of(fx)
+    if ns == nx:
+        return set()
+    out = set()
+    tags_s, tags_x = {k[3] for k in ns if k[1] == 'network tag'}, {k[3] for k in nx if k[1] == 'network tag'}
+    if 'other order' in tags_s ^ tags_x:
+        out.add('rung order')
+    if 'note' in tags_x - tags_s:
+        out |= _xml_note(n, dx)
+    if 'note' in tags_s - tags_x:
+        out.add('note: .s7dcl jump label' if 'label' in tags_s else 'unknown: .s7dcl network note')
+    for tag in (tags_s ^ tags_x) - {'other order', 'note'}:
+        out.add('unknown: network tag %s' % tag)
+    ms, mx = ([k[3:] for k in c.elements() if k[1] == 'mark'] for c in (ns, nx))
+    out |= _mark_causes(ms, mx, 'rung order' in out)
+    ls, lx = ([k[3:] for k in c.elements() if k[1] == 'line'] for c in (ns, nx))
+    if Counter(ls) != Counter(lx):
+        out.add('unknown: lines')
+    st_s, st_x = ({k[3] for k in c if k[1] == 'network'} for c in (ns, nx))
+    if st_s != st_x and not any(not c.startswith('unknown') for c in out):
+        out.add('unknown: network state %s / %s' % (sorted(st_s), sorted(st_x)))
+    return out or {'unknown: network'}
+
+
+def _xml_note(n, dx):
+    """A SimaticML network noted and the .s7dcl one not: what differs in its part of the file, order and ids aside."""
+    p = next((p for p in (dx.nets if dx else ()) if _net(p) == n), None)
+    if p is None or not (p.before and p.after and p.before.raw and p.after.raw):
+        return {'unknown: SimaticML network note'}
+    moved = xml_moved(p.before.raw[1], p.after.raw[1])
+    if not moved:
+        return {'note: SimaticML order'}
+    return field_causes('xml', [re.sub(r'^/SW\.Blocks\.CompileUnit/AttributeList/NetworkSource/', 'network/', f)
+                                for f in moved])
+
+
+def _mark_causes(ms, mx, reordered):
+    """The marks of one network from each report, (side, element, fill, areas). A mark of one paired with a mark of the
+    other on the same side with the same fill, the element read otherwise: its causes (element_causes), the areas
+    alike or not, as the drawing marks the text it reads. What is left of one report alone: a box it marks between two
+    versions read otherwise (the before and the after mark of one element in it); else 'rung order' when the tags say
+    so, else unknown."""
+    left_s, left_x = list((Counter(ms) - Counter(mx)).elements()), list((Counter(mx) - Counter(ms)).elements())
+    out = set()
+    for same_areas in (True, False):
+        for m in list(left_s):
+            y = next((y for y in left_x if y[0] == m[0] and y[2] == m[2] and (y[3] == m[3] or not same_areas)
+                      and _explained(m[1], y[1])), None)
+            if y is not None:
+                out |= element_causes(m[1], y[1]) or {'drawn otherwise: mark areas'}
+                left_s.remove(m)
+                left_x.remove(y)
+    for left in (left_s, left_x):
+        for m in [m for m in left if m[0] == 'before']:
+            y = next((y for y in left if y[0] == 'after' and m[1] != y[1] and _explained(m[1], y[1])), None)
+            if y is not None:
+                out |= element_causes(m[1], y[1])
+                left.remove(m)
+                left.remove(y)
+    if left_s or left_x:
+        fills = {m[2] for m in left_s + left_x}
+        out.add('rung order' if reordered else 'unknown: marks %s' % ', '.join(sorted(fills)))
+    return out
+
+
+def _explained(x, y):
+    return not any(c.startswith('unknown') for c in element_causes(x, y))
+
+
+# ---------------------------------------------------------------- the run
+
+def commits(repo, since=None, until=None):
+    """The commits of the repo, oldest first, from since (default: the first) to until (default: HEAD), both included."""
+    out = _git(repo, 'rev-list', '--reverse', until or 'HEAD').decode().split()
+    return out[out.index(_git(repo, 'rev-parse', since).decode().strip()):] if since else out
+
+
+def subjects(repo):
+    return dict(line.split(' ', 1) for line in
+                _git(repo, 'log', '--format=%H %s').decode('utf-8').splitlines() if ' ' in line)
+
+
+def row_of(subject):
+    m = re.match(r'([A-Z]+\d+|P\d+):?\s', subject)
+    return m.group(1) if m else ''
+
+
+def run(repo, since, until, checks, progress=None):
+    """{'nothing changed': [{commit, row, differences}], 'same change': [...]} over the commits since .. until."""
+    cs = commits(repo, since, until)
+    subj = subjects(repo)
+    out = {}
+    files = Files(repo)
+    if 'nothing' in checks:
+        out['nothing changed'] = []
+        for k, c in enumerate(cs):
+            out['nothing changed'].append({'commit': c[:7], 'row': row_of(subj.get(c, '')),
+                                           'differences': nothing_changed(repo, c, files)})
+            if progress:
+                progress('nothing changed', k + 1, len(cs))
+    if 'same' in checks:
+        out['same change'] = []
+        for k, (c1, c2) in enumerate(zip(cs, cs[1:])):
+            out['same change'].append({'commit': c2[:7], 'row': row_of(subj.get(c2, '')),
+                                       'differences': same_change(repo, c1, c2, files)})
+            if progress:
+                progress('same change', k + 1, len(cs) - 1)
+    return out
+
+
+def counts(result):
+    """Text lines: per check, the counts by cause."""
+    lines = []
+    nc = result.get('nothing changed')
+    if nc:
+        def objs(r):
+            return {x['object'] for x in r['differences']}
+
+        def nets(r):
+            return [x for x in r['differences'] if x['network'] is not None]
+        worst = max(nc, key=lambda r: (len(objs(r)), len(nets(r))))
+        picks = [('start', nc[0]), ('head', nc[-1]), ('worst', worst)]
+        lines.append('Nothing changed: %d commits. Objects (networks) listed: %s' % (len(nc), ', '.join(
+            '%s %s %d (%d)' % (name, r['commit'], len(objs(r)), len(nets(r))) for name, r in picks)))
+        lines.append('  %-44s %-38s %s' % ('cause', 'kind', '  '.join('%-13s' % n for n, _ in picks)))
+        per = {}
+        for name, r in picks:
+            for x in r['differences']:
+                for c in x['causes']:
+                    per.setdefault(c, {}).setdefault(name, [set(), 0, 0])
+                    e = per[c][name]
+                    if x['network'] is None:
+                        e[0].add(x['object'])
+                    else:
+                        e[1] += 1
+                        e[2] += len(x['causes']) == 1
+        for c in sorted(per, key=lambda c: (-per[c].get('start', [set(), 0])[1], -len(per[c].get('start', [set()])[0]), c)):
+            cells = []
+            for name, _ in picks:
+                o, n, alone = per[c].get(name, [set(), 0, 0])
+                cells.append('%-13s' % ('%d/%d (%d)' % (len(o), n, alone)))
+            lines.append('  %-44s %-38s %s' % (c[:44], kind_of(c)[:38], '  '.join(cells)))
+        lines.append('  (objects/networks (networks with no other cause))')
+    sc = result.get('same change')
+    if sc:
+        rows = [r for r in sc if r['differences']]
+        lines.append('The same change: %d commits, %d whose two reports differ' % (len(sc), len(rows)))
+        per = {}
+        for r in rows:
+            for x in r['differences']:
+                for c in x['causes']:
+                    e = per.setdefault(c, [set(), 0, set()])
+                    e[0].add(r['commit'])
+                    e[1] += 1
+                    if all(c2 == c for y in r['differences'] for c2 in y['causes']):
+                        e[2].add(r['commit'])
+        lines.append('  %-44s %-38s %s' % ('cause', 'kind', 'commits objects (alone)'))
+        for c in sorted(per, key=lambda c: (-len(per[c][0]), c)):
+            lines.append('  %-44s %-38s %-7d %-7d (%d)' % (c[:44], kind_of(c)[:38], len(per[c][0]), per[c][1],
+                                                            len(per[c][2])))
+    return lines
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(prog='TiaChangeReports.twoformats', description=__doc__.split('\n\n')[0])
+    p.add_argument('repo', help='a repo laid out as the two-format run: .s7dcl under plc/ and library/, SimaticML '
+                                'under simaticml/')
+    p.add_argument('--since', help='first commit (default: the repo\'s first)')
+    p.add_argument('--until', help='last commit (default: HEAD)')
+    p.add_argument('--check', choices=('nothing', 'same', 'both'), default='both')
+    p.add_argument('--json', help='also write every difference with its causes to this file')
+    a = p.parse_args(argv)
+    checks = ('nothing', 'same') if a.check == 'both' else (a.check,)
+
+    def progress(check, k, n):
+        if k % 25 == 0 or k == n:
+            print('%s: %d of %d' % (check, k, n), file=sys.stderr, flush=True)
+    try:
+        result = run(a.repo, a.since, a.until, checks, progress)
+    except ValueError as ex:
+        print(ex, file=sys.stderr)
+        return 2
+    for line in counts(result):
+        print(line)
+    if a.json:
+        with open(a.json, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=1, default=list)
+    return 0
+
+
+if __name__ == '__main__':
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding='utf-8')
+    sys.exit(main())

@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-07T19:55:16-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T09:23:06-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -56,6 +56,18 @@ Both block formats read into one model, so an OB compares and draws like any oth
 
 **Unread:** whatever a reader does not read, in another language, or that the page cannot show. If the two files differ there, the page carries a note, also beside a change it shows: `beside.py` tries each part of a network that differs alone on the version before, and a part that reads the same there is the network's note. Limits on that note: [its README, What it does not](../../../TiaChangeReports/README.md#what-it-does-not).
 
+## The two formats against each other
+
+`twoformats.py` checks that the report says the same from `.s7dcl` as from SimaticML. Its usage is in [the README](../../../TiaChangeReports/README.md#checking-the-two-formats-against-each-other). Its input is a repo where every commit holds both formats of the same objects, as the two-format benchmark run's does: `.s7dcl` under `plc\` and `library\`, SimaticML under `simaticml\`. That repo is not in the clone.
+
+**The sides.** Both are `GitSnapshot`s of one commit, restricted to `plc\blocks\`, `plc\types\` and `library\types\`: the folders both formats hold. The SimaticML side is the `simaticml\` folder, read whole (`_laid_out` off), as its root is no project repo's. The report is `compare_snapshots`, the same call the page makes.
+
+**Facts.** A report is reduced to facts: per listed object its state, kind, declaration, note and library link; per interface row that differs its path, state and the fields that differ with their values (a start value apart); per property its values; per network its state, language and tags, title and comment; per drawn LAD element its mark (the element as compared without its element id and ENO, the fill, and the areas marked from the element's own corner, from `Layout.marks`); per SCL or FBD network the lines that differ. Two reports say the same when the facts are the same multiset. What that cannot see: which of two equal elements of a network carries a mark, where an element stands, the lines and wires drawn, the page's HTML, PLC tag tables and the HMI part.
+
+**Causes.** A cause has an id and a kind (`CAUSES`). For an element the two readers read otherwise, `element_causes` tries the normalisations (`STEPS`: quotes around member names, pin case, pin direction, pin order, templates one side lacks) and names the ones each needed. For a file one format moved and the other did not, and for a note one report has and the other not, `xml_moved` lists what differs in the SimaticML, order and ids left out, and `field_causes` names it from `XML_FIELDS`, else as `SimaticML field: <path>`. An object with a file in one format only is `one format only` when SimaticML is the one missing and the object has SimaticML in another commit (TIA refuses the SimaticML of an inconsistent block), else `run file`; so is an object a report joins to it (a rename, a move, its library type). What fits no rule is `unknown: ...`, with what was seen.
+
+**In the hook.** The full run takes about half an hour and needs the benchmark repo: not in the hook. `tests\test_two_formats.py` runs it on three real commits from that repo, copied into `tests\fixtures\twoformats\`, in about three seconds.
+
 ## Files
 
 | File | What |
@@ -70,6 +82,7 @@ Both block formats read into one model, so an OB compares and draws like any oth
 | `render_lad.py`, `verify.py` | The drawing and its self-check |
 | `page.py` | The page or fragment: summary, block sections, project tree, script |
 | `hmi.py`, `hmi.js`, `hmi.css` | The HMI part |
+| `twoformats.py` | The two formats against each other: facts of a report, the two checks, their causes |
 
 ## The page
 

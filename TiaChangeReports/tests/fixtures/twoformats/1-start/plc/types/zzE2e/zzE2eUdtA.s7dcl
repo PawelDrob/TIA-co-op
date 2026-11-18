@@ -1,0 +1,7 @@
+﻿TYPE
+    zzE2eUdtA : STRUCT
+        m1 : Int;
+        m2 : Bool;
+        m3 : Int;
+    END_STRUCT;
+END_TYPE

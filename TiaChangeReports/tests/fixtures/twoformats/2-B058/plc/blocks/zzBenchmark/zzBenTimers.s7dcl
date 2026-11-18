@@ -1,0 +1,149 @@
+﻿{
+    S7_BlockComment := "MLC_B";
+    S7_Optimized := "TRUE";
+    S7_PreferredLanguage := "LAD";
+    S7_Version := "0.1"
+}
+FUNCTION_BLOCK "zzBenTimers"
+    VAR_INPUT 
+        inAuto : Bool;
+        inLevel : Int;
+        inManual : Bool;
+        inSensorA : Bool;
+        inSpeed : Int;
+        inStart : Bool;
+    END_VAR
+    VAR_OUTPUT 
+        outQ1 : Bool;
+        outQ2 : Bool;
+        outQ3 : Bool;
+        outQ4 : Bool;
+    END_VAR
+    VAR 
+        instCtu : CTU_INT;
+        instCtuA : CTU_INT;
+        instTonA : TON_TIME;
+        instTonB : TON_TIME;
+        statEdge : Bool;
+        statElapsed : Time;
+        statHold : Bool;
+        statStep : Int;
+    END_VAR
+
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_N1"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #inSensorA )
+            { S7_Templates := "value_type := Int" }
+            #instCtu.CTU(
+                r := wire#w1, 
+                pv := #inLevel, 
+                cv => #statStep
+            )
+            Coil( #outQ2 )
+        END_RUNG
+        RUNG wire#powerrail
+            { S7_Templates := "SrcType := Int" }
+            GE_Contact(
+                in1 := #inLevel, 
+                in2 := "zzInvBen".hi
+            )
+        END_RUNG wire#w1
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_N2"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #inStart )
+            wire#w1
+            P_Trig( #statEdge )
+            Contact( #inSensorA )
+            wire#w2
+            Coil( #outQ3 )
+        END_RUNG
+        RUNG wire#w1
+            Contact( #inManual )
+        END_RUNG wire#w2
+        RUNG wire#powerrail
+            Contact( #inAuto )
+            S_SR(
+                operand := #statHold, 
+                r1 := wire#w3
+            )
+            Coil( #outQ4 )
+        END_RUNG
+        RUNG wire#powerrail
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := #inLevel, 
+                in2 := 0
+            )
+        END_RUNG wire#w3
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_N3"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #inAuto )
+            { S7_Templates := "time_type := Time" }
+            #instTonA.TON(
+                pt := T#5s, 
+                et => #statElapsed
+            )
+            Contact( #inSensorA )
+            wire#w1
+            Coil( #outQ1 )
+        END_RUNG
+        RUNG wire#powerrail
+            Contact( #inManual )
+        END_RUNG wire#w1
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_N4"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #inAuto )
+            wire#w1
+            { S7_Templates := "time_type := Time" }
+            #instTonB.TON(
+                pt := T#5s, 
+                et => #statElapsed
+            )
+            Contact( #inSensorA )
+            Coil( #outQ1 )
+        END_RUNG
+        RUNG wire#w1
+            Coil( #outQ2 )
+        END_RUNG
+    END_NETWORK
+    {
+        S7_Language := "LAD";
+        S7_NetworkTitle := "MLC_N5"
+    }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #inAuto )
+            wire#w1
+            Contact( #inSensorA )
+            { S7_Templates := "value_type := Int" }
+            #instCtuA.CTU(
+                r := #inManual, 
+                pv := #inLevel, 
+                cv => #statStep
+            )
+            Coil( #outQ1 )
+        END_RUNG
+        RUNG wire#w1
+            Coil( #outQ2 )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK
