@@ -743,7 +743,7 @@ def _net_part(n, dx, fs, fx):
             out.add('unknown: %s' % part)
     st_s, st_x = ({k[3:] for k in c if k[1] == 'network'} for c in (ns, nx))
     if st_s and st_x and st_s != st_x:                    # listed by both reports, in another state or language
-        out.add('unknown: network %s / %s' % (sorted(st_s)[0], sorted(st_x)[0]))
+        out.add('unknown: network %s / %s' % tuple(' '.join(sorted(x)[0]) for x in (st_s, st_x)))
     elif st_s != st_x and not out:                        # listed by one alone: follows from what the causes name
         out.add('unknown: network listed by one report alone')
     return out or {'unknown: network'}

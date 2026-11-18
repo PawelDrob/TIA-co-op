@@ -67,12 +67,69 @@ class RunRepo(unittest.TestCase):
         self.assertEqual([], got[0]['xml'], 'the SimaticML report holds nothing of it')
 
     def test_counts_name_every_cause_and_its_kind(self):
-        result = twoformats.run(self.repo, None, None, ('nothing', 'same'))     # from the first with simaticml/
+        result = twoformats.run(self.repo, None, None, ('nothing', 'same'))
         text = '\n'.join(twoformats.counts(result))
         self.assertIn('Nothing changed: 3 commits', text)
         self.assertIn('The same change: 2 commits, 2 whose two reports differ', text)
         self.assertRegex(text, r'DB retain\s+a field only one format writes')
         self.assertNotIn('unknown', text)
+
+
+class DefaultStart(unittest.TestCase):
+    """With no --since, the run starts at the first commit with a file under simaticml/: a repo's first commits may
+    hold no export (the benchmark run's repo starts with its bridge's files)."""
+
+    def test_commits_before_simaticml_are_left_out(self):
+        with tempfile.TemporaryDirectory() as repo:
+            git(repo, 'init', '-q')
+            with open(os.path.join(repo, 'tiabridge.json'), 'w', encoding='utf-8') as f:
+                f.write('{}')
+            git(repo, 'add', '-A')
+            git(repo, 'commit', '-q', '-m', 'repo')
+            shutil.copytree(os.path.join(FIXTURES, '1-before'), repo, dirs_exist_ok=True)
+            git(repo, 'add', '-A')
+            git(repo, 'commit', '-q', '-m', 'both formats')
+            self.assertEqual(1, len(twoformats.commits(repo)))
+            text = '\n'.join(twoformats.counts(twoformats.run(repo, None, None, ('nothing',))))
+            self.assertIn('Nothing changed: 1 commits', text)
+
+
+class UnknownWhereFactsDiffer(unittest.TestCase):
+    """A state, kind or language both reports list otherwise, and a network title or comment that differs, has no
+    cause the bed names: it is unknown, never dropped beside another cause."""
+
+    O, N = 'plc/blocks/zzBenchmark/zzBenTimers', (1, 1, '14 Counter with fed pins')
+
+    def block(self, sd, xml):
+        from collections import Counter
+        return twoformats._block_part(self.O, None, None, Counter(sd), Counter(xml), None)
+
+    def network(self, sd, xml):
+        from collections import Counter
+        return twoformats._net_part(self.N, None, Counter(sd), Counter(xml))
+
+    def test_another_state(self):
+        o = self.O
+        self.assertEqual({'unknown: state changed / new'},
+                         self.block([(o, 'state', 'changed'), (o, 'kind', 'FB')], [(o, 'state', 'new'), (o, 'kind', 'FB')]))
+
+    def test_another_kind(self):
+        o = self.O
+        self.assertEqual({'unknown: kind DB / Instance DB'},
+                         self.block([(o, 'state', 'changed'), (o, 'kind', 'DB')],
+                                    [(o, 'state', 'changed'), (o, 'kind', 'Instance DB')]))
+
+    def test_another_language(self):
+        o, n = self.O, self.N
+        self.assertEqual({'unknown: network changed LAD / changed FBD'},
+                         self.network([(o, 'network', n, 'changed', 'LAD')], [(o, 'network', n, 'changed', 'FBD')]))
+
+    def test_a_title_beside_another_cause(self):
+        o, n = self.O, self.N
+        net = (o, 'network', n, 'changed', 'LAD')
+        tag = (o, 'network tag', n, 'other order')
+        self.assertEqual({'unknown: network title', 'rung order'},
+                         self.network([net, (o, 'network title', n, 'a', 'b'), tag], [net]))
 
 
 class ElementCauses(unittest.TestCase):
