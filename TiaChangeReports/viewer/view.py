@@ -8,6 +8,7 @@ column, written here. A LAD network's SVG is the one the report draws for it unc
 the same bytes). Calls and types are read from the project the file is in (project_root), as the report reads them
 from the folder it compares."""
 import os
+from dataclasses import replace
 from html import escape
 from types import SimpleNamespace
 
@@ -44,6 +45,8 @@ def block_of(path):
     if os.path.splitext(path)[1].lower() not in EXTENSIONS:
         raise ValueError('not a block export: an .s7dcl, or the SimaticML .xml of a block')
     src = from_file(path)
+    if src.xml is None and os.path.splitext(path)[1].lower() == '.xml':     # from_file reads a lower-case .xml only
+        src = replace(src, s7dcl='', s7res=None, xml=src.s7dcl)
     blk = parse_block(src)
     root = project_root(path)
     rel = os.path.relpath(os.path.abspath(path), root).replace(os.sep, '/')
@@ -138,7 +141,10 @@ def source_html(path):
 
 
 def why_unreadable(ex, path):
-    """An error of the readers as one line for the page, without the file's path in front."""
+    """An error of the readers as one line for the page, without the file's path: an error of the system its text
+    alone (No such file or directory)."""
+    if isinstance(ex, OSError) and ex.strerror:
+        return ex.strerror
     why = str(ex) or type(ex).__name__
     for p in (os.path.abspath(path), path):
         if why.startswith(p + ': '):

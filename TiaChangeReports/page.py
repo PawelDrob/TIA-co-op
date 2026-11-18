@@ -278,6 +278,28 @@ r.querySelectorAll('section.blk').forEach(function(s){var f=s.querySelector('.bh
 })();
 """
 
+# A member with members folds and opens in the interface table, as a network does: a click on its name cell (iface.py:
+# its level in data-d). Everything opens at first. A folded member whose members hold a change (data-hc) says so, so a
+# fold never hides that a change is there; the change itself shows again when it opens. A row under a fold is hidden
+# (fz) whatever else shows or hides it (ctx, skip); folded rows stay folded in print, as networks do.
+CSS += """
+.ldiff table.itf tr.fz{display:none!important}
+.ldiff table.itf tr.pa td.nm{cursor:pointer}
+.ldiff table.itf tr.shut td.nm[data-hc]::after{content:'holds a change';margin-left:8px;padding:0 5px;font-size:11px;
+  background:var(--chg-bg);border:1px solid var(--chg);white-space:nowrap}
+"""
+JS += """
+(function(){var r=document.currentScript&&document.currentScript.closest('.ldiff');if(!r)return;
+function lvl(x){var c=x.cells[0];return c&&c.hasAttribute('data-d')?+c.getAttribute('data-d'):-1}
+function lay(t){var rows=t.rows,shut=[];for(var k=0;k<rows.length;k++){var x=rows[k],v=lvl(x),n=rows[k+1],w;
+ if(v<0){shut=[];continue}while(shut.length&&shut[shut.length-1]>=v)shut.pop();x.classList.toggle('fz',shut.length>0);
+ x.classList.toggle('pa',!!n&&lvl(n)>v);if(!x.classList.contains('pa'))continue;w=x.cells[0].querySelector('.tw');
+ if(w)w.textContent=x.classList.contains('shut')?'\u25b6':'\u25bc';if(x.classList.contains('shut'))shut.push(v)}}
+r.querySelectorAll('table.itf').forEach(function(t){lay(t);t.addEventListener('click',function(e){
+ var c=e.target.closest('td.nm'),x=c&&c.parentNode;if(!x||!x.classList.contains('pa')||String(getSelection()))return;
+ x.classList.toggle('shut');lay(t)})})})();
+"""
+
 # Back to the top: bottom right, shown once the report's top is half a window above the view and the
 # report still fills the lower half; up to the page top, in a fragment (no data-page) to the report's own top.
 JS += """

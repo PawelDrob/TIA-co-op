@@ -14,7 +14,9 @@ members moved to another section or struct.
 
 rows(before, after) -> [Row]: every member of both versions in the order of the after version, removed ones after
 their former predecessor. html(...) shows them as TIA's interface editor does (sections as tree rows, members under
-their parent, TIA's attribute columns): the changed rows with their parents, the unchanged ones folded in place."""
+their parent, TIA's attribute columns): the changed rows with their parents, the unchanged ones folded in place. A
+member with members folds and opens on a click, as a network does (page.JS): its name cell holds its level (data-d) and,
+when a member under it changed, data-hc, which a folded row shows as "holds a change"."""
 import copy
 import re
 from dataclasses import dataclass, field
@@ -677,9 +679,11 @@ def _columns(kind):
             kind in ('FUNCTION_BLOCK', 'DATA_BLOCK', 'TYPE'))
 
 
-def _skip(n, ncols, depth):
-    return ('<tr class="skip"><td colspan="%d" style="padding-left:%dpx">⋯ %d unchanged member%s<span class="hint"> '
-            '(click to show all)</span></td></tr>' % (ncols, 8 + 16 * depth, n, '' if n == 1 else 's'))
+def _skip(n, ncols, depth, level=None):
+    """level: the shallowest level of the rows it stands for, which a fold above it hides it with (data-d)."""
+    return ('<tr class="skip"><td colspan="%d"%s style="padding-left:%dpx">⋯ %d unchanged member%s<span class="hint"> '
+            '(click to show all)</span></td></tr>' % (ncols, '' if level is None else ' data-d="%d"' % level,
+                                                      8 + 16 * depth, n, '' if n == 1 else 's'))
 
 
 def props_html(bblock, ablock):
@@ -720,6 +724,7 @@ def html(bblock, ablock, whole=False):
         if r.state != 'same':
             keep.update(r.path[:k] for k in range(1, len(r.path) + 1))    # the row and its parents
     parents = {r.path[:-1] for r in rs}
+    holds = {r.path[:k] for r in rs if r.state != 'same' for k in range(1, len(r.path))}
     parts = []
     if keep:
         body = ['<tr class="hd"><td>Name</td><td>Data type</td><td>%s</td>%s%s<td>Comment</td></tr>'
@@ -739,11 +744,13 @@ def html(bblock, ablock, whole=False):
                     j = k
                     while j < len(srows) and srows[j].path not in keep:
                         j += 1
-                    body.append(_skip(j - k, ncols, top + len(r.path) - 1))
-                    body += [_row(x, 'ctx', top, parents, kind, has_retain, has_attrs, safety) for x in srows[k:j]]
+                    body.append(_skip(j - k, ncols, top + len(r.path) - 1,
+                                      top + min(len(x.path) for x in srows[k:j]) - 1))
+                    body += [_row(x, 'ctx', top, parents, kind, has_retain, has_attrs, safety, holds)
+                             for x in srows[k:j]]
                     k = j
                     continue
-                body.append(_row(r, '', top, parents, kind, has_retain, has_attrs, safety))
+                body.append(_row(r, '', top, parents, kind, has_retain, has_attrs, safety, holds))
                 k += 1
         parts.append('<table class="itf">%s</table>' % ''.join(body))
     return ''.join(parts)
@@ -767,7 +774,8 @@ def _td(html, off, cls=''):
     return '<td%s>%s</td>' % (' class="%s"' % cls if cls else '', html)
 
 
-def _row(r, ctx, top, parents, kind, has_retain, has_attrs, safety=False):
+def _row(r, ctx, top, parents, kind, has_retain, has_attrs, safety=False, holds=()):
+    """holds: the paths of the members a changed member is under."""
     cls = ' '.join(x for x in ({'added': 'ins', 'removed': 'del', 'changed': 'chg', 'moved': 'mov',
                                 'same': ''}[r.state], ctx) if x)
     depth = len(r.path)
@@ -789,8 +797,9 @@ def _row(r, ctx, top, parents, kind, has_retain, has_attrs, safety=False):
     if 'retain' in r.changes and not has_retain:
         extra.append('retain: %s → %s' % (r.b.retain, r.a.retain))
     off = _off(r.m, kind, safety)                       # gray cells, as the row is now
-    cells = ['<td class="nm%s" style="padding-left:%dpx"><span class="tw">%s</span>%s%s</td>'
-             % (' dis' if 'name' in off else '', 8 + 16 * (top + depth - 1), tw, name,
+    level = top + depth - 1
+    cells = ['<td class="nm%s" data-d="%d"%s style="padding-left:%dpx"><span class="tw">%s</span>%s%s</td>'
+             % (' dis' if 'name' in off else '', level, ' data-hc' if r.path in holds else '', 8 + 16 * level, tw, name,
                 ''.join('<div class="ex">%s</div>' % x for x in extra)),
              _td(_cell(r, lambda m: escape(tia_type(m.type), False), 'type' in r.changes), 'type' in off),
              _td(_cell(r, _value_html, 'value' in r.changes), 'value' in off)]

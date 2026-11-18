@@ -1,15 +1,15 @@
 ---
 type: Guide
 title: Block viewer internals
-description: How the block viewer draws one .s7dcl with the change report's code, opens it as a browser app window with no console, registers for a double-click, and how its tests and window check run.
+description: How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click, and what its tests cover.
 tags: [dev, change-reports, plc]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T09:18:35-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T09:39:42-05:00 }
 ---
 
 # Block viewer internals
 
-One block export in, one page in a window out. What it does for a user is in [its README](../../../TiaChangeReports/viewer/README.md). It lives in `TiaChangeReports\viewer\` and imports the report, so that a change to the report's drawing changes both: [TiaChangeReports internals](tia-change-reports.md) has the readers and the drawing.
+One block export in, one page in the default browser out. What it does for a user is in [its README](../../../TiaChangeReports/viewer/README.md). It lives in `TiaChangeReports\viewer\` and imports the report, so that a change to the report's drawing changes both: [TiaChangeReports internals](tia-change-reports.md) has the readers and the drawing.
 
 ## The page
 
@@ -21,25 +21,23 @@ One block export in, one page in a window out. What it does for a user is in [it
 | Interface | `iface.html(blk, blk, whole=True)`: the block compared with itself, every member open |
 | A LAD network | `render_lad.Layout` in the report's frame (`page._lad_pane`), with no diff: nothing marked |
 | An SCL network | `s7dcl.scl_lines`, one side of the report's text table |
-| Style and script | `page.CSS` and `page.JS`: fold, zoom, pan and minimap as in the report |
+| Style and script | `page.CSS` and `page.JS`: the folds of networks and members, zoom, pan and minimap as in the report |
 
 The title bar, the comment field and the text table are written in `view.py`: the report's classes, with one side where the report writes two. `.panes`, `.nwt` and `.nwc` are the report's grids with one column. A change to that markup in `page.py` does not reach the viewer; a change to the drawing does. `test_viewer.Drawing` holds every LAD network of a made-up project to the bytes of the SVG the report draws for it with `--all`.
 
 **The project** (`view.project_root`): the nearest folder above the file with `plc`, `hmi` and `library`, a TiaBridge repo; else the nearest git repo's top; else the file's folder. The lookup lists that folder only when a call or type is asked for.
 
-**A file it cannot draw:** any error of the readers becomes one line above the source, the path cut from it, and the Drawing button is disabled.
+**A SimaticML export** is read in any case of its extension: `source.from_file` takes a lower-case `.xml` only, so `view.block_of` passes an upper-case one's text to the reader as SimaticML.
+
+**A file it cannot draw:** any error of the readers becomes one line above the source, without the file's path; an error of the system gives its text alone ("No such file or directory"). The Drawing button is disabled.
 
 **The switch:** a file opens on its drawing. Showing the source sets `#source` in the address, so a reload stays there.
 
-## The window
+## Opening the page
 
-`window.py` writes the page to `%TEMP%\TiaChangeReports-viewer\` and starts the browser with `--app=<file URL>`: an app window, with no tabs and no address bar. The browser is the report's PNG browser (`hmipreview.edge.edge_path`): Edge, else Chrome. Pages older than a day go at the next start.
+`browser.py` writes the page to `%TEMP%\TiaChangeReports-viewer\` and opens it as Windows opens an `.html` file (`os.startfile`): the default browser. Pages older than a day go at the next start.
 
-Why a browser app window: Edge comes with Windows 11 (Chrome where it was removed) and needs nothing installed, and the page is already the report's HTML. A package that hosts WebView2 would add a dependency with native parts for the same window.
-
-**No console:** the registered command runs `.venv\Scripts\pythonw.exe`, a program of the Windows subsystem. With no console, `__main__.py` says what went wrong in a message box: no browser, or an error of the viewer itself.
-
-The browser runs with the person's profile, so a running Edge opens the window in its own process. `--profile <folder>` (hidden from `--help`) starts a browser of its own: the window check needs one on its hidden desktop.
+**No console:** the registered command runs `.venv\Scripts\pythonw.exe`, a program of the Windows subsystem. With no console, `__main__.py` says what went wrong in a message box: a page Windows cannot open, or an error of the viewer itself.
 
 ## Double-click
 
@@ -51,8 +49,11 @@ The browser runs with the person's profile, so a running Edge opens the window i
 
 `--unregister` takes all of it back and removes `.s7dcl`'s key when nothing else is in it. A choice made in Open with (`FileExts\.s7dcl\UserChoice`) beats the default and is hashed by Windows so that no program writes it: register names it and leaves it. Both tell Explorer through `SHChangeNotify`.
 
-## Tests and the window check
+## Tests
 
-`TiaChangeReports\tests\test_viewer.py`, in the report's suite: the drawing against the report, the source and unreadable files, the window's command with a stand-in for the browser, and registration in a key of the test's own under `HKEY_CURRENT_USER`. No test opens a window.
+In the report's suite, so a change to the drawing runs them:
 
-`<py> TiaChangeReports\viewer\check_window.py` runs by hand. It makes a hidden desktop and registers in a key of its own. It runs the registered command from there, plus `--profile`, on a LAD block and on a file it cannot draw. It checks for one browser window per file and no console on either desktop, and saves a PNG of each window (`PrintWindow`).
+- `test_viewer.py`: the drawing against the report, the source and the files it cannot draw, the opening with a stand-in for `os.startfile`, and the registration in a key of the test's own under `HKEY_CURRENT_USER`, removed after.
+- `test_interface_fold.py`: the interface fold of the viewer and of the report, in headless Edge or Chrome, skipped without one.
+
+No test opens a window or the default browser.

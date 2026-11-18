@@ -1,5 +1,6 @@
 """The block viewer (TiaChangeReports/viewer): one block drawn as the report draws it, its source, a file it cannot draw,
-its window and the registration for a double-click. No test opens a window or writes the registry outside its own key."""
+the opening of its page and the registration for a double-click. No test opens a browser or writes the registry
+outside its own key."""
 import contextlib
 import io
 import os
@@ -13,7 +14,7 @@ import winreg
 
 from TiaChangeReports.__main__ import main as report
 from TiaChangeReports.tests.test_tia_look import CALLEE, CALLER, CALLER_RES, _write
-from TiaChangeReports.viewer import register, view, window
+from TiaChangeReports.viewer import browser, register, view
 from TiaChangeReports.viewer.__main__ import main
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures')
@@ -149,8 +150,16 @@ class Source(unittest.TestCase):
 
     def test_a_file_that_is_not_there(self):
         html, _ = view.page(os.path.join(self.dir, 'Gone.s7dcl'))
-        self.assertIn('class="why">This file cannot be drawn: ', html)
-        self.assertIn('Cannot read this file: ', html)
+        why = html.split('class="why">')[1].split('</div>')[0]
+        self.assertEqual(why, 'This file cannot be drawn: No such file or directory')
+        self.assertIn('Cannot read this file: No such file or directory', html)
+
+    def test_a_simaticml_export_in_upper_case_is_drawn(self):
+        shutil.copy(os.path.join(FIXTURES, 'Main.xml'), os.path.join(self.dir, 'Main.XML'))
+        html, title = view.page(os.path.join(self.dir, 'Main.XML'))
+        self.assertEqual(title, 'Main [OB1]')
+        self.assertNotIn('class="why"', html)
+        self.assertTrue(SVG.search(html))
 
     def test_the_project_root(self):
         nested = os.path.join(self.dir, 'Plant', 'plc', 'blocks', 'A')
@@ -164,7 +173,7 @@ class Source(unittest.TestCase):
         self.assertEqual(view.project_root(f), os.path.join(self.dir, 'Plant'))   # a project repo, before git
 
 
-class Window(unittest.TestCase):
+class Browser(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -174,55 +183,40 @@ class Window(unittest.TestCase):
         old = os.path.join(self.dir, 'old.html')
         with open(old, 'w') as f:
             f.write('x')
-        os.utime(old, (time.time() - window.KEEP - 60,) * 2)
-        p = window.write_page('<p>ü</p>', 'Filler [FB742]', self.dir)
+        os.utime(old, (time.time() - browser.KEEP - 60,) * 2)
+        p = browser.write_page('<p>ü</p>', 'Filler [FB742]', self.dir)
         self.assertFalse(os.path.exists(old))
         self.assertTrue(os.path.basename(p).startswith('Filler_FB742_-'))
         with open(p, encoding='utf-8') as f:
             self.assertEqual(f.read(), '<p>ü</p>')
 
-    def test_the_browser_opens_the_page_as_an_app_window(self):
-        args = window.app_command(r'C:\Edge\msedge.exe', r'C:\Temp\A b.html')
-        self.assertEqual(args, [r'C:\Edge\msedge.exe', '--app=file:///C:/Temp/A%20b.html'])
-        args = window.app_command('msedge.exe', r'C:\Temp\a.html', profile=r'C:\P')
-        self.assertEqual(args[1], r'--user-data-dir=C:\P')
-        self.assertEqual(args[-1], '--app=file:///C:/Temp/a.html')
-        started = []
-        window.open_window(r'C:\Temp\a.html', browser='msedge.exe', start=lambda a, **k: started.append(a))
-        self.assertEqual(started, [['msedge.exe', '--app=file:///C:/Temp/a.html']])
+    def test_the_page_opens_in_the_default_browser(self):
+        opened = []
+        browser.open_page(r'C:\Temp\a.html', start=opened.append)
+        self.assertEqual(opened, [r'C:\Temp\a.html'])
 
-    def test_no_browser_says_so(self):
-        import TiaChangeReports.viewer.window as w
-        real = w.edge_path
-        w.edge_path = lambda: None
-        try:
-            with self.assertRaises(LookupError) as e:
-                window.open_window('a.html', start=lambda *a, **k: self.fail('started'))
-            self.assertIn('Edge', str(e.exception))
-        finally:
-            w.edge_path = real
-
-    def test_main_opens_one_window_on_the_page_and_says_why_it_cannot(self):
+    def test_main_opens_the_page_and_says_why_it_cannot(self):
         path = os.path.join(self.dir, 'Caller.s7dcl')
         _write(self.dir, {'Caller.s7dcl': CALLER})
         opened, said = [], []
-        self.assertEqual(main([path], open_window=lambda p, profile=None: opened.append(p), message=said.append), 0)
+        self.assertEqual(main([path], open_page=opened.append, message=said.append), 0)
         self.assertEqual(len(opened), 1)
         with open(opened[0], encoding='utf-8') as f:
             self.assertIn('<title>Caller [FB]</title>', f.read())
         os.remove(opened[0])
 
-        def fails(p, profile=None):
-            raise LookupError(window.NO_BROWSER)
-        self.assertEqual(main([path], open_window=fails, message=said.append), 1)
-        self.assertEqual(said, [window.NO_BROWSER])
+        def fails(p):
+            raise OSError(1155, 'No application is associated with the specified file')
+        self.assertEqual(main([path], open_page=fails, message=said.append), 1)
+        self.assertEqual(said, ['The block viewer could not open %s in the default browser: No application is '
+                                'associated with the specified file' % path])
 
     def test_html_writes_the_page_and_opens_nothing(self):
         _write(self.dir, {'Caller.s7dcl': CALLER})
         out = os.path.join(self.dir, 'out.html')
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(main([os.path.join(self.dir, 'Caller.s7dcl'), '--html', out],
-                                  open_window=lambda *a, **k: self.fail('opened')), 0)
+                                  open_page=lambda p: self.fail('opened')), 0)
         self.assertTrue(os.path.isfile(out))
 
 

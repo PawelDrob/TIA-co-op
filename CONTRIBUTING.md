@@ -51,8 +51,6 @@ powershell -NoProfile -File TiaBridge\Tests\parse.ps1
 
 **The archive compare window's check runs by hand,** so the hook leaves it out: it opens windows on the desktop, some of them visible, takes the keyboard focus and overwrites the clipboard. [Its README](TiaArchiveCompare/window/README.md) has the command. On a PC in use, run it only on a hidden desktop: make one with the Windows call `CreateDesktop` and start the check with that desktop's name in `lpDesktop` of `STARTUPINFO`. A hidden desktop shares the clipboard, so keep nothing you need on it.
 
-**The block viewer's window check runs by hand** too, as it opens browser windows, on a hidden desktop it makes itself: `<clone>\.venv\Scripts\python.exe -X utf8 TiaChangeReports\viewer\check_window.py`. [Its internals](docs/dev/tools/tia-block-viewer.md#tests-and-the-window-check) say what it checks.
-
 ## The download of TIA Archive Compare
 
 A pushed tag `v<version>` makes `.github/workflows/release.yml` build `TIA-Archive-Compare-<version>.zip`, check it and attach it to the release of that tag, made as a draft when there is none: push the tag, then fill in that draft, with the version's entry of `CHANGELOG.md` as its notes, and publish it. A release made first, with its tag, gets the zip some minutes after. The tag must name the version of `TiaArchiveCompare/runner/__init__.py` and `TiaBridge/Mcp.ps1`. Run by hand from the Actions tab (**Run workflow** shows once `release.yml` is on the default branch of the repo on GitHub, or of a fork), the workflow is a dry run, on a tag too: the zip stays with the run. The same build, from a Windows terminal in the clone (it needs uv, git and Windows PowerShell):
