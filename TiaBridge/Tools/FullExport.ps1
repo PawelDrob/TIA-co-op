@@ -355,14 +355,12 @@ function Get-LeftOutReason($Item) {
 # process is still up (TIA ends it seconds later), or when TIA does not answer after it. Err: ConvertTo-BridgeError.
 function Set-PartStopped($Record, $Err) {
     if ($Err.tiaEnded) { $Record.stopped = $true; $Record.endedBy = $Err.type }
-    else { $null = Stop-PartIfTiaGone $Record }
+    else { Stop-PartIfTiaGone $Record }
 }
 
-# The run stops at a part after which TIA does not answer. Returns whether it stopped.
+# The run stops at a part after which TIA does not answer.
 function Stop-PartIfTiaGone($Record) {
-    if (Test-TiaAlive) { return $false }
-    $Record.stopped = $true; $Record.endedBy = 'it does not answer any more'
-    $true
+    if (-not (Test-TiaAlive)) { $Record.stopped = $true; $Record.endedBy = 'it does not answer any more' }
 }
 
 # The refusal of a device with several software items of a scope, or $null. Each item has its device's name (two CPUs of one
@@ -442,7 +440,8 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
                 $f = [ordered]@{ name = $item.name; folder = $item.folder }
                 if ($item.error) { $f.error = $item.error } elseif ($item.messages) { $f.messages = $item.messages }
                 [void]$Record.failed.Add($f)
-                if ($item.error -and -not (Test-TiaAlive)) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
+                # Set-ItemError asked TIA after the object's failure: its answer stands
+                if (Test-ItemEndedTia $item) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
             }
         }
         finally {
@@ -638,7 +637,7 @@ function Invoke-FullExportRun($a) {
             else { Invoke-FullExportFilePart $p $root $j.device $rec }
             # TIA is asked once a part, after it: the paths of its objects do not ask (Test-TiaAliveInCall), and a skipped
             # object makes no call into TIA
-            if (-not $rec.stopped -and -not $rec.listError) { $null = Stop-PartIfTiaGone $rec }
+            if (-not $rec.stopped -and -not $rec.listError) { Stop-PartIfTiaGone $rec }
         }
         catch {
             # the part's folder or objects could not be told: nothing of the part is mirrored

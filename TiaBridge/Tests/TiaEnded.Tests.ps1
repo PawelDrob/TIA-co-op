@@ -21,9 +21,10 @@ namespace Siemens.Engineering.Library.Types {
 
 function New-Ending { [System.Management.Automation.MethodInvocationException]::new('outer', [FakeSiemens.NonRecoverableException]::new('Unexpected exception')) }
 
+. (Join-Path $here 'TestBridge.ps1')
+
 function Get-KindRoot { 'root' }
-# like the real one: nothing to ask once the bridge has detached
-function Test-TiaAlive { [bool]($script:Bridge.project -and -not $script:tiaGone) }
+function Test-TiaAlive { Test-FakeTiaAlive }
 function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf) {
     $out = @(& $Body)
     @{ output = $out; transaction = $true; rolledBack = $false; commitError = $null; note = $null }
@@ -41,9 +42,10 @@ function Initialize-FakeBridge([switch]$Background) {
     $script:Bridge.project = [pscustomobject]@{ ProjectLibrary = (New-FakeProjectLibrary) }
     if ($Background) { $script:Bridge.background = @{ write = $true; session = (New-SessionState) } }
     Register-Archive (Get-BridgeSession)
+    Read-CallFirstProject
 }
 
-# The fake kind: Ends ends TIA, Bad fails, any other name works.
+# The fake kind: Ends ends TIA, Bad fails, Gone fails and TIA answers no more after it, any other name works.
 Register-ObjectKind 'fake' @{
     scope = 'plc'; dir = 'plc\fake'; defaultOverride = $true; description = 'test kind'
     items = { param($root) foreach ($n in $script:names) { @{ name = $n; folder = ''; obj = [pscustomobject]@{ Name = $n } } } }
@@ -55,6 +57,7 @@ Register-ObjectKind 'fake' @{
         $script:exported += @($e.name)
         if ($e.name -eq 'Ends') { throw (New-Ending) }
         if ($e.name -eq 'Bad') { throw [System.InvalidOperationException]::new('TIA said no') }
+        if ($e.name -eq 'Gone') { $script:tiaGone = $true; throw [System.InvalidOperationException]::new('TIA said no') }
         @{ ok = $true; format = 'xml'; files = @() } }
 }
 
@@ -85,8 +88,7 @@ Describe 'export that ends TIA' {
     }
 
     It 'says so as well when TIA does not answer after a failure' {
-        $script:tiaGone = $true
-        try { $r = Invoke-FakeExport @('Bad', 'C') } finally { $script:tiaGone = $false }
+        try { $r = Invoke-FakeExport @('Gone', 'C') } finally { $script:tiaGone = $false }
         $r.tiaEnded | Should Be $true
         $r.note | Should Match 'does not answer any more'
         @($r.items).Count | Should Be 1
@@ -155,6 +157,15 @@ Describe 'full_export that ends TIA' {
         $r = Invoke-FakeFullExport @(@{ name = 'objects'; scope = 'project'; kind = 'fake' }, $next)
         Assert-Ended $r
         $r.note | Should Match 'objects'
+    }
+
+    It 'stops at an object after which TIA does not answer' {
+        $script:names = @('A', 'Gone', 'C')
+        try { $r = Invoke-FakeFullExport @(@{ name = 'objects'; scope = 'project'; kind = 'fake' }, $next) } finally { $script:tiaGone = $false }
+        Assert-Ended $r
+        $r.note | Should Match 'TIA Portal ended at part objects'
+        $r.note | Should Match 'does not answer'
+        $script:exported -join ',' | Should Be 'A,Gone'
     }
 
     It 'stops at a list that ends TIA, although its process is still up' {

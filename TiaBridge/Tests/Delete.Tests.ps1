@@ -12,7 +12,8 @@ if (-not ('Siemens.Engineering.Library.Types.LibraryTypeInstanceInfo' -as [type]
 
 function Get-KindRoot { 'root' }
 function Get-TiaSoftwareList { @(@{ device = 'PLC_1'; kind = 'plc' }) }
-function Test-TiaAlive { -not $script:tiaGone }
+. (Join-Path $here 'TestBridge.ps1')
+function Test-TiaAlive { Test-FakeTiaAlive }
 function Get-TiaService($Obj, [type]$Type) { $Obj.fakeInfo }
 function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf) {
     $script:writes++
@@ -22,7 +23,8 @@ function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTr
     @{ output = $out; transaction = $true; rolledBack = $rb; commitError = $null; note = $null }
 }
 
-# An object of the fake kind. Fails: '' deletes it, 'plain' or 'ends' throw. InWork: the test instance of a type in work.
+# An object of the fake kind. Fails: '' deletes it, 'plain' or 'ends' throw, 'gone' throws and TIA answers no more.
+# InWork: the test instance of a type in work.
 function New-FakeEntry([string]$Name, [string]$Fails = '', [switch]$InWork) {
     $info = $null
     if ($InWork) { $info = [pscustomobject]@{ LibraryTypeVersion = [pscustomobject]@{ TypeObject = [pscustomobject]@{ Name = 'Library_Notes' }; VersionNumber = [version]'0.0.2'; State = 'InWork' } } }
@@ -30,6 +32,7 @@ function New-FakeEntry([string]$Name, [string]$Fails = '', [switch]$InWork) {
     $o | Add-Member ScriptMethod Delete {
         $script:deleted += @($this.Name)
         if ($this.fails -eq 'plain') { throw [System.InvalidOperationException]::new('TIA said no') }
+        if ($this.fails -eq 'gone') { $script:tiaGone = $true; throw [System.InvalidOperationException]::new('TIA said no') }
         if ($this.fails -eq 'ends') { throw [System.Management.Automation.MethodInvocationException]::new('outer', [FakeSiemens.NonRecoverableException]::new('Unexpected exception')) }
     }
     @{ name = $Name; folder = 'F'; obj = $o }
@@ -42,10 +45,11 @@ Register-ObjectKind 'fake' @{
 
 function Invoke-FakeDelete([string[]]$Names, [switch]$Background, $Safety = $null, $Knowhow = $null) {
     Initialize-BridgeContext @{ maxResponseChars = 20000 }
-    Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo (Join-Path $TestDrive 'D')
+    Set-TestBridgeProject (Join-Path $TestDrive 'D')
     if ($Background) { $script:Bridge.background = @{ write = $true; session = (New-SessionState) } }
     Register-Archive (Get-BridgeSession)
     $script:deleted = @(); $script:writes = 0; $script:committed = $null
+    Read-CallFirstProject
     Invoke-DeleteTool ([pscustomobject]@{ kind = 'fake'; names = $Names; safety = $Safety; knowhow = $Knowhow })
 }
 
@@ -81,7 +85,7 @@ Describe 'delete of the test instance of a library type in work' {
 }
 
 Describe 'delete that ends TIA' {
-    $script:entries = @((New-FakeEntry 'A'), (New-FakeEntry 'Ends' 'ends'), (New-FakeEntry 'Bad' 'plain'), (New-FakeEntry 'C'))
+    $script:entries = @((New-FakeEntry 'A'), (New-FakeEntry 'Ends' 'ends'), (New-FakeEntry 'Bad' 'plain'), (New-FakeEntry 'Gone' 'gone'), (New-FakeEntry 'C'))
 
     It 'returns the TIA-ended result, stops at that object and refuses TIA calls until connect' {
         $r = Invoke-FakeDelete @('A', 'Ends', 'C')
@@ -105,8 +109,7 @@ Describe 'delete that ends TIA' {
     }
 
     It 'says so as well when TIA does not answer after a failure' {
-        $script:tiaGone = $true
-        try { $r = Invoke-FakeDelete @('A', 'Bad', 'C') } finally { $script:tiaGone = $false }
+        try { $r = Invoke-FakeDelete @('A', 'Gone', 'C') } finally { $script:tiaGone = $false }
         $r.tiaEnded | Should Be $true
         $r.note | Should Match 'does not answer any more'
         $r.items[2].notAttempted | Should Be $true

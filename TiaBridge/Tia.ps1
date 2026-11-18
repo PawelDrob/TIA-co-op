@@ -264,9 +264,9 @@ function Reset-TiaConnection {
     $script:Bridge.aliveProject = $null
 }
 
-# Asks TIA whether it is alive. A yes holds for Get-TiaProject (aliveProject, the project it was for) until the next tool
-# call (Invoke-BridgeToolCall), the next ask or another project bound; a no is never kept. Where the answer changes what
-# the bridge does (after a part of full_export, after a failure, after a call threw), call this.
+# Asks TIA whether it is alive, each time it is called. A yes holds for Get-TiaProject (aliveProject, the project it was
+# for) until the next tool call (Invoke-BridgeToolCall), the next ask or another project bound; a no is never kept. Code
+# whose next step depends on the answer calls this, not Test-TiaAliveInCall.
 function Test-TiaAlive {
     $script:Bridge.aliveProject = $null
     if (-not $script:Bridge.project) { return $false }

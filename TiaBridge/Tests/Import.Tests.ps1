@@ -6,7 +6,8 @@ foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bri
 function Get-KindRoot { 'root' }
 function Get-TiaSoftwareList { @(@{ device = 'PLC_1'; kind = 'plc' }, @{ device = 'HMI_1'; kind = 'hmi' }) }
 function Get-TiaService { $null }
-function Test-TiaAlive { -not $script:tiaGone }
+. (Join-Path $here 'TestBridge.ps1')
+function Test-TiaAlive { Test-FakeTiaAlive }
 if (-not ('FakeSiemens.NonRecoverableException' -as [type])) {
     Add-Type -TypeDefinition 'namespace FakeSiemens { public class NonRecoverableException : System.Exception { public NonRecoverableException(string m) : base(m) { } } }'
 }
@@ -26,6 +27,7 @@ Register-ObjectKind 'fake' @{
     import = { param($root, $folder, $file, $override)
         $script:imported += @($file.name)
         if ($file.name -eq 'Bad') { throw [System.InvalidOperationException]::new('TIA said no') }
+        if ($file.name -eq 'Gone') { $script:tiaGone = $true; throw [System.InvalidOperationException]::new('TIA said no') }
         if ($file.name -eq 'Ends') { throw [System.Management.Automation.MethodInvocationException]::new('outer', [FakeSiemens.NonRecoverableException]::new('The dependent property DialFillStyle has an invalid value.')) }
         if ($file.name -eq 'Partial') { return @{ ok = $false; messages = @{ state = 'Failure' } } }
         @{ ok = $true } }
@@ -42,7 +44,7 @@ Describe 'import of a kind that has no import' {
         $repo = Join-Path $TestDrive "NoImport$Kind"
         $null = New-Item -ItemType Directory -Force $repo
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
         Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = @('Any.xml') })
     }
@@ -65,7 +67,7 @@ Describe 'import of library type documents' {
         $repo = Join-Path $TestDrive 'L'
         Write-TextFile (Join-Path $repo 'library\fake\T\T.s7dcl') 'x'
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
         $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'fakelib'; paths = @('library\fake\T\T.s7dcl') })
         $r.ok | Should Be $true
@@ -83,7 +85,7 @@ Describe 'import of library type documents' {
         $repo = Join-Path $TestDrive 'LC'
         Write-TextFile (Join-Path $repo 'library\fakecopies\T\T.s7dcl') 'x'
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
         $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'fakecopies'; paths = @('library\fakecopies\T\T.s7dcl') })
         @($r.copiesBack)[0].object | Should Be 'S_1'
@@ -102,7 +104,7 @@ Describe 'import of library type documents' {
         $repo = Join-Path $TestDrive 'LC2'
         foreach ($n in 'A', 'Bad') { Write-TextFile (Join-Path $repo "library\fakecopies2\$n\$n.s7dcl") 'x' }
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
         $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'fakecopies2'; paths = @('library\fakecopies2\A\A.s7dcl', 'library\fakecopies2\Bad\Bad.s7dcl') })
         $r.Contains('copiesBack') | Should Be $false
@@ -117,7 +119,7 @@ Describe 'import of a batch' {
 
     function Invoke-Batch([string[]]$Names) {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
         $script:imported = @(); $script:committed = $null
         Invoke-ImportTool ([pscustomobject]@{ kind = 'fake'; paths = @($Names | ForEach-Object { "plc\fake\$_.xml" }) })
@@ -157,7 +159,7 @@ Describe 'import of a batch' {
             import = { param($root, $folder, $file, $override) $script:imported += @($file.name); @{ ok = $true } }
         }
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
         $script:imported = @(); $script:committed = $null
         $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'fakehmi'; paths = @('plc\fake\A.xml', 'plc\fake\Bad.xml') })
@@ -181,14 +183,15 @@ Describe 'import of a batch' {
 # A refused HMI import throws NonRecoverableException and TIA ends its process seconds later.
 Describe 'import that ends TIA' {
     $repo = Join-Path $TestDrive 'E'
-    foreach ($n in 'A', 'Ends', 'Bad', 'C') { Write-TextFile (Join-Path $repo "plc\fake\$n.xml") 'x' }
+    foreach ($n in 'A', 'Ends', 'Bad', 'Gone', 'C') { Write-TextFile (Join-Path $repo "plc\fake\$n.xml") 'x' }
 
     function Invoke-Ending([string[]]$Names, [switch]$Background) {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         if ($Background) { $script:Bridge.background = @{ write = $true; session = (New-SessionState) } }
         Register-Archive (Get-BridgeSession)
         $script:imported = @(); $script:committed = $null
+        Read-CallFirstProject
         Invoke-ImportTool ([pscustomobject]@{ kind = 'fake'; paths = @($Names | ForEach-Object { "plc\fake\$_.xml" }) })
     }
 
@@ -210,8 +213,7 @@ Describe 'import that ends TIA' {
     }
 
     It 'says so as well when TIA does not answer after a failure' {
-        $script:tiaGone = $true
-        try { $r = Invoke-Ending @('A', 'Bad') } finally { $script:tiaGone = $false }
+        try { $r = Invoke-Ending @('A', 'Gone') } finally { $script:tiaGone = $false }
         $r.tiaEnded | Should Be $true
         $r.note | Should Match 'does not answer any more'
     }
@@ -261,7 +263,7 @@ Describe 'import of F-blocks and know-how protected blocks' {
 
     function Invoke-Guarded([string[]]$Paths, $Extra = @{}, [string]$Kind = 'fakeguard') {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
         $script:imported = @(); $script:committed = $null
         $a = @{ kind = $Kind; paths = $Paths }
@@ -349,7 +351,7 @@ Describe 'import the bridge refuses before TIA is asked, and the save' {
     }
     BeforeEach {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
     }
 
@@ -517,7 +519,7 @@ Describe 'import of watch tables' {
     }
     BeforeEach {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
     }
 
@@ -646,7 +648,7 @@ Describe 'import of force tables' {
     }
     BeforeEach {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
     }
 
@@ -794,7 +796,7 @@ Describe 'import of technology objects' {
     }
     BeforeEach {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
     }
 
@@ -927,7 +929,7 @@ Describe 'import of project graphics' {
     }
     BeforeEach {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
         $script:failNames = @()
     }
@@ -1030,7 +1032,7 @@ Describe 'import of graphic lists' {
     }
     BeforeEach {
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
-        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
     }
 

@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T14:23:25-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T16:29:34-05:00 }
 ---
 
 # TiaBridge internals
@@ -124,7 +124,7 @@ Every tool, through `Invoke-BridgeTool`:
 - Results that fail with no exception (compile, document import) come as a full message tree.
 - A batch reports per item, so one bad file does not hide the others.
 - `tiaEnded`: TIA ended its own process, as it does after a `NonRecoverableException`. The bridge detaches and refuses TIA calls until `connect`, or `background_close` and `background_open`.
-- Whether TIA is alive (`Test-TiaAlive`: the project's name and TIA's process) is asked where the answer changes what the bridge does: at the first read of the project in a call (`Get-TiaProject`, which reconnects a window session), after each part of `full_export`, and after an item failed. A yes holds for the rest of the call, so the paths of an object do not ask again; a no is never kept.
+- Whether TIA is alive (`Test-TiaAlive`: the project's name and TIA's process): `Get-TiaProject` asks once a call, at its first read of the project, and reconnects a window session there. A yes holds for the rest of the call, so the paths of an object do not ask again; a no is never kept. Code whose next step depends on the answer calls `Test-TiaAlive`, which asks each time. Two of those places took over from the ask each path made before: after an item failed (`Set-ItemError`), and after each part of `full_export`.
 - Every result goes untruncated to `logs\<yyyyMMdd_HHmmss>_<tool>.json`. The response may be shortened (`maxResponseChars`) and then names the log.
 - `password`, `umc_password` and `umc_user` are hidden in the result, the log and stderr.
 
