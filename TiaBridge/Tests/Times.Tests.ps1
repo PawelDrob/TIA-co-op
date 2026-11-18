@@ -11,7 +11,7 @@ function Start-TestTimes {
 }
 function Step-TestClock([double]$Ms) { [TiaBridgeTimes]::TestTicks += [long]($Ms * [System.Diagnostics.Stopwatch]::Frequency / 1000) }
 
-Describe 'Enter-ExportStep and Exit-ExportStep' {
+Describe 'TiaBridgeTimes: Enter and Exit' {
     It 'gives each tick to the step that runs; a step inside another stops the outer one' {
         Start-TestTimes
         Enter-PartTimes 'blocks' 'PLC_1'

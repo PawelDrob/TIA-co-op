@@ -204,10 +204,12 @@ Describe 'file parts' {
     }
 
     It 'times its call into TIA apart from its own work, the moves and the removals' {
+        # the test clock: 40 ms in the call into TIA, 30 ms of the part's own work
         $part = @{ name = 't'; scope = 'project'; dir = 'project\texts'; file = { param($r, $d)
-            Invoke-TiaFileExport { Start-Sleep -Milliseconds 40; [System.IO.File]::WriteAllText((Join-Path $d 'a.xlsx'), 'a') }
-            Start-Sleep -Milliseconds 30
+            Invoke-TiaFileExport { [TiaBridgeTimes]::TestTicks += [long](40 * [System.Diagnostics.Stopwatch]::Frequency / 1000); [System.IO.File]::WriteAllText((Join-Path $d 'a.xlsx'), 'a') }
+            [TiaBridgeTimes]::TestTicks += [long](30 * [System.Diagnostics.Stopwatch]::Frequency / 1000)
             @{} } }
+        [TiaBridgeTimes]::TestTicks = 0
         Start-ExportTimes
         try {
             Enter-PartTimes 't'
@@ -221,9 +223,7 @@ Describe 'file parts' {
         }
         finally { Stop-ExportTimesClock }
         $s = $t.parts[0].steps
-        $s.tia_export_file.ms | Should Not BeLessThan 40
-        $s.file_part.ms | Should Not BeLessThan 30
-        $s.file_part.ms | Should BeLessThan 40
+        "$($s.tia_export_file.ms) $($s.file_part.ms)" | Should Be '40 30'
         foreach ($n in 'work_folder', 'move') { $s.Contains($n) | Should Be $true }
         $t.parts[1].steps.remove.n | Should Be 1
         Test-Path (Join-Path $repo 'project\texts') | Should Be $false
@@ -1071,6 +1071,20 @@ Describe 'the times of a full_export' {
         $s.tiaMs | Should Not BeLessThan 80
         @($blocks.slowest | ForEach-Object { $_.name } | Sort-Object) -join ',' | Should Be 'A,B,Slow'
         $blocks.objects.maxMs | Should Be $s.ms
+    }
+
+    Context 'the folder of an object' {
+        It 'is timed as paths' {
+            Mock Get-KindRelDir { [TiaBridgeTimes]::TestTicks += [long](4 * [System.Diagnostics.Stopwatch]::Frequency / 1000); 'plc\blocks' }
+            [TiaBridgeTimes]::TestTicks = 0
+            Start-ExportTimes
+            try {
+                Get-KindDir (Get-ObjectKind 'block') 'A/B' | Should Be (Join-Path $repo 'plc\blocks\A\B')
+                $t = Stop-ExportTimes
+            }
+            finally { Stop-ExportTimesClock }
+            "$($t.once.steps.paths.ms) $($t.once.steps.paths.n)" | Should Be '4 1'
+        }
     }
 
     It 'gives a refusal no times' {

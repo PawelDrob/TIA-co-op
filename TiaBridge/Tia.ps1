@@ -266,7 +266,7 @@ function Reset-TiaConnection {
 function Test-TiaAlive {
     if (-not $script:Bridge.project) { return $false }
     # a project closed under the bridge reads an empty name, with no exception (2026-11-04). Timed apart: the name is a call
-    # into TIA, the process looked up is the bridge's own (about 3.6 ms, 2026-11-18).
+    # into TIA, the process looked up is the bridge's own (3.3 ms a call in a full_export of the benchmark project, 2026-11-18).
     $step = [TiaBridgeTimes]::Enter('tia_alive')
     try {
         $name = $script:Bridge.project.Name

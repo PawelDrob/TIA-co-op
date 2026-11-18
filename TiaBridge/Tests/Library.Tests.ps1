@@ -226,6 +226,23 @@ Describe 'Export-LibraryTypeDocuments for a type of a global library' {
         @(Get-ChildItem -LiteralPath $dir -Force | ForEach-Object { $_.Name }) -join ',' | Should Be 'typeR'
     }
 
+    It 'times its steps in a full_export: its reads, the export call, the work folder, the moves, the result' {
+        $v = [pscustomobject]@{ VersionNumber = [version]'0.0.1'; State = 'Committed'; IsDefault = $true }
+        $v | Add-Member ScriptMethod ExportAsDocuments { param($d, $n, $f, $o) [System.IO.File]::WriteAllText((Join-Path $d.FullName "$n.s7dcl"), 'new') }
+        $type = [pscustomobject]@{ Versions = @($v) }
+        $type | Add-Member ScriptMethod GetSupportedExportFormats { @('SimaticSD') }
+        Start-ExportTimes
+        try {
+            $r = Export-LibraryTypeDocuments @{ name = 'typeT'; obj = $type } "$TestDrive\timed"
+            $t = Stop-ExportTimes
+        }
+        finally { Stop-ExportTimesClock }
+        $r.ok | Should Be $true
+        $s = $t.once.steps
+        "$($s.tia_properties.n) $($s.tia_export_s7dcl.n) $($s.work_folder.n) $($s.result.n)" | Should Be '2 1 1 1'
+        $s.move.n | Should BeGreaterThan 1
+    }
+
     It 'passes the whole format name when the type supports one format or the caller names one (2026-10-08)' {
         $script:passedFormats = @()
         $v = [pscustomobject]@{ VersionNumber = [version]'0.0.1'; State = 'Committed'; IsDefault = $true }

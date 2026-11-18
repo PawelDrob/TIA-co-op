@@ -3,8 +3,7 @@
 # ends, so the steps of a part add up to the part's time. Steps named tia_* are calls into Openness; every other step is the
 # bridge's own work, and other is what no step names. A step is entered and left by the class below, called directly:
 #     $step = [TiaBridgeTimes]::Enter('move'); try { ... } finally { [TiaBridgeTimes]::Exit($step) }
-# Off outside a full_export (Enter returns $null). On, a step costs about 2 microseconds and no call into TIA; as PowerShell
-# functions it cost 100 (2026-11-18), a second of a 22 s export of the benchmark project.
+# Off outside a full_export (Enter returns $null). On, a step costs about 2 microseconds and no call into TIA.
 
 if (-not ('TiaBridgeTimes' -as [type])) {
     Add-Type -TypeDefinition @'
