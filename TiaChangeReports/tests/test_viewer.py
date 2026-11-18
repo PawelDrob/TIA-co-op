@@ -270,5 +270,104 @@ class Register(unittest.TestCase):
         self.assertEqual(cmd, r'"C:\repo\.venv\Scripts\pythonw.exe" -X utf8 "C:\repo\TiaChangeReports\viewer" "%1"')
 
 
+# An FB with members of UDT types: Hw holds the UDT Probe and a struct; Gone is in no file of the project.
+MOTOR = '''FUNCTION_BLOCK "Motor"
+    VAR_INPUT
+        cmd : _.Probe;
+    END_VAR
+    VAR_IN_OUT
+        io : _.Probe;
+    END_VAR
+    VAR
+        head : _.Hw;
+        lost : _.Gone;
+    END_VAR
+    VAR_TEMP
+        scratch : _.Probe;
+    END_VAR
+END_FUNCTION_BLOCK
+'''
+HW = '''TYPE
+    Hw : STRUCT
+        { S7_MLC := "MLC_l" }
+        low : Bool;
+        probe : _.Probe;
+        flow : STRUCT
+            rate : Int;
+        END_STRUCT;
+    END_STRUCT;
+END_TYPE
+'''
+HW_RES = 'MultiLingualTexts:\n  - id: MLC_l\n    en-US: low level reached\n'
+PROBE = '''TYPE
+    Probe : STRUCT
+        up : Bool;
+        down : Int := 5;
+    END_STRUCT;
+END_TYPE
+'''
+ROW = re.compile(r'<tr[^>]*><td class="nm" data-d="(\d)"( data-u)? style="[^"]*"><span class="tw">([^<]*)</span>(\w+)'
+                 r'(.*?)</tr>')
+
+
+class UdtMembers(unittest.TestCase):
+    """A member of a UDT type opens onto the UDT's members, read from the UDT's file in the project, nested UDTs too;
+    the report's interface table stays as it was."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = tmp.name
+        _write(self.dir, {'blocks/Motor.s7dcl': MOTOR, 'types/Hw.s7dcl': HW, 'types/Hw.s7res': HW_RES,
+                          'types/Probe.s7dcl': PROBE})
+        os.mkdir(os.path.join(self.dir, '.git'))                 # a repo: the viewer reads its types folder
+
+    def rows(self, html):
+        """[(level, opened, arrow, name)] of the interface table's member rows."""
+        itf = next(t for t in html.split('<table class="itf"')[1:] if 'data-d="1"' in t.split('</table>')[0])
+        return [(int(d), bool(u), tw, name) for d, u, tw, name, _ in ROW.findall(itf)]
+
+    def test_a_udt_member_lists_the_udts_members_nested_udts_too(self):
+        html, _ = view.page(os.path.join(self.dir, 'blocks', 'Motor.s7dcl'))
+        self.assertEqual(self.rows(html), [
+            (1, False, '▼', 'cmd'), (2, True, '', 'up'), (2, True, '', 'down'),
+            (1, False, '▼', 'io'), (2, True, '', 'up'), (2, True, '', 'down'),
+            (1, False, '▼', 'head'), (2, True, '', 'low'), (2, True, '▼', 'probe'), (3, True, '', 'up'),
+            (3, True, '', 'down'), (2, True, '▼', 'flow'), (3, True, '', 'rate'),
+            (1, False, '', 'lost'),
+            (1, False, '▼', 'scratch'), (2, True, '', 'up'), (2, True, '', 'down')])
+        cells = {}                                                               # (parent, member) -> its cells
+        parent = None
+        for d, _, _, name, rest in ROW.findall(html):
+            parent = name if d == '1' else parent
+            cells[parent, name] = rest
+        self.assertIn('<span class="inh">low level reached</span>', cells['head', 'low'])   # from the UDT's .s7res
+        self.assertIn('<span class="dflt">5</span>', cells['cmd', 'down'])                  # the UDT's default value
+        self.assertIn('<span class="cb on dis">', cells['cmd', 'up'])           # ticked as the UDT has it, disabled
+        self.assertEqual(re.findall(r'<span class="cb[^"]*">', cells['io', 'up']),
+                         ['<span class="cb dis">'] * 4)                         # in-out: empty, as the in-out's own
+        self.assertNotIn('dflt', cells['scratch', 'down'])                      # Temp: no default and no boxes
+        self.assertNotIn('class="cb', cells['scratch', 'up'] + cells['scratch', 'down'])
+
+    def test_the_reports_interface_table_does_not_open_them(self):
+        go = MOTOR                                               # a member added to each section: each shows
+        for k, last in enumerate(('cmd : _.Probe;', 'lost : _.Gone;', 'scratch : _.Probe;')):
+            go = go.replace(last, last + '\n        go%d : Bool;' % k)
+        _write(self.dir, {'after/Motor.s7dcl': go, 'after/Hw.s7dcl': HW, 'after/Probe.s7dcl': PROBE})
+        os.rename(os.path.join(self.dir, 'blocks'), os.path.join(self.dir, 'before'))
+        shutil.copy(os.path.join(self.dir, 'types', 'Hw.s7dcl'), os.path.join(self.dir, 'before'))
+        shutil.copy(os.path.join(self.dir, 'types', 'Probe.s7dcl'), os.path.join(self.dir, 'before'))
+        out = os.path.join(self.dir, 'report.html')
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(report([os.path.join(self.dir, 'before'), os.path.join(self.dir, 'after'), '--all',
+                                     '-o', out]), 0)
+        with open(out, encoding='utf-8') as f:
+            page = f.read()
+        motor = page.split('<b>Motor [FB]</b>', 1)[1]
+        self.assertEqual([(d, tw, name) for d, _, tw, name in self.rows(motor)],
+                         [(1, '▶', 'cmd'), (1, '', 'go0'), (1, '▶', 'head'), (1, '▶', 'lost'), (1, '', 'go1'),
+                          (1, '▶', 'scratch'), (1, '', 'go2')])
+
+
 if __name__ == '__main__':
     unittest.main()

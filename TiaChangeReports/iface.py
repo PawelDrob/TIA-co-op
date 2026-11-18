@@ -202,8 +202,9 @@ def _elements(node, types):
         _elements(m, types)
 
 
-def _tree(itf, types=None, base=None):
-    """The member tree with the DB start values in it (a copy; the parsed interface stays as it is)."""
+def _tree(itf, types=None, base=None, unfold=False):
+    """The member tree with the DB start values in it (a copy; the parsed interface stays as it is); unfold, every
+    member of a UDT type opened (_unfold)."""
     root = copy.deepcopy(itf.root)
     _elements(root, types)
     for key, (value, comment) in itf.start.items():
@@ -220,7 +221,30 @@ def _tree(itf, types=None, base=None):
             node.comment = comment
     for m in root.children.values():
         _fill(m, types)
+        if unfold:
+            _unfold(m, types, ())
     return root
+
+
+def _unfold(node, types, opened_udts):
+    """The viewer's: a member of a UDT type that has no members yet gets the UDT's members, from the UDT's file
+    (types), in its own section, as TIA lists them when it opens; a UDT or struct among them too. Under an in-out their
+    boxes are empty, as the in-out's own (_boxes). Not an array, an FB instance or a UDT the input lacks: those stay as
+    they are. opened_udts: the UDTs opened above it, which it does not open again (a UDT that would hold itself)."""
+    name = type_name(node.type).lower()
+    if not node.children and not re.match(r'Array\s*\[', node.type or '', re.I) and name not in opened_udts:
+        owner = _owner(node, types, None)
+        block = getattr(owner, 'block', None)                # a UDT's file; none for a struct in the UDT
+        if owner is not None and (block is None or block.kind == 'TYPE'):
+            for k in owner.root.children:
+                kid = _new_inner(node, k, types, None)
+                kid.section = node.section
+                if node.section == 'IN_OUT':
+                    kid.up = (False, False, False)
+                node.children[k] = kid
+            opened_udts += (name,) if block is not None else ()
+    for m in node.children.values():
+        _unfold(m, types, opened_udts)
 
 
 def _fill(node, types):
@@ -437,11 +461,12 @@ def _moves(fb, fa, to_a):
     return out
 
 
-def rows(bitf, aitf, types=(None, None), bases=(None, None)):
+def rows(bitf, aitf, types=(None, None), bases=(None, None), unfold=False):
     """types: (before, after) name -> Interface of a UDT (compare.Callees); bases: the interface of a DB's own
-    type (a DB of a UDT, an instance DB); both for the members that only DB start values name."""
-    tb = _tree(bitf, types[0], bases[0]) if bitf else None
-    ta = _tree(aitf, types[1], bases[1]) if aitf else None
+    type (a DB of a UDT, an instance DB); both for the members that only DB start values name. unfold: every member
+    of a UDT type opened onto the UDT's members (the viewer; the report opens only what start values name)."""
+    tb = _tree(bitf, types[0], bases[0], unfold) if bitf else None
+    ta = _tree(aitf, types[1], bases[1], unfold) if aitf else None
     if tb is not None and ta is not None:
         _complete(tb, ta, types, bases)
     fb = _flat(tb) if tb is not None else []
@@ -506,10 +531,10 @@ def _returns(blk):
     return out
 
 
-def block_rows(bblock, ablock):
+def block_rows(bblock, ablock, unfold=False):
     bs = (bblock, ablock)
     return rows(*(_returns(b) if b else None for b in bs), types=tuple(getattr(b, 'callees', None) for b in bs),
-                bases=tuple(_base(b) for b in bs))
+                bases=tuple(_base(b) for b in bs), unfold=unfold)
 
 
 def props_rows(bprops, aprops):
@@ -610,10 +635,11 @@ def _off(m, kind='', safety=False):
 def _boxes(m, safety=False):
     """TIA's checkboxes (accessible, writable, visible, setpoint) of a member, disabled where TIA disables them
     (_off: a disabled box, not a blank), all empty for an in-out of a structured type; '' for temp,
-    constants and Return. Setpoint without a setting: setpoint_default, never for a struct. A member inside a UDT
+    constants and Return, a UDT's member opened there too (an array element there has boxes, as the report has drawn
+    it). Setpoint without a setting: setpoint_default, never for a struct. A member inside a UDT
     instance or array that a DB start value names (Inner): ticked from the UDT's settings (an array element: the
     array's) as far as its parent allows."""
-    if m.section in NO_BOXES and not isinstance(m, Inner):
+    if m.section in NO_BOXES and not (isinstance(m, Inner) and m.name.endswith(']')):
         return ('',) * 4
     t = (m.type or '').strip()
     if m.section == 'IN_OUT' and structured(t) and not isinstance(m, Inner):
@@ -644,9 +670,11 @@ def _retain(m, depth, kind, safety=False):
 
 
 def _value_html(m):
+    """Its value, else its default grey: the UDT's for a member inside a UDT (Inner), else its type's; none in Temp and
+    Return, inside a UDT neither."""
     if m.value:
         return escape(m.value)
-    z = getattr(m, 'dflt', None) or (default_value(None, m.type) if m.section not in ('TEMP', 'RETURN') else None)
+    z = None if m.section in ('TEMP', 'RETURN') else getattr(m, 'dflt', None) or default_value(None, m.type)
     return '<span class="dflt">%s</span>' % escape(z) if z else ''
 
 
@@ -716,8 +744,9 @@ def declaration_html(before, after):
 
 def html(bblock, ablock, whole=False):
     """The interface as TIA's editor shows it: the changed members with their parents, the unchanged ones folded;
-    whole, every member open (the viewer's one block, compared with itself)."""
-    rs = block_rows(bblock, ablock)
+    whole, every member open and every member of a UDT type opened onto the UDT's members, from its file; an arrow
+    only where something opens (the viewer's one block, compared with itself)."""
+    rs = block_rows(bblock, ablock, unfold=whole)
     blk = ablock or bblock
     kind = blk.kind if blk else ''
     vhead, has_retain, has_attrs = _columns(kind)
@@ -753,7 +782,7 @@ def html(bblock, ablock, whole=False):
                     body += [_row(x, 'ctx', top, parents, kind, has_retain, has_attrs, safety) for x in srows[k:j]]
                     k = j
                     continue
-                body.append(_row(r, '', top, parents, kind, has_retain, has_attrs, safety))
+                body.append(_row(r, '', top, parents, kind, has_retain, has_attrs, safety, whole))
                 k += 1
         parts.append('<table class="itf"%s>%s</table>' % (' data-folds' if folds else '', ''.join(body)))
     return ''.join(parts)
@@ -785,14 +814,14 @@ def _opened(r):
     return isinstance(r.m, Inner) and len(r.path) > 1
 
 
-def _row(r, ctx, top, parents, kind, has_retain, has_attrs, safety=False):
+def _row(r, ctx, top, parents, kind, has_retain, has_attrs, safety=False, whole=False):
     cls = ' '.join(x for x in ({'added': 'ins', 'removed': 'del', 'changed': 'chg', 'moved': 'mov',
                                 'same': ''}[r.state], ctx) if x)
     depth = len(r.path)
     name = escape(r.path[-1])
     if 'name' in r.changes:
         name = _both(escape(r.bpath[-1]), name)
-    tw = '▼' if r.path in parents else ('▶' if structured(r.m.type) else '')
+    tw = '▼' if r.path in parents else ('▶' if structured(r.m.type) and not whole else '')
     extra = []
     if 'order' in r.changes:
         extra.append('order: was %s, now %s' % tuple(escape(x) for x in r.order))
