@@ -51,10 +51,41 @@ CASES = {
             '        c : Bool;\n        d : Bool;\n')),
     'the Mixer': (BEFORE, AFTER),
 }
+# Folds inside folds: x and c changed, y and z an "unchanged members" row between them.
+NESTED_STATIC = '''        s : STRUCT
+            inner : STRUCT
+                x : Int;
+                y : Int;
+            END_STRUCT;
+            z : Bool;
+        END_STRUCT;
+        c : Bool;
+'''
+NESTED = (_fb(NESTED_STATIC), _fb(NESTED_STATIC.replace('x : Int;', 'x : DInt;').replace('c : Bool;', 'c : Int;')))
+# A global DB with a UDT member its start value opens, and a Struct of its own.
+UDT = '''TYPE
+    Hw : STRUCT
+        low : Bool;
+        high : Bool;
+    END_STRUCT;
+END_TYPE
+'''
+LINE = '''DATA_BLOCK LineData
+    VAR
+        head : _.Hw;
+        counters : STRUCT
+            good : DInt;
+        END_STRUCT;
+    END_VAR
 
-# The first interface table of the page, its "show all" on. A row by the text of its name cell (its extras left out).
+        head.low := TRUE;
+END_DATA_BLOCK
+'''
+
+# The first interface table of the page, its "show all" on when ALL. A row by the text of its name cell (its extras
+# left out).
 SETUP = ("var t=[].filter.call(document.querySelectorAll('table.itf'),function(x){return x.querySelector('td.nm[data-d]')})[0];"
-         "if(t.closest('.nw'))t.closest('.nw').classList.add('all');"
+         "if(ALL&&t.closest('.nw'))t.closest('.nw').classList.add('all');"
          "function name(y){var c=y.cells[0].cloneNode(true);[].forEach.call(c.querySelectorAll('.ex'),function(e){e.remove()});"
          "return c.textContent.replace(/[\\u25b6\\u25bc]/g,'').trim()}"
          "function seen(y){return getComputedStyle(y).display!='none'}"
@@ -70,11 +101,15 @@ EACH = ("var out=[];[].forEach.call(t.rows,function(x){if(!x.classList.contains(
 STEPS = ("var out=[];function note(){var s=cell('s');out.push({b:seen(cell('b').parentNode),x:seen(cell('x').parentNode),"
          "c:seen(cell('c').parentNode),tw:s.querySelector('.tw').textContent,mark:mark(s.parentNode)})}"
          "note();cell('inner').click();note();cell('s').click();note();cell('s').click();note();")
+# inner folded, then s: the rows still shown, an "unchanged members" row as skip.
+INSIDE = ("cell('inner').click();cell('s').click();var out=[].filter.call(t.rows,function(y){return y.cells[0]&&"
+          "y.cells[0].hasAttribute('data-d')&&seen(y)}).map(function(y){return y.classList.contains('skip')?'skip':name(y)});")
 
 
-def _probe(body):
-    return ("<script>addEventListener('load',function(){setTimeout(function(){%s%s"
-            "document.body.setAttribute('data-fold',JSON.stringify(out))},100)})</script>" % (SETUP, body))
+def _probe(body, all_=True):
+    return ("<script>addEventListener('load',function(){setTimeout(function(){var ALL=%s;%s%s"
+            "document.body.setAttribute('data-fold',JSON.stringify(out))},100)})</script>"
+            % ('true' if all_ else 'false', SETUP, body))
 
 
 def _report(folder, before, after):
@@ -107,6 +142,18 @@ class Rows(unittest.TestCase):
         skips = re.findall(r'<tr class="skip"><td colspan="\d+" data-d="(\d+)"', html)
         self.assertEqual(skips, ['2', '1'])         # a, inner, x before b; c, d after it
 
+    def test_an_opened_udts_members_have_their_row_grey(self):
+        _write(self.dir, {'b/Hw.s7dcl': UDT, 'b/LineData.s7dcl': LINE, 'a/Hw.s7dcl': UDT,
+                          'a/LineData.s7dcl': LINE.replace(':= TRUE', ':= FALSE')})
+        out = os.path.join(self.dir, 'report.html')
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main([os.path.join(self.dir, 'b'), os.path.join(self.dir, 'a'), '-o', out, '--all']), 0)
+        with open(out, encoding='utf-8') as f:
+            report = f.read()
+        viewer = view.page(os.path.join(self.dir, 'a', 'LineData.s7dcl'))[0]
+        for html in (report, viewer):
+            self.assertEqual(re.findall(r'data-u style="[^"]*"><span class="tw">[^<]*</span>(\w+)<', html), ['low', 'high'])
+
     def test_the_viewer_gives_every_member_its_level(self):
         html = _viewer(self.dir, AFTER)
         for name, level in (('s', 1), ('a', 2), ('inner', 2), ('x', 3), ('b', 2), ('c', 1)):
@@ -131,17 +178,17 @@ class InTheBrowser(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.dir = tmp.name
 
-    def run_in(self, html, body):
+    def run_in(self, html, body, all_=True):
         out = os.path.join(self.dir, 'probe.html')
         with open(out, 'w', encoding='utf-8') as f:
-            f.write(html.replace('</body>', _probe(body) + '</body>'))
+            f.write(html.replace('</body>', _probe(body, all_) + '</body>'))
         dom = self.edge.dump_dom(pathlib.Path(out).as_uri(), timeout=120, size=(1400, 1000))
         return json.loads(unescape(re.search(r'data-fold="([^"]*)"', dom).group(1)))
 
     def test_a_fold_says_it_holds_a_change_exactly_when_it_hides_one(self):
-        for case, (before, after) in CASES.items():
+        for k, (case, (before, after)) in enumerate(CASES.items()):
             with self.subTest(case):
-                folds = self.run_in(_report(os.path.join(self.dir, str(len(case))), before, after), EACH)
+                folds = self.run_in(_report(os.path.join(self.dir, str(k)), before, after), EACH)
                 self.assertTrue(folds)
                 for f in folds:
                     self.assertEqual(f['mark'], '"holds a change"' if f['hidden'] else 'none', f)
@@ -150,6 +197,12 @@ class InTheBrowser(unittest.TestCase):
                 if case == 'one change beside unchanged members':        # all shown: s folds a and b
                     s = next(f for f in folds if f['row'] == 's')
                     self.assertEqual(s['shown'], ['s', 'c', 'd'])
+
+    def test_a_fold_inside_a_fold_hides_the_unchanged_members_under_both(self):
+        html = _report(self.dir, *NESTED)
+        for all_ in (False, True):
+            with self.subTest(show_all=all_):
+                self.assertEqual(self.run_in(html, INSIDE, all_), ['s', 'c'])
 
     def test_a_fold_in_the_report_opens_again(self):
         start, inner, shut, again = self.run_in(_report(self.dir, BEFORE, AFTER), STEPS)

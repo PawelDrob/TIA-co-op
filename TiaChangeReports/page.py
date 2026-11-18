@@ -117,6 +117,7 @@ CSS += """
 .ldiff table.itf tr.mov td{background:#eef4fa;border-top:2px dashed var(--mov);border-bottom:2px dashed var(--mov)}
 .ldiff table.itf td.dis{background-color:var(--field)}
 .ldiff table.itf tr.ins td.dis,.ldiff table.itf tr.del td.dis,.ldiff table.itf tr.chg td.dis,.ldiff table.itf tr.mov td.dis{background-image:linear-gradient(#0000000f,#0000000f)}
+.ldiff table.itf tr:not(.ins):not(.del):not(.chg):not(.mov):has(>td.nm[data-u])>td{background-color:#f4f4f4}
 .ldiff table.itf .ex{font-size:11.5px;color:var(--muted);white-space:normal}
 .ldiff table.itf td.tn{white-space:nowrap} .ldiff table.itf tr.del td.tn>span{text-decoration:line-through}
 .ldiff table tr.ctx{display:none}
@@ -298,7 +299,7 @@ function skip(x){return x.classList.contains('skip')}
 function lay(t){var rows=[].slice.call(t.rows),shut=[];
  rows.forEach(function(x,k){var v=lvl(x),n=k+1,w;x.classList.remove('hc');
   if(v<0){shut=[];return}
-  if(skip(x)){x.classList.toggle('fz',shut.length>0&&v>shut[shut.length-1].v);return}
+  if(skip(x)){x.classList.toggle('fz',shut.length>0&&v>shut[0].v);return}
   while(shut.length&&shut[shut.length-1].v>=v)shut.pop();
   x.classList.toggle('fz',shut.length>0);
   if(shut.length&&CHANGED.test(x.className))shut.forEach(function(s){s.x.classList.add('hc')});

@@ -584,7 +584,8 @@ def _off(m, kind='', safety=False):
     the default / start value of a UDT, struct, array or FB instance; in-outs of such a type: retain,
     value and every box; writable, visible and setpoint when the member is not accessible; the setpoint of a struct;
     retain in an F-DB and an F-FB; a member inside a UDT instance or array, or of an instance DB (Inner): all but its
-    start value (gray too when structured) and comment. Temp, constants and Return: none (not seen)."""
+    start value (gray too when structured) and comment. Temp, constants and Return: none (not seen). The interface
+    table greys no cell of a member inside an opened member (_opened): its whole row has one lighter grey instead."""
     if isinstance(m, Inner):
         return {'name', 'type', 'retain'} | set(BOX_CELLS) | ({'value'} if structured(m.type) else set())
     if m.section in NO_BOXES:
@@ -772,6 +773,13 @@ def _td(html, off, cls=''):
     return '<td%s>%s</td>' % (' class="%s"' % cls if cls else '', html)
 
 
+def _opened(r):
+    """A member inside an opened UDT instance, FB instance or array (an Inner below the top level): the maintainer's
+    pick of 2026-11-18 over TIA's look, one lighter grey behind its whole row (data-u on its name cell, page.py) and
+    no cell greyed apart. An instance DB's own members (Inner at the top) keep TIA's grey."""
+    return isinstance(r.m, Inner) and len(r.path) > 1
+
+
 def _row(r, ctx, top, parents, kind, has_retain, has_attrs, safety=False):
     cls = ' '.join(x for x in ({'added': 'ins', 'removed': 'del', 'changed': 'chg', 'moved': 'mov',
                                 'same': ''}[r.state], ctx) if x)
@@ -793,10 +801,11 @@ def _row(r, ctx, top, parents, kind, has_retain, has_attrs, safety=False):
             extra.append('attributes: ' + _both(escape(_attrs(other[0])), escape(_attrs(other[1]))))
     if 'retain' in r.changes and not has_retain:
         extra.append('retain: %s → %s' % (r.b.retain, r.a.retain))
-    off = _off(r.m, kind, safety)                       # gray cells, as the row is now
+    opened = _opened(r)
+    off = set() if opened else _off(r.m, kind, safety)  # gray cells, as the row is now
     level = top + depth - 1
-    cells = ['<td class="nm%s" data-d="%d" style="padding-left:%dpx"><span class="tw">%s</span>%s%s</td>'
-             % (' dis' if 'name' in off else '', level, 8 + 16 * level, tw, name,
+    cells = ['<td class="nm%s" data-d="%d"%s style="padding-left:%dpx"><span class="tw">%s</span>%s%s</td>'
+             % (' dis' if 'name' in off else '', level, ' data-u' if opened else '', 8 + 16 * level, tw, name,
                 ''.join('<div class="ex">%s</div>' % x for x in extra)),
              _td(_cell(r, lambda m: escape(tia_type(m.type), False), 'type' in r.changes), 'type' in off),
              _td(_cell(r, _value_html, 'value' in r.changes), 'value' in off)]

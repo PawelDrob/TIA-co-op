@@ -2729,11 +2729,19 @@ class DisabledCellsMoreKinds(unittest.TestCase):
         rs = self._cells(DIS_ARR, 'A')
         self.assertEqual([rs[n][7] for n in ('arr', 'arrB', 's')], [(False, 'o'), (False, 'x'), (True, 'o~')])
 
-    def test_inner_structured_start_value_gray(self):
-        """An array element or member of a UDT type inside a DB: its start value gray, an elementary one's not."""
+    def test_an_opened_member_has_its_row_grey_and_no_cell_grey(self):
+        """An array element or member of a UDT type inside a DB, the maintainer's pick of 2026-11-18 over TIA's look:
+        no cell gray apart, one lighter grey behind the row (data-u), the boxes drawn disabled as TIA does. The DB's own
+        members keep TIA's gray."""
         rs = self._cells(DIS_ARR, 'A')
-        self.assertEqual((rs['arr[1]'][2][0], rs['q'][2][0]), (True, False))
+        for n in ('arr[1]', 'q'):
+            self.assertEqual([g for g, _ in rs[n]], [False] * 9, n)
         self.assertEqual([c for _, c in rs['arr[1]'][3:8]], ['o~', 'x~', 'x~', 'x~', 'o~'])
+        self.assertTrue(rs['arr'][2][0])                                                # the array's own value: gray
+        html = iface.html(None, parse_block(src(DIS_ARR, '', 'A')))
+        self.assertEqual(re.findall(r'data-u style="[^"]*"><span class="tw">[^<]*</span>([^<]+)<', html), ['arr[1]', 'q'])
+        from TiaChangeReports import page
+        self.assertIn(':has(>td.nm[data-u])>td{background-color:#f4f4f4}', page.CSS)
 
     def test_disabled_ticked_box_as_tia(self):
         """TIA's disabled ticked box: near-white, gray border, dark gray tick, as in a global DB."""
