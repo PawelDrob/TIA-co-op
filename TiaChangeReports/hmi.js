@@ -459,7 +459,8 @@ async function main() {
 
 if (r.ldiffKey) {
   const on = () => !!current();
-  // Before the rail's C and E (4, 5), which fold the networks of a block: the first key that applies runs.
+  // Before the rail's C and E (4, 5), which fold the networks, interface sections and members of a block: the first
+  // key that applies runs.
   r.ldiffKey({o: 3.5, show: 'C', text: 'HMI: collapse the rows of the added objects', keys: ['c'], when: on,
     run: () => shutAdded(true)});
   r.ldiffKey({o: 3.6, show: 'E', text: 'HMI: expand the rows of the added objects', keys: ['e'], when: on,
