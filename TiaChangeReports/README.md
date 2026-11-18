@@ -54,7 +54,7 @@ reads the repo's commits and changes nothing in it.
   reports differ is a difference.
 
 Each difference gets its causes, and each cause its kind: a reader that reads a format otherwise, a field only one
-format writes, the note, the drawing, the diff, or an object in one format only. A cause the tool cannot name prints
-as `unknown: ...`. Numbers per cause: objects and networks (and how many networks have no other cause), or commits and
+format writes, the note, the drawing, the diff, or an object in one format only. What the tool cannot name prints with
+the kind `unknown`. Numbers per cause: objects and networks (and how many networks have no other cause), or commits and
 objects. `--json` writes every difference with its causes, and for the second check the facts each report alone holds.
 Both checks over 530 commits take about half an hour. Run from the clone's folder, which `-m` needs.

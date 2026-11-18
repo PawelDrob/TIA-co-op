@@ -2,12 +2,8 @@
 as the two-format benchmark run's (each commit holds .s7dcl under plc/ and library/, and SimaticML of the same
 objects under simaticml/), reads its commits and changes nothing.
 
-A report is reduced to its facts (facts()): the objects it lists, and of each its state, kind, declaration, note,
-library link, the interface and start value rows that differ, the properties, the networks with their state and tags,
-the marks of each drawn LAD element (the element as compared, but for its ENO; the fill; the areas of it marked, from
-its own corner) and the SCL or FBD lines that differ. Two reports say the same when their facts are the same multiset.
-What that cannot see: which of two equal elements of a network carries a mark, where an element stands, the lines and
-wires drawn, the page's text and HTML, the PLC tag tables and the HMI part.
+A report is reduced to its facts (facts()); two reports say the same when their facts are the same multiset. What the
+facts hold and what they cannot see: docs/dev/tools/tia-change-reports.md, section "The two formats against each other".
 
 Two checks:
 - nothing changed: per commit, the report from its .s7dcl to its SimaticML. Every object and network it lists is a
@@ -15,7 +11,8 @@ Two checks:
 - the same change: per commit, the report of the commit from its .s7dcl and from its SimaticML. Every object whose
   facts are not the same in both is a difference.
 
-Each difference gets its causes (CAUSES). A cause the tool cannot name is 'unknown: ...', with what it saw."""
+Each difference gets its causes (CAUSES), each named from what differs. What no rule names is 'unknown: ...', or a
+field by its path ('SimaticML field: ...'), whose kind is unknown."""
 import argparse
 import difflib
 import json
@@ -24,6 +21,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter
+from itertools import combinations
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 if __name__ == '__main__':
@@ -39,31 +37,38 @@ from TiaChangeReports.source import GitSnapshot, _git, git_snapshots, stem      
 ROOTS = ('plc/blocks/', 'plc/types/', 'library/types/')     # the folders both formats hold, from a side's root
 XML_ROOT = 'simaticml'                                      # the SimaticML side's folder in the repo
 
-READER, ONE_FIELD, NOTE, DRAWING, DIFF, ONE_OBJECT, RUN = (
+READER, ONE_FIELD, NOTE, DRAWING, DIFF, ONE_OBJECT = (
     'reader', 'a field only one format writes', "the note's raw comparison", 'the drawing', 'the diff',
-    'an object exported in one format only', "the run's own file")
+    'an object exported in one format only')
+# A field neither reader reads gives both reports the same note: the second check cannot see it as a difference, and in
+# the first it is part of 'note: files'.
 
-# id: (kind, what it is). Ids with a colon carry what was seen: 'property: X', 'SimaticML field: path'.
+# id: (kind, what it is). An id with a colon carries what was seen and has no kind: 'unknown: ...', 'SimaticML
+# field: <path>', '.s7dcl field: <pragma>', 'SimaticML unread: <path>'.
 CAUSES = {
     'quoted names': (READER, 'a member name .s7dcl writes in quotes ("Db"."step", #"a") and SimaticML without'),
-    'pin case': (READER, 'a pin name in another case (IN, in)'),
-    'pin order': (READER, "a box's pins in another order"),
+    'pin case': (READER, 'a pin name in another case (IN, in): each reader keeps its file\'s, the diff compares them '
+                         'as given'),
+    'pin order': (READER, "a box's pins in another order: each reader keeps its file's, the diff compares them in "
+                          "order"),
     'pin direction': (READER, "a coil's operand read as an output (=>) from .s7dcl and as an input (:=) from SimaticML"),
     'templates': (ONE_FIELD, 'a type template SimaticML writes and .s7dcl does not (value_type, ptr_type, Card, ...)'),
-    'ENO': (ONE_FIELD, 'DisabledENO: SimaticML writes that a box generates no ENO, .s7dcl does not (tickets 238, 290)'),
+    'ENO': (ONE_FIELD, 'DisabledENO: SimaticML writes that a box generates no ENO, .s7dcl does not'),
     'rung order': (READER, 'the rungs in another order: SimaticML holds no order, the reader takes the order of the '
-                           "file's elements, which TIA's export varies (ticket 290)"),
+                           "file's elements, which TIA's export varies"),
     'FBD lines': (READER, 'an FBD network read into other lines from the two formats'),
     'note: files': (NOTE, "the block's note compares the raw files, which differ between two formats"),
     'note: LAD lines': (NOTE, "a LAD network's note compares its text, which the two formats write otherwise"),
     'note: SimaticML order': (NOTE, 'a SimaticML network written in another order, with other ids, and nothing else'),
-    'type members': (ONE_FIELD, 'SimaticML spells out the members of a type a block uses; .s7dcl names the type'),
+    'note: .s7dcl jump label': (NOTE, "a .s7dcl network's note when its jump label changed, the label shown"),
+    'type members': (ONE_FIELD, 'SimaticML spells out the members of a type a block uses (an instance DB, a DB of a '
+                                'UDT, a member of a UDT, the pins of a call); .s7dcl names the type'),
     'block number': (ONE_FIELD, 'the number TIA gives a block, in SimaticML only'),
-    'one format only': (ONE_OBJECT, 'the object has a file in one format only: TIA refused the SimaticML export of an '
-                                    'inconsistent block'),
+    'SimaticML missing': (ONE_OBJECT, 'an .s7dcl and no SimaticML of the object in this commit, SimaticML of it in '
+                                      'another'),
+    'SimaticML never': (ONE_OBJECT, 'an .s7dcl and no SimaticML of the object in any commit'),
+    '.s7dcl missing': (ONE_OBJECT, 'SimaticML and no .s7dcl of the object in this commit'),
     'declaration': (READER, "a block's declaration read with its own name in quotes from SimaticML"),
-    'note: .s7dcl jump label': (NOTE, "a .s7dcl network's note when its jump label changed (ticket 66, from 51)"),
-    'run file': (RUN, 'a file the run wrote in one format that TIA does not hold (no SimaticML of it in any commit)'),
     'DB retain': (ONE_FIELD, "a DB's S7_StandardRetain: .s7dcl writes it, the SimaticML of these DBs has no "
                              "IsRetainMemResEnabled"),
     'instance DB access': (ONE_FIELD, "an instance DB's S7_Optimized: .s7dcl writes it, SimaticML has no MemoryLayout "
@@ -85,23 +90,28 @@ CAUSES = {
     'instance DB start values': (READER, "an instance DB's start values: the SimaticML reader leaves them to the "
                                          "note, the .s7dcl reader shows them"),
     'library link across formats': (DIFF, "a program block marked as differing from its library type: the two "
-                                           "changes compared as text, each from one format to the other (ticket 145)"),
+                                           "changes compared as text, each from one format to the other"),
     'author': (READER, "a block's author: S7_Author shown from .s7dcl, HeaderAuthor left to the note from SimaticML"),
-}
-# The property or interface attribute a reader keeps -> its cause.
-NAMED = {'property: Retain': 'DB retain', 'property: Optimized access': 'instance DB access',
-         'property: Language': 'SCL language', 'property: S7_EditorMode': 'SCL language',
-         'property: Safety': 'safety spelling', 'property: S7_UserDefinedId': 'user-defined id',
-         'interface: S7_Setpoint': 'member setpoint', 'property: S7_Author': 'author'}
-PREFIXES = {                    # the kind of an id with what was seen
-    'SimaticML field': ONE_FIELD, '.s7dcl field': ONE_FIELD, 'SimaticML unread': READER, 'drawn otherwise': DRAWING,
+    'drawn otherwise: mark areas': (DRAWING, 'an element marked alike, the marked areas drawn otherwise'),
 }
 
 
 def kind_of(cause):
-    if cause in CAUSES:
-        return CAUSES[cause][0]
-    return PREFIXES.get(cause.split(':', 1)[0], 'unknown')
+    return CAUSES[cause][0] if cause in CAUSES else 'unknown'
+
+
+def property_cause(name, vb, va, kind):
+    """The cause of a property the report reads otherwise from the two formats, vb from .s7dcl, va from SimaticML:
+    named only for the values seen, else 'unknown: property ...'."""
+    rules = {'Retain': va is None and kind in ('DB', 'Instance DB'),
+             'Optimized access': va is None and kind == 'Instance DB',
+             'Language': vb is None and va == 'SCL', 'S7_EditorMode': vb == 'SCL' and va is None,
+             'Safety': vb is not None and va is not None and vb != va and vb.lower() == va.lower(),
+             'S7_UserDefinedId': va is None, 'S7_Author': va is None}
+    names = {'Retain': 'DB retain', 'Optimized access': 'instance DB access', 'Language': 'SCL language',
+             'S7_EditorMode': 'SCL language', 'Safety': 'safety spelling', 'S7_UserDefinedId': 'user-defined id',
+             'S7_Author': 'author'}
+    return names[name] if rules.get(name) else 'unknown: property %s %s -> %s' % (name, vb, va)
 
 
 # ---------------------------------------------------------------- the two sides
@@ -132,11 +142,6 @@ def change_of(repo, rev1, rev2):
         for x in pair:
             x.only = keep
     return sd, xml
-
-
-def report(before, after):
-    """The report's blocks (compare.BlockDiff), as the page lists them."""
-    return compare_snapshots(before, after)
 
 
 # ---------------------------------------------------------------- facts
@@ -204,7 +209,7 @@ def facts(diffs):
                 if r.state == 'same':
                     continue
                 if r.b is None or r.a is None:
-                    out[(o, 'interface', r.path, r.state)] += 1
+                    out[(o, 'interface', r.path, r.state) + tuple(_show(_value(r.m, f)) for f in FIELDS)] += 1
                     continue
                 for f in sorted(r.changes):
                     part = 'start value' if f == 'value' else 'interface'
@@ -225,7 +230,7 @@ def facts(diffs):
             if p.lad is not None:
                 for m in _marks(p, d):
                     out[(o, 'mark', n) + m] += 1
-            elif p.before and p.after:
+            else:
                 for sign, line in _lines(p):
                     out[(o, 'line', n, sign, line)] += 1
     return out
@@ -237,7 +242,8 @@ def _tags(p):
 
 
 def _lines(p):
-    bl, al = scl_lines(p.before.body), scl_lines(p.after.body)
+    """('-' or '+', line) of the lines of an SCL or FBD network that differ; all of a side without the network."""
+    bl, al = (scl_lines(x.body) if x else [] for x in (p.before, p.after))
     for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, bl, al, autojunk=False).get_opcodes():
         if op == 'equal':
             continue
@@ -273,16 +279,15 @@ STEPS = ('quoted names', 'pin case', 'pin direction', 'pin order', 'templates')
 
 def element_causes(x, y):
     """Why two versions of an element compare unequal, each as compared (_element): the fewest of STEPS that make them
-    equal, each one needed; 'unknown: element' when all of them do not."""
+    equal, the first such set in the order of STEPS; 'unknown: element' when all of them do not."""
     if x == y:
         return set()
     tx, ty = {k for k, v in x[4]}, {k for k, v in y[4]}
-
-    def same(steps):
-        return _normal(x, steps, ty) == _normal(y, steps, tx)
-    if not same(set(STEPS)):
-        return {'unknown: element %s' % x[0]}
-    return {s for s in STEPS if not same(set(STEPS) - {s})} or {'unknown: element %s' % x[0]}
+    for n in range(1, len(STEPS) + 1):
+        for steps in combinations(STEPS, n):
+            if _normal(x, steps, ty) == _normal(y, steps, tx):
+                return set(steps)
+    return {'unknown: element %s' % x[0]}
 
 
 # ---------------------------------------------------------------- what moved in a file
@@ -385,7 +390,8 @@ SD_FIELDS = {'S7_StandardRetain': 'DB retain'}
 def field_causes(fmt, moved, typed_db=False, shown=False):
     """The causes of what one format moved and the other did not, or of what one format's note sees: fmt 'xml' or
     'sd', moved what xml_moved or sd_moved names; typed_db: of a DB whose members are its type's; shown: the other
-    report shows a property or start value there, which this reader then does not read."""
+    report shows something there that this reader may leave to its note. A field no table names keeps its path and has
+    no kind: 'SimaticML field: <path>' ('SimaticML unread: <path>' when shown), '.s7dcl field: <pragma>'."""
     if fmt == 'sd':
         return {SD_FIELDS.get(f, '.s7dcl field: %s' % f) for f in moved}
     if any(re.search(r'^/(Document/)?SW\.Blocks\.\w+ (added|removed)$', f) for f in moved):
@@ -393,12 +399,11 @@ def field_causes(fmt, moved, typed_db=False, shown=False):
     unread = [f for f in moved if not any(re.search(r, f) for r in XML_READ)] or moved
     out = set()
     for f in unread:
-        if shown:
-            out.add(next((c for r, c in XML_UNREAD if re.search(r, f)), 'SimaticML unread: %s' % _xml_label(f)))
-        elif '/Interface/' in f and (typed_db or '/Member/Sections/' in f):
-            out.add('type members')
-        else:
-            out.add(next((c for r, c in XML_FIELDS if re.search(r, f)), 'SimaticML field: %s' % _xml_label(f)))
+        cause = next((c for r, c in XML_UNREAD if re.search(r, f)), None) if shown else None
+        if cause is None and '/Interface/' in f and (typed_db or '/Member/Sections/' in f):
+            cause = 'type members'
+        cause = cause or next((c for r, c in XML_FIELDS if re.search(r, f)), None)
+        out.add(cause or '%s: %s' % ('SimaticML unread' if shown else 'SimaticML field', _xml_label(f)))
     return out
 
 
@@ -409,10 +414,10 @@ def nothing_changed(repo, rev, files=None):
     files = files or Files(repo)
     sd, xml = sides_at(repo, rev)
     out = []
-    for d in report(sd, xml):
+    for d in compare_snapshots(sd, xml):
         o = _object(d)
         if not (d.before and d.after):                    # its file in one format only: so are its networks
-            why = 'one format only' if d.before and o in files.ever_xml() else 'run file'
+            why = files.missing(o, bool(d.before), bool(d.after))
             out += [{'object': o, 'network': None, 'causes': [why]}]
             out += [{'object': o, 'network': list(_net(p)), 'causes': [why]} for p in d.nets]
             continue
@@ -439,28 +444,25 @@ def _object_causes(d, sd, xml):
         if _unread_differs(bsrc, asrc, d.before, d.after, d.nets):
             out.add('unknown: note, unread part')
     for name, vb, va in props_rows(d.before.props, d.after.props):
-        out.add(_named('property: %s' % name))
+        out.add(property_cause(name, vb, va, d.kind))
+    xml_members = bool(d.after.interface.root.children)
     for r in block_rows(d.before, d.after):
         if r.state == 'same':
             continue
         if r.b is None or r.a is None:
-            out.add(_named('interface: member %s' % r.state))
+            out.add('unknown: interface, member %s' % r.state)
         for f in r.changes:
             if f == 'attrs':
                 ab, aa = r.b.attrs or {}, r.a.attrs or {}
-                out |= {_named('interface: %s' % k) for k in set(ab) | set(aa) if ab.get(k) != aa.get(k)}
-            elif f == 'value' and d.kind == 'Instance DB':
-                out.add('instance DB start values')
+                out |= {'member setpoint' if k == 'S7_Setpoint' and ab.get(k) is None and aa.get(k) == 'True'
+                        else 'unknown: interface, %s' % k for k in set(ab) | set(aa) if ab.get(k) != aa.get(k)}
+            elif f == 'value' and d.kind == 'Instance DB' and not xml_members:
+                out.add('instance DB start values')       # the SimaticML reader reads no member of an instance DB
             else:
-                out.add(_named('interface: %s' % f))
+                out.add('unknown: interface, %s' % f)
     if d.library_differs:
         out.add('library link across formats')
     return out
-
-
-def _named(seen):
-    """The cause of a property or interface field the two readers keep otherwise, else 'unknown: ...'."""
-    return NAMED.get(seen, 'unknown: ' + seen)
 
 
 def _network_causes(p, d):
@@ -496,7 +498,7 @@ def _network_causes(p, d):
         if st in ('same', 'changed') and o is not None and o.eid in la.views:
             keys = lb.views[el.eid].drawn_otherwise(la.views[o.eid]) - changed_params(el, o)
             if keys and el.no_eno == o.no_eno and _element(el) == _element(o):
-                out.add('drawn otherwise: %s' % ', '.join(sorted(keys)))
+                out.add('unknown: drawn otherwise, %s' % ', '.join(sorted(keys)))
     for el, x, y in la._placed():
         if p.lad.status.get(el.eid, 'same') in ('added', 'removed'):
             out.add('unknown: element %s' % p.lad.status[el.eid])
@@ -525,14 +527,19 @@ class Files:
     def ever_xml(self):
         """The objects with SimaticML in any commit."""
         if self._ever is None:
-            out = _git(self.repo, 'log', '--all', '--format=', '--name-only', '--', XML_ROOT).decode('utf-8')
+            out = _git(self.repo, 'log', 'HEAD', '--format=', '--name-only', '--', XML_ROOT).decode('utf-8')
             self._ever = {stem(p[len(XML_ROOT) + 1:]) for p in out.splitlines() if p.endswith('.xml')}
         return self._ever
 
     def of(self, rev, o):
         """{'sd': blob id or None, 'xml': blob id or None} of object o at rev."""
         t = self.tree(rev)
-        return {'sd': t.get(o + '.s7dcl') or t.get(o + '.xml'), 'xml': t.get('%s/%s.xml' % (XML_ROOT, o))}
+        return {'sd': t.get(self.sd_path(rev, o)), 'xml': t.get(xml_path(o))}
+
+    def sd_path(self, rev, o):
+        """The file of object o on the .s7dcl side at rev: its .s7dcl, else the .xml TIA writes there for an OB."""
+        t = self.tree(rev)
+        return o + '.s7dcl' if o + '.s7dcl' in t or o + '.xml' not in t else o + '.xml'
 
     def text(self, rev, path):
         try:
@@ -541,14 +548,22 @@ class Files:
             return None
 
     def one_format(self, rev1, rev2, o):
-        """Why object o has a file in one format only at rev1 or rev2, else None: SimaticML missing where an .s7dcl
-        is, with SimaticML of it in another commit, TIA refused it ('one format only'); else the run left it so ('run
-        file')."""
+        """The cause when object o has a file in one format only at rev1 or rev2 (missing()), else None."""
         for rev in (rev1, rev2):
             f = self.of(rev, o)
             if bool(f['sd']) != bool(f['xml']):
-                return 'one format only' if f['sd'] and o in self.ever_xml() else 'run file'
+                return self.missing(o, bool(f['sd']), bool(f['xml']))
         return None
+
+    def missing(self, o, has_sd, has_xml):
+        """The cause of object o with a file in one format only: what is seen, not why."""
+        if has_xml:
+            return '.s7dcl missing'
+        return 'SimaticML missing' if o in self.ever_xml() else 'SimaticML never'
+
+
+def xml_path(o):
+    return '%s/%s.xml' % (XML_ROOT, o)
 
 
 def same_change(repo, rev1, rev2, files=None):
@@ -556,11 +571,11 @@ def same_change(repo, rev1, rev2, files=None):
     from SimaticML; sd and xml its facts that only that report holds."""
     files = files or Files(repo)
     (sb, sa), (xb, xa) = change_of(repo, rev1, rev2)
-    ds, dx = report(sb, sa), report(xb, xa)
+    ds, dx = compare_snapshots(sb, sa), compare_snapshots(xb, xa)
     fs, fx = facts(ds), facts(dx)
     if fs == fx:
         return []
-    by_x = {_object(d): d for d in dx}
+    by_s, by_x = {_object(d): d for d in ds}, {_object(d): d for d in dx}
     refs = {}                         # an object -> the objects a listed block of either report joins it with
     for d in ds + dx:
         stems = {stem(p) for x in (d, d.library) if x for p in (x.path_b, x.path_a) if p}
@@ -568,26 +583,50 @@ def same_change(repo, rev1, rev2, files=None):
             refs.setdefault(s, set()).update(stems)
     out = []
     for o in sorted({k[0] for k in (fs - fx) + (fx - fs)}):
-        os_, ox = Counter({k: v for k, v in fs.items() if k[0] == o}), Counter({k: v for k, v in fx.items() if k[0] == o})
-        causes = _change_causes(o, refs.get(o, {o}) | {o}, by_x.get(o), os_, ox, files, rev1, rev2)
+        of_sd, of_xml = _where(fs, lambda k: k[0] == o), _where(fx, lambda k: k[0] == o)
+        side = Side(files, rev1, rev2)
+        causes = _change_causes(o, refs.get(o, {o}) | {o}, by_s.get(o), by_x.get(o), of_sd, of_xml, side)
         out.append({'object': o, 'causes': sorted(causes),
-                    'sd': [list(k[1:]) for k in sorted(os_ - ox, key=str)],
-                    'xml': [list(k[1:]) for k in sorted(ox - os_, key=str)]})
+                    'sd': [list(k[1:]) for k in sorted(of_sd - of_xml, key=str)],
+                    'xml': [list(k[1:]) for k in sorted(of_xml - of_sd, key=str)]})
     return out
 
 
-def _change_causes(o, related, dx, fs, fx, files, rev1, rev2):
+def _where(facts_, keep):
+    return Counter({k: v for k, v in facts_.items() if keep(k)})
+
+
+class Side:
+    """The repo's files and the two commits of a check of the same change: the texts of an object's two versions."""
+
+    def __init__(self, files, rev1, rev2):
+        self.files, self.rev1, self.rev2 = files, rev1, rev2
+
+    def texts(self, d, fmt):
+        """(before, after) text of the block d of one report lists, fmt 'sd' or 'xml': by its own paths, which differ
+        for a block renamed or moved; None for a version it does not have."""
+        def path(rev, p):
+            if p is None:
+                return None
+            o = stem(p)
+            return xml_path(o) if fmt == 'xml' else self.files.sd_path(rev, o)
+        return tuple(self.files.text(rev, x) if x else None
+                     for rev, x in ((self.rev1, path(self.rev1, d.path_b)), (self.rev2, path(self.rev2, d.path_a))))
+
+
+def _change_causes(o, related, ds, dx, fs, fx, side):
     """related: o and the objects either report joins it with (a rename, a move, its library type or program
-    block): one of them in one format only makes the two reports differ on o too."""
+    block). One of them with a file in one format only: the reports cannot hold the same of o, nothing else is
+    looked for. A file only one format moved: the other report holds nothing of o, what moved is the cause."""
     for x in sorted(related):
-        why = files.one_format(rev1, rev2, x)
+        why = side.files.one_format(side.rev1, side.rev2, x)
         if why:
             return {why}
-    before, after = files.of(rev1, o), files.of(rev2, o)
+    before, after = side.files.of(side.rev1, o), side.files.of(side.rev2, o)
     moved_sd, moved_xml = before['sd'] != after['sd'], before['xml'] != after['xml']
     if moved_sd != moved_xml:
-        return _moved_alone(o, 'sd' if moved_sd else 'xml', files, rev1, rev2)
-    out = _block_part(o, fs, fx, files, rev1, rev2)
+        return _moved_alone(o, 'sd' if moved_sd else 'xml', side)
+    out = _block_part(o, ds, dx, fs, fx, side)
     nets = {k[2] for k in (fs - fx) + (fx - fs) if k[1] in NET_FACTS}
     for n in sorted(nets, key=str):
         out |= _net_part(n, dx, fs, fx)
@@ -597,51 +636,60 @@ def _change_causes(o, related, dx, fs, fx, files, rev1, rev2):
 NET_FACTS = ('network', 'network tag', 'mark', 'line', 'network title', 'network comment')
 
 
-def _moved_alone(o, fmt, files, rev1, rev2):
+def _moved_alone(o, fmt, side):
     """The fields of an object that moved in one format and not in the other."""
     if fmt == 'sd':
-        path = o + '.s7dcl'
-        return field_causes('sd', sd_moved(files.text(rev1, path), files.text(rev2, path)))
-    path = '%s/%s.xml' % (XML_ROOT, o)
-    rb, ra = _root(files.text(rev1, path)), _root(files.text(rev2, path))
+        path = side.files.sd_path(side.rev2, o)
+        tb, ta = side.files.text(side.rev1, path), side.files.text(side.rev2, path)
+        if path.endswith('.xml'):
+            return field_causes('sd', ['SimaticML of an OB'])
+        return field_causes('sd', sd_moved(tb, ta))
+    tb, ta = (side.files.text(r, xml_path(o)) for r in (side.rev1, side.rev2))
+    rb, ra = _root(tb), _root(ta)
     return field_causes('xml', xml_moved(rb, ra), _typed_db(ra)) or {'unknown: SimaticML moved alone'}
 
 
 BLOCK_FACTS = ('state', 'kind', 'declaration', 'note', 'library', 'interface', 'start value', 'property')
+SHOWN = ('property', 'start value', 'interface')
 
 
-def _block_part(o, fs, fx, files, rev1, rev2):
+def _block_part(o, ds, dx, fs, fx, side):
     """The causes of the block-level facts that differ."""
-    def of(c):
-        return Counter({k: v for k, v in c.items() if k[1] in BLOCK_FACTS})
-    only_s, only_x = of(fs) - of(fx), of(fx) - of(fs)
+    only_s = _where(fs, lambda k: k[1] in BLOCK_FACTS) - _where(fx, lambda k: k[1] in BLOCK_FACTS)
+    only_x = _where(fx, lambda k: k[1] in BLOCK_FACTS) - _where(fs, lambda k: k[1] in BLOCK_FACTS)
     if not (only_s or only_x):
         return set()
     out = set()
-    shown_s = [k for k in only_s if k[1] in ('property', 'start value', 'interface')]
+    shown_s = [k for k in only_s if k[1] in SHOWN]
+    told = set()                                          # shown facts a cause of the SimaticML note accounts for
     if (o, 'note') in only_x:
-        tb, ta = (_root(files.text(r, '%s/%s.xml' % (XML_ROOT, o))) for r in (rev1, rev2))
-        moved = xml_moved(_head(tb), _head(ta))
-        out |= field_causes('xml', moved, _typed_db(ta), bool(shown_s))
-        if not moved:
+        tb, ta = side.texts(dx, 'xml') if dx else (None, None)
+        if tb is None or ta is None:
             out.add('unknown: SimaticML note')
+        else:
+            moved = xml_moved(_head(_root(tb)), _head(_root(ta)))
+            causes = field_causes('xml', moved, _typed_db(_root(ta)), bool(shown_s))
+            out |= causes or {'unknown: SimaticML note'}
+            for k in shown_s:
+                if UNREAD_SHOWN.get(k[1] if k[1] != 'property' else k[2]) in causes:
+                    told.add(k)
     if (o, 'note') in only_s:
-        tb, ta = (files.text(r, o + '.s7dcl') for r in (rev1, rev2))
-        out |= {'unknown: .s7dcl note, %s' % f for f in sd_moved(tb, ta)}
+        tb, ta = side.texts(ds, 'sd') if ds else (None, None)
+        out |= {'unknown: .s7dcl note, %s' % f for f in sd_moved(tb, ta)} or {'unknown: .s7dcl note'}
     decl = [k for k in only_s + only_x if k[1] == 'declaration']
     if decl:
         name = o.rsplit('/', 1)[-1]
         out.add('declaration' if len({tuple(_without_name(x, name) for x in k[2:]) for k in decl}) == 1
                 else 'unknown: declaration')
     for k in only_s + only_x:
-        if k[1] in ('note', 'state', 'kind', 'declaration'):
+        if k[1] in ('note', 'state', 'kind', 'declaration') or k in told:
             continue
-        if k in shown_s and (o, 'note') in only_x:
-            continue                                      # the SimaticML reader leaves it to the note
         out.add('unknown: %s' % k[1])
-    if not out:
-        out.add('unknown: block %s' % ', '.join(sorted({k[1] for k in only_s + only_x})))
     return out
+
+
+# A fact the .s7dcl report shows (its part, or a property's name) -> the cause naming the SimaticML reader's gap.
+UNREAD_SHOWN = {'start value': 'instance DB start values', 'Author': 'author', 'S7_Author': 'author'}
 
 
 def _without_name(decl, name):
@@ -674,25 +722,26 @@ def _net_part(n, dx, fs, fx):
     tags_s, tags_x = {k[3] for k in ns if k[1] == 'network tag'}, {k[3] for k in nx if k[1] == 'network tag'}
     if 'other order' in tags_s ^ tags_x:
         out.add('rung order')
+    ms, mx = ([k[3:] for k in c.elements() if k[1] == 'mark'] for c in (ns, nx))
+    ls, lx = ([k[3:] for k in c.elements() if k[1] == 'line'] for c in (ns, nx))
     if 'note' in tags_x - tags_s:
-        out |= _xml_note(n, dx)
+        out |= _xml_note(n, dx, Counter(ms) != Counter(mx) or Counter(ls) != Counter(lx))
     if 'note' in tags_s - tags_x:
         out.add('note: .s7dcl jump label' if 'label' in tags_s else 'unknown: .s7dcl network note')
     for tag in (tags_s ^ tags_x) - {'other order', 'note'}:
         out.add('unknown: network tag %s' % tag)
-    ms, mx = ([k[3:] for k in c.elements() if k[1] == 'mark'] for c in (ns, nx))
     out |= _mark_causes(ms, mx, 'rung order' in out)
-    ls, lx = ([k[3:] for k in c.elements() if k[1] == 'line'] for c in (ns, nx))
     if Counter(ls) != Counter(lx):
         out.add('unknown: lines')
     st_s, st_x = ({k[3] for k in c if k[1] == 'network'} for c in (ns, nx))
-    if st_s != st_x and not any(not c.startswith('unknown') for c in out):
+    if st_s != st_x and not out:                          # else the state follows from what the causes name
         out.add('unknown: network state %s / %s' % (sorted(st_s), sorted(st_x)))
     return out or {'unknown: network'}
 
 
-def _xml_note(n, dx):
-    """A SimaticML network noted and the .s7dcl one not: what differs in its part of the file, order and ids aside."""
+def _xml_note(n, dx, shown):
+    """A SimaticML network noted and the .s7dcl one not: what differs in its part of the file, order and ids aside.
+    shown: the .s7dcl report marks the network otherwise, what the SimaticML reader may leave to the note."""
     p = next((p for p in (dx.nets if dx else ()) if _net(p) == n), None)
     if p is None or not (p.before and p.after and p.before.raw and p.after.raw):
         return {'unknown: SimaticML network note'}
@@ -700,15 +749,15 @@ def _xml_note(n, dx):
     if not moved:
         return {'note: SimaticML order'}
     return field_causes('xml', [re.sub(r'^/SW\.Blocks\.CompileUnit/AttributeList/NetworkSource/', 'network/', f)
-                                for f in moved])
+                                for f in moved], shown=shown)
 
 
 def _mark_causes(ms, mx, reordered):
     """The marks of one network from each report, (side, element, fill, areas). A mark of one paired with a mark of the
     other on the same side with the same fill, the element read otherwise: its causes (element_causes), the areas
     alike or not, as the drawing marks the text it reads. What is left of one report alone: a box it marks between two
-    versions read otherwise (the before and the after mark of one element in it); else 'rung order' when the tags say
-    so, else unknown."""
+    versions read otherwise (the before and the after mark of one element in it); else, of elements marked moved in a
+    network the tags say is in another order of its rungs, 'rung order'; else unknown."""
     left_s, left_x = list((Counter(ms) - Counter(mx)).elements()), list((Counter(mx) - Counter(ms)).elements())
     out = set()
     for same_areas in (True, False):
@@ -728,7 +777,7 @@ def _mark_causes(ms, mx, reordered):
                 left.remove(y)
     if left_s or left_x:
         fills = {m[2] for m in left_s + left_x}
-        out.add('rung order' if reordered else 'unknown: marks %s' % ', '.join(sorted(fills)))
+        out.add('rung order' if reordered and fills == {'moved'} else 'unknown: marks %s' % ', '.join(sorted(fills)))
     return out
 
 
