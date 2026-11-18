@@ -279,22 +279,33 @@ r.querySelectorAll('section.blk').forEach(function(s){var f=s.querySelector('.bh
 """
 
 # A member with members folds and opens in the interface table, as a network does: a click on its name cell (iface.py:
-# its level in data-d). Everything opens at first. A folded member whose members hold a change (data-hc) says so, so a
-# fold never hides that a change is there; the change itself shows again when it opens. A row under a fold is hidden
-# (fz) whatever else shows or hides it (ctx, skip); folded rows stay folded in print, as networks do.
+# its level in data-d). Everything opens at first. A row under a fold is hidden (fz) whatever else shows or hides it
+# (ctx, skip). A fold that hides a changed row (ins, del, chg, mov) says "holds a change" (hc), decided from the rows it
+# hides, wherever the diff placed them, so a fold never hides that a change is there; the change itself shows again
+# when it opens. An "unchanged members" row (skip, its data-d the shallowest level of the rows it stands for) ends no
+# fold: it hides with a fold only when all of its rows are under it. Folded rows stay folded in print, as networks do.
 CSS += """
 .ldiff table.itf tr.fz{display:none!important}
 .ldiff table.itf tr.pa td.nm{cursor:pointer}
-.ldiff table.itf tr.shut td.nm[data-hc]::after{content:'holds a change';margin-left:8px;padding:0 5px;font-size:11px;
+.ldiff table.itf tr.shut.hc td.nm::after{content:'holds a change';margin-left:8px;padding:0 5px;font-size:11px;
   background:var(--chg-bg);border:1px solid var(--chg);white-space:nowrap}
 """
 JS += """
 (function(){var r=document.currentScript&&document.currentScript.closest('.ldiff');if(!r)return;
+var CHANGED=/(^|\\s)(ins|del|chg|mov)(\\s|$)/;
 function lvl(x){var c=x.cells[0];return c&&c.hasAttribute('data-d')?+c.getAttribute('data-d'):-1}
-function lay(t){var rows=t.rows,shut=[];for(var k=0;k<rows.length;k++){var x=rows[k],v=lvl(x),n=rows[k+1],w;
- if(v<0){shut=[];continue}while(shut.length&&shut[shut.length-1]>=v)shut.pop();x.classList.toggle('fz',shut.length>0);
- x.classList.toggle('pa',!!n&&lvl(n)>v);if(!x.classList.contains('pa'))continue;w=x.cells[0].querySelector('.tw');
- if(w)w.textContent=x.classList.contains('shut')?'\u25b6':'\u25bc';if(x.classList.contains('shut'))shut.push(v)}}
+function skip(x){return x.classList.contains('skip')}
+function lay(t){var rows=[].slice.call(t.rows),shut=[];
+ rows.forEach(function(x,k){var v=lvl(x),n=k+1,w;x.classList.remove('hc');
+  if(v<0){shut=[];return}
+  if(skip(x)){x.classList.toggle('fz',shut.length>0&&v>shut[shut.length-1].v);return}
+  while(shut.length&&shut[shut.length-1].v>=v)shut.pop();
+  x.classList.toggle('fz',shut.length>0);
+  if(shut.length&&CHANGED.test(x.className))shut.forEach(function(s){s.x.classList.add('hc')});
+  while(n<rows.length&&skip(rows[n]))n++;
+  x.classList.toggle('pa',n<rows.length&&lvl(rows[n])>v);if(!x.classList.contains('pa'))return;
+  w=x.cells[0].querySelector('.tw');if(w)w.textContent=x.classList.contains('shut')?'\\u25b6':'\\u25bc';
+  if(x.classList.contains('shut'))shut.push({v:v,x:x})})}
 r.querySelectorAll('table.itf').forEach(function(t){lay(t);t.addEventListener('click',function(e){
  var c=e.target.closest('td.nm'),x=c&&c.parentNode;if(!x||!x.classList.contains('pa')||String(getSelection()))return;
  x.classList.toggle('shut');lay(t)})})})();
