@@ -2,7 +2,8 @@
 # since the last export (decided 2026-11-17). After an export the record (.tiabridge-export.json at the top of the project
 # repo, ignored by git) holds, per object, what TIA said of it and the files its export left. The next full_export reads
 # the same of TIA and exports an object when anything differs; everything else of those kinds is skipped and counted.
-# Where it cannot tell, it exports. What it rests on: docs\agent\openness-v20.md, Dates [PROBE].
+# What it rests on: docs\agent\openness-v20.md, Dates [PROBE]; what was not tried (block properties edited in TIA's
+# dialogs): the README.
 #
 # Each entry stands on its own: the same values in TIA and the same file bytes mean its files are what an export gives
 # now, whenever the entry was written. The head binds the record as a whole (project, TIA version, languages, PLC
@@ -168,7 +169,7 @@ function Get-EntryFiles($Old) {
 # without extension; with Others, the files of the other formats there too (an export of a block removes them).
 function Get-FileDifference($Old, [string]$Base, [switch]$Others) {
     $files = Get-EntryFiles $Old
-    # cannot be reached: an export that ended ok lists its files; where it cannot tell, it exports
+    # an export TIA answered Success without writing a file of it (Export-PlcObject: ok, no files) is recorded with none
     if (-not $files.Count) { return 'the record holds no file of it' }
     $mine = @{}
     foreach ($rel in $files.Keys) {

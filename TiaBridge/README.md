@@ -18,17 +18,20 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   [Limitations](../README.md#limitations).
 - Exports a whole project into its repo, and writes a [change report](../TiaChangeReports/README.md) for a commit.
   - A whole-project export skips the blocks, DBs, data types and PLC tag tables TIA has not changed since the last one,
-    and says how many it skipped. It goes by the dates TIA keeps of each object, which every edit moves, and by the files
-    the last export left in the repo (in `.tiabridge-export.json`, kept out of git).
-  - Where it cannot tell, it exports. A changed data type, a tag table that exports differently, or an object added,
-    deleted or renamed exports every object of that PLC, as other blocks name them or hold their members. A changed block
-    or DB exports the blocks that call or use it through their own state: TIA holds them not consistent until the
-    compile, which then moves their dates. It also exports every block, DB or data type last written as SimaticML (OBs,
-    for one).
-    An object TIA holds not consistent is exported, and so is one whose file was edited, removed or added in the repo.
-    Another TIA version, other project languages or another version of the bridge exports everything.
+    and says how many it skipped. An object added, deleted or renamed, a changed data type or a changed tag table exports
+    the whole PLC again. Ask for a full export (`full: true`) to export everything.
+  - It rests on the dates TIA keeps of each object: every edit of a block, DB or data type tried on V20 moved one of
+    them, code, interface, comments, translations, start values, number and name among them. A move to another folder
+    moved none, so the folder is compared too.
+  - A tag table is exported to a temporary file and compared with its file in the repo, as a tag renamed moves no date
+    of its table.
+  - The files the last export left in the repo are compared too (`.tiabridge-export.json`, kept out of git), so a file
+    edited, removed or added by hand is written again.
+  - A comment-only edit and a move to another folder were tried by a person in TIA, not by an agent's run.
+  - Not tried: block properties edited in TIA's dialogs. Those Openness reads (author, family, name, version, IEC check,
+    ENO, namespace) are compared as they are.
   - HMI objects, library types, system blocks, technology objects, watch and force tables and the project's settings
-    are exported every time. Ask for a full export to export everything.
+    are exported every time.
 - Opens a project in a TIA with a window when you name it. When you ask, works in a TIA without a window: on a copy, or on
   a project closed in your TIA.
 - Refuses to change F-blocks unless you asked for that change. Refuses an import over a know-how protected block whatever

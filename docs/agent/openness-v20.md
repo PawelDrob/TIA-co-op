@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T16:50:55-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T10:24:17-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -58,8 +58,8 @@ SimaticML, a namespace prefix in a block's. Whether TIA takes prefixes in other 
 **Dates.** The agent's own import moves every date of the object (`CreationDate` included), and its compile moves
 them again. A block changed by a person after the agent's last import and compile shows a newer `ModifiedDate`
 `[PROBE]`. `full_export` skips a block, DB or data type whose values below read as at the last export, and a tag table
-whose export reads as its file (TiaBridge's README says what else it checks); every reason it skips rests on this table
-and the list after it.
+whose export reads as its file ([TiaBridge's internals](../dev/tools/tia-bridge.md) say what else it checks); every
+reason it skips rests on this table and the lists after it.
 
 Probed on 2026-10-08 on a real project, V20 Update 7, with a person making the edits in TIA and a script reading the
 values between the steps `[PROBE]`. The objects: an SCL FB, a LAD FB, a global DB, a data type, a PLC tag table, and an
@@ -113,6 +113,20 @@ and edits Openness makes in place; after each change the default `full_export` a
   `Comment` attribute. Whether editing them in TIA's dialogs moves a date is not probed.
 - **Candidates for skipping:** system blocks have the dates of a block, but no step changed one; the force table has no date
   (`IsConsistent` only); no technology object or watch table was in the project. They are exported every time.
+
+**Texts edited through the project texts** `[PROBE]` (2026-11-18, V20 Update 7, without a window, on a copy of a test
+project given a second language: reference en-US, de-DE added). `Project.ImportProjectTexts(FileInfo path, bool
+updateSourceLanguage)` took back the `.xlsx` that `ExportProjectTexts` wrote, with one cell changed; its result reads `State`
+`Info` and names a log TIA writes under the project's `Logs`. Each edit moved the object's `ModifiedDate`, and its `.s7res`
+changed:
+
+- a translation added where there was none: an FB's title, an FB interface member's comment, a data type member's comment, a
+  DB member's comment, an FB's network title;
+- a translation changed: an OB's title;
+- the reference language's text (`updateSourceLanguage` true): an FC's title.
+
+A title or a network title also turns the block not consistent; the OB's SimaticML export then fails until the compile.
+After each edit, saved and read in a new session, the default `full_export` left the same files as `full: true`.
 
 **User folders** `[PROBE]` (V20 Update 7, 2026-11-02, on a copy: block, PLC data type and PLC tag table folders of a PLC;
 screen, template, pop-up and HMI tag folders of a Comfort panel):

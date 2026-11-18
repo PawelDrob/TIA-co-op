@@ -120,7 +120,9 @@ Describe 'full_export skips what TIA has not changed' {
     }
 
     It 'skips again after a run that skipped: the record is written anew' {
-        $null = Invoke-FullExportTool $script:parts
+        Initialize-SkipTest 'again'
+        $first = Invoke-FullExportTool $script:parts
+        $first.skipped | Should Be 6
         Reset-Exports
         $r = Invoke-FullExportTool $script:parts
         $r.skipped | Should Be 6
@@ -425,6 +427,19 @@ Describe 'full_export exports one object when' {
         $r = Invoke-FullExportTool $script:parts
         Get-Exported | Should Be 'FC1'
         @($r.details | Where-Object { $_.part -eq 'blocks' })[0].why['its last export failed'] | Should Be 1
+    }
+
+    It 'its last export ended ok but wrote no file of it' {
+        Initialize-SkipTest 'no-file'
+        # TIA answers Success and writes nothing: Export-PlcObject returns ok with no files, and the record keeps no file
+        $script:o.FC1 | Add-Member ScriptMethod ExportAsDocuments { param($d, $n) $this.exports++; [pscustomobject]@{ State = 'Success'; Messages = @() } } -Force
+        Step-Date $script:o.FC1
+        $r = Invoke-FullExportTool $script:parts
+        $r.failedCount | Should Be 0
+        Reset-Exports
+        $r = Invoke-FullExportTool $script:parts
+        Get-Exported | Should Be 'FC1'
+        @($r.details | Where-Object { $_.part -eq 'blocks' })[0].why['the record holds no file of it'] | Should Be 1
     }
 
     It 'TIA gives no date of it' {
