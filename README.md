@@ -13,6 +13,7 @@ Every tool is experimental: it works, and it may still change.
 |---|---|
 | [TiaBridge](TiaBridge/README.md) | MCP server through which an agent reads and changes a TIA project: PLC blocks, library types, HMI screens. |
 | [TiaChangeReports](TiaChangeReports/README.md) | One HTML page of what changed between two exports: LAD drawn as TIA does, SCL line by line, HMI screens before and after. |
+| [Block viewer](TiaChangeReports/viewer/README.md) | Opens one `.s7dcl` file in a window, drawn as the change report draws it, without TIA; on a double-click once registered. |
 | [TiaHmiGenerator](TiaHmiGenerator/README.md) | Writes WinCC Comfort screens from reference exports, checks them and previews them in a browser before the import. |
 | [TiaArchiveCompare](TiaArchiveCompare/README.md) | A window that compares two archives, projects or commits of a git repo and opens the report. |
 | [TiaAgentStatus](TiaAgentStatus/README.md) | Shows what agents do to your TIA projects: dashboard, status line, and a watcher for [herdr](https://herdr.dev), a terminal workspace for agents. |

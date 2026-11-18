@@ -706,14 +706,16 @@ def declaration_html(before, after):
             % _both(escape(before), escape(after)))
 
 
-def html(bblock, ablock):
+def html(bblock, ablock, whole=False):
+    """The interface as TIA's editor shows it: the changed members with their parents, the unchanged ones folded;
+    whole, every member open (the viewer's one block, compared with itself)."""
     rs = block_rows(bblock, ablock)
     blk = ablock or bblock
     kind = blk.kind if blk else ''
     vhead, has_retain, has_attrs = _columns(kind)
     safety = kind != 'TYPE' and blk.props.get('S7_Safety', '').lower() == 'true'      # an F-DB or F-FB
     ncols = 4 + has_retain + 4 * has_attrs
-    keep = set()
+    keep = {r.path for r in rs} if whole else set()
     for r in rs:
         if r.state != 'same':
             keep.update(r.path[:k] for k in range(1, len(r.path) + 1))    # the row and its parents

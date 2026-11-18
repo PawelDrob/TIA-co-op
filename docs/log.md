@@ -1,5 +1,8 @@
 # Log
 
+## 2026-11-18
+* **Creation**: [Block viewer internals](dev/tools/tia-block-viewer.md): how the block viewer draws one `.s7dcl` with the change report's code, its window, the registration for a double-click, its tests and window check.
+
 ## 2026-11-06
 * **Creation**: [ADR 0004](adr/0004-the-tia-dashboard-starts-a-report-run.md): the TIA dashboard's button starts a report run, which works through the bridge in a report-run mode.
 * **Update**: [TIA agent status](user/tia-agent-status.md): a change report without an agent, from the dashboard's button.

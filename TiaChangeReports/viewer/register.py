@@ -1,0 +1,117 @@
+"""Double-click: .s7dcl files open in the viewer, for the current user only (HKEY_CURRENT_USER\\Software\\Classes), and
+back. Nothing else registers: a person runs `--register` and `--unregister`. Standard library only (winreg).
+
+  register(...)   the program id PROGID with its open command (command()), .s7dcl's default set to it (the one there
+                  before kept, to put back), PROGID among .s7dcl's OpenWithProgids. Returns the lines to print
+  unregister(...) all of that taken back: PROGID removed, .s7dcl's default as it was before, the key gone when empty
+
+classes: the key under HKEY_CURRENT_USER both work in, a test's own key in a test. choice: where Windows keeps a
+choice the person made in "Open with" (UserChoice), which beats a default and which no program may write: register
+says so when one names another program. notify: tells Explorer that associations changed (SHChangeNotify).
+"""
+import os
+import winreg
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROGID = 'TiaChangeReports.BlockViewer'
+EXT = '.s7dcl'
+CLASSES = r'Software\Classes'
+CHOICE = r'Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.s7dcl\UserChoice'
+PREVIOUS = 'TiaChangeReports.Previous'      # .s7dcl's default before register, on PROGID's key
+TYPE_NAME = 'SIMATIC SD block'
+APP_NAME = 'Block viewer'
+
+
+def command(viewer=HERE, python=None):
+    """The open command: pythonw.exe of this tree's .venv (no console) on this folder, the file in quotes."""
+    python = python or os.path.join(os.path.dirname(os.path.dirname(viewer)), '.venv', 'Scripts', 'pythonw.exe')
+    return '"%s" -X utf8 "%s" "%%1"' % (python, viewer)
+
+
+def _get(root, sub, name=''):
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub if sub else root) as k:
+            return winreg.QueryValueEx(k, name)[0]
+    except OSError:
+        return None
+
+
+def _set(root, sub, value, name=''):
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, root + '\\' + sub, 0, winreg.KEY_WRITE) as k:
+        winreg.SetValueEx(k, name, 0, winreg.REG_SZ, value)
+
+
+def _delete_tree(root, sub):
+    """Delete root\\sub and everything under it; nothing when it is not there."""
+    path = root + '\\' + sub
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_READ) as k:
+            names = []
+            while True:
+                try:
+                    names.append(winreg.EnumKey(k, len(names)))
+                except OSError:
+                    break
+    except OSError:
+        return
+    for n in names:
+        _delete_tree(path, n)
+    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+
+
+def _empty(root, sub):
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub) as k:
+            n_keys, n_values, _ = winreg.QueryInfoKey(k)
+            return n_keys == 0 and n_values == 0
+    except OSError:
+        return False
+
+
+def _notify():
+    import ctypes
+    ctypes.windll.shell32.SHChangeNotify(0x08000000, 0, None, None)      # SHCNE_ASSOCCHANGED, SHCNF_IDLIST
+
+
+def register(cmd=None, classes=CLASSES, choice=CHOICE, notify=True):
+    cmd = cmd or command()
+    before = _get(classes, EXT)
+    _set(classes, PROGID, TYPE_NAME)
+    _set(classes, PROGID + r'\shell\open', APP_NAME, 'FriendlyAppName')
+    _set(classes, PROGID + r'\shell\open\command', cmd)
+    if before and before != PROGID and _get(classes, PROGID, PREVIOUS) is None:
+        _set(classes, PROGID, before, PREVIOUS)
+    _set(classes, EXT, PROGID)
+    _set(classes, EXT + r'\OpenWithProgids', '', PROGID)
+    if notify:
+        _notify()
+    lines = ['%s files open in the block viewer: %s' % (EXT, cmd)]
+    chosen = _get(choice, '', 'ProgId')
+    if chosen and chosen != PROGID:
+        lines.append('Windows opens %s files with %s, as chosen in "Open with": right-click one, Open with, Choose another '
+                     'app, %s, Always.' % (EXT, chosen, APP_NAME))
+    return lines
+
+
+def unregister(classes=CLASSES, notify=True):
+    previous = _get(classes, PROGID, PREVIOUS)
+    _delete_tree(classes, PROGID)
+    if _get(classes, EXT) == PROGID:
+        if previous:
+            _set(classes, EXT, previous)
+        else:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, classes + '\\' + EXT, 0, winreg.KEY_SET_VALUE) as k:
+                winreg.DeleteValue(k, '')
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, classes + '\\' + EXT + r'\OpenWithProgids', 0,
+                            winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, PROGID)
+    except OSError:
+        pass
+    for sub in (EXT + r'\OpenWithProgids', EXT):
+        if _empty(classes, sub):
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, classes + '\\' + sub)
+    if notify:
+        _notify()
+    return ['%s files no longer open in the block viewer%s.' % (EXT, ': back to %s' % previous if previous else '')]
+
