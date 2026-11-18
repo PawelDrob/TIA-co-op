@@ -2637,7 +2637,8 @@ END_DATA_BLOCK
 
 
 class DisabledCellsLikeTia(unittest.TestCase):
-    """TIA's disabled cells gray and its disabled boxes drawn disabled, not blank, as in an FB and an F-DB."""
+    """TIA's disabled boxes drawn disabled, not blank, as in an FB and an F-DB. No cell gray: TIA grays its disabled
+    cells, the interface table does not (the maintainer's pick of 2026-11-18)."""
 
     def _cells(self, text, name):
         """name -> [(gray?, boxes or text)] of a new block's interface table (every row shown)."""
@@ -2655,16 +2656,16 @@ class DisabledCellsLikeTia(unittest.TestCase):
         gray = {k: ''.join('g' if g else '.' for g, _ in v) for k, v in rs.items()}
         boxes = {k: [c for _, c in v[4:8]] for k, v in rs.items()}
         # name, type, value, retain, accessible, writable, visible, setpoint, comment
-        self.assertEqual(gray['hid'], '.....ggg.')                                      # not accessible
-        self.assertEqual(boxes['hid'], ['o', 'o~', 'o~', 'o~'])
-        self.assertEqual((gray['cfg'], boxes['cfg']), ('..g......', ['x', 'x', 'x', 'o']))  # a UDT input: no value
+        self.assertEqual({g for v in gray.values() for g in v}, {'.'})                 # no cell gray
+        self.assertEqual(boxes['hid'], ['o', 'o~', 'o~', 'o~'])                          # not accessible
+        self.assertEqual((boxes['cfg'], rs['cfg'][2][1]), (['x', 'x', 'x', 'o'], ''))     # a UDT input: no value
         for io in ('io', 'ioArr'):                                    # structured in-out: empty, as in TIA
-            self.assertEqual((gray[io], boxes[io], rs[io][3][1]), ('..gggggg.', ['o~'] * 4, ''))
-        self.assertEqual((gray['ioInt'], boxes['ioInt']), ('.........', ['x', 'x', 'x', 'o']))
-        self.assertEqual((gray['s'], boxes['s']), ('..g....g.', ['x', 'x', 'x', 'o~']))    # a struct: no setpoint
-        self.assertEqual((gray['t'], boxes['t']), ('..g......', ['x', 'x', 'x', 'x']))     # an FB instance
-        self.assertEqual((gray['b'], rs['b'][3][1]), ('.........', 'Non-retain'))
-        self.assertEqual((gray['tmp'], boxes['tmp']), ('.........', ['', '', '', '']))     # temp: not seen, as before
+            self.assertEqual((boxes[io], rs[io][2][1], rs[io][3][1]), (['o~'] * 4, '', ''))
+        self.assertEqual(boxes['ioInt'], ['x', 'x', 'x', 'o'])
+        self.assertEqual(boxes['s'], ['x', 'x', 'x', 'o~'])                              # a struct: no setpoint
+        self.assertEqual(boxes['t'], ['x', 'x', 'x', 'x'])                               # an FB instance
+        self.assertEqual(rs['b'][3][1], 'Non-retain')
+        self.assertEqual(boxes['tmp'], ['', '', '', ''])                                 # temp: not seen, as before
         self.assertEqual([c for _, c in rs['Input'][1:]], ['', '', '', 'o~', 'o~', 'o~', 'o~', ''])  # section row
 
     def test_f_db_retain_and_setpoint_disabled(self):
@@ -2672,12 +2673,13 @@ class DisabledCellsLikeTia(unittest.TestCase):
             text = ('{ S7_Safety := "True" }\n' if safety else '') + DIS_DB
             rs = self._cells(text, 'S')
             self.assertEqual([c for _, c in rs['hid'][3:8]], ['o~' if safety else 'o', 'o', 'o~', 'o~', 'o~'])
-            self.assertEqual([g for g, _ in rs['hid'][3:8]], [safety, False, True, True, True])
+            self.assertFalse(any(g for v in rs.values() for g, _ in v))                 # no cell gray
             self.assertEqual([c for _, c in rs['e'][3:8]], ['o~' if safety else 'o', 'x', 'x', 'x', 'o' if safety else 'x'])
-            self.assertTrue(rs['e'][2][0])                                              # a UDT: no start value
+            self.assertEqual(rs['e'][2][1], '')                                         # a UDT: no start value
             self.assertEqual([c for _, c in rs['Static'][3:8]], ['o~'] * 5)
 
     def test_gray_cells_keep_the_diff_colour(self):
+        """The PLC tag table's gray cells (plctags.py); the interface has none."""
         from TiaChangeReports import page
         with open(page.__file__, encoding='utf-8') as f:
             css = f.read()
@@ -2716,10 +2718,11 @@ class DisabledCellsMoreKinds(unittest.TestCase):
     _cells = DisabledCellsLikeTia._cells
 
     def test_f_fb_retain_disabled(self):
-        """F-FB: Retain gray on every row ('Non-retain'), blank on an FB instance; the boxes as in an FB."""
+        """F-FB: Retain 'Non-retain' on every row, blank on an FB instance (TIA's gray left out); the boxes as in an
+        FB."""
         rs = self._cells(DIS_FFB, 'F')
         self.assertEqual([(rs[n][3][0], rs[n][3][1]) for n in ('i', 'inst', 'b')],
-                         [(True, 'Non-retain'), (True, ''), (True, 'Non-retain')])
+                         [(False, 'Non-retain'), (False, ''), (False, 'Non-retain')])
         self.assertEqual([c for _, c in rs['inst'][4:8]], ['x', 'x', 'x', 'o'])
         self.assertEqual(self._cells(DIS_FB, 'G')['b'][3], (False, 'Non-retain'))      # a standard FB as before
 
@@ -2727,17 +2730,16 @@ class DisabledCellsMoreKinds(unittest.TestCase):
         """Global DB: the Setpoint of an array (of a UDT, seen; of elementary types the export sets it) is an
         enabled box, of a struct a disabled one."""
         rs = self._cells(DIS_ARR, 'A')
-        self.assertEqual([rs[n][7] for n in ('arr', 'arrB', 's')], [(False, 'o'), (False, 'x'), (True, 'o~')])
+        self.assertEqual([rs[n][7] for n in ('arr', 'arrB', 's')], [(False, 'o'), (False, 'x'), (False, 'o~')])
 
     def test_an_opened_member_has_its_row_grey_and_no_cell_grey(self):
         """An array element or member of a UDT type inside a DB, the maintainer's pick of 2026-11-18 over TIA's look:
-        no cell gray apart, one lighter grey behind the row (data-u), the boxes drawn disabled as TIA does. The DB's own
-        members keep TIA's gray."""
+        one lighter grey behind the row (data-u), no cell gray, the boxes drawn disabled as TIA does. Not the DB's own
+        members."""
         rs = self._cells(DIS_ARR, 'A')
         for n in ('arr[1]', 'q'):
             self.assertEqual([g for g, _ in rs[n]], [False] * 9, n)
         self.assertEqual([c for _, c in rs['arr[1]'][3:8]], ['o~', 'x~', 'x~', 'x~', 'o~'])
-        self.assertTrue(rs['arr'][2][0])                                                # the array's own value: gray
         html = iface.html(None, parse_block(src(DIS_ARR, '', 'A')))
         self.assertEqual(re.findall(r'data-u style="[^"]*"><span class="tw">[^<]*</span>([^<]+)<', html), ['arr[1]', 'q'])
         from TiaChangeReports import page

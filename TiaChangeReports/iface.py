@@ -584,8 +584,9 @@ def _off(m, kind='', safety=False):
     the default / start value of a UDT, struct, array or FB instance; in-outs of such a type: retain,
     value and every box; writable, visible and setpoint when the member is not accessible; the setpoint of a struct;
     retain in an F-DB and an F-FB; a member inside a UDT instance or array, or of an instance DB (Inner): all but its
-    start value (gray too when structured) and comment. Temp, constants and Return: none (not seen). The interface
-    table greys no cell of a member inside an opened member (_opened): its whole row has one lighter grey instead."""
+    start value (gray too when structured) and comment. Temp, constants and Return: none (not seen). Of these the
+    interface table draws the boxes disabled and greys no cell (the maintainer's pick of 2026-11-18 over TIA's look); a
+    member inside an opened member (_opened) has one lighter grey behind its whole row."""
     if isinstance(m, Inner):
         return {'name', 'type', 'retain'} | set(BOX_CELLS) | ({'value'} if structured(m.type) else set())
     if m.section in NO_BOXES:
@@ -769,14 +770,15 @@ def _sec_row(label, ncols, kind, has_retain, has_attrs):
 
 
 def _td(html, off, cls=''):
+    """off: gray, as TIA disables the cell (the PLC tag table's; the interface greys none)."""
     cls = ' '.join(x for x in (cls, 'dis' if off else '') if x)
     return '<td%s>%s</td>' % (' class="%s"' % cls if cls else '', html)
 
 
 def _opened(r):
     """A member inside an opened UDT instance, FB instance or array (an Inner below the top level): the maintainer's
-    pick of 2026-11-18 over TIA's look, one lighter grey behind its whole row (data-u on its name cell, page.py) and
-    no cell greyed apart. An instance DB's own members (Inner at the top) keep TIA's grey."""
+    pick of 2026-11-18 over TIA's look, one lighter grey behind its whole row (data-u on its name cell, page.py). An
+    instance DB's own members (Inner at the top) are no opened member's."""
     return isinstance(r.m, Inner) and len(r.path) > 1
 
 
@@ -801,19 +803,17 @@ def _row(r, ctx, top, parents, kind, has_retain, has_attrs, safety=False):
             extra.append('attributes: ' + _both(escape(_attrs(other[0])), escape(_attrs(other[1]))))
     if 'retain' in r.changes and not has_retain:
         extra.append('retain: %s → %s' % (r.b.retain, r.a.retain))
-    opened = _opened(r)
-    off = set() if opened else _off(r.m, kind, safety)  # gray cells, as the row is now
     level = top + depth - 1
-    cells = ['<td class="nm%s" data-d="%d"%s style="padding-left:%dpx"><span class="tw">%s</span>%s%s</td>'
-             % (' dis' if 'name' in off else '', level, ' data-u' if opened else '', 8 + 16 * level, tw, name,
+    cells = ['<td class="nm" data-d="%d"%s style="padding-left:%dpx"><span class="tw">%s</span>%s%s</td>'
+             % (level, ' data-u' if _opened(r) else '', 8 + 16 * level, tw, name,
                 ''.join('<div class="ex">%s</div>' % x for x in extra)),
-             _td(_cell(r, lambda m: escape(tia_type(m.type), False), 'type' in r.changes), 'type' in off),
-             _td(_cell(r, _value_html, 'value' in r.changes), 'value' in off)]
+             _td(_cell(r, lambda m: escape(tia_type(m.type), False), 'type' in r.changes), False),
+             _td(_cell(r, _value_html, 'value' in r.changes), False)]
     if has_retain:
         cells.append(_td(_cell(r, lambda m: _retain(m, depth, kind, safety), bool({'retain', 'section'} & r.changes)),
-                         'retain' in off))
+                         False))
     if has_attrs:
         cells += [_td(_cell(r, lambda m, i=i: _boxes(m, safety)[i], bool({'attrs', 'section', 'type'} & r.changes)),
-                      BOX_CELLS[i] in off, 'c') for i in range(4)]
+                      False, 'c') for i in range(4)]
     cells.append('<td>%s</td>' % _cell(r, _comment_html, 'comment' in r.changes))
     return '<tr%s>%s</tr>' % (' class="%s"' % cls if cls else '', ''.join(cells))
