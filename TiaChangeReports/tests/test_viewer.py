@@ -134,7 +134,8 @@ class Source(unittest.TestCase):
         cases = {'Broken.s7dcl': ('FUNCTION_BLOCK "Broken"\n  VAR\n', 'not a SIMATIC SD block export: no END_FUNCTION_BLOCK'),
                  'Empty.s7dcl': ('', 'not a SIMATIC SD block export: empty'),
                  'Texts.s7res': (CALLER_RES, 'not a block export'),
-                 'Tags.xml': ('<?xml version="1.0"?><Document><SW.Tags.PlcTagTable ID="0"/></Document>', '')}
+                 'Tags.xml': ('<?xml version="1.0"?><Document><SW.Tags.PlcTagTable ID="0"/></Document>',
+                              'not a SimaticML block export')}
         for name, (text, why) in cases.items():
             with self.subTest(name):
                 html, title = view.page(self.put(name, text))
@@ -232,10 +233,10 @@ class Register(unittest.TestCase):
         self.root = r'Software\TiaChangeReportsViewerTest-%s' % uuid.uuid4().hex
         self.classes = self.root + r'\Classes'
         self.choice = self.root + r'\UserChoice'
-        self.addCleanup(register._delete_tree, 'Software', self.root.split('\\', 1)[1])
+        self.addCleanup(register.delete_tree, 'Software', self.root.split('\\', 1)[1])
 
     def get(self, sub, name=''):
-        return register._get(self.classes, sub, name)
+        return register.read_value(self.classes, sub, name)
 
     def test_register_and_take_it_back(self):
         lines = register.register('"py" "viewer" "%1"', self.classes, self.choice, notify=False)
@@ -249,7 +250,7 @@ class Register(unittest.TestCase):
             winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.classes + r'\.s7dcl')
 
     def test_the_program_there_before_comes_back(self):
-        register._set(self.classes, '.s7dcl', 'Other.Editor')
+        register.write_value(self.classes, '.s7dcl', 'Other.Editor')
         register.register('cmd', self.classes, self.choice, notify=False)
         register.register('cmd', self.classes, self.choice, notify=False)     # again: the one before stays known
         self.assertEqual(self.get('.s7dcl'), register.PROGID)
@@ -257,8 +258,16 @@ class Register(unittest.TestCase):
         self.assertEqual(self.get('.s7dcl'), 'Other.Editor')
         self.assertIn('back to Other.Editor', lines[0])
 
+    def test_the_program_there_last_comes_back(self):
+        register.write_value(self.classes, '.s7dcl', 'Other.Editor')
+        register.register('cmd', self.classes, self.choice, notify=False)
+        register.write_value(self.classes, '.s7dcl', 'Newer.Editor')          # another program took .s7dcl since
+        register.register('cmd', self.classes, self.choice, notify=False)
+        register.unregister(self.classes, notify=False)
+        self.assertEqual(self.get('.s7dcl'), 'Newer.Editor')
+
     def test_a_choice_in_open_with_is_named(self):
-        register._set(self.choice, '', 'Other.Editor', 'ProgId')
+        register.write_value(self.choice, '', 'Other.Editor', 'ProgId')
         lines = register.register('cmd', self.classes, self.choice, notify=False)
         self.assertIn('Windows opens .s7dcl files with Other.Editor', lines[1])
 

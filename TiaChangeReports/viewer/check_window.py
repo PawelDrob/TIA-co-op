@@ -214,7 +214,7 @@ def main(argv=None):
     seen_there, seen_here = {}, {}
     try:
         register.register(classes=key + r'\Classes', choice=key + r'\UserChoice', notify=False)
-        cmd = register._get(key + r'\Classes', register.PROGID + r'\shell\open\command')
+        cmd = register.read_value(key + r'\Classes', register.PROGID + r'\shell\open\command')
         for k, f in enumerate(files):
             title = view.page(f)[1]
             profile = os.path.join(tmp, 'profile-%d' % k)
@@ -242,7 +242,7 @@ def main(argv=None):
                 user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
             time.sleep(2)
     finally:
-        register._delete_tree('Software', key.split('\\', 1)[1])
+        register.delete_tree('Software', key.split('\\', 1)[1])
         user32.CloseDesktop(desktop)
         time.sleep(1)
         shutil.rmtree(tmp, ignore_errors=True)

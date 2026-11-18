@@ -19,9 +19,9 @@ import time
 from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WINCC = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'TiaHmiGenerator')
-if WINCC not in sys.path:
-    sys.path.insert(0, WINCC)
+HMI_GENERATOR = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'TiaHmiGenerator')
+if HMI_GENERATOR not in sys.path:
+    sys.path.insert(0, HMI_GENERATOR)
 from hmipreview.edge import NOT_FOUND, edge_path  # noqa: E402  Edge, else Chrome: the report's PNG uses the same
 
 PAGES = 'TiaChangeReports-viewer'

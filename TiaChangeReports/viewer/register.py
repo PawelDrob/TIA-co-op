@@ -28,7 +28,7 @@ def command(viewer=HERE, python=None):
     return '"%s" -X utf8 "%s" "%%1"' % (python, viewer)
 
 
-def _get(root, sub, name=''):
+def read_value(root, sub, name=''):
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub if sub else root) as k:
             return winreg.QueryValueEx(k, name)[0]
@@ -36,12 +36,12 @@ def _get(root, sub, name=''):
         return None
 
 
-def _set(root, sub, value, name=''):
+def write_value(root, sub, value, name=''):
     with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, root + '\\' + sub, 0, winreg.KEY_WRITE) as k:
         winreg.SetValueEx(k, name, 0, winreg.REG_SZ, value)
 
 
-def _delete_tree(root, sub):
+def delete_tree(root, sub):
     """Delete root\\sub and everything under it; nothing when it is not there."""
     path = root + '\\' + sub
     try:
@@ -55,7 +55,7 @@ def _delete_tree(root, sub):
     except OSError:
         return
     for n in names:
-        _delete_tree(path, n)
+        delete_tree(path, n)
     winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
 
 
@@ -75,18 +75,18 @@ def _notify():
 
 def register(cmd=None, classes=CLASSES, choice=CHOICE, notify=True):
     cmd = cmd or command()
-    before = _get(classes, EXT)
-    _set(classes, PROGID, TYPE_NAME)
-    _set(classes, PROGID + r'\shell\open', APP_NAME, 'FriendlyAppName')
-    _set(classes, PROGID + r'\shell\open\command', cmd)
-    if before and before != PROGID and _get(classes, PROGID, PREVIOUS) is None:
-        _set(classes, PROGID, before, PREVIOUS)
-    _set(classes, EXT, PROGID)
-    _set(classes, EXT + r'\OpenWithProgids', '', PROGID)
+    before = read_value(classes, EXT)
+    write_value(classes, PROGID, TYPE_NAME)
+    write_value(classes, PROGID + r'\shell\open', APP_NAME, 'FriendlyAppName')
+    write_value(classes, PROGID + r'\shell\open\command', cmd)
+    if before and before != PROGID:                       # the one there last, to put back
+        write_value(classes, PROGID, before, PREVIOUS)
+    write_value(classes, EXT, PROGID)
+    write_value(classes, EXT + r'\OpenWithProgids', '', PROGID)
     if notify:
         _notify()
     lines = ['%s files open in the block viewer: %s' % (EXT, cmd)]
-    chosen = _get(choice, '', 'ProgId')
+    chosen = read_value(choice, '', 'ProgId')
     if chosen and chosen != PROGID:
         lines.append('Windows opens %s files with %s, as chosen in "Open with": right-click one, Open with, Choose another '
                      'app, %s, Always.' % (EXT, chosen, APP_NAME))
@@ -94,11 +94,11 @@ def register(cmd=None, classes=CLASSES, choice=CHOICE, notify=True):
 
 
 def unregister(classes=CLASSES, notify=True):
-    previous = _get(classes, PROGID, PREVIOUS)
-    _delete_tree(classes, PROGID)
-    if _get(classes, EXT) == PROGID:
+    previous = read_value(classes, PROGID, PREVIOUS)
+    delete_tree(classes, PROGID)
+    if read_value(classes, EXT) == PROGID:
         if previous:
-            _set(classes, EXT, previous)
+            write_value(classes, EXT, previous)
         else:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, classes + '\\' + EXT, 0, winreg.KEY_SET_VALUE) as k:
                 winreg.DeleteValue(k, '')

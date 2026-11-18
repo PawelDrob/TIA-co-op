@@ -2,22 +2,24 @@
 text of its file; a file it cannot read shows its source with the reason.
 
 page(path) -> (html, title). Self-contained: nothing is fetched. The drawing is the report's: its styles and script
-(page.CSS, page.JS), the interface table (iface.html), the ladder (render_lad.Layout), the text of an SCL network
-(s7dcl.scl_lines). A LAD network's SVG is the one the report draws for it unchanged (test_viewer holds them to the
-same bytes). Calls and types are read from the project the file is in (project_root), as the report reads them
+(page.CSS, page.JS), the interface table (iface.html), the ladder in its frame (render_lad.Layout, page._lad_pane), the
+text of an SCL network (s7dcl.scl_lines). The title bar, comment field and text table are the report's classes in one
+column, written here. A LAD network's SVG is the one the report draws for it unchanged (test_viewer holds them to
+the same bytes). Calls and types are read from the project the file is in (project_root), as the report reads them
 from the folder it compares."""
 import os
-import re
 from html import escape
+from types import SimpleNamespace
 
 from TiaChangeReports import iface
 from TiaChangeReports.compare import BlockDiff, Callees
-from TiaChangeReports.page import CSS, JS, version_html
+from TiaChangeReports.page import CSS, JS, _lad_pane, version_html
 from TiaChangeReports.render_lad import Layout
 from TiaChangeReports.s7dcl import parse_block, scl_lines
 from TiaChangeReports.source import REPO_MARKS, FolderSnapshot, from_file, name_of
 
 EXTENSIONS = ('.s7dcl', '.xml')
+NO_MARKS = SimpleNamespace(status={}, other={})   # a network's diff with nothing changed
 
 
 def project_root(path):
@@ -37,8 +39,8 @@ def project_root(path):
 
 
 def block_of(path):
-    """(the parsed block with its calls' interfaces, its BlockSource, the root it reads calls from). Raises what the
-    readers raise for a file that is no block export."""
+    """(the parsed block with its calls' interfaces, its BlockSource, the root it reads calls from, its path from that
+    root). Raises what the readers raise for a file that is no block export."""
     if os.path.splitext(path)[1].lower() not in EXTENSIONS:
         raise ValueError('not a block export: an .s7dcl, or the SimaticML .xml of a block')
     src = from_file(path)
@@ -46,15 +48,13 @@ def block_of(path):
     root = project_root(path)
     rel = os.path.relpath(os.path.abspath(path), root).replace(os.sep, '/')
     blk.callees = Callees(FolderSnapshot(root)).at(rel)
-    return blk, src, root
+    return blk, src, root, rel
 
 
 def lad_svg(net, blk):
-    """A LAD network's SVG, as the report draws an unchanged one (page._lad_pane on Layout.svg): at TIA's 100 %, never
-    wider than the window."""
-    svg = Layout(net.rungs, blk.interface, blk.callees, net.label, 'same', None).svg()
-    natural = re.search(r' width="(\d+)"', svg).group(1)
-    return svg.replace('<svg ', '<svg style="--fw:100.00%%;max-width:%spx" ' % natural, 1)
+    """A LAD network's SVG in its frame, as the report draws an unchanged one: at TIA's 100 %, never wider than the
+    window."""
+    return _lad_pane(Layout(net.rungs, blk.interface, blk.callees, net.label), None, NO_MARKS)
 
 
 def _lines_table(lines):
@@ -94,12 +94,12 @@ def heading(blk):
     return '%s [%s%s]' % (d.name, d.kind, blk.props.get('S7_BlockNumber') or '')
 
 
-def block_html(blk, src, path, root):
+def block_html(blk, src, rel):
     """The block drawn: header, properties, interface, every network."""
     itf = iface.html(blk, blk, whole=True)
     parts = ['<div class="bh"><b>%s</b>%s<span class="paths">%s</span></div>'
              % (escape(heading(blk)), version_html(src.version, src.version),
-                escape(os.path.relpath(os.path.abspath(path), root).replace(os.sep, '/'))),
+                escape(rel)),
              _props_html(blk)]
     if itf:
         parts.append('<div class="nw itfw"><div class="nwh"><b>Interface</b><span class="tag">DECLARATION</span></div>'
@@ -168,19 +168,18 @@ main{padding:0 16px 40px}
 .ldiff .src .nwh b{font:13px Consolas,"Courier New",monospace}
 """
 
-# The switch: Drawing / Source, by its buttons or D and S; the last choice kept in the browser for the next file, but a
-# file that cannot be drawn opens on its source, and #source in the address opens on it.
+# The switch: Drawing / Source, by its buttons or D and S. A file opens on its drawing, one that cannot be drawn on its
+# source; the source shown is #source in the address, so that a reload keeps it.
 SWITCH_JS = """
 (function(){var bs=document.querySelectorAll('.vbar .sw button'),vs={};
 document.querySelectorAll('.view').forEach(function(v){vs[v.getAttribute('data-view')]=v});
 function show(k,keep){if(!vs[k]||document.querySelector('.vbar .sw button[data-view='+k+']').disabled)return;
  bs.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view')==k?'true':'false')});
- for(var x in vs)vs[x].hidden=x!=k;if(keep)try{localStorage.setItem('viewer-view',k)}catch(e){}}
+ for(var x in vs)vs[x].hidden=x!=k;if(keep)history.replaceState(null,'',k=='source'?'#source':location.pathname)}
 bs.forEach(function(b){b.onclick=function(){show(b.getAttribute('data-view'),true)}});
 document.addEventListener('keydown',function(e){if(e.ctrlKey||e.altKey||e.metaKey||/^(INPUT|TEXTAREA)$/.test(e.target.tagName))return;
  var k={d:'drawing',s:'source'}[e.key.toLowerCase()];if(k){e.preventDefault();show(k,true)}});
-var k=null;try{k=localStorage.getItem('viewer-view')}catch(e){}
-if(k)show(k,false);if(location.hash=='#source')show('source',false)})();
+if(location.hash=='#source')show('source',false)})();
 """
 
 
@@ -189,8 +188,8 @@ def page(path):
     path = os.path.abspath(path)
     drawing, why, title = None, None, os.path.basename(path)
     try:
-        blk, src, root = block_of(path)
-        drawing = block_html(blk, src, path, root)
+        blk, src, root, rel = block_of(path)
+        drawing = block_html(blk, src, rel)
         title = heading(blk)
         read = '<p class="read">Calls and types read from %s</p>' % escape(name_of(root))
     except Exception as ex:                              # noqa: BLE001 - any error of this file: its source, with why
