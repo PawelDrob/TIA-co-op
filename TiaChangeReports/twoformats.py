@@ -158,8 +158,8 @@ def _net(p):
 
 
 def _element(el):
-    """An element as compared, but for ENO generated or not (a mark says that): no element id, no wire name."""
-    return el.sig()[:-1]
+    """An element as compared (Element.sig): no element id, no wire name, its ENO generated or not."""
+    return el.sig()
 
 
 def _layouts(pair, d):
@@ -259,8 +259,10 @@ def _unquoted(v):
 
 
 def _normal(sig, steps, other_templates):
-    instr, inst, call, params, templates, expr = sig
+    instr, inst, call, params, templates, expr, no_eno = sig
     ps = list(params)
+    if 'ENO' in steps:
+        no_eno = None
     if 'quoted names' in steps:
         ps = [(n, d, _unquoted(v)) for n, d, v in ps]
         inst = _unquoted(inst)
@@ -272,10 +274,10 @@ def _normal(sig, steps, other_templates):
         ps = sorted(ps)
     if 'templates' in steps:
         templates = tuple(x for x in templates if x[0] in other_templates)
-    return instr, inst, call, tuple(ps), templates, expr
+    return instr, inst, call, tuple(ps), templates, expr, no_eno
 
 
-STEPS = ('quoted names', 'pin case', 'pin direction', 'pin order', 'templates')
+STEPS = ('quoted names', 'pin case', 'pin direction', 'pin order', 'templates', 'ENO')
 
 
 def element_causes(x, y):
@@ -418,7 +420,7 @@ def nothing_changed(repo, rev, files=None):
     for d in compare_snapshots(sd, xml):
         o = _object(d)
         if not (d.before and d.after):                    # its file in one format only: so are its networks
-            why = files.missing(o, bool(d.before), bool(d.after))
+            why = files.missing(o, bool(d.after))
             out += [{'object': o, 'network': None, 'causes': [why]}]
             out += [{'object': o, 'network': list(_net(p)), 'causes': [why]} for p in d.nets]
             continue
@@ -490,15 +492,13 @@ def _network_causes(p, d):
         st, o = p.lad.status.get(el.eid, 'same'), p.lad.other.get(el.eid)
         if st == 'changed' and o is not None:
             out |= element_causes(_element(el), _element(o))
-            if el.no_eno != o.no_eno:
-                out.add('ENO')
         elif st == 'moved':
             out.add('rung order' if p.reordered else 'unknown: element moved')
         elif st != 'same':
             out.add('unknown: element %s' % st)
         if st in ('same', 'changed') and o is not None and o.eid in la.views:
             keys = lb.views[el.eid].drawn_otherwise(la.views[o.eid]) - changed_params(el, o)
-            if keys and el.no_eno == o.no_eno and _element(el) == _element(o):
+            if keys and _element(el) == _element(o):
                 out.add('unknown: drawn otherwise, %s' % ', '.join(sorted(keys)))
     for el, x, y in la._placed():
         if p.lad.status.get(el.eid, 'same') in ('added', 'removed'):
@@ -553,11 +553,11 @@ class Files:
         for rev in (rev1, rev2):
             f = self.of(rev, o)
             if bool(f['sd']) != bool(f['xml']):
-                return self.missing(o, bool(f['sd']), bool(f['xml']))
+                return self.missing(o, bool(f['xml']))
         return None
 
-    def missing(self, o, has_sd, has_xml):
-        """The cause of object o with a file in one format only: what is seen, not why."""
+    def missing(self, o, has_xml):
+        """The cause of object o with a file in one format only (has_xml: the SimaticML one): what is seen, not why."""
         if has_xml:
             return '.s7dcl missing'
         return 'SimaticML missing' if o in self.ever_xml() else 'SimaticML never'
@@ -682,11 +682,15 @@ def _block_part(o, ds, dx, fs, fx, side):
         name = o.rsplit('/', 1)[-1]
         out.add('declaration' if len({tuple(_without_name(x, name) for x in k[2:]) for k in decl}) == 1
                 else 'unknown: declaration')
+    for part in ('state', 'kind'):                        # listed by both reports, as another state or kind
+        vs, vx = ({k[2] for k in c if k[1] == part} for c in (fs, fx))
+        if vs and vx and vs != vx:
+            out.add('unknown: %s %s / %s' % (part, sorted(vs)[0], sorted(vx)[0]))
     for k in only_s + only_x:
         if k[1] in ('note', 'state', 'kind', 'declaration') or k in told:
             continue
         out.add('unknown: %s' % k[1])
-    return out
+    return out           # an object one report alone lists: its state and kind follow from the causes of the rest
 
 
 # A fact the .s7dcl report shows (its part, or a property's name) -> the cause naming the SimaticML reader's gap.
@@ -734,9 +738,14 @@ def _net_part(n, dx, fs, fx):
     out |= _mark_causes(ms, mx, 'rung order' in out)
     if Counter(ls) != Counter(lx):
         out.add('unknown: lines')
-    st_s, st_x = ({k[3] for k in c if k[1] == 'network'} for c in (ns, nx))
-    if st_s != st_x and not out:                          # else the state follows from what the causes name
-        out.add('unknown: network state %s / %s' % (sorted(st_s), sorted(st_x)))
+    for part in ('network title', 'network comment'):
+        if {k for k in ns if k[1] == part} != {k for k in nx if k[1] == part}:
+            out.add('unknown: %s' % part)
+    st_s, st_x = ({k[3:] for k in c if k[1] == 'network'} for c in (ns, nx))
+    if st_s and st_x and st_s != st_x:                    # listed by both reports, in another state or language
+        out.add('unknown: network %s / %s' % (sorted(st_s)[0], sorted(st_x)[0]))
+    elif st_s != st_x and not out:                        # listed by one alone: follows from what the causes name
+        out.add('unknown: network listed by one report alone')
     return out or {'unknown: network'}
 
 
@@ -789,9 +798,15 @@ def _explained(x, y):
 # ---------------------------------------------------------------- the run
 
 def commits(repo, since=None, until=None):
-    """The commits of the repo, oldest first, from since (default: the first) to until (default: HEAD), both included."""
+    """The commits of the repo, oldest first, from since to until (default: HEAD), both included. since by default:
+    the first commit with a file under simaticml/, the first that can hold both formats."""
     out = _git(repo, 'rev-list', '--reverse', until or 'HEAD').decode().split()
-    return out[out.index(_git(repo, 'rev-parse', since).decode().strip()):] if since else out
+    if not since:
+        first = _git(repo, 'rev-list', '--reverse', until or 'HEAD', '--', XML_ROOT).decode().split()
+        if not first:
+            raise ValueError('no commit of %s holds a %s folder' % (repo, XML_ROOT))
+        since = first[0]
+    return out[out.index(_git(repo, 'rev-parse', since).decode().strip()):]
 
 
 def subjects(repo):
@@ -800,7 +815,7 @@ def subjects(repo):
 
 
 def row_of(subject):
-    m = re.match(r'([A-Z]+\d+|P\d+):?\s', subject)
+    m = re.match(r'([A-Z]+\d+):?\s', subject)
     return m.group(1) if m else ''
 
 
@@ -884,7 +899,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog='TiaChangeReports.twoformats', description=__doc__.split('\n\n')[0])
     p.add_argument('repo', help='a repo laid out as the two-format run: .s7dcl under plc/ and library/, SimaticML '
                                 'under simaticml/')
-    p.add_argument('--since', help='first commit (default: the repo\'s first)')
+    p.add_argument('--since', help='first commit (default: the first with a file under simaticml/)')
     p.add_argument('--until', help='last commit (default: HEAD)')
     p.add_argument('--check', choices=('nothing', 'same', 'both'), default='both')
     p.add_argument('--json', help='also write every difference with its causes to this file')

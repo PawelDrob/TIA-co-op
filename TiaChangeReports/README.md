@@ -48,13 +48,18 @@ reads the repo's commits and changes nothing in it.
 .venv\Scripts\python.exe -X utf8 -m TiaChangeReports.twoformats <repo> [--since REV] [--until REV] [--check nothing|same|both] [--json out.json]
 ```
 
+It starts at the first commit with a file under `simaticml\` unless `--since` names another, and ends at `--until`,
+by default the repo's last commit.
+
 - **Nothing changed:** per commit, the report from its `.s7dcl` to its SimaticML. Each object and network the report
-  lists is a difference. It prints the counts at the first commit, the last and the one with the most.
+  lists is a difference. It prints the counts at the first commit, the last and the one with the most objects, each
+  as objects/networks and, in brackets, the networks with no other cause.
 - **The same change:** per commit, the report of the commit from `.s7dcl` and from SimaticML. Each object whose two
-  reports differ is a difference.
+  reports differ is a difference. Per cause it prints the commits, the objects, and in brackets the commits where it
+  is the only cause.
 
 Each difference gets its causes, and each cause its kind: a reader that reads a format otherwise, a field only one
 format writes, the note, the drawing, the diff, or an object in one format only. What the tool cannot name prints with
-the kind `unknown`. Numbers per cause: objects and networks (and how many networks have no other cause), or commits and
-objects. `--json` writes every difference with its causes, and for the second check the facts each report alone holds.
-Both checks over 530 commits take about half an hour. Run from the clone's folder, which `-m` needs.
+the kind `unknown`. `--json` writes every difference with its causes, and for the second check the facts each report
+alone holds. Both checks over 530 commits take about half an hour in the foreground: a process started at low
+priority, as a background job may be, runs the first several times slower. Run from the clone's folder, which `-m` needs.

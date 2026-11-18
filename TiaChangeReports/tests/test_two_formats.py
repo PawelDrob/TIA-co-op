@@ -1,9 +1,11 @@
 """The bed of the two formats (twoformats.py) on real pairs from the two-format benchmark run: a repo of three commits,
 each holding .s7dcl under plc/ and SimaticML of the same objects under simaticml/, as that run's repo does.
 
-1-start: zzBenTimers, zzE2eUdtA, zzE2eFbI and its instance DB zzE2eFbI_DB as the run exported them.
-2-B058: the run's row B058, pin PV of a CTU reads another operand (zzBenTimers, both formats).
-3-D009: the run's row D009, a member of zzE2eFbI_DB made retain (TIA moved the .s7dcl only)."""
+1-before: the files of each object at the parent of the row that changes it, both formats: zzBenTimers at 55261f5
+  (B057 undone, B058's parent); zzE2eFbI and its instance DB zzE2eFbI_DB at 5b253ff (D008, D009's parent); zzE2eUdtA
+  at 5b253ff, the same files as at the start state bf6a976.
+2-B058: zzBenTimers at 9c27dcb, the run's row B058, pin PV of a CTU reads another operand.
+3-D009: zzE2eFbI_DB at eb1fe5e, the run's row D009, a member made retain (TIA moved the .s7dcl only)."""
 import os
 import shutil
 import subprocess
@@ -65,7 +67,7 @@ class RunRepo(unittest.TestCase):
         self.assertEqual([], got[0]['xml'], 'the SimaticML report holds nothing of it')
 
     def test_counts_name_every_cause_and_its_kind(self):
-        result = twoformats.run(self.repo, None, None, ('nothing', 'same'))
+        result = twoformats.run(self.repo, None, None, ('nothing', 'same'))     # from the first with simaticml/
         text = '\n'.join(twoformats.counts(result))
         self.assertIn('Nothing changed: 3 commits', text)
         self.assertIn('The same change: 2 commits, 2 whose two reports differ', text)
@@ -77,9 +79,9 @@ class ElementCauses(unittest.TestCase):
     """What makes two readings of one element unequal, from the CTU of zzBenTimers as each reader reads it."""
 
     SD = ('CTU', '#instCtu', '', (('r', ':=', 'wire#'), ('pv', ':=', '#inSpeed'), ('cv', '=>', '#statStep')),
-          (('value_type', 'Int'),), '')
+          (('value_type', 'Int'),), '', False)
     XML = ('CTU', '#instCtu', '', (('PV', ':=', '#inSpeed'), ('CV', '=>', '#statStep'), ('R', ':=', 'wire#')),
-           (('value_type', 'Int'),), '')
+           (('value_type', 'Int'),), '', False)
 
     def test_the_fewest_steps_each_needed(self):
         self.assertEqual({'pin case', 'pin order'}, twoformats.element_causes(self.SD, self.XML))
@@ -89,9 +91,14 @@ class ElementCauses(unittest.TestCase):
         self.assertEqual({'unknown: element CTU'}, twoformats.element_causes(self.SD, other))
 
     def test_quoted_member_names(self):
-        x = ('Contact', '', '', (('', '', '"zzInvBenF"."a"'),), (), '')
-        y = ('Contact', '', '', (('', '', '"zzInvBenF".a'),), (), '')
+        x = ('Contact', '', '', (('', '', '"zzInvBenF"."a"'),), (), '', False)
+        y = ('Contact', '', '', (('', '', '"zzInvBenF".a'),), (), '', False)
         self.assertEqual({'quoted names'}, twoformats.element_causes(x, y))
+
+    def test_eno_alone(self):
+        """The Move of zzBenBoxes network 1: no S7_GenerateENO in .s7dcl, DisabledENO="true" in SimaticML."""
+        x = ('Move', '', '', (('in', ':=', '#outValue'), ('out1', '=>', '"zzInvBen".val[4]')), (), '', False)
+        self.assertEqual({'ENO'}, twoformats.element_causes(x, x[:6] + (True,)))
 
 
 if __name__ == '__main__':
