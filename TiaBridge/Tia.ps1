@@ -1,6 +1,8 @@
 # Tia.ps1 - Openness DLL loading, attach, object lookup, error unwrapping, result dumps.
 # Openness facts used here: docs/agent/openness-v20.md, docs/agent/wincc-comfort-openness.md section 2.
 
+. (Join-Path $PSScriptRoot 'Times.ps1')   # the steps of a full_export; tests load this file alone
+
 # ------------------------------------------------------------------ error contract
 
 # PowerShell wraps exceptions of .NET method calls; the Siemens exception is underneath.
@@ -263,9 +265,11 @@ function Reset-TiaConnection {
 
 function Test-TiaAlive {
     if (-not $script:Bridge.project) { return $false }
+    $step = Enter-ExportStep 'tia_alive'
     # a project closed under the bridge reads an empty name, with no exception (2026-11-04)
     try { $name = $script:Bridge.project.Name; $null = Get-Process -Id $script:Bridge.processId -ErrorAction Stop; [bool]$name }
     catch { $false }
+    finally { Exit-ExportStep $step }
 }
 
 # The project at Path in an attached TIA. No other project stands in for it: writes would go to the wrong one. Detaches

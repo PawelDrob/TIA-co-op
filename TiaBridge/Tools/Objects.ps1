@@ -107,11 +107,15 @@ function Get-RepoRelative([string]$Path) {
 # Library: a global library's objects go to library\global\<library>\..., apart from the project library's, so an
 # export from one never replaces the other's files (2026-10-06: a failed global export emptied a project one).
 function Get-KindDir($Kind, [string]$Folder, [string]$Library = '', [string]$Device = '') {
-    $rel = Get-KindRelDir $Kind $Device
-    if ($Library) { $rel = Join-Path "library\global\$(Get-UniqueFolderName $Library (Get-GlobalLibraryNames))" ($Kind.dir -replace '^library\\', '') }
-    $d = Join-Path $script:Bridge.repo $rel
-    foreach ($part in ($Folder -split '/' | Where-Object { $_ })) { $d = Join-Path $d (ConvertTo-SafeFileName $part) }
-    $d
+    $step = Enter-ExportStep 'paths'
+    try {
+        $rel = Get-KindRelDir $Kind $Device
+        if ($Library) { $rel = Join-Path "library\global\$(Get-UniqueFolderName $Library (Get-GlobalLibraryNames))" ($Kind.dir -replace '^library\\', '') }
+        $d = Join-Path $script:Bridge.repo $rel
+        foreach ($part in ($Folder -split '/' | Where-Object { $_ })) { $d = Join-Path $d (ConvertTo-SafeFileName $part) }
+        $d
+    }
+    finally { Exit-ExportStep $step }
 }
 
 # The path, without extension, that a kind's export of an entry writes: in lower case, which with an ordinal compare is what

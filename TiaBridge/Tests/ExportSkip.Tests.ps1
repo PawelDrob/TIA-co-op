@@ -143,7 +143,7 @@ Describe 'full_export skips what TIA has not changed' {
         Initialize-SkipTest 'times'
         Step-Date $script:o.FC1
         $t = (Invoke-FullExportTool $script:parts).times
-        foreach ($s in 'tia_list', 'tia_state', 'record_read', 'record_files', 'tia_export_tag_table', 'compare', 'other') { $t.plan.steps.Contains($s) | Should Be $true }
+        foreach ($s in 'tia_list', 'tia_state', 'record_read', 'record_files', 'record_compare', 'tia_export_tag_table', 'compare', 'other') { $t.plan.steps.Contains($s) | Should Be $true }
         $t.plan.steps.tia_state.n | Should Be 6
         $t.plan.steps.tia_export_tag_table.n | Should Be 1
         $blocks = $t.parts | Where-Object { $_.part -eq 'blocks' }

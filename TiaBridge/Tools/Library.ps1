@@ -337,7 +337,9 @@ function Export-LibraryTypeDocuments($Entry, [string]$Dir, [switch]$Released, [s
     $format = $formats[0]
     # into a fresh folder first: the previous export is replaced only by a successful one
     $partial = New-ExportWorkPath $target
-    New-Item -ItemType Directory -Force -Path $partial | Out-Null
+    $step = Enter-ExportStep 'work_folder'
+    try { New-Item -ItemType Directory -Force -Path $partial | Out-Null }
+    finally { Exit-ExportStep $step }
     try {
         $step = Enter-ExportStep $(if ($format -eq 'SimaticSD') { 'tia_export_s7dcl' } else { 'tia_export_xml' })
         try {
@@ -346,13 +348,21 @@ function Export-LibraryTypeDocuments($Entry, [string]$Dir, [switch]$Released, [s
         }
         finally { Exit-ExportStep $step }
         # copied, not moved: until the swap below the old folder is whole, and a failure leaves it as it was
-        foreach ($sub in @(Get-ChildItem -LiteralPath $target -Directory -Force -ErrorAction SilentlyContinue)) {
-            Copy-Item -LiteralPath $sub.FullName -Destination (Join-Path $partial $sub.Name) -Recurse -Force -ErrorAction Stop
+        $step = Enter-ExportStep 'move'
+        try {
+            foreach ($sub in @(Get-ChildItem -LiteralPath $target -Directory -Force -ErrorAction SilentlyContinue)) {
+                Copy-Item -LiteralPath $sub.FullName -Destination (Join-Path $partial $sub.Name) -Recurse -Force -ErrorAction Stop
+            }
         }
+        finally { Exit-ExportStep $step }
     } catch { Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue; throw }
-    $old = @(Get-ChildItem -LiteralPath $target -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
-    Move-ExportIntoPlace $partial $target
-    $files = @(Get-ChildItem -LiteralPath $target -File | ForEach-Object { $_.FullName })
+    $step = Enter-ExportStep 'move'
+    try {
+        $old = @(Get-ChildItem -LiteralPath $target -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+        Move-ExportIntoPlace $partial $target
+        $files = @(Get-ChildItem -LiteralPath $target -File | ForEach-Object { $_.FullName })
+    }
+    finally { Exit-ExportStep $step }
     $names = @($files | ForEach-Object { [System.IO.Path]::GetFileName($_) })
     $note = if ($Released) { 'Released version, for comparison with the version in work; never import these files.' }
             elseif ($work) { 'In work: edit these files, then import them with kind library_type.' } else { 'Released version: library_edit_type first to change it.' }
@@ -361,8 +371,11 @@ function Export-LibraryTypeDocuments($Entry, [string]$Dir, [switch]$Released, [s
         $n = if (Test-Path -LiteralPath $sd) { Get-MultiIndexLadNetworks ([System.IO.File]::ReadAllText($sd)) } else { 0 }
         if ($n) { $note += " $n LAD/FBD networks use operands indexed in several dimensions (a[i, j]): an import of this .s7dcl keeps only their last index ($(Get-GuidePath 's7dcl-format.md') 8.14c, 17a). To change the type, export it with options.format xml and edit the SimaticML." }
     }
+    $step = Enter-ExportStep 'result'
+    try { $messages = ConvertTo-ResultTree $r }
+    finally { Exit-ExportStep $step }
     $result = @{ ok = $true; format = $format; version = [string]$version.VersionNumber; inWork = [bool]$work
-                 files = $files; messages = (ConvertTo-ResultTree $r); note = $note }
+                 files = $files; messages = $messages; note = $note }
     $removed = @($old | Where-Object { $names -notcontains $_ } | ForEach-Object { Join-Path $target $_ })
     if ($removed.Count) { $result.removed = $removed }
     $result

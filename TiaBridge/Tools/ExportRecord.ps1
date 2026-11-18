@@ -324,22 +324,27 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
                 $d.objects[$key] = $o
             }
         }
-        if ($plan.all) { $d.all = $plan.all }
-        elseif ($null -eq $old) { $d.all = "the record holds nothing of $device" }
-        else { $d.all = Get-PlcExportReason $old $d.objects }
-        $simaticMlWhy = if (-not $d.all) { Get-SimaticMlReason $old $d.objects }
-        foreach ($o in @($d.objects.Values | Where-Object { $_.kind -ne 'db' }) + @($d.objects.Values | Where-Object { $_.kind -eq 'db' })) {
-            $o.export = $(if ($d.all) { $d.all } else { Get-ObjectExportReason (Get-ObjectKind $o.kind) $o.entry $o.state $o.old $device })
-            if (-not $o.export -and $simaticMlWhy -and $o.kind -ne 'plc_tag_table' -and @((Get-EntryFiles $o.old).Keys | Where-Object { $_ -like '*.xml' }).Count) {
-                $o.export = "$simaticMlWhy, and its SimaticML may show it"
-            }
-            # an instance DB's export holds its FB's interface
-            if (-not $o.export -and $o.kind -eq 'db') {
-                $fb = Get-StateValue $o.state 'InstanceOfName'
-                $of = if ($fb) { $d.objects["block|$fb"] }
-                if ($of -and $of.export) { $o.export = "its FB $fb is exported" }
+        # the compare with the record; the files' hashes in it are record_files
+        $step = Enter-ExportStep 'record_compare'
+        try {
+            if ($plan.all) { $d.all = $plan.all }
+            elseif ($null -eq $old) { $d.all = "the record holds nothing of $device" }
+            else { $d.all = Get-PlcExportReason $old $d.objects }
+            $simaticMlWhy = if (-not $d.all) { Get-SimaticMlReason $old $d.objects }
+            foreach ($o in @($d.objects.Values | Where-Object { $_.kind -ne 'db' }) + @($d.objects.Values | Where-Object { $_.kind -eq 'db' })) {
+                $o.export = $(if ($d.all) { $d.all } else { Get-ObjectExportReason (Get-ObjectKind $o.kind) $o.entry $o.state $o.old $device })
+                if (-not $o.export -and $simaticMlWhy -and $o.kind -ne 'plc_tag_table' -and @((Get-EntryFiles $o.old).Keys | Where-Object { $_ -like '*.xml' }).Count) {
+                    $o.export = "$simaticMlWhy, and its SimaticML may show it"
+                }
+                # an instance DB's export holds its FB's interface
+                if (-not $o.export -and $o.kind -eq 'db') {
+                    $fb = Get-StateValue $o.state 'InstanceOfName'
+                    $of = if ($fb) { $d.objects["block|$fb"] }
+                    if ($of -and $of.export) { $o.export = "its FB $fb is exported" }
+                }
             }
         }
+        finally { Exit-ExportStep $step }
     }
     $plan
 }
@@ -365,11 +370,6 @@ function New-ExportRecordEntry($Object, $Item) {
 # compares with it). Records: the part records of the run. Returns an error text, or $null.
 function Save-ExportRecord($Plan, $Records) {
     $step = Enter-ExportStep 'record_save'
-    try { Write-ExportRecord $Plan $Records }
-    finally { Exit-ExportStep $step }
-}
-
-function Write-ExportRecord($Plan, $Records) {
     try {
         $devices = [ordered]@{}
         if (-not $Plan.unusable) { foreach ($p in $Plan.old.devices.PSObject.Properties) { $devices[$p.Name] = $p.Value } }
@@ -395,4 +395,5 @@ function Write-ExportRecord($Plan, $Records) {
         $null
     }
     catch { "The record of this export was not written; the next full_export goes by the one before, whose entries still hold for what they name: $($_.Exception.Message)" }
+    finally { Exit-ExportStep $step }
 }

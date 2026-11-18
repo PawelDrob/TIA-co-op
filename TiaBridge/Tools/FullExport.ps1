@@ -60,9 +60,18 @@ function Assert-ExportResult($Result, [string]$What) {
 }
 
 function Get-RequiredService($Obj, [type]$Type) {
-    $s = Get-TiaService $Obj $Type
+    $step = Enter-ExportStep 'tia_properties'
+    try { $s = Get-TiaService $Obj $Type }
+    finally { Exit-ExportStep $step }
     if (-not $s) { throw "$($Type.Name) is not offered here." }
     $s
+}
+
+# One export call of a file part into TIA (Export): its result, timed as tia_export_file.
+function Invoke-TiaFileExport([scriptblock]$Export) {
+    $step = Enter-ExportStep 'tia_export_file'
+    try { & $Export }
+    finally { Exit-ExportStep $step }
 }
 
 # PLC alarm text lists and alarm instance texts as .xlsx: the only file format Openness V20 offers for them
@@ -70,7 +79,7 @@ function Get-RequiredService($Obj, [type]$Type) {
 function Export-PlcAlarmTexts($Plc, [string]$Dir) {
     $notes = @()
     $lists = Get-RequiredService $Plc ([Siemens.Engineering.SW.Alarm.PlcAlarmTextListProvider])
-    try { $null = Assert-ExportResult ($lists.ExportToXlsx([System.IO.FileInfo]::new((Join-Path $Dir 'alarm-textlists.xlsx')))) 'PLC alarm text lists' }
+    try { $null = Assert-ExportResult (Invoke-TiaFileExport { $lists.ExportToXlsx([System.IO.FileInfo]::new((Join-Path $Dir 'alarm-textlists.xlsx'))) }) 'PLC alarm text lists' }
     catch {
         if ((ConvertTo-BridgeError $_).type -notmatch 'TextListNotFound') { throw }
         $notes += 'no PLC alarm text lists'
@@ -78,8 +87,8 @@ function Export-PlcAlarmTexts($Plc, [string]$Dir) {
     $texts = Get-RequiredService $Plc ([Siemens.Engineering.SW.Alarm.PlcAlarmTextProvider])
     # languages $null: every project language. A PLC without program alarms: "There is no exportable alarm." [PROBE]
     try {
-        $null = Assert-ExportResult ($texts.ExportInstanceTextsToXlsx([System.IO.FileInfo]::new((Join-Path $Dir 'alarm-texts.xlsx')), $null,
-                                     [Siemens.Engineering.SW.Alarm.PlcAlarmTextXlsxExportOption]::All)) 'PLC alarm texts'
+        $null = Assert-ExportResult (Invoke-TiaFileExport { $texts.ExportInstanceTextsToXlsx([System.IO.FileInfo]::new((Join-Path $Dir 'alarm-texts.xlsx')), $null,
+                                     [Siemens.Engineering.SW.Alarm.PlcAlarmTextXlsxExportOption]::All) }) 'PLC alarm texts'
     }
     catch {
         if ((ConvertTo-BridgeError $_).message -notmatch 'no exportable alarm') { throw }
@@ -91,7 +100,7 @@ function Export-PlcAlarmTexts($Plc, [string]$Dir) {
 # ProDiag global supervisions (.xlsx).
 function Export-PlcSupervisions($Plc, [string]$Dir) {
     $svc = Get-RequiredService $Plc ([Siemens.Engineering.SW.Supervision.SupervisionProvider])
-    $null = Assert-ExportResult ($svc.ExportSupervisionsToXlsx([System.IO.FileInfo]::new((Join-Path $Dir 'supervisions.xlsx')))) 'ProDiag supervisions'
+    $null = Assert-ExportResult (Invoke-TiaFileExport { $svc.ExportSupervisionsToXlsx([System.IO.FileInfo]::new((Join-Path $Dir 'supervisions.xlsx'))) }) 'ProDiag supervisions'
     @{}
 }
 
@@ -103,7 +112,7 @@ function Export-ProjectTexts($Project, [string]$Dir) {
     $targets = @($ls.ActiveLanguages | Where-Object { $_.Culture.Name -ne $ref.Name } | ForEach-Object { $_.Culture })
     if (-not $targets.Count) { $targets = @($ref) }
     foreach ($t in $targets) {
-        $Project.ExportProjectTexts([System.IO.FileInfo]::new((Join-Path $Dir "project-texts_$($ref.Name)_$($t.Name).xlsx")), $ref, $t)
+        Invoke-TiaFileExport { $Project.ExportProjectTexts([System.IO.FileInfo]::new((Join-Path $Dir "project-texts_$($ref.Name)_$($t.Name).xlsx")), $ref, $t) }
     }
     @{ notes = @("reference language $($ref.Name); $($targets.Count) file(s)") }
 }
@@ -114,7 +123,7 @@ function Export-ProjectTexts($Project, [string]$Dir) {
 # written beside it as <name>.xml, so the settings can be read and diffed.
 function Export-SettingsDat($Service, [string]$Dir, [string]$Name, [string]$What) {
     $dat = Join-Path $Dir "$Name.dat"
-    $null = Assert-ExportResult ($Service.Export([System.IO.FileInfo]::new($dat))) $What
+    $null = Assert-ExportResult (Invoke-TiaFileExport { $Service.Export([System.IO.FileInfo]::new($dat)) }) $What
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [System.IO.Compression.ZipFile]::OpenRead($dat)
     try {
@@ -150,7 +159,9 @@ function Export-DiagnosticsSettings($Project, [string]$Dir) {
 function Export-MasterCopyIndex($Library, [string]$Dir) {
     $k = Get-ObjectKind 'master_copy'
     $list = @(foreach ($e in Get-KindItems $k $Library) {
-        $i = & $k.info $e
+        $step = Enter-ExportStep 'tia_properties'
+        try { $i = & $k.info $e }
+        finally { Exit-ExportStep $step }
         [ordered]@{ folder = $e.folder; name = $e.name; author = $i.author; created = $i.created; content = @($i.content) }
     })
     if (-not $list.Count) { return @{ none = $true } }
@@ -394,7 +405,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
             }
             if ($o) { $Record.why[$o.export] = 1 + [int]$Record.why[$o.export] }
             $item = Export-KindEntry $k $e $none $Device '' $collisions
-            if (-not $item.ok -and -not $item.collision -and $Part.fallback -and (Test-TiaAliveStep)) {
+            if (-not $item.ok -and -not $item.collision -and $Part.fallback -and (Test-TiaAlive)) {
                 $why = if ($item.error) { $item.error.message } else { @($item.messages.messages | ForEach-Object { $_.description }) -join ' | ' }
                 Enter-ExportRetry
                 try { $retry = Export-KindEntry $k $e (New-Object psobject -Property @{ format = 'xml' }) $Device }
@@ -424,7 +435,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
                 $f = [ordered]@{ name = $item.name; folder = $item.folder }
                 if ($item.error) { $f.error = $item.error } elseif ($item.messages) { $f.messages = $item.messages }
                 [void]$Record.failed.Add($f)
-                if ($item.error -and -not (Test-TiaAliveStep)) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
+                if ($item.error -and -not (Test-TiaAlive)) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
             }
         }
         finally {
@@ -434,12 +445,6 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
     }
 }
 
-# Test-TiaAlive as a step of its own: it asks TIA.
-function Test-TiaAliveStep {
-    $step = Enter-ExportStep 'tia_alive'
-    try { Test-TiaAlive }
-    finally { Exit-ExportStep $step }
-}
 
 # Copies a file, making its folder.
 function Copy-FileWithFolder([string]$From, [string]$To) {
@@ -462,7 +467,8 @@ function Invoke-FullExportFilePart($Part, $Root, [string]$Device, $Record) {
     }
     finally { Exit-ExportStep $step }
     try {
-        $step = Enter-ExportStep 'tia_export_file'
+        # the part's own export: its calls into TIA are tia_export_file, the rest (a .dat unpacked, a list written) is file_part
+        $step = Enter-ExportStep 'file_part'
         try { $r = & $Part.file $Root $partial }
         catch {
             $err = ConvertTo-BridgeError $_
@@ -472,45 +478,58 @@ function Invoke-FullExportFilePart($Part, $Root, [string]$Device, $Record) {
             return
         }
         finally { Exit-ExportStep $step }
-        # the files put in place: the folder's listing, git, the compare, the moves and removals
+        # the files put in place: the folder's listing, git, the compare, the moves; the removals are remove
         $step = Enter-ExportStep 'move'
-        if ($r.notes) { $Record.notes = @($r.notes) }
-        # Asked after the export, as Split-MirrorRemovals asks git: a repo made during a long export counts.
-        $repos = Get-NestedRepos $dir
-        foreach ($d in $repos) { [void]$Record.keptRepos.Add((Get-RepoRelative $d)) }
-        $old = @(Get-ChildItem -LiteralPath $dir -File -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not (Test-InNestedRepo $_.FullName $repos) } | ForEach-Object { $_.FullName.Substring($dir.Length) })
-        # none: nothing to export, whatever the export left in the partial folder
-        $new = @(if (-not $r.none) { Get-ChildItem -LiteralPath $partial -File -Recurse -Force | ForEach-Object { $_.FullName.Substring($partial.Length) } })
-        $Record.count = $(if ($null -ne $r.objects) { [int]$r.objects } else { $new.Count })
-        $s = Split-MirrorRemovals @($old | Where-Object { $new -notcontains $_ } | ForEach-Object { "$dir$_" })
-        if ($s.error) { $Record.gitError = $s.error }
-        if ($new.Count) {
-            if ($repos.Count) {
-                # No replacement of the folder: a repo stays where it is, the new files go in around it; one that differs
-                # only in the export time is the old file again (Restore-UnchangedExports, as Move-ExportIntoPlace does).
-                Restore-UnchangedExports $partial $dir
-                foreach ($f in $new) { Copy-FileWithFolder "$partial$f" "$dir$f" }
-                foreach ($f in $s.remove) { Remove-Item -LiteralPath $f -Force -ErrorAction Stop }
-            } else {
-                foreach ($f in $s.keep) { Copy-FileWithFolder $f "$partial$($f.Substring($dir.Length))" }
-                Move-ExportIntoPlace $partial $dir
-            }
-            $Record.exported = $Record.count
-            foreach ($f in $new) { [void]$Record.written.Add("$dir$f") }
-        } else {
-            $Record.none = $true
-            if ($s.keep.Count -or $repos.Count) { foreach ($f in $s.remove) { Remove-Item -LiteralPath $f -Force -ErrorAction Stop } }
-            elseif (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
-        }
-        foreach ($f in $s.remove) { [void]$Record.removed.Add((Get-RepoRelative $f)) }
-        foreach ($f in $s.keep) { [void]$Record.keptUncommitted.Add((Get-RepoRelative $f)) }
+        try { Move-FilePartIntoPlace $r $dir $partial $Record }
+        finally { Exit-ExportStep $step }
     }
     finally {
-        # from move, or from the part's own step after a failed export, back to the part's own step (other)
-        $null = Enter-ExportStep 'work_folder'
+        $step = Enter-ExportStep 'work_folder'
         Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue
-        Exit-ExportStep 'other'
+        Exit-ExportStep $step
     }
+}
+
+# The files a file part exported into Partial put in place of Dir, with the old ones it no longer holds removed unless
+# git has no commit of them; a git repo in Dir stays whole. R: what the part's export returned.
+function Move-FilePartIntoPlace($R, [string]$Dir, [string]$Partial, $Record) {
+    if ($r.notes) { $Record.notes = @($r.notes) }
+    # Asked after the export, as Split-MirrorRemovals asks git: a repo made during a long export counts.
+    $repos = Get-NestedRepos $dir
+    foreach ($d in $repos) { [void]$Record.keptRepos.Add((Get-RepoRelative $d)) }
+    $old = @(Get-ChildItem -LiteralPath $dir -File -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not (Test-InNestedRepo $_.FullName $repos) } | ForEach-Object { $_.FullName.Substring($dir.Length) })
+    # none: nothing to export, whatever the export left in the partial folder
+    $new = @(if (-not $r.none) { Get-ChildItem -LiteralPath $partial -File -Recurse -Force | ForEach-Object { $_.FullName.Substring($partial.Length) } })
+    $Record.count = $(if ($null -ne $r.objects) { [int]$r.objects } else { $new.Count })
+    $s = Split-MirrorRemovals @($old | Where-Object { $new -notcontains $_ } | ForEach-Object { "$dir$_" })
+    if ($s.error) { $Record.gitError = $s.error }
+    if ($new.Count) {
+        if ($repos.Count) {
+            # No replacement of the folder: a repo stays where it is, the new files go in around it; one that differs
+            # only in the export time is the old file again (Restore-UnchangedExports, as Move-ExportIntoPlace does).
+            Restore-UnchangedExports $partial $dir
+            foreach ($f in $new) { Copy-FileWithFolder "$partial$f" "$dir$f" }
+            Remove-PartFiles $s.remove
+        } else {
+            foreach ($f in $s.keep) { Copy-FileWithFolder $f "$partial$($f.Substring($dir.Length))" }
+            Move-ExportIntoPlace $partial $dir
+        }
+        $Record.exported = $Record.count
+        foreach ($f in $new) { [void]$Record.written.Add("$dir$f") }
+    } else {
+        $Record.none = $true
+        if ($s.keep.Count -or $repos.Count) { Remove-PartFiles $s.remove }
+        elseif (Test-Path -LiteralPath $dir) { Remove-PartFiles @($dir) }
+    }
+    foreach ($f in $s.remove) { [void]$Record.removed.Add((Get-RepoRelative $f)) }
+    foreach ($f in $s.keep) { [void]$Record.keptUncommitted.Add((Get-RepoRelative $f)) }
+}
+
+# Removes files, or a folder with what it holds; the first that fails throws.
+function Remove-PartFiles([string[]]$Paths) {
+    $step = Enter-ExportStep 'remove'
+    try { foreach ($p in $Paths) { if ($p) { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop } } }
+    finally { Exit-ExportStep $step }
 }
 
 # Holds nothing that can fail: a part's failure goes into its record, and the record into the result. The caller sets

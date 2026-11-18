@@ -202,6 +202,32 @@ Describe 'file parts' {
         Test-Path (Join-Path $repo 'project\texts') | Should Be $false
         @($rec.removed) | Should Be 'project\texts\project-texts_en-US_es-ES.xlsx'
     }
+
+    It 'times its call into TIA apart from its own work, the moves and the removals' {
+        $part = @{ name = 't'; scope = 'project'; dir = 'project\texts'; file = { param($r, $d)
+            Invoke-TiaFileExport { Start-Sleep -Milliseconds 40; [System.IO.File]::WriteAllText((Join-Path $d 'a.xlsx'), 'a') }
+            Start-Sleep -Milliseconds 30
+            @{} } }
+        Start-ExportTimes
+        try {
+            Enter-PartTimes 't'
+            Invoke-FullExportFilePart $part $null '' (New-Rec $part)
+            Exit-PartTimes 0
+            Save-TestRepo $repo
+            Enter-PartTimes 't'
+            Invoke-FullExportFilePart @{ name = 't'; scope = 'project'; dir = 'project\texts'; file = { param($r, $d) @{ none = $true } } } $null '' (New-Rec $part)
+            Exit-PartTimes 0
+            $t = Stop-ExportTimes
+        }
+        finally { $script:ExportTimes = $null }
+        $s = $t.parts[0].steps
+        $s.tia_export_file.ms | Should Not BeLessThan 40
+        $s.file_part.ms | Should Not BeLessThan 30
+        $s.file_part.ms | Should BeLessThan 40
+        foreach ($n in 'work_folder', 'move') { $s.Contains($n) | Should Be $true }
+        $t.parts[1].steps.remove.n | Should Be 1
+        Test-Path (Join-Path $repo 'project\texts') | Should Be $false
+    }
 }
 
 Describe 'uncommitted files and the mirror' {
