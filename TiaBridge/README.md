@@ -47,9 +47,10 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   - In a TIA with a window, an export with 20 or more blocks, DBs and data types to export as `.s7dcl` minimizes TIA's
     main window once it knows what it exports, and restores it after: on one PC, a full export of a project of 473
     objects took 57 s with the window showing and 17 s with it minimized. The agent tells you before. If you bring the
-    window up during the export, it stays up and the rest of the export is slower. A window that was maximized comes back maximized.
-    `export` of 20 or more of these objects or of library types does the same. Nothing of this in a background session,
-    which has no window, or in a report run of the TIA dashboard. The setting `minimizeTiaForExport` turns it off.
+    window up during the export, it stays up and the rest of the export is slower. A window that was maximized comes
+    back maximized. `export` of 20 or more of these objects or of library types does the same. Nothing of this in a
+    background session, which has no window, or in a report run of the TIA dashboard. The setting
+    `minimizeTiaForExport` turns it off.
   - Its log (`logs\<time>_full_export.json`, under `times`) says where the time went: per part and step, the calls into
     Openness (`tia_*`) apart from the bridge's own work, and the slowest objects of each part with the size of their
     files. The answer to the agent says only where the times are.
