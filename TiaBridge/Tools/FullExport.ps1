@@ -695,7 +695,7 @@ function Invoke-FullExportRun($a) {
         }
         $rec.ms = [int]$sw.ElapsedMilliseconds
         Exit-PartTimes $rec.ms
-        Update-ExportWindowSeen "$($p.name)$(if ($j.device) { "@$($j.device)" })"
+        Update-ExportWindowSeen "after part $($p.name)$(if ($j.device) { "@$($j.device)" })"
         $step = [TiaBridgeTimes]::Enter('progress')
         Write-BridgeLog "full_export $(Format-PartLine $rec)"
         $pp.state = $(if ($rec.listError -or $rec.stopped) { 'failed' } else { 'done' })

@@ -306,6 +306,8 @@ function Write-ObjectProgress([string]$Kind, [int]$N, [int]$Of, $Item, [string]$
         $p.kind = $Kind; $p.n = $N; $p.of = $Of; $p.name = [string]$Item.name; $p.ok = [bool]$Item.ok
         if ($Skipped) { $p.skipped = $true }
         Write-BridgeProgress $p
+        # TIA's window minimized for the export: whether the user has brought it up (Window.ps1)
+        Update-ExportWindowSeen "after $Kind $($Item.name)"
     }
     finally { [TiaBridgeTimes]::Exit($step) }
 }

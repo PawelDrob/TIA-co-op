@@ -167,18 +167,20 @@ Describe 'full_export' {
     }
 
     # TIA's window (Window.ps1) as a fake: each .s7dcl export of a block notes whether it was minimized then; the user brings
-    # the window up after the export of block UpAfter.
-    function Set-FakeWindow([string]$UpAfter = '') {
-        $script:win = @{ minimized = $false; upAfter = $UpAfter; shows = (New-Object System.Collections.ArrayList); during = (New-Object System.Collections.ArrayList) }
+    # the window up after the export of block UpAfter, and puts it down again after the export of block DownAfter.
+    function Set-FakeWindow([string]$UpAfter = '', [string]$DownAfter = '') {
+        $script:win = @{ minimized = $false; upAfter = $UpAfter; downAfter = $DownAfter; shows = (New-Object System.Collections.ArrayList); during = (New-Object System.Collections.ArrayList) }
         Mock Get-TiaMainWindows { [long]77 }
         Mock Test-WindowMinimized { $script:win.minimized }
-        Mock Test-WindowExists { $true }
+        Mock Test-WindowMaximized { $false }
+        Mock Get-WindowProcessId { [int]$script:Bridge.processId }
         Mock Send-WindowShow { [void]$script:win.shows.Add($Command); $script:win.minimized = ($Command -eq 6) }
         foreach ($b in $plc.BlockGroup.Blocks) {
             $b | Add-Member -Force ScriptMethod ExportAsDocuments { param($d, $n)
                 [void]$script:win.during.Add("$($this.Name) $($script:win.minimized)")
                 foreach ($x in '.s7dcl', '.s7res') { Set-Content (Join-Path $d.FullName "$n$x") 'sd' }
                 if ($this.Name -eq $script:win.upAfter) { $script:win.minimized = $false }
+                if ($this.Name -eq $script:win.downAfter) { $script:win.minimized = $true }
                 [pscustomobject]@{ State = 'Success'; Messages = @() } }
         }
     }
@@ -202,13 +204,13 @@ Describe 'full_export' {
         $r.window | Should Be 'Left as it was: 3 object(s) to export as .s7dcl; TIA''s window is minimized from 20.'
     }
 
-    It 'names the part after which the window minimized for the run was up again, and leaves it up' {
+    It 'names the object after which the window minimized for the run was up again, and leaves it up' {
         Set-FakeWindow -UpAfter 'B'
         $from = $script:ExportWindowFrom; $script:ExportWindowFrom = 1
         try { $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'hmi_screens'); full = $true }) }
         finally { $script:ExportWindowFrom = $from }
         ($script:win.shows -join ',') | Should Be '6'
-        $r.window | Should Match 'seen after part blocks@PLC_1\): left up'
+        $r.window | Should Match 'seen up after block B\): from then on it was the user''s, .* It is up now\.'
     }
 
     It 'puts TIA''s window back when the run fails' {
@@ -235,6 +237,16 @@ Describe 'full_export' {
             $script:win.shows.Count | Should Be 0
         }
         finally { $script:ExportWindowFrom = $from }
+    }
+
+    It 'export leaves the window to the user who brought it up and put it down again during the export' {
+        Set-FakeWindow -UpAfter 'A' -DownAfter 'B'
+        $from = $script:ExportWindowFrom; $script:ExportWindowFrom = 2
+        try { $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'block'; names = @('*') }) }
+        finally { $script:ExportWindowFrom = $from }
+        ($script:win.shows -join ',') | Should Be '6'
+        $script:win.minimized | Should Be $true
+        $r.window | Should Match 'seen up after block A\): .* It is minimized now, as the user left it\.'
     }
 }
 
