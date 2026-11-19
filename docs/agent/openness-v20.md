@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T15:49:40-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T01:05:35-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -121,6 +121,17 @@ and edits Openness makes in place; after each change the default `full_export` a
   read match the file: `True` where it holds `S7_IECCheck` or `S7_GenerateENOforSCL` as `TRUE`, `False` where it leaves
   them out. The OB's SimaticML was not compared. The values TiaBridge reads for `full_export` hold both for an FB and an
   FC, only `IsIECCheckEnabled` for an F-FB, neither for a DB or a data type, and nothing unread.
+- **`GetAttributes` of a list of names** `[PROBE]` (2026-11-19, V20 Update 7, copies of two test projects, 270 blocks, DBs,
+  data types and tag tables): one call answers the list in its order. The text TiaBridge makes of each value is the same as
+  from `GetAttribute` and the .NET properties for every object: the dates with their `Kind`, an enum as its name. The
+  call throws `EngineeringNotSupportedException` ("'X' is not supported by type '...'") when the object lacks any one
+  name, though the API documentation says it answers null for such a name. That happens on every global DB
+  (`InstanceOfName`, `IsIECCheckEnabled`, `SetENOAutomatically`), instance DB (the last two), data type
+  (`CodeModifiedDate` and nine more), F-block (`SetENOAutomatically`) and an STL FB (the last two). A name no object has
+  is refused alone and among others. `GetAttributes(AttributeAccessOptions)` answers name and value pairs, but gives an
+  enum as `Siemens.Engineering.Contract.EnumToClientRepresentation`. TiaBridge reads the values `full_export`
+  compares in one call. After a refusal it reads the names `GetAttributeInfos` lists, in a second call. On the copy of
+  246 blocks, DBs, data types and tag tables, in a session without a window, that took 1.5 s against 3.5 s one by one.
 - **Candidates for skipping:** system blocks have the dates of a block, but no step changed one; the force table has no date
   (`IsConsistent` only); no technology object or watch table was in the project. They are exported every time.
 
