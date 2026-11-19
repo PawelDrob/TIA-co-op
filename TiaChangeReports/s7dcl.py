@@ -456,7 +456,7 @@ class Element:
         order between two exports of a block nobody changed (SimaticML of zzLadMove's Deserialize, run row I004), so the
         order is no part of the block; each pin is bound by its name (.s7dcl `pv := ...`, SimaticML a NameCon's Name),
         in any case (pin_key). An unnamed operand is bound by its place and keeps it."""
-        ps = [(pin_key(n) if n else '', d or '', _norm(v)) for n, d, v in self.params]
+        ps = [(pin_key(n), d or '', _norm(v)) for n, d, v in self.params]
         ps = tuple([p for p in ps if not p[0]] + sorted(p for p in ps if p[0]))
         return (self.instr, self.instance or '', self.call or '', ps, tuple(sorted(self.templates.items())),
                 norm_expression(self.expression), self.no_eno)
@@ -486,10 +486,10 @@ def wire_of(v):
 
 
 def pin_key(name):
-    """A named pin's name as compared (Element.sig, lad_lines, the diff's pin trees and pin neighbours): STEP 7 is not
-    case-sensitive, and the two formats write one pin in another case (SimaticML PV, CV, R where .s7dcl writes pv, cv,
-    r; each of them RET_VAL, Ret_Val or ret_val)."""
-    return name.lower()
+    """A pin's name as compared, '' for an unnamed one (Element.sig, lad_lines, the diff's pin trees and pin neighbours,
+    the pairing of networks by what they hold): STEP 7 is not case-sensitive, and the two formats write one pin in
+    another case (SimaticML PV, CV, R where .s7dcl writes pv, cv, r; each of them RET_VAL, Ret_Val or ret_val)."""
+    return (name or '').lower()
 
 
 def _norm(v):
@@ -719,12 +719,12 @@ def numbered(network):
 
 
 def _pin_line_key(line):
-    return pin_key(_named_pin(line)[0]), line
+    return _named_pin(line)[0], line
 
 
 def _pins_in_one_order(lines):
-    """Each box's named pin lines in one order, as Element.sig compares them: the lines between a box's `(` and its `)`
-    when all of them are named pins. A pin line that opens another box ends them: nothing is sorted across boxes."""
+    """Each box's named pin lines in one order, as Element.sig compares them, their names already in one case
+    (_pin_in_one_case): the lines between a box's `(` and its `)` when all of them are named pins. A pin line that opens another box ends them: nothing is sorted across boxes."""
     out, k = [], 0
     while k < len(lines):
         out.append(lines[k])
@@ -741,7 +741,8 @@ def _pins_in_one_order(lines):
 
 
 def _pin_in_one_case(line):
-    """A line that names a box's pin with that name as compared (pin_key); another line as it stands."""
+    """A line shaped as a named pin (`name := ...`, `name => ...`) with that name as compared (pin_key), wherever it
+    stands in the network: in LAD only a box's pin is written so. Another line as it stands."""
     m = _NAMED_PIN.match(line)
     return line if m is None else pin_key(m.group(1)) + line[m.end(1):]
 

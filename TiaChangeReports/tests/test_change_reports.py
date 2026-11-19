@@ -1302,6 +1302,12 @@ class PinsInAnotherCase(unittest.TestCase):
         self.assertEqual(d.status[box.eid], 'changed')
         self.assertEqual({'pv'}, changed_params(box, d.other[box.eid]))
 
+    def test_networks_alike_whatever_the_case_of_a_pin(self):
+        """Networks with titles that differ pair by what they hold (compare.similarity)."""
+        from TiaChangeReports.compare import similarity
+        (b,), (a,) = (parse_block(src(x, '', 'M')).networks for x in (BOX_FED, BOX_OTHER_CASE))
+        self.assertEqual(1.0, similarity(b, a))
+
     def test_lines_of_a_pin_in_another_case(self):
         from TiaChangeReports.s7dcl import lad_lines
         self.assertEqual(lad_lines('B(\nRET_VAL => #b,\npv := Add(\nIN1 := #a\n)\n)'),

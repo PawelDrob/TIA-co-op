@@ -134,7 +134,7 @@ def sp_forest(g):
     that no earlier sink took: first the end of the rungs, then the box pins in order."""
     all_edges = [(g.find(s), g.find(d), ('L', e.eid) if e else ('E',)) for e, s, d in g.edges]
     rail = g.find(RAIL)
-    pin_nodes = [(e.eid, pin_key(pin) if pin else pin, g.find(n)) for e, pin, n in g.pins]
+    pin_nodes = [(e.eid, pin_key(pin), g.find(n)) for e, pin, n in g.pins]
     sinks = [(None, None, g.find(SINK))] + pin_nodes
     keep = {rail} | {t for _, _, t in sinks}
     taken = set()
@@ -1196,7 +1196,7 @@ class NetDiff:
             ins.setdefault(d, []).append(e.eid)
         pins = {}
         for e, pin, n in g.pins:
-            pins.setdefault(uf.find(n), []).append(('PIN', e.eid, pin_key(pin) if pin else pin))
+            pins.setdefault(uf.find(n), []).append(('PIN', e.eid, pin_key(pin)))
         ctx = {}
         for e, s_, d in ends:
             pred = set(ins.get(s_, [])) | ({'RAIL'} if s_ == rail else set())

@@ -10,7 +10,8 @@ from typing import Optional
 from .beside import align, unread_beside
 from .diff import Graph, NetDiff, out_of_order
 from .names import decl_name, decl_type, file_safe
-from .s7dcl import Network, _norm, lad_lines as _lad_lines, numbered as _numbered, scl_lines, texts_for_keys, wire_of
+from .s7dcl import (Network, _norm, lad_lines as _lad_lines, numbered as _numbered, pin_key, scl_lines, texts_for_keys,
+                    wire_of)
 from .simaticml import same_export
 from .source import UNREADABLE, stem
 
@@ -158,7 +159,7 @@ def _lad_tokens(n):
             c['@', it.instr, it.call or '', it.instance or ''] += 1
             for name, _, v in it.params:
                 if wire_of(v) is None:
-                    c[name or '', _norm(v)] += 1
+                    c[pin_key(name), _norm(v)] += 1
     return c
 
 
