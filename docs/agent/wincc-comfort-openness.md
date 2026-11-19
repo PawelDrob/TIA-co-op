@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T08:58:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T10:40:00-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -57,7 +57,8 @@ validator holds generated screens to it.
 | PLC data types, blocks | yes `[EXPORT]` | - | `PlcSoftware.TypeGroup` / `BlockGroup` (recursive), `Export` with all attributes; run 3 (2026-10-01). Know-how protected and inconsistent blocks fail |
 | Pop-up screens | yes `[EXPORT]` | yes `[IMPORT]` (new 2026-10-01, Override over existing 2026-10-02) | `HmiTarget.ScreenPopupFolder.ScreenPopups` / `.Folders`; root `Hmi.Screen.ScreenPopup` (BackColor, Height, Name, Width; Layers only). Slide-in screens: `ScreenSlideinFolder` |
 | Basic objects and elements (all 19), user view | yes `[EXPORT]` | not tried for the ellipse, polyline, graphic I/O field, date/time field, switch, symbol library, slider, gauge and user view | test screens with every toolbox object dropped, exported full on 2026-10-31: the fixture of the [screen object catalogue](wincc-screen-objects.md) |
-| Global screen | yes `[PROBE]` (2.3, `hmi\global\`) | `[GAP]` | |
+| Slide-in screens | yes `[PROBE]` (2.3, `hmi\slideins\`) | yes `[PROBE]`, over the device's own (2026-11-12, 2026-11-19) | `ScreenSlideinFolder.ScreenSlideins`; root `Hmi.Screen.ScreenSlidein`, named by its edge (`SlideinType`); an added text field and `Dimension` land ([Openness facts](openness-v20.md) section 2) |
+| Global screen | yes `[PROBE]` (2.3, `hmi\global\`) | yes `[PROBE]`, the global elements attributes only (2026-11-12, 2026-11-19) | `HmiTarget.ImportScreenGlobalElements`, `ImportScreenOverview`; a text field in the global elements ended TIA ([Openness facts](openness-v20.md) section 2) |
 | **Faceplate types (contents)** | **no** `[PROBE]` | **no** `[PROBE]` | see section 6 |
 | The 14 other controls: alarm view, trend view, HTML browser, watch table, Sm@rtClient view, recipe view, f(x) trend view, system diagnostics view, PLC code view, GRAPH overview, ProDiag overview, criteria analysis view, camera view, PDF view | **silently omitted** `[EXPORT]` | - | see 7.1; build them by hand in TIA |
 | Graphics (pictures) | a screen links them by name (`Picture`, `PictureOff`) `[EXPORT]`; the project graphic exports as `project\graphics\<name>.xml` with its image in `<name> files\` (TiaBridge keeps the folder since 2026-10-31) `[PROBE]` | link only `[IMPORT]` (graphic views of the compass and logo, 2026-10-01) | the graphic must exist in the project |
@@ -79,6 +80,7 @@ their findings stay in this guide, and the git history of this repo keeps them.
 |---|---|
 | `export` / `import` / `delete` kinds `hmi_screen`, `hmi_popup`, `hmi_template`, `hmi_tag_table`, `hmi_textlist` | SimaticML out of and into TIA; exports go to `hmi\screens\`, `hmi\popups\`, ...; screens, pop-ups and templates are always exported full (section 2.3), tag tables and text lists minimal unless `options.full`; screens, pop-ups, templates and tag tables are imported only from `hmi\[<device>\]generated\<kind>\` (tag tables: `generated\tags\`) and only after the HMI validator passed (section 3); a new one goes to the folder its path there mirrors (`hmi\[<device>\]generated\screens\zzStaging\x.xml` -> `zzStaging`), an existing one is replaced where it is; faceplate guard before every screen import |
 | `export` / `import` kind `hmi_cycle` | always the full export, into `hmi\[<device>\]cycles\`, and imported from there only, after the HMI validator passed: a cycle document that is no full export is refused (`cycle.not-full`), as TIA imports a minimal one with `StartAtStartingPoint` false ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses it |
+| `export` / `import` kinds `hmi_slidein`, `hmi_screen_global` | always the full export, into `hmi\[<device>\]slideins\` and `hmi\[<device>\]global\`, and imported from there only, over the device's own only, after the HMI validator passed with its own rules for them (the screen rules do not read them): global elements holding a screen item are refused (`global.screen-item`: a text field there ended TIA), and so is one named in `hmi\[<device>\]handbuilt.json` (`handbuilt.override`; a slide-in by its edge, the others as `ScreenGlobalElements` and `ScreenOverview`), as an `Override` drops what the export cannot carry; `override` defaults to true; `delete` refuses both |
 | `export` / `import` kinds `graphic`, `hmi_graphiclist` | a project graphic as `project\graphics\<name>.xml` with its image in `<name> files\`, imported with that folder: an image the document names that is not there is refused; a graphic list in `hmi\[<device>\]graphiclists\`, minimal unless `options.full`, imported from any path: an entry naming a graphic the project does not have is refused (TIA takes it, and the HMI compile fails), so import graphics first; a name in another case links that graphic ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses both |
 | `export` / `import` kind `hmi_vbscript` | a VB script in `hmi\[<device>\]scripts\`, mirroring its folders, minimal unless `options.full`; imported from any path, a new one into the folder its path there mirrors; a document of another class is refused; a syntax error goes in, and the HMI compile found it only once a screen called the script ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses it |
 | `compile(hmi)` | the full compiler message tree |
@@ -164,7 +166,8 @@ one device at a time (`--device`, `hmixml.begin(device=...)`, else
 its generated documents in `hmi\[<device>\]generated\`. Slide-ins and the global elements and screen
 overview export full too (`hmi\slideins\`, `hmi\global\`) `[PROBE]`. A slide-in has no name in Openness, only its panel
 edge (`SlideinType`), so its file and its name in `list` are that edge: `hmi\slideins\Right.xml`. All four came out of one
-export, `Top`, `Bottom`, `Left`, `Right`, each with its own edge in the file `[PROBE]`.
+export, `Top`, `Bottom`, `Left`, `Right`, each with its own edge in the file `[PROBE]`. TiaBridge imports them back from
+those folders (section 2).
 
 ---
 
@@ -796,8 +799,8 @@ refuses on its errors. The rest stays manual.
    read; the user's yes to the preview (skill `tia-change`, `hmi.md`, step 3).
 7. New screens in the folder their generated path names, `zzStaging` only when the user asked for it or for a
    faceplate's staging screen.
-8. No `Override` of a screen with controls the export cannot carry (7.1): validator, `handbuilt.*`, once the
-   controls are listed in `hmi\handbuilt.json`.
+8. No `Override` of a screen, slide-in or global screen with controls the export cannot carry (7.1): validator,
+   `handbuilt.*`, once the controls are listed in `hmi\handbuilt.json`.
 9. Dependent properties follow their main property (7.2; a refused one ends TIA): validator, `dependent.*`.
 
 ## 9. History

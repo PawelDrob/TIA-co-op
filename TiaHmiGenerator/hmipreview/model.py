@@ -12,6 +12,10 @@ load() reads one device: the device given, else tiabridge.json hmiDevice, else t
   <hmi>/graphiclists                                         graphic lists as TIA exports them: Repo.graphic_lists
                                                              (kind 'graphiclist'), apart too; the links rules read
                                                              their names
+  <hmi>/slideins, <hmi>/global                               slide-ins, the global elements and the screen overview
+                                                             as TIA exports them, which TiaBridge also imports from
+                                                             there: Repo.slideins (kind 'slidein') and
+                                                             Repo.screen_globals (kind 'global'), apart too
   hmi/<other device>/{screens,templates,popups,textlists}    exports of the other HMI devices: vocabulary only
   hmi/references/<source>/{screens,templates,popups,...}     full exports of another project (e.g. a sister project) whose
                                                              objects a generator copies: they feed the vocabulary
@@ -53,8 +57,11 @@ KINDS = ('screen', 'template', 'popup', 'textlist')
 TAG_TABLE = 'tagtable'    # the kind of a tag table document; not one of KINDS: no screen rule reads it
 CYCLE = 'cycle'           # the kind of a cycle document; not one of KINDS either
 GRAPHIC_LIST = 'graphiclist'   # the kind of a graphic list document; not one of KINDS either
+SLIDEIN = 'slidein'       # the kind of a slide-in document; not one of KINDS either
+SCREEN_GLOBAL = 'global'  # the kind of the global elements and screen overview documents; not one of KINDS either
 KIND_DIRS = {'screen': 'screens', 'template': 'templates', 'popup': 'popups', 'textlist': 'textlists',
-             TAG_TABLE: 'tags', CYCLE: 'cycles', GRAPHIC_LIST: 'graphiclists'}
+             TAG_TABLE: 'tags', CYCLE: 'cycles', GRAPHIC_LIST: 'graphiclists', SLIDEIN: 'slideins',
+             SCREEN_GLOBAL: 'global'}
 EXPORT = 'export'
 REFERENCE = 'reference'
 REFERENCE_DIR = 'hmi/references'
@@ -120,7 +127,7 @@ def hmi_base(device):
 
 @dataclass
 class Document:
-    kind: str                 # 'screen' | 'template' | 'popup' | 'textlist' | 'tagtable' | 'cycle'
+    kind: str                 # 'screen' | 'template' | 'popup' | 'textlist' | 'tagtable' | 'cycle' | 'slidein' | 'global'
     origin: str               # 'export' | 'generated'
     path: str                 # repo-relative, forward slashes
     folder: str               # TIA folder below the kind folder, '/'-separated, '' at the root
@@ -173,6 +180,10 @@ class Repo:
     other_tag_tables: list = field(default_factory=list)  # tag table exports of the other devices and the references
     cycles: list = field(default_factory=list)         # this device's cycles (Document, kind 'cycle'), from <hmi>/cycles
     graphic_lists: list = field(default_factory=list)  # this device's graphic list exports (Document, kind 'graphiclist')
+    slideins: list = field(default_factory=list)       # this device's slide-ins (Document, kind 'slidein'), from
+                                                       # <hmi>/slideins
+    screen_globals: list = field(default_factory=list)  # this device's global elements and screen overview (Document,
+                                                        # kind 'global'), from <hmi>/global
 
     @property
     def base(self):
@@ -451,6 +462,9 @@ def load(repo_path, overlay=None, device=None):
     cycles = _load_docs(repo_path, base, EXPORT, findings, overlay, (CYCLE,))
     # the links rules read their names: one that cannot be read is a finding, not a silent unknown link
     graphic_lists = _load_docs(repo_path, base, EXPORT, findings, overlay, (GRAPHIC_LIST,))
+    # TiaBridge imports these from here too: one that cannot be read is a finding
+    slideins = _load_docs(repo_path, base, EXPORT, findings, overlay, (SLIDEIN,))
+    screen_globals = _load_docs(repo_path, base, EXPORT, findings, overlay, (SCREEN_GLOBAL,))
     tid, problem = _resolution.select_type_identifier(config, folder or device, folder_name)
     device_problem = device_problem or problem
     hardware = _resolution.resolve(tid)
@@ -466,4 +480,4 @@ def load(repo_path, overlay=None, device=None):
     return Repo(repo_path, config, exports, generated, planned, handbuilt, panel or hardware, findings, generation,
                 tid, device_problem, faceplate_types, panel, hardware, references, graphics, folder, folders, others,
                 tag_types=_tag_types(tag_tables), tag_tables=tag_tables, other_tag_tables=other_tag_tables,
-                cycles=cycles, graphic_lists=graphic_lists)
+                cycles=cycles, graphic_lists=graphic_lists, slideins=slideins, screen_globals=screen_globals)

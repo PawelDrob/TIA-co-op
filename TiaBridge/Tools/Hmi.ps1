@@ -1,6 +1,6 @@
 # Tools\Hmi.ps1 - WinCC Comfort/Advanced kinds for list/export/import/delete (Tools\Objects.ps1):
-# hmi_screen, hmi_template, hmi_popup, hmi_tag_table, hmi_textlist, hmi_cycle, hmi_graphiclist, hmi_vbscript, and the HMI
-# kinds the bridge only exports.
+# hmi_screen, hmi_template, hmi_popup, hmi_tag_table, hmi_textlist, hmi_cycle, hmi_graphiclist, hmi_slidein,
+# hmi_screen_global, hmi_vbscript, and the HMI kind the bridge only exports.
 # All SimaticML; see docs/agent/wincc-comfort-openness.md.
 
 function Get-HmiExportOptions([bool]$Full) {
@@ -70,14 +70,15 @@ function Invoke-HmiValidator([string]$Repo, [bool]$OverrideStale, [string]$Devic
     @($list | ForEach-Object { $_ })
 }
 
-# The HMI device folder of a document the validator checks: <device> of hmi\<device>\generated\... or of a cycle in
-# hmi\<device>\cycles\..., '' for hmi\generated\... and hmi\cycles\... (one HMI device) or a path outside the repo.
+# The HMI device folder of a document the validator checks: <device> of hmi\<device>\generated\... or of a document in an
+# export folder it checks for an import (hmi\<device>\cycles\..., slideins, global), '' for hmi\generated\... and
+# hmi\cycles\... (one HMI device) or a path outside the repo.
 function Get-HmiDeviceFolder([string]$Repo, [string]$File) {
     $root = [System.IO.Path]::GetFullPath($Repo).TrimEnd('\') + '\'
     $full = [System.IO.Path]::GetFullPath($File)
     if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return '' }
     $parts = $full.Substring($root.Length) -split '\\'
-    if ($parts.Count -ge 4 -and $parts[0] -eq 'hmi' -and $parts[1] -ne 'generated' -and $parts[2] -in 'generated', 'cycles') { return $parts[1] }
+    if ($parts.Count -ge 4 -and $parts[0] -eq 'hmi' -and $parts[1] -ne 'generated' -and $parts[2] -in 'generated', 'cycles', 'slideins', 'global') { return $parts[1] }
     ''
 }
 
@@ -117,7 +118,8 @@ function Test-HmiImportGuard([string]$Repo, [object[]]$Files, [bool]$OverrideSta
 }
 
 # The importGuard of the screen kinds (hmi_screen, hmi_template, hmi_popup), of hmi_tag_table (an Int tag with Length 1
-# ended TIA on import: the validator's rules\tagtable.py) and of hmi_cycle (rules\cycle.py).
+# ended TIA on import: the validator's rules\tagtable.py), of hmi_cycle (rules\cycle.py) and of hmi_slidein and
+# hmi_screen_global (rules\slideinglobal.py, rules\handbuilt.py).
 $script:HmiImportGuard = { param($repo, $files, $a) Test-HmiImportGuard $repo $files (Get-OptionalBool $a 'override' $false) }
 
 # The precheck of the HMI kinds: before the write, as the folder of a new object is made on the way into it. SimaticML
@@ -129,13 +131,14 @@ function Test-HmiFileFormat($File) {
 }
 
 # The object of a SimaticML for a kind whose composition takes one class of object only: @{ node } when it is of Class (such
-# as Hmi.Globalization.MultiLingualGraphic), else @{ refused }. What: the kind's objects in words, for the refusal.
-function Read-HmiDocumentObject($File, [string]$Class, [string]$What) {
+# as Hmi.Globalization.MultiLingualGraphic, or one of several), else @{ refused }. What: the kind's objects in words, for
+# the refusal.
+function Read-HmiDocumentObject($File, [string[]]$Class, [string]$What) {
     $refusal = Test-HmiFileFormat $File
     if ($refusal) { return $refusal }
     try { $node = (Read-DocumentXml $File.file).SelectSingleNode($script:DocumentObjectsXPath) }
     catch { return @{ ok = $false; refused = "$($File.file) cannot be read as XML ($($_.Exception.GetBaseException().Message)); nothing imported." } }
-    if (-not $node -or $node.Name -ne $Class) {
+    if (-not $node -or $node.Name -cnotin $Class) {
         $holds = if ($node) { $node.Name } else { 'no object' }
         return @{ ok = $false; refused = "$($File.file) holds $holds, no $What`: import it with its own kind." }
     }
@@ -344,23 +347,68 @@ function Test-GraphicListFile($File, [hashtable]$Cache) {
     }
 }
 
-# Export only: SimaticML through Export [PROBE] (2026-10-30, project A).
+# Slide-ins, the global elements and the screen overview: exported full, and imported from that export folder after the
+# HMI validator passed, over the device's own only. A slide-in's full export imported over it with Override left its export
+# identical; an added text field and a new Dimension landed and round tripped. The overview's Height landed; the global
+# elements' BackColor landed, and after an import their export no longer writes the empty layer 0 it wrote before (the
+# layer still counts 1). A text field in the global elements ended TIA ("The HmiScreenItemData object is not allowed in
+# screen Global screen."): the validator refuses a screen item there (rules\slideinglobal.py). Without Override TIA
+# refuses an existing one [PROBE] (2026-11-12, test project). What their exports cannot carry an Override drops, as on a
+# screen [INFERRED]: the validator refuses one listed in handbuilt.json (rules\handbuilt.py), and the result says so. A new
+# one and a delete were not tried.
+# overrideLoses of the result, when one went in.
+$script:HmiFixedScreenNote = 'An Override drops what Openness cannot export (alarm views and the like, wincc-comfort-openness.md 7.1), as on a screen: list such objects in hmi\[<device>\]handbuilt.json, and the validator refuses the import.'
+
+# The precheck of a slide-in or global screen: over the device's own only (Entries), as a new one was not tried.
+function Test-HmiFixedScreen($File, [object[]]$Entries, [string]$What) {
+    if (@($Entries | Where-Object { [string]::Equals($_.name, [string]$File.objectName, [StringComparison]::OrdinalIgnoreCase) }).Count) { return $null }
+    $have = @($Entries | ForEach-Object { $_.name }) -join ', '
+    @{ ok = $false; refused = "The HMI device has no $What '$($File.objectName)' (it has: $have). The bridge imports over the device's own only: a new one was not tried." }
+}
 
 Register-ObjectKind 'hmi_slidein' @{
-    scope = 'hmi'; dir = 'hmi\slideins'; exportOnly = $true
-    description = 'slide-in screens, named by their panel edge (export only, full export)'
+    scope = 'hmi'; dir = 'hmi\slideins'; importDir = 'hmi\slideins'
+    importGuard = $script:HmiImportGuard
+    defaultOverride = $true
+    noDelete = 'A slide-in is one of the device''s, by its edge; a delete was not tried on a real TIA.'
+    description = 'slide-in screens, named by their panel edge (SlideinType); exported full and imported from hmi\[<device>\]slideins after the HMI validator passed, over the device''s own only; not deleted'
     # a slide-in has no Name; ScreenSlidein.SlideinType tells them apart, as Find(SlideinType) does
     # [PROBE: reflection of V20 Siemens.Engineering.dll, 2026-11-02; a real export holds <SlideinType>Right</SlideinType>]
     items = { param($hmi) foreach ($s in $hmi.ScreenSlideinFolder.ScreenSlideins) { @{ obj = $s; name = [string]$s.SlideinType; folder = '' } } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
+    precheck = { param($file, $cache, $entries) Test-HmiFixedScreen $file $entries 'slide-in' }
+    import = { param($hmi, $folder, $file, $override)
+        $list = $hmi.ScreenSlideinFolder.ScreenSlideins.Import([System.IO.FileInfo]::new($file.file), (Get-ImportOptions $override))
+        @{ ok = $true; imported = @($list | ForEach-Object { [string]$_.SlideinType }) } }
+    afterImport = { param($result, $items) if (@($items | Where-Object { $_.ok }).Count) { $result.overrideLoses = $script:HmiFixedScreenNote } }
+    # the slide-in is the edge the document declares, whatever the file is called
+    whoseFile = { param($file, $entries)
+        $doc = Read-HmiDocumentObject $file 'Hmi.Screen.ScreenSlidein' 'slide-in'
+        if ($doc.refused) { return $doc }
+        $edge = $doc.node.SelectSingleNode('AttributeList/SlideinType')
+        if (-not $edge -or -not $edge.InnerText.Trim()) { return @{ ok = $false; refused = "$($file.file) declares no SlideinType, so which slide-in it is cannot be told. Write it as the export does." } }
+        @{ name = $edge.InnerText.Trim() } }
 }
 
 Register-ObjectKind 'hmi_screen_global' @{
-    scope = 'hmi'; dir = 'hmi\global'; exportOnly = $true
-    description = 'global screen elements and the screen overview (export only, full export)'
+    scope = 'hmi'; dir = 'hmi\global'; importDir = 'hmi\global'
+    importGuard = $script:HmiImportGuard
+    defaultOverride = $true
+    noDelete = 'The global elements and the screen overview are the device''s own; a delete was not tried on a real TIA.'
+    description = 'the global elements and the screen overview (ScreenGlobalElements, ScreenOverview); exported full and imported from hmi\[<device>\]global after the HMI validator passed, over the device''s own only; the global elements take attributes only; not deleted'
     items = { param($hmi)
         foreach ($n in 'ScreenGlobalElements', 'ScreenOverview') { $o = $hmi.$n; if ($null -ne $o) { @{ obj = $o; name = $n; folder = '' } } } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
+    precheck = { param($file, $cache, $entries) Test-HmiFixedScreen $file $entries 'global screen' }
+    # HmiTarget.ImportScreenGlobalElements and ImportScreenOverview, by the object the document holds
+    import = { param($hmi, $folder, $file, $override)
+        $null = $hmi."Import$($file.objectName)"([System.IO.FileInfo]::new($file.file), (Get-ImportOptions $override))
+        @{ ok = $true } }
+    afterImport = { param($result, $items) if (@($items | Where-Object { $_.ok }).Count) { $result.overrideLoses = $script:HmiFixedScreenNote } }
+    whoseFile = { param($file, $entries)
+        $doc = Read-HmiDocumentObject $file @('Hmi.Screen.ScreenGlobalElements', 'Hmi.Screen.ScreenOverview') 'global elements or screen overview'
+        if ($doc.refused) { return $doc }
+        @{ name = $doc.node.Name.Substring('Hmi.Screen.'.Length) } }
 }
 
 # VB scripts: a new one from a file (Code, PreCode, Type) went in, into the folder its path mirrors, and TIA adds a line
@@ -381,6 +429,7 @@ Register-ObjectKind 'hmi_vbscript' @{
     whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
 }
 
+# Export only: SimaticML through Export [PROBE] (2026-10-30, project A).
 Register-ObjectKind 'hmi_connection' @{
     scope = 'hmi'; dir = 'hmi\connections'; exportOnly = $true
     description = 'connections of the HMI device (export only)'

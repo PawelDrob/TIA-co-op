@@ -526,3 +526,132 @@ Describe 'import of an HMI object that is no SimaticML' {
         $r.refused | Should Match 'SimaticML'
     }
 }
+
+# Slide-ins, the global elements and the screen overview go back from their export folders, hmi\[<device>\]slideins and
+# hmi\[<device>\]global, over the device's own only. The validator (rules\slideinglobal.py, rules\handbuilt.py) refuses
+# global elements holding a screen item (a text field there ended TIA, 2026-11-12) and one listed as hand-built.
+Describe 'import of slide-ins and global screens (validator guard)' {
+    if (-not ('Siemens.Engineering.ImportOptions' -as [type])) {
+        Add-Type -TypeDefinition 'namespace Siemens.Engineering { public enum ImportOptions { None, Override } }'
+    }
+    # the device's slide-ins Top and Left, its global elements and overview; each import records what it was given
+    function Get-KindRoot {
+        $slideins = New-Object System.Collections.ArrayList
+        foreach ($edge in 'Top', 'Left') { [void]$slideins.Add([pscustomobject]@{ SlideinType = $edge }) }
+        Add-Member -InputObject $slideins ScriptMethod Import { param($file, $options)
+            $edge = [regex]::Match([System.IO.File]::ReadAllText($file.FullName), '<SlideinType>([^<]*)</SlideinType>').Groups[1].Value
+            $script:imported += @("slide-in $edge $options")
+            , @([pscustomobject]@{ SlideinType = $edge }) }
+        $hmi = [pscustomobject]@{ ScreenSlideinFolder = [pscustomobject]@{ ScreenSlideins = $slideins }
+                                  ScreenGlobalElements = [pscustomobject]@{}; ScreenOverview = [pscustomobject]@{} }
+        Add-Member -InputObject $hmi ScriptMethod ImportScreenGlobalElements { param($file, $options) $script:imported += @("ScreenGlobalElements $options") }
+        Add-Member -InputObject $hmi ScriptMethod ImportScreenOverview { param($file, $options) $script:imported += @("ScreenOverview $options") }
+        $hmi
+    }
+    function New-ExportDocument([string]$Body) {
+        "<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><Engineering version=`"V20`" /><DocumentInfo><ExportSetting>WithDefaults, WithReadOnly</ExportSetting></DocumentInfo>$Body</Document>`r`n"
+    }
+    function New-SlideinDocument([string]$Edge = 'Top') {
+        New-ExportDocument "<Hmi.Screen.ScreenSlidein ID=`"0`"><AttributeList><Dimension>300</Dimension><SlideinType>$Edge</SlideinType></AttributeList></Hmi.Screen.ScreenSlidein>"
+    }
+    function New-GlobalElementsDocument([string[]]$Items = @()) {
+        $list = if ($Items.Count) { "<ObjectList>$($Items -join '')</ObjectList>" } else { '' }
+        New-ExportDocument ("<Hmi.Screen.ScreenGlobalElements ID=`"0`"><AttributeList><BackColor>200, 100, 50</BackColor></AttributeList><ObjectList>" +
+            "<Hmi.Screen.ScreenLayer ID=`"1`" CompositionName=`"Layers`"><AttributeList><Index>0</Index><Name /></AttributeList>$list</Hmi.Screen.ScreenLayer></ObjectList></Hmi.Screen.ScreenGlobalElements>")
+    }
+    $overview = New-ExportDocument '<Hmi.Screen.ScreenOverview ID="0"><AttributeList><Height>60</Height></AttributeList></Hmi.Screen.ScreenOverview>'
+
+    It 'imports a slide-in over the one of its edge, from hmi\slideins with Override, says what an Override loses, and names the HMI compile' {
+        $repo = New-HmiRepo 'SlideinOver'
+        Write-TextFile (Join-Path $repo 'hmi\slideins\Top.xml') (New-SlideinDocument)
+        $r = Invoke-HmiImport $repo -Kind 'hmi_slidein' -Paths @('hmi\slideins\Top.xml')
+        $r.ok | Should Be $true
+        $r.override | Should Be $true
+        ($script:imported -join ',') | Should Be 'slide-in Top Override'
+        $r.items[0].name | Should Be 'Top'
+        $r.overrideLoses | Should Match 'cannot export'
+        $r.next | Should Match '^compile the hmi scope'
+    }
+
+    It 'imports the global elements and the overview through their own imports' {
+        $repo = New-HmiRepo 'GlobalOver'
+        Write-TextFile (Join-Path $repo 'hmi\global\ScreenGlobalElements.xml') (New-GlobalElementsDocument)
+        Write-TextFile (Join-Path $repo 'hmi\global\Overview.xml') $overview
+        $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\ScreenGlobalElements.xml', 'hmi\global\Overview.xml')
+        $r.ok | Should Be $true
+        ($script:imported -join ',') | Should Be 'ScreenGlobalElements Override,ScreenOverview Override'
+        @($r.items | ForEach-Object { $_.name }) -join ',' | Should Be 'ScreenGlobalElements,ScreenOverview'
+        $r.overrideLoses | Should Match 'handbuilt\.json'
+    }
+
+    It 'refuses global elements holding a screen item before TIA sees them: a text field there ended TIA' {
+        $repo = New-HmiRepo 'GlobalItem'
+        Write-TextFile (Join-Path $repo 'hmi\global\ScreenGlobalElements.xml') (New-GlobalElementsDocument @((New-HmiItem 'Hmi.Screen.TextField' 'Text_1')))
+        $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\ScreenGlobalElements.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match 'global\.screen-item'
+        $r.items[0].findings[0].object | Should Be 'Text_1'
+    }
+
+    It 'does not import over a slide-in listed in hmi\handbuilt.json' {
+        $repo = New-HmiRepo 'SlideinHandbuilt'
+        Write-TextFile (Join-Path $repo 'hmi\handbuilt.json') '[{ "screen": "Top", "kind": "alarm view", "x": 0, "y": 0, "w": 100, "h": 100 }]'
+        Write-TextFile (Join-Path $repo 'hmi\slideins\Top.xml') (New-SlideinDocument)
+        $r = Invoke-HmiImport $repo -Kind 'hmi_slidein' -Paths @('hmi\slideins\Top.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match 'handbuilt\.override'
+    }
+
+    It 'refuses a slide-in file outside hmi\slideins, where the validator does not look' {
+        $repo = New-HmiRepo 'SlideinOutside'
+        Write-TextFile (Join-Path $repo 'elsewhere\Top.xml') (New-SlideinDocument)
+        $r = Invoke-HmiImport $repo -Kind 'hmi_slidein' -Paths @('elsewhere\Top.xml')
+        $r.ok | Should Be $false
+        $r.items[0].refused | Should Match 'imported from hmi\\slideins only'
+    }
+
+    It 'refuses a slide-in the device does not have: a new one was not tried' {
+        $repo = New-HmiRepo 'SlideinNew'
+        Write-TextFile (Join-Path $repo 'hmi\slideins\Bottom.xml') (New-SlideinDocument 'Bottom')
+        $r = Invoke-HmiImport $repo -Kind 'hmi_slidein' -Paths @('hmi\slideins\Bottom.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match "no slide-in 'Bottom'"
+    }
+
+    It 'refuses a slide-in document that names no edge' {
+        $repo = New-HmiRepo 'SlideinNoEdge'
+        Write-TextFile (Join-Path $repo 'hmi\slideins\Top.xml') (New-ExportDocument '<Hmi.Screen.ScreenSlidein ID="0"><AttributeList><Dimension>300</Dimension></AttributeList></Hmi.Screen.ScreenSlidein>')
+        $r = Invoke-HmiImport $repo -Kind 'hmi_slidein' -Paths @('hmi\slideins\Top.xml')
+        $r.ok | Should Be $false
+        $r.items[0].refused | Should Match 'SlideinType'
+    }
+
+    It 'refuses another document in hmi\global' {
+        $repo = New-HmiRepo 'GlobalOther'
+        Write-TextFile (Join-Path $repo 'hmi\global\Top.xml') (New-SlideinDocument)
+        $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\Top.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match 'global\.not-global'
+    }
+
+    It 'does not delete <kind>' -TestCases @(@{ kind = 'hmi_slidein'; name = 'Top' }, @{ kind = 'hmi_screen_global'; name = 'ScreenOverview' }) {
+        param($kind, $name)
+        $repo = New-HmiRepo "Delete$kind"
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
+        Register-Archive (Get-BridgeSession)
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = $kind; names = @($name) })
+        $r.ok | Should Be $false
+        $r.refused | Should Match "^Kind $kind is not deleted by the bridge"
+    }
+
+    It 'finds the device folder of a slide-in or global screen' {
+        Get-HmiDeviceFolder 'C:\R' 'C:\R\hmi\HMI_A\slideins\Top.xml' | Should Be 'HMI_A'
+        Get-HmiDeviceFolder 'C:\R' 'C:\R\hmi\HMI_A\global\ScreenOverview.xml' | Should Be 'HMI_A'
+        Get-HmiDeviceFolder 'C:\R' 'C:\R\hmi\slideins\Top.xml' | Should Be ''
+    }
+}

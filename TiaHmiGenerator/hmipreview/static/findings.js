@@ -13,7 +13,8 @@
 'use strict';
 
 export const KIND_TEXT = {screen: 'Screen', popup: 'Pop-up screen', template: 'Template', textlist: 'Text list',
-  tagtable: 'Tag table', cycle: 'Cycle', graphiclist: 'Graphic list', project: 'The project'};
+  tagtable: 'Tag table', cycle: 'Cycle', graphiclist: 'Graphic list', slidein: 'Slide-in screen', global: 'Global screen',
+  project: 'The project'};
 const shutBoxes = new Set();     // keys of the boxes closed by a click or C
 const openFolds = new Set();     // keys of the folds opened by a click or E
 
