@@ -84,6 +84,7 @@ class Row:
     optional: bool = False
     commands: list = field(default_factory=list)    # one a line, as written: the window shows them in a fixed-width font
     details: list = field(default_factory=list)     # what changes, one thing a line, one click away
+    note: str = ''       # a line under the commands, about them
 
 
 @dataclass
@@ -171,17 +172,17 @@ def viewer_row(look):
     title, about = 'Block viewer (.s7dcl)', ABOUT['viewer']
     if v.get('error'):
         return Row('missing', title, v['error'], key='viewer', about=about, optional=True)
-    note = ('\n' + v['note']) if v.get('note') else ''
+    note = v.get('note', '')     # a choice in "Open with", under the command
     if v.get('command') and v.get('default'):
         if v['command'] == v['this']:
-            return Row('ok', title, 'Registered for this clone.' + note, [Action('Unregister', 'unregister')], 'viewer', about, True)
-        return Row('warning', title, 'Registered for another clone. Register this clone to take it over.' + note,
+            return Row('ok', title, 'Registered for this clone.', [Action('Unregister', 'unregister')], 'viewer', about, True, note=note)
+        return Row('warning', title, 'Registered for another clone. Register this clone to take it over.',
                    [Action('Register this clone', 'register'), Action('Unregister', 'unregister')], 'viewer', about, True,
-                   details=[f'It opens with: {v["command"]}'])
-    return Row('todo', title, 'Not registered. Register sets it up for your Windows user only, to open with:' + note,
+                   details=[f'It opens with: {v["command"]}'], note=note)
+    return Row('todo', title, 'Not registered. Register sets it up for your Windows user only, to open with:',
                [Action('Register', 'register')], 'viewer', about, True, commands=[v.get('this', '')],
                details=[f'{v.get("key", "")}\\{v.get("progid", "")}: the program and its open command',
-                        f'{v.get("key", "")}\\.s7dcl: the program a double-click opens'])
+                        f'{v.get("key", "")}\\.s7dcl: the program a double-click opens'], note=note)
 
 
 def dashboard_row(dashboard, status, clone):

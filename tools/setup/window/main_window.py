@@ -284,6 +284,8 @@ class SetupWindow(tk.Tk):
             if text:
                 ttk.Label(column, text=text, style=style, wraplength=self.px(TEXT_WIDTH), justify='left').pack(anchor='w')
         self._lines(column, row.commands)
+        if row.note:
+            ttk.Label(column, text=row.note, style='Card.TLabel', wraplength=self.px(TEXT_WIDTH), justify='left').pack(anchor='w', pady=(2, 0))
         if row.details:
             shown = row.key in self.shown_details
             ttk.Button(column, text='Hide what changes' if shown else 'Show what changes', style='Link.TButton',

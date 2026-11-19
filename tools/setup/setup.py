@@ -69,6 +69,11 @@ class Finding:
         return f'Finding({self.kind!r}, {self.text!r}, {self.topic!r})'
 
 
+def counted(n, thing):
+    """'1 allow rule', '6 allow rules'."""
+    return f'{n} {thing}' + ('' if n == 1 else 's')
+
+
 def short(path):
     """A path as the window says it: under the clone from its folder, under the user's folder from ~."""
     for base, head in ((CLONE, ''), (Path.home(), '~\\')):
@@ -304,13 +309,18 @@ def add_server(claude, scope, done_text):
     return [Finding('done', done_text, TOPIC_SERVER)]
 
 
-def server_change(claude, scope, plan, write, done_text):
+def server_change(claude, scope, plan, write, done_text, details=()):
     if write:
         return add_server(claude, scope, done_text)
     command = subprocess.list2cmdline(['claude', 'mcp', 'add', '--scope', scope, 'tia', '--', *BRIDGE_COMMAND])
     return [Finding('change', f'MCP server tia: registers it {plan}: {command}. Claude Code keeps it in {claude_state_file()}', TOPIC_SERVER,
-                    lambda: server_step(claude, write=True), commands=[command],
+                    lambda: server_step(claude, write=True), commands=[command], details=details,
                     shown=f'Not registered. Register adds it {plan}, in {short(claude_state_file())}, with:')]
+
+
+def holder_of(script):
+    """What a server tia of the user's runs, as the window names it: another clone when it runs a bridge's script."""
+    return 'another clone' if script and Path(script).name.lower() == BRIDGE_SCRIPT.name.lower() else 'another command'
 
 
 def server_step(claude, write=False):
@@ -328,17 +338,18 @@ def server_step(claude, write=False):
         return [Finding('ok', 'MCP server tia', TOPIC_SERVER, shown='Registered for your Windows user: it starts the bridge of this clone.')]
     other = script_of(user) or 'another command'
     elsewhere = f'in other folders tia stays {other}. To make this clone the one for all: claude mcp remove --scope user tia, then run this again'
-    for_all = dict(commands=['claude mcp remove --scope user tia'], details=[f'In other folders tia starts {other}.'])
+    holder = holder_of(script_of(user))
+    starts = [f'For your Windows user, in other folders, tia starts {other}.']
     projects = state.get('projects') or {}
     here = next((p for key, p in projects.items() if same_path(key, CLONE)), {})
     local = (here.get('mcpServers') or {}).get('tia')
     if not local:
-        return server_change(claude, 'local', 'for this folder only, as another clone has it for your Windows user', write,
-                             f'MCP server tia registered for this folder; {elsewhere}')
+        return server_change(claude, 'local', f'for this folder only, as {holder} has it for your Windows user', write,
+                             f'MCP server tia registered for this folder; {elsewhere}', starts)
     if is_this_clone(local):
-        return [Finding('ok', f'MCP server tia, for this folder; {elsewhere}', TOPIC_SERVER, **for_all,
-                        shown='Registered for this folder; another clone has it for your Windows user. To make this clone the one '
-                              'for all folders, run this, then press Refresh and Register:')]
+        return [Finding('ok', f'MCP server tia, for this folder; {elsewhere}', TOPIC_SERVER, commands=['claude mcp remove --scope user tia'],
+                        details=starts, shown=f'Registered for this folder; {holder} has it for your Windows user. To make this clone the one '
+                                              'for all folders, run this, then press Refresh and Register:')]
     return [Finding('missing', f'MCP server tia: in this folder it is registered for {script_of(local) or "another command"}; left as it is. To move it here: claude mcp remove --scope local tia, then run this again', TOPIC_SERVER,
                     shown='Registered in this folder for another command, which stays as it is. To move it here, run this, then press Refresh:',
                     commands=['claude mcp remove --scope local tia'], details=[f'In this folder tia starts {script_of(local) or "another command"}.'])]
@@ -556,9 +567,10 @@ def projects_root_step(answer=None, write=False):
     updated = kept + [r for r in allow_rules(root) if r not in kept]
     if (changed or updated != allow) and not write:
         added, removed = [r for r in updated if r not in allow], [r for r in allow if r not in updated]
-        rules = f'{len(added)} allow rules to add' + (f', {len(removed)} of the old folder to take away' if removed else '')
-        shown = ((f'Not saved. Save sets:\nFolder: {root}' + (f' (now {stored})' if stored else '') + f'\nSaved in: {short(BRIDGE_SETTINGS)}\n')
-                 if changed else f'Folder: {stored}\n')
+        rules = ', '.join(([f'{counted(len(added), "allow rule")} to add'] if added else [])
+                          + ([f'{counted(len(removed), "allow rule")} of the old folder to take away'] if removed else []))
+        shown = 'Not saved. Save writes:\n' + (f'Folder: {root}' + (f' (now {stored})' if stored else '') + f'\nSaved in: {short(BRIDGE_SETTINGS)}\n'
+                                               if changed else f'Folder: {stored} (stays)\n')
         shown += f'Claude Code may read, edit and use git there: {rules}, in {short(user_file)}.'
         details = ([f'{BRIDGE_SETTINGS}: projectsRoot = {root}'] if changed else []) + [f'{user_file}, permissions.allow:']
         details += [f'+ {r}' for r in added] + [f'- {r}' for r in removed]
@@ -582,7 +594,7 @@ def projects_root_step(answer=None, write=False):
                          shown='The bridge makes its sessions folder there, _bridge\\sessions, each time it starts.'))
     git_form = f'git -C "{forward_slashes(root)}/<repo>"'
     found.append(Finding('ok' if updated == allow else 'done', f'Claude Code allow rules for read, edit and git in that folder, in {user_file}. Git goes by {git_form}: with a backslash or a cd first it asks', TOPIC_ROOT,
-                         shown=f'Claude Code may read, edit and use git there: {len(allow_rules(root))} allow rules, in {short(user_file)}.',
+                         shown=f'Claude Code may read, edit and use git there: {counted(len(allow_rules(root)), "allow rule")}, in {short(user_file)}.',
                          details=[f'{user_file}, permissions.allow:', *allow_rules(root),
                                   f'Git runs without asking when written as {git_form}; with a backslash or a cd first it asks.']))
     warning = long_path_warning(root)

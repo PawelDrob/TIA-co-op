@@ -179,8 +179,10 @@ class Viewer(unittest.TestCase):
         self.assertEqual(r.details, [f'It opens with: {other}'])
         self.assertEqual([a.kind for a in r.actions], ['register', 'unregister'])
 
-    def test_a_choice_in_open_with_is_said(self):
-        self.assertIn('as chosen', self.viewer(chosen='Other.Editor', note='Windows opens .s7dcl files with Other.Editor, as chosen').text)
+    def test_a_choice_in_open_with_is_said_under_the_command_not_before_it(self):
+        r = self.viewer(chosen='Other.Editor', note='Windows opens .s7dcl files with Other.Editor, as chosen')
+        self.assertTrue(r.text.endswith('to open with:'))
+        self.assertEqual((r.commands, r.note), ([self.THIS], 'Windows opens .s7dcl files with Other.Editor, as chosen'))
 
 
 class Dashboards(unittest.TestCase):

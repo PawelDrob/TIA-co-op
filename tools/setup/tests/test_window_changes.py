@@ -118,10 +118,38 @@ class TheWindowsChanges(SetupCase):
         setup = self.setup_module()
         folder = next(r for r in self.page(setup, 'bridge', ANSWER) if r.key == 'projectsRoot')
         lines = folder.text.split('\n')
-        self.assertEqual(lines[:3], ['Not saved. Save sets:', f'Folder: {ANSWER}', 'Saved in: TiaBridge\\settings.json'])
+        self.assertEqual(lines[:3], ['Not saved. Save writes:', f'Folder: {ANSWER}', 'Saved in: TiaBridge\\settings.json'])
         self.assertEqual(lines[3], f'Claude Code may read, edit and use git there: 6 allow rules to add, in {self.user_settings}.')
         self.assertEqual(sum(line.startswith('+ ') for line in folder.details), 6)
         self.assertNotIn('Read(', folder.text)
+
+    def test_a_stored_folder_with_a_rule_gone_is_not_saved_and_counts_one_rule(self):
+        setup = self.setup_module()
+        self.press_every_change(setup, ANSWER)
+        user = self.user()
+        user['permissions']['allow'] = user['permissions']['allow'][1:]
+        self.user_settings.write_text(json.dumps(user), encoding='utf-8')
+        folder = next(r for r in self.page(setup, 'bridge', ANSWER) if r.key == 'projectsRoot')
+        self.assertEqual(folder.state, 'todo')
+        self.assertEqual(folder.text.split('\n'), ['Not saved. Save writes:', f'Folder: {ANSWER} (stays)',
+                                                   f'Claude Code may read, edit and use git there: 1 allow rule to add, in {self.user_settings}.'])
+        self.assertEqual([a.label for a in folder.actions if a.kind == 'make'], ['Save'])
+
+    def server_of(self, script):
+        """The bridge page's server row, with the user's tia running script and none in this folder."""
+        (self.config / '.claude.json').write_text(json.dumps({'mcpServers': {'tia': {'type': 'stdio', 'command': 'x', 'args': ['-File', script]}}}))
+        return next(r for r in self.page(self.setup_module(), 'bridge') if r.key == 'MCP server tia')
+
+    def test_a_server_of_another_clone_is_named_so_with_what_it_runs(self):
+        other = str(self.temp / 'other' / 'TiaBridge' / 'TiaBridge.ps1')
+        server = self.server_of(other)
+        self.assertIn('as another clone has it for your Windows user', server.text)
+        self.assertEqual(server.details, [f'For your Windows user, in other folders, tia starts {other}.'])
+
+    def test_a_server_that_runs_another_command_is_not_called_a_clone(self):
+        server = self.server_of(str(self.temp / 'tool.ps1'))
+        self.assertIn('as another command has it for your Windows user', server.text)
+        self.assertNotIn('clone', server.text)
 
     def test_after_the_buttons_the_command_finds_nothing_to_do(self):
         setup = self.setup_module()
