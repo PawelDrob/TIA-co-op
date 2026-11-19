@@ -15,10 +15,10 @@ Opens one PLC block export in your default browser, drawn as the [change report]
   values name their members.
 - Draws an instance DB, or a DB of a UDT, with the members of its FB or UDT, read from that block's file in the
   project: each with its type, comment, start value and retain. A start value the DB sets itself is black, the FB's
-  default grey. A multi-instance opens there onto its FB's members when the project holds that FB's file, also a
-  system FB the project exports; one of an FB the project holds no file of, such as `TON_TIME`, stays closed. A line
-  above them names the file they come from. When the project holds no file of that FB or UDT (a library block, a block
-  or system FB not exported), the page says that its members could not be read.
+  default grey. A multi-instance opens there onto its FB's members when the project holds a file of that FB; one of an
+  FB it holds no file of, such as `TON_TIME`, stays closed. A line above them names the file they come from. When the
+  project holds no file of that FB or UDT (a block, system FB or library type the project does not export), the page
+  says that its members could not be read.
 - Reads the titles and comments from the `.s7res` beside the file, and a call's pins and the types it uses from the
   other exports of the project the file is in (the folder that holds `plc`, `hmi` and `library`, else the git repo,
   else the file's own folder).

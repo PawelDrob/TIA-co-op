@@ -274,8 +274,8 @@ def _unfold(node, types, opened, fbs=False):
     (types), in its own section, as TIA lists them when it opens; a UDT or struct among them too. Under an in-out their
     boxes are empty, as the in-out's own (_boxes). fbs (an instance DB's members): an FB instance too, onto its FB's
     Input, Output, InOut and Static, one inside it as well. Not an array, an FB instance elsewhere, or a type the input
-    lacks (no file of it, such as TON_TIME): those stay as they are. opened: the types opened above it, which it does not open again (a UDT
-    or FB that would hold itself by a chain)."""
+    lacks (no file of it, such as TON_TIME): those stay as they are. opened: the types opened above it, which it does
+    not open again (a UDT or FB that would hold itself by a chain)."""
     name = type_name(node.type).lower()
     if not node.children and not re.match(r'Array\s*\[', node.type or '', re.I) and name not in opened:
         owner = _owner(node, types, None)
@@ -568,9 +568,9 @@ def _base(blk):
 
 
 def db_type(blk):
-    """The viewer's: (name, interface) of the FB or UDT a DB is of, the interface None when the project holds no FB or
-    UDT of that name (none, or another kind of block, an FC); (None, None) for a block that is no DB of a type. The
-    report takes whatever the name finds (_base)."""
+    """The viewer's: (name, interface) of the FB or UDT a DB is of, from the file blk.callees finds for that name; the
+    interface None when it finds none, or the file of another kind of block (an FC); (None, None) for a block that is
+    no DB of a type. The report takes whatever the name finds (_base)."""
     name = decl_type(blk.decl) if blk is not None and blk.kind == 'DATA_BLOCK' else ''
     if not name:
         return None, None
