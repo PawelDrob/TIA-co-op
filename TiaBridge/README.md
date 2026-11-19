@@ -36,7 +36,8 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   - In a TIA with a window the export does not block that window, so you can edit in TIA while it runs. When the export
     starts, it lists the blocks, DBs, data types and tag tables of each PLC once and goes by that list. What an edit
     after that gives, read from the bridge's code and not tried in TIA, the next export puts right:
-    - an object deleted: its files stay. If the export was still to export it, not skip it, that export fails;
+    - an object deleted: its files stay. If the export was still to export it, not skip it, its export fails: it is in
+      `failed`, and the other objects are exported;
     - an object added: it is not exported;
     - an object renamed: its files stay under the old name. If the export was still to export it, not skip it, it is
       exported under its old file name;
