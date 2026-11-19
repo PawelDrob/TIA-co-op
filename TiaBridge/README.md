@@ -47,10 +47,11 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
 - Exports HMI cycles full and imports them from that export. A cycle file an older version exported minimal is refused, as
   TIA reads one as "start at starting point" off. Export the cycles again first: the next change report then shows the
   cycles as changed, by export differences only, folded.
-- Imports a slide-in, the global elements and the screen overview from their export, over the device's own only. Refuses
-  global elements holding a screen item, as a text field there ended TIA. Refuses a slide-in or global screen that
-  `hmi\handbuilt.json` lists: an import is taken to drop what Openness cannot export, as on a screen, though on these
-  that was not tried.
+- Imports a slide-in, the global elements and the screen overview from their export, over the device's own only, the
+  global elements and the overview only when you say so: the global elements can hold an alarm window and an alarm
+  indicator, which Openness does not export. Refuses global elements holding a screen item, as a text field there ended
+  TIA. Refuses a slide-in or global screen that `hmi\handbuilt.json` lists: an import is taken to drop what Openness
+  cannot export, as on a screen, though on these that was not tried.
 - Imports a graphic with the image folder its export wrote beside it, and refuses one whose image is not there. Refuses a
   graphic list that names a graphic the project does not have: import the graphic first.
 - Imports a VB script with a syntax error as TIA does, without a word. The HMI compile found the error only once a screen

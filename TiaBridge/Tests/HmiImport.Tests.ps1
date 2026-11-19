@@ -573,11 +573,22 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r.next | Should Match '^compile the hmi scope'
     }
 
-    It 'imports the global elements and the overview through their own imports' {
+    It 'refuses an import over the global screens unless override is passed true, as their alarm window and indicator do not export' {
+        $repo = New-HmiRepo 'GlobalNoOverride'
+        Write-TextFile (Join-Path $repo 'hmi\global\ScreenGlobalElements.xml') (New-GlobalElementsDocument)
+        $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\ScreenGlobalElements.xml')
+        $r.ok | Should Be $false
+        $r.override | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match "exists and override is false; nothing imported\. .*alarm window and an alarm indicator"
+        $r.items[0].refused | Should Match "user"
+    }
+
+    It 'imports the global elements and the overview through their own imports, with override true' {
         $repo = New-HmiRepo 'GlobalOver'
         Write-TextFile (Join-Path $repo 'hmi\global\ScreenGlobalElements.xml') (New-GlobalElementsDocument)
         Write-TextFile (Join-Path $repo 'hmi\global\Overview.xml') $overview
-        $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\ScreenGlobalElements.xml', 'hmi\global\Overview.xml')
+        $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\ScreenGlobalElements.xml', 'hmi\global\Overview.xml') -Override $true
         $r.ok | Should Be $true
         ($script:imported -join ',') | Should Be 'ScreenGlobalElements Override,ScreenOverview Override'
         @($r.items | ForEach-Object { $_.name }) -join ',' | Should Be 'ScreenGlobalElements,ScreenOverview'

@@ -357,7 +357,7 @@ function Test-GraphicListFile($File, [hashtable]$Cache) {
 # exports cannot carry, as it is taken to on a screen, is [INFERRED], not tried: the validator refuses one listed in
 # handbuilt.json (rules\handbuilt.py), and the result says so. A new one and a delete were not tried.
 # overrideLoses of the result, when one went in.
-$script:HmiFixedScreenNote = 'An Override is taken to drop what Openness cannot export, as on a screen; on these it was not tried. If the global elements held an alarm window or alarm indicator, or a slide-in a control the export leaves out, look in TIA whether it is still there; the session archive holds the project as it was. List such a slide-in or the global elements in hmi\[<device>\]handbuilt.json, and the validator refuses the next import over it.'
+$script:HmiFixedScreenNote = 'An Override is taken to drop what Openness cannot export, as on a screen; on these it was not tried. If the global elements held an alarm window or alarm indicator, or a slide-in a control the export leaves out, the user looks in TIA whether it is still there (Openness does not see them): pass this on. The session archive, unless it was skipped, holds the project as it was when this session began, not just before this import. List such a slide-in or the global elements in hmi\[<device>\]handbuilt.json, and the validator refuses the next import over it.'
 $script:HmiFixedScreenAfterImport = { param($result, $items) if (@($items | Where-Object { $_.ok }).Count) { $result.overrideLoses = $script:HmiFixedScreenNote } }
 # The global screens by name, as list and whoseFile name them, with the HmiTarget import of each; the document's object
 # is Hmi.Screen.<name>.
@@ -394,12 +394,15 @@ Register-ObjectKind 'hmi_slidein' @{
         @{ name = $edge.InnerText.Trim() } }
 }
 
+# Override only when passed true, as for templates: the global elements can hold an alarm window and an alarm indicator
+# (docs\agent\wincc-screen-objects.md, ScreenGlobalElements), which count as invisible to Openness.
 Register-ObjectKind 'hmi_screen_global' @{
     scope = 'hmi'; dir = 'hmi\global'; importDir = 'hmi\global'
     importGuard = $script:HmiImportGuard
-    defaultOverride = $true
+    defaultOverride = $false
+    overrideWhy = 'The global elements can hold an alarm window and an alarm indicator, which Openness does not export, and an import over them is taken to drop those (not tried). Ask the user whether they hold either; pass override true only on the user''s yes to this import, and list them in hmi\[<device>\]handbuilt.json if they do. The screen overview is of this kind and goes under the same rule.'
     noDelete = 'The global elements and the screen overview are the device''s own; a delete was not tried on a real TIA.'
-    description = 'the global elements and the screen overview (ScreenGlobalElements, ScreenOverview); exported full and imported from hmi\[<device>\]global after the HMI validator passed, over the device''s own only; a screen item in the global elements is refused (a text field there ended TIA, others were not tried); not deleted'
+    description = 'the global elements and the screen overview (ScreenGlobalElements, ScreenOverview); exported full and imported from hmi\[<device>\]global after the HMI validator passed, over the device''s own only and only with override true (the global elements can hold an alarm window and alarm indicator, which do not export); a screen item in the global elements is refused (a text field there ended TIA, others were not tried); not deleted'
     items = { param($hmi)
         foreach ($n in $script:HmiGlobalScreens.Keys) { $o = $hmi.$n; if ($null -ne $o) { @{ obj = $o; name = $n; folder = '' } } } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
