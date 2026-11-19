@@ -7,13 +7,15 @@ local app data, fake claude on the PATH: the first double-click (wscript.exe Set
 opens page 1; the window pictures every page, presses every button that changes something (the viewer under a test key,
 the dashboards on free ports: the development dashboard's port held by another program, the TIA dashboard started for
 real from the temp clone) and finishes. The second double-click must open the menu; a third, with no claude on the
-PATH, pictures what a PC without Claude Code sees. All the while it watches the
+PATH, pictures what a PC without Claude Code sees; a fourth, the rows of the folder, the server and the viewer
+each with a change to make (three_rows). All the while it watches the
 hidden desktop for console windows: the first run's uv sync may have one, the second run none. Pictures and done.txt of
 each run go to <folder>\\first and <folder>\\second. It starts no TIA, writes nothing of the real user's, and ends the
 dashboard it started by its Windows process number.
 """
 import argparse
 import ctypes
+import json
 import os
 import shutil
 import signal
@@ -169,6 +171,20 @@ def environment(temp):
     return env
 
 
+def three_rows(temp, key):
+    """After the first run: one allow rule taken out by hand, the user's tia another clone's, the viewer not registered
+    with "Open with" naming another program. The rows of the folder, the server and the viewer then each show a change."""
+    config = temp / 'home' / '.claude'
+    user = json.loads((config / 'settings.json').read_text(encoding='utf-8'))
+    user['permissions']['allow'] = user['permissions']['allow'][1:]
+    (config / 'settings.json').write_text(json.dumps(user, indent=2), encoding='utf-8')
+    state = json.loads((config / '.claude.json').read_text(encoding='utf-8'))
+    state['mcpServers']['tia']['args'][-1] = str(temp / 'other-clone' / 'TiaBridge' / 'TiaBridge.ps1')
+    (config / '.claude.json').write_text(json.dumps(state), encoding='utf-8')
+    register.unregister(key + r'\Classes', notify=False)
+    register.write_value(key + r'\UserChoice', '', 'Other.Editor', 'ProgId')
+
+
 def run(desktop, clone, env, out, options, report):
     """One double-click on the hidden desktop, as Explorer does it: wscript.exe on Setup.wsf, its arguments for the snap."""
     watcher = desktop.watch()
@@ -219,6 +235,8 @@ def main(argv=None):
             if shutil.which('claude', path=without_claude['PATH']):
                 raise SystemExit(f'claude is still on the PATH of the run without it: {without_claude["PATH"]}')
             run(desktop, clone, without_claude, out / 'without-claude', [*options, '--page', '1'], report)
+            three_rows(temp, key)
+            run(desktop, clone, env, out / 'three-rows', [*options, '--settings'], report)
         finally:
             holder.kill()
             pid = dash.listener(tia).split('process ')[-1].rstrip(')')

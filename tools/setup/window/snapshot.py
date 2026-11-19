@@ -54,7 +54,8 @@ class Snapshot:
         if what == 'menu':
             w.finish()
         elif what == 'detail':
-            w.shown_details = {'projectsRoot'}      # Show what changes, on the folder's row
+            look = w.page_look()        # Show what changes, on every row of the page that has it
+            w.shown_details = {r.key for r in model.page_rows(look, model.PAGES[page][0]) if r.details}
             w.go(page)
         elif what == 'opens':
             self.log.append('opens ' + ('the menu' if page is None else f'page {page + 1}'))
