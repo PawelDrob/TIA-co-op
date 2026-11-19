@@ -8,6 +8,7 @@ column, written here. A LAD network's SVG is the one the report draws for it unc
 the same bytes). Calls and types are read from the project the file is in (project_root), as the report reads them
 from the folder it compares."""
 import os
+import xml.etree.ElementTree as ET
 from dataclasses import replace
 from html import escape
 from types import SimpleNamespace
@@ -15,8 +16,10 @@ from types import SimpleNamespace
 from TiaChangeReports import iface
 from TiaChangeReports.compare import BlockDiff, Callees
 from TiaChangeReports.page import CSS, FOLD_ALL, JS, _lad_pane, folds, version_html
+from TiaChangeReports.names import decl_type
 from TiaChangeReports.render_lad import Layout
-from TiaChangeReports.s7dcl import parse_block, scl_lines
+from TiaChangeReports.s7dcl import LANG, SET_IN_IDB, parse_block, scl_lines
+from TiaChangeReports.simaticml import parse_interface
 from TiaChangeReports.source import REPO_MARKS, FolderSnapshot, from_file, name_of
 
 EXTENSIONS = ('.s7dcl', '.xml')
@@ -48,10 +51,38 @@ def block_of(path):
     if src.xml is None and os.path.splitext(path)[1].lower() == '.xml':     # from_file reads a lower-case .xml only
         src = replace(src, s7dcl='', s7res=None, xml=src.s7dcl)
     blk = parse_block(src)
+    if src.xml is not None and decl_type(blk.decl) and blk.kind == 'DATA_BLOCK' and not blk.interface.start:
+        blk.interface.start = _xml_db(src).start
     root = project_root(path)
     rel = os.path.relpath(os.path.abspath(path), root).replace(os.sep, '/')
     blk.callees = Callees(FolderSnapshot(root)).at(rel)
     return blk, src, root, rel
+
+
+def _xml_db(src):
+    """The SimaticML of a DB read as a global DB's: its members with their retain, and the start values it sets. The
+    reader leaves both out of an instance DB and a DB of a UDT (as the .s7dcl has them; ticket 356 of the tracker)."""
+    return parse_interface(ET.fromstring(src.xml.lstrip('﻿').encode('utf-8')), LANG, db=True)
+
+
+def type_of(blk):
+    """(name, its interface or None) of the FB or UDT a DB is of; None for any other block. Read as a call's
+    interface (compare.Callees): by name in any case, the project's block before a library type."""
+    name = decl_type(blk.decl) if blk.kind == 'DATA_BLOCK' else ''
+    if not name:
+        return None
+    itf = blk.callees(name) if blk.callees else None
+    return name.strip('"'), itf if getattr(getattr(itf, 'block', None), 'kind', '') in ('FUNCTION_BLOCK', 'TYPE') else None
+
+
+def db_retain(blk, src, base):
+    """The retain a DB sets itself: on the members its FB leaves to the instance ("Set in IDB") and on every member of a
+    DB of a UDT. The .s7dcl writes it as S7_StandardRetain, a SimaticML export on each such member."""
+    if src.xml is None:
+        return blk.props.get('S7_StandardRetain', '').upper() == 'TRUE'
+    own = _xml_db(src).root.children
+    return any(own[k].retain is True for k, m in base.root.children.items()
+               if k in own and (m.section == 'UDT' or m.retain == SET_IN_IDB))
 
 
 def lad_svg(net, blk):
@@ -97,14 +128,35 @@ def heading(blk):
     return '%s [%s%s]' % (d.name, d.kind, blk.props.get('S7_BlockNumber') or '')
 
 
-def block_html(blk, src, rel):
+def _type_html(typ, root, table):
+    """An instance DB's or a DB of a UDT's interface: the file its members come from, which start values are its own,
+    and the table; or that its members could not be read, above the start values the DB sets (table)."""
+    name, itf = typ
+    if itf is None:
+        return ('<div class="of none">Instance of %s: its members could not be read, no file of %s in the project.</div>'
+                '%s' % (escape(name), escape(name), table))
+    kind = 'UDT' if itf.block.kind == 'TYPE' else 'FB'
+    path = os.path.relpath(itf.block.label, root).replace(os.sep, '/')
+    head = 'Members of %s %s, from %s.' % (kind, escape(name), escape(path))
+    if not table:
+        return '<div class="of">%s</div><div class="empty">The %s declares no members.</div>' % (head, kind)
+    return ('<div class="of">%s A start value in black is the DB\'s own, one in grey the %s\'s default.</div>%s'
+            % (head, kind, table))
+
+
+def block_html(blk, src, rel, root=''):
     """The block drawn: header, properties, interface, every network. The report's Collapse all and Expand all when
-    something folds."""
-    itf = iface.html(blk, blk, whole=True)
+    something folds. An instance DB or a DB of a UDT with the members of its FB or UDT (from root), and a line saying
+    from which file, or that they could not be read."""
+    typ = type_of(blk)
+    itf = iface.html(blk, blk, whole=True,
+                     db_retain=bool(typ and typ[1] is not None and db_retain(blk, src, typ[1])))
     parts = ['<div class="bh"><b>%s</b>%s<span class="paths">%s</span>%s</div>'
              % (escape(heading(blk)), version_html(src.version, src.version), escape(rel),
                 FOLD_ALL if blk.networks or folds(itf) else ''),
              _props_html(blk)]
+    if typ:
+        itf = _type_html(typ, root, itf)
     if itf:
         parts.append('<div class="nw itfw"><div class="nwh"><b>Interface</b><span class="tag">DECLARATION</span></div>'
                      '%s</div>' % itf)
@@ -169,6 +221,8 @@ main{padding:0 16px 40px}
 .why{margin:12px 0;padding:8px 12px;background:#fde7e9;border:1px solid #c42b1c;white-space:pre-wrap;word-break:break-word}
 .view[hidden]{display:none}
 .read{margin:4px 0 0;font-size:12px;color:#595959}
+.ldiff .of{padding:3px 8px;font-size:12px;color:#595959;word-break:break-word}
+.ldiff .of.none{background:#fde7e9;color:#000}
 .ldiff .nwt,.ldiff .nwc,.ldiff .panes{grid-template-columns:1fr}
 .ldiff .nwc .side{padding-left:30px}
 .ldiff .src .nw table.scl td{white-space:pre-wrap}
@@ -200,7 +254,7 @@ def page(path):
     drawing, why, title = None, None, os.path.basename(path)
     try:
         blk, src, root, rel = block_of(path)
-        drawing = block_html(blk, src, rel)
+        drawing = block_html(blk, src, rel, root)
         title = heading(blk)
         read = '<p class="read">Calls and types read from %s</p>' % escape(name_of(root))
     except Exception as ex:                              # noqa: BLE001 - any error of this file: its source, with why

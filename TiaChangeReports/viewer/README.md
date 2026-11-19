@@ -13,6 +13,10 @@ Opens one PLC block export in your default browser, drawn as the [change report]
   one whose UDT the project does not hold has nothing to open and no arrow. An array of a UDT, an FB instance and a
   system type such as `TON_TIME` stay closed, with no arrow. The change report opens them only where a DB's start
   values name their members.
+- Draws an instance DB, or a DB of a UDT, with the members of its FB or UDT, read from that block's file in the
+  project: each with its type, comment, start value and retain. A start value the DB sets itself is black, the FB's
+  default grey. A line above them names the file they come from. When the project holds no file of that FB or UDT
+  (a library block, a system FB, a block not exported), the page says that its members could not be read.
 - Reads the titles and comments from the `.s7res` beside the file, and a call's pins and the types it uses from the
   other exports of the project the file is in (the folder that holds `plc`, `hmi` and `library`, else the git repo,
   else the file's own folder).

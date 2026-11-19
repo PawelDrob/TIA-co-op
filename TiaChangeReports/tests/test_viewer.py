@@ -378,5 +378,194 @@ class UdtMembers(unittest.TestCase):
                           (1, '▶', 'scratch'), (1, '', 'go2')])
 
 
+# An FB with members in every section, a default, a retain of its own and one set in the instance, a UDT member and a
+# multi-instance; its instance DB sets a start value of its own and one on a nested member.
+PUMP = '''FUNCTION_BLOCK "Pump"
+    VAR_INPUT
+        start : Bool;
+        speed : Int := 3;
+    END_VAR
+    VAR_OUTPUT
+        running : Bool;
+    END_VAR
+    VAR_IN_OUT
+        pos : Int;
+    END_VAR
+    VAR
+        { S7_MLC := "MLC_s" }
+        stat : Int := 7;
+        cmd : _.Probe;
+        drive : _.Valve;
+        other : _.Valve;
+    END_VAR
+    VAR RETAIN
+        count : DInt;
+    END_VAR
+    VAR DB_SPECIFIC
+        kept : Int;
+    END_VAR
+    VAR_TEMP
+        scratch : Int;
+    END_VAR
+    VAR CONSTANT
+        LIMIT : Int := 1;
+    END_VAR
+END_FUNCTION_BLOCK
+'''
+PUMP_RES = 'MultiLingualTexts:\n  - id: MLC_s\n    en-US: state of the pump\n'
+VALVE = '''FUNCTION_BLOCK "Valve"
+    VAR_INPUT
+        open : Bool;
+    END_VAR
+    VAR
+        time : Int := 4;
+    END_VAR
+    VAR_TEMP
+        tmp : Int;
+    END_VAR
+END_FUNCTION_BLOCK
+'''
+PUMP_DB = '''{
+    S7_StandardRetain := "TRUE"
+}
+DATA_BLOCK PumpDb : Pump
+    speed := 9;
+    cmd.down := 2;
+    drive.time := 6;
+END_DATA_BLOCK
+'''
+
+# The SimaticML of the same instance DB, as TIA writes one: the FB's members of Input, Output, InOut and Static with
+# the retain of this DB, a UDT's and a multi-instance's members nested, a StartValue only where the DB sets its own.
+PUMP_DB_XML = '''<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <SW.Blocks.InstanceDB ID="0">
+    <AttributeList>
+      <InstanceOfName>Pump</InstanceOfName>
+      <InstanceOfType>FB</InstanceOfType>
+      <Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+  <Section Name="Input">
+    <Member Name="start" Datatype="Bool" Remanence="NonRetain" />
+    <Member Name="speed" Datatype="Int" Remanence="NonRetain"><StartValue>9</StartValue></Member>
+  </Section>
+  <Section Name="Output"><Member Name="running" Datatype="Bool" Remanence="NonRetain" /></Section>
+  <Section Name="InOut"><Member Name="pos" Datatype="Int" Remanence="NonRetain" /></Section>
+  <Section Name="Static">
+    <Member Name="stat" Datatype="Int" Remanence="NonRetain" />
+    <Member Name="cmd" Datatype="&quot;Probe&quot;" Remanence="NonRetain">
+      <Sections><Section Name="None">
+        <Member Name="up" Datatype="Bool" />
+        <Member Name="down" Datatype="Int"><StartValue>2</StartValue></Member>
+      </Section></Sections>
+    </Member>
+    <Member Name="drive" Datatype="&quot;Valve&quot;" Remanence="NonRetain">
+      <Sections>
+        <Section Name="Input"><Member Name="open" Datatype="Bool" /></Section>
+        <Section Name="Static"><Member Name="time" Datatype="Int"><StartValue>6</StartValue></Member></Section>
+      </Sections>
+    </Member>
+    <Member Name="other" Datatype="&quot;Valve&quot;" Remanence="NonRetain" />
+    <Member Name="count" Datatype="DInt" Remanence="Retain" />
+    <Member Name="kept" Datatype="Int" Remanence="Retain" />
+  </Section>
+</Sections></Interface>
+      <Name>PumpDb</Name>
+      <Number>3</Number>
+      <ProgrammingLanguage>DB</ProgrammingLanguage>
+    </AttributeList>
+  </SW.Blocks.InstanceDB>
+</Document>
+'''
+
+
+class InstanceDb(unittest.TestCase):
+    """An instance DB, and a DB of a UDT, shows the members of its FB or UDT from that block's file: by section, with
+    the DB's own start values apart from the FB's defaults; a type the project lacks is said."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = tmp.name
+        _write(self.dir, {'blocks/Pump.s7dcl': PUMP, 'blocks/Pump.s7res': PUMP_RES, 'blocks/Valve.s7dcl': VALVE,
+                          'blocks/PumpDb.s7dcl': PUMP_DB, 'types/Probe.s7dcl': PROBE})
+        os.mkdir(os.path.join(self.dir, '.git'))
+
+    def page(self, rel):
+        return view.page(os.path.join(self.dir, *rel.split('/')))[0]
+
+    def cells(self, html):
+        """{(parent, member): the rest of its row} and [(level, arrow, name)] of the interface table."""
+        out, order, parent = {}, [], None
+        for d, _, tw, name, rest in ROW.findall(html):
+            parent = name if d == '1' else parent
+            out[(parent, name) if d != '1' else name] = rest
+            order.append((int(d), tw, name))
+        return out, order
+
+    def test_the_members_of_its_fb_by_section_its_own_start_values_apart(self):
+        html = self.page('blocks/PumpDb.s7dcl')
+        cells, order = self.cells(html)
+        self.assertEqual([x for x in order if x[0] == 1], [
+            (1, '', 'start'), (1, '', 'speed'), (1, '', 'running'), (1, '', 'pos'), (1, '', 'stat'), (1, '▼', 'cmd'),
+            (1, '▼', 'drive'), (1, '', 'other'), (1, '', 'count'), (1, '', 'kept')])     # no Temp, no Constant
+        self.assertEqual(re.findall(r'data-d="0"><span class="tw">▼</span>(\w+)', html),
+                         ['Input', 'Output', 'InOut', 'Static'])
+        self.assertIn('<td>9</td>', cells['speed'])                                    # the DB's own: black
+        self.assertIn('<span class="dflt">7</span>', cells['stat'])                    # the FB's default: grey
+        self.assertIn('state of the pump', cells['stat'])                              # the FB's comment
+        self.assertIn('<td>2</td>', cells['cmd', 'down'])                              # a nested start value
+        self.assertIn('<td>6</td>', cells['drive', 'time'])                           # inside a multi-instance
+        self.assertNotIn(('drive', 'tmp'), cells)                                      # its Temp neither
+        self.assertIn('Members of FB Pump, from blocks/Pump.s7dcl.', html)
+        self.assertNotIn('No members', html)
+
+    def test_retain_as_the_fb_declares_it_and_set_in_the_instance(self):
+        def retain(html, name):
+            return bool(re.search(r'<span class="cb on', re.findall(r'<td[^>]*>(.*?)</td>', self.cells(html)[0][name])[2]))
+        html = self.page('blocks/PumpDb.s7dcl')
+        self.assertEqual([retain(html, n) for n in ('stat', 'count', 'kept')], [False, True, True])
+        _write(self.dir, {'blocks/PumpDb.s7dcl': PUMP_DB.replace('"TRUE"', '"FALSE"')})
+        html = self.page('blocks/PumpDb.s7dcl')
+        self.assertEqual([retain(html, n) for n in ('stat', 'count', 'kept')], [False, True, False])
+
+    def test_a_db_whose_fb_is_not_in_the_project_says_so(self):
+        _write(self.dir, {'blocks/LostDb.s7dcl': 'DATA_BLOCK LostDb : Gone\n    speed := 1;\nEND_DATA_BLOCK\n'})
+        html = self.page('blocks/LostDb.s7dcl')
+        self.assertIn('Instance of Gone: its members could not be read, no file of Gone', html)
+        self.assertNotIn('No members', html)
+        self.assertEqual(self.cells(html)[1], [(1, '', 'speed')])         # only what the DB itself says, below the line
+        self.assertLess(html.index('could not be read'), html.index('<table class="itf"'))
+
+    def test_a_db_of_a_udt_shows_the_udts_members(self):
+        _write(self.dir, {'blocks/ProbeDb.s7dcl': '{\n    S7_StandardRetain := "TRUE"\n}\n'
+                                                  'DATA_BLOCK ProbeDb : Probe\n    up := TRUE;\nEND_DATA_BLOCK\n'})
+        html = self.page('blocks/ProbeDb.s7dcl')
+        cells, order = self.cells(html)
+        self.assertEqual(order, [(1, '', 'up'), (1, '', 'down')])
+        self.assertEqual(re.findall(r'data-d="0"><span class="tw">▼</span>(\w+)', html), ['Static'])
+        self.assertIn('<td>TRUE</td>', cells['up'])
+        self.assertIn('<span class="dflt">5</span>', cells['down'])
+        self.assertIn('Members of UDT Probe, from types/Probe.s7dcl.', html)
+
+    def test_its_simaticml_export_gives_the_same_table(self):
+        _write(self.dir, {'blocks/PumpDb.xml': PUMP_DB_XML})
+        tables = [re.search(r'<div class="of">.*?</table>', self.page('blocks/PumpDb.' + x), re.S).group(0)
+                  for x in ('s7dcl', 'xml')]
+        self.assertEqual(tables[0], tables[1])
+        self.assertIn('<td>9</td>', tables[1])
+        _write(self.dir, {'blocks/PumpDb.s7dcl': PUMP_DB.replace('"TRUE"', '"FALSE"'),
+                          'blocks/PumpDb.xml': PUMP_DB_XML.replace('"kept" Datatype="Int" Remanence="Retain"',
+                                                                   '"kept" Datatype="Int" Remanence="NonRetain"')})
+        self.assertEqual(*[re.search(r'<div class="of">.*?</table>', self.page('blocks/PumpDb.' + x), re.S).group(0)
+                           for x in ('s7dcl', 'xml')])
+
+    def test_the_reports_table_of_an_instance_db_is_as_before(self):
+        from TiaChangeReports import iface
+        blk, _, _, _ = view.block_of(os.path.join(self.dir, 'blocks', 'PumpDb.s7dcl'))
+        self.assertEqual([r.path for r in iface.block_rows(blk, blk)],
+                         [('speed',), ('cmd',), ('cmd', 'up'), ('cmd', 'down'), ('drive',), ('drive', 'open'),
+                          ('drive', 'time'), ('drive', 'tmp')])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -204,10 +204,12 @@ def _elements(node, types):
         _elements(m, types)
 
 
-def _tree(itf, types=None, base=None, unfold=False):
+def _tree(itf, types=None, base=None, unfold=False, db_retain=False):
     """The member tree with the DB start values in it (a copy; the parsed interface stays as it is); unfold, every
-    member of a UDT type opened (_unfold)."""
+    member of a UDT type opened (_unfold), and every member of a DB's own type listed (_instance)."""
     root = copy.deepcopy(itf.root)
+    if unfold and base is not None:
+        _instance(root, base, types, db_retain)
     _elements(root, types)
     for key, (value, comment) in itf.start.items():
         node = root
@@ -222,10 +224,25 @@ def _tree(itf, types=None, base=None, unfold=False):
         if comment:
             node.comment = comment
     for m in root.children.values():
-        _fill(m, types)
+        _fill(m, types, unfold)
         if unfold:
             _unfold(m, types, ())
     return root
+
+
+INSTANCE_SECTIONS = ('INPUT', 'OUTPUT', 'IN_OUT', 'STAT', 'UDT')     # what an instance holds of its FB, a DB of its UDT
+
+
+def _instance(root, base, types, db_retain):
+    """The viewer's: an instance DB or a DB of a UDT holds every member of its FB's Input, Output, InOut and Static
+    sections (every member of its UDT), in their order, as TIA's DB editor lists them: an Inner with the type,
+    comment, default and attributes of the FB's file. Retain: the FB's; where the FB leaves it to the instance ("Set in
+    IDB"), and on every member of a DB of a UDT, the DB's own (db_retain)."""
+    for k, m in base.root.children.items():
+        if m.section in INSTANCE_SECTIONS and k not in root.children:
+            kid = _new_inner(root, k, types, base)
+            kid.retain = db_retain if m.section == 'UDT' or m.retain == SET_IN_IDB else m.retain
+            root.children[k] = kid
 
 
 def _unfold(node, types, opened_udts):
@@ -248,18 +265,20 @@ def _unfold(node, types, opened_udts):
         _unfold(m, types, opened_udts)
 
 
-def _fill(node, types):
+def _fill(node, types, unfold=False):
     """A UDT or FB instance that start values unfold gets the other members of its type too, in the type's order,
     as TIA lists them under it (unchanged, so folded); so does an element of an array of struct that only
-    its own comment or start value names. Not the elements of an array."""
+    its own comment or start value names. Not the elements of an array. unfold (the viewer): of an FB not its Temp and
+    constants, which no instance holds (the report lists them)."""
     if any(isinstance(m, Inner) and not k.endswith(']') for k, m in node.children.items()) or (
             isinstance(node, Inner) and node.name.endswith(']') and node.decl is not None and node.decl.children):
         owner = _owner(node, types, None)
         if owner is not None:
-            kids = {k: node.children.get(k) or _new_inner(node, k, types, None) for k in owner.root.children}
+            kids = {k: node.children.get(k) or _new_inner(node, k, types, None) for k, m in owner.root.children.items()
+                    if not unfold or m.section in INSTANCE_SECTIONS or k in node.children}
             node.children = dict(kids, **{k: m for k, m in node.children.items() if k not in kids})
     for m in node.children.values():
-        _fill(m, types)
+        _fill(m, types, unfold)
 
 
 def _has(parent, other, key, types, base):
@@ -462,12 +481,13 @@ def _moves(fb, fa, to_a):
     return out
 
 
-def rows(bitf, aitf, types=(None, None), bases=(None, None), unfold=False):
+def rows(bitf, aitf, types=(None, None), bases=(None, None), unfold=False, db_retain=False):
     """types: (before, after) name -> Interface of a UDT (compare.Callees); bases: the interface of a DB's own
     type (a DB of a UDT, an instance DB); both for the members that only DB start values name. unfold: every member
-    of a UDT type opened onto the UDT's members (the viewer; the report opens only what start values name)."""
-    tb = _tree(bitf, types[0], bases[0], unfold) if bitf else None
-    ta = _tree(aitf, types[1], bases[1], unfold) if aitf else None
+    of a UDT type opened onto the UDT's members, and every member of a DB's own type listed, db_retain the retain of
+    those the DB decides itself (the viewer; the report opens only what start values name)."""
+    tb = _tree(bitf, types[0], bases[0], unfold, db_retain) if bitf else None
+    ta = _tree(aitf, types[1], bases[1], unfold, db_retain) if aitf else None
     if tb is not None and ta is not None:
         _complete(tb, ta, types, bases)
     fb = _flat(tb) if tb is not None else []
@@ -532,10 +552,10 @@ def _returns(blk):
     return out
 
 
-def block_rows(bblock, ablock, unfold=False):
+def block_rows(bblock, ablock, unfold=False, db_retain=False):
     bs = (bblock, ablock)
     return rows(*(_returns(b) if b else None for b in bs), types=tuple(getattr(b, 'callees', None) for b in bs),
-                bases=tuple(_base(b) for b in bs), unfold=unfold)
+                bases=tuple(_base(b) for b in bs), unfold=unfold, db_retain=db_retain)
 
 
 def props_rows(bprops, aprops):
@@ -744,11 +764,12 @@ def declaration_html(before, after):
             % _both(escape(before), escape(after)))
 
 
-def html(bblock, ablock, whole=False):
+def html(bblock, ablock, whole=False, db_retain=False):
     """The interface as TIA's editor shows it: the changed members with their parents, the unchanged ones folded;
-    whole, every member open and every member of a UDT type opened onto the UDT's members, from its file; an arrow
-    only where something opens (the viewer's one block, compared with itself)."""
-    rs = block_rows(bblock, ablock, unfold=whole)
+    whole, every member open, every member of a UDT type opened onto the UDT's members, from its file, and a DB of an
+    FB or UDT with every member of it (db_retain: the retain the DB sets itself); an arrow only where something opens
+    (the viewer's one block, compared with itself)."""
+    rs = block_rows(bblock, ablock, unfold=whole, db_retain=db_retain)
     blk = ablock or bblock
     kind = blk.kind if blk else ''
     vhead, has_retain, has_attrs = _columns(kind)
