@@ -681,7 +681,7 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
     }
 
     # FC1 as a .NET object whose CompileDate getter throws, offering ModifiedDate, IsConsistent and CompileDate, with
-    # GetAttributes as given: what TIA does for a getter that throws is not probed (ticket 364), so both ways are tested.
+    # GetAttributes as given: what TIA does for a getter that throws is not probed, so both ways are tested.
     function Set-UnreadBlock([scriptblock]$GetAttributes) {
         if (-not ('SkipTestBlock' -as [type])) {
             Add-Type -TypeDefinition 'public class SkipTestBlock { public string Name; public System.DateTime ModifiedDate { get { return new System.DateTime(2026, 10, 8, 0, 0, 0, System.DateTimeKind.Utc); } } public bool IsConsistent { get { return true; } } public System.DateTime CompileDate { get { throw new System.NotSupportedException("not offered"); } } }'
@@ -721,15 +721,18 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
         # TIA answering null for the getter's error: the one call refused for the names FC1 lacks, then the names it offers
         $b = Set-UnreadBlock { param($Names)
             $this.reads++
-            if (@($Names | Where-Object { @('ModifiedDate', 'IsConsistent', 'CompileDate') -notcontains $_ }).Count) { throw "'$($Names[1])' is not supported by type 'Fake'." }
+            $lacks = @($Names | Where-Object { @('ModifiedDate', 'IsConsistent', 'CompileDate') -notcontains $_ })
+            if ($lacks.Count) { throw "'$($lacks[0])' is not supported by type 'Fake'." }
             , @(foreach ($n in $Names) { if ($n -eq 'CompileDate') { $null } else { $this.$n } }) }
         Assert-UnreadExported
+        # two plans, each: the call of every name, refused, then the call of the three names GetAttributeInfos lists
         $b.reads | Should Be 4
     }
 
-    It 'the parts take the plan''s lists: TIA''s tree is listed once' {
+    It 'the parts take the plan''s lists: only the plan lists TIA''s tree' {
         Initialize-SkipTest 'lists'
         $t = (Invoke-FullExportTool $script:parts).times
+        # one list for each of the four kinds of the one PLC: blocks, DBs, data types, tag tables
         $t.plan.steps.tia_list.n | Should Be 4
         foreach ($p in $t.parts) { "$($p.part) $($p.steps.Contains('tia_list'))" | Should Be "$($p.part) False" }
     }

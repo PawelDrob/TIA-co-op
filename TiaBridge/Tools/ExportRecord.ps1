@@ -182,7 +182,8 @@ function Read-ExportState($Kind, $Entry) {
 # property, or through GetAttribute where it has none and the object offers it: a name the call did not answer (the
 # object does not offer it, which then gives nothing), a name it answered null, and every name when the call failed. So a
 # value whose getter throws is named (unread) and the object exported, whether TIA refuses the call for it or answers
-# null: which of the two TIA does is not probed, as no object of the copies had such a getter (ticket 364).
+# null: which of the two TIA does is not probed, as no object probed had such a getter (docs\agent\openness-v20.md,
+# GetAttributes).
 function Read-ExportStateValues($Kind, $Entry) {
     $names = [string[]]$script:ExportStateAttributes[$Kind.name]
     $got = Read-TiaAttributeValues $Entry.obj $names $Kind.name
