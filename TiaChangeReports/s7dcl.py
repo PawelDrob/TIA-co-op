@@ -724,7 +724,7 @@ def _pin_line_key(line):
 
 def _pins_in_one_order(lines):
     """Each box's named pin lines in one order, as Element.sig compares them, their names already in one case
-    (_pin_in_one_case): the lines between a box's `(` and its `)` when all of them are named pins. A pin line that
+    (_pins_in_one_case): the lines between a box's `(` and its `)` when all of them are named pins. A pin line that
     opens another box ends them: nothing is sorted across boxes."""
     out, k = [], 0
     while k < len(lines):
@@ -741,19 +741,30 @@ def _pins_in_one_order(lines):
     return out
 
 
-def _pin_in_one_case(line):
-    """A line shaped as a named pin (`name := ...`, `name => ...`) with that name as compared (pin_key), wherever it
-    stands in the network: in LAD only a box's pin is written so. Another line as it stands."""
-    m = _NAMED_PIN.match(line)
-    return line if m is None else pin_key(m.group(1)) + line[m.end(1):]
+def _pins_in_one_case(lines):
+    """The lines with each pin's name as compared (pin_key): a line shaped as a named pin (`name := ...`) between a
+    box's `(` and its `)`, out of a pragma block, whose lines are shaped so too (`S7_GenerateENO := "TRUE"`)."""
+    out, depth, pragma = [], 0, False
+    for line in lines:
+        m = _NAMED_PIN.match(line)
+        if pragma:
+            pragma = not line.startswith('}')
+        elif line.startswith('{'):
+            pragma = not line.endswith('}')
+        elif depth and m:
+            line = pin_key(m.group(1)) + line[m.end(1):]
+        if not pragma:
+            depth += line.endswith('(') - line.startswith(')')
+        out.append(line)
+    return out
 
 
 def lad_lines(body):
     """A LAD network's text as compared: wires numbered, without what the two export formats write differently (the
     indentation, the trailing comma an XML export writes after the last parameter, a space after an empty output, the
     order of a box's named pins and the case of their names)."""
-    lines = [_pin_in_one_case(re.sub(r'\s*,$', '', l.strip())) for l in body.splitlines()]
-    lines = _pins_in_one_order([l for l in lines if l])
+    lines = [re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()]
+    lines = _pins_in_one_order(_pins_in_one_case([l for l in lines if l]))
     return numbered('\n'.join(lines)).split('\n') if lines else []
 
 

@@ -1308,6 +1308,13 @@ class PinsInAnotherCase(unittest.TestCase):
         (b,), (a,) = (parse_block(src(x, '', 'M')).networks for x in (BOX_FED, BOX_OTHER_CASE))
         self.assertEqual(1.0, similarity(b, a))
 
+    def test_lines_outside_a_box_keep_their_case(self):
+        """A pragma block's lines are written as a pin is (.s7dcl `S7_GenerateENO := "TRUE"`), and are no pin."""
+        from TiaChangeReports.s7dcl import lad_lines
+        got = lad_lines('{\nS7_GenerateENO := "TRUE";\nF_User_Card := "1"\n}\nB(\n{\nS7_X := "1"\n}\nPV := #a\n)')
+        self.assertEqual(['{', 'S7_GenerateENO := "TRUE";', 'F_User_Card := "1"', '}', 'B(', '{', 'S7_X := "1"', '}',
+                          'pv := #a', ')'], got)
+
     def test_lines_of_a_pin_in_another_case(self):
         from TiaChangeReports.s7dcl import lad_lines
         self.assertEqual(lad_lines('B(\nRET_VAL => #b,\npv := Add(\nIN1 := #a\n)\n)'),
