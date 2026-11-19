@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:50:15-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:57:08-05:00 }
 ---
 
 # TiaBridge internals
@@ -86,7 +86,7 @@ The rules count per device. The record lives in `.tiabridge-session.json` in the
 
 - **An `.s7dcl` of an OB is refused** ([why](../decisions.md#the-bridge)).
 - **A document under the wrong kind is refused,** as is one declaring a second object, or a keyword whose object cannot be read: every guard goes by the object a document declares.
-- **An import runs in one transaction per call, so it is all or nothing.** Where TIA refuses a transaction, or `useTransactions` is off, the files before a failure stay imported, and the result says so. A name TIA answers differently than the document declares is not ok.
+- **An import runs in one transaction per call, so it is all or nothing.** Where TIA refuses a transaction, `useTransactions` is off, or the kind runs without one (`project_texts`, `alarm_classes`), the files before a failure stay imported, and the result says so. A name TIA answers differently than the document declares is not ok.
 - **HMI screens, templates and pop-ups import only from `hmi\[<device>\]generated\<kind>`,** after `hmipreview validate --import`. Errors, open planned items and a newer TIA export refuse them. `override` passed as true lets a newer export be replaced; the screens' default does not. A validator that cannot run refuses the whole call.
 - **Faceplate type versions a screen names must be in the project library,** as a mismatch has crashed TIA.
 - **A screen whose number another screen of the device has is refused,** new or over another screen, naming that screen: it ended TIA. Openness gives a screen no number, so the precheck of `hmi_screen` exports each screen of the device once per call, without defaults (a missing number is 1). The call's documents then count in order, as TIA imports them: an override frees the number it had, and a document without a number takes the lowest free one. A screen that cannot be exported or read refuses the call, and so does a document whose number is no whole number.
