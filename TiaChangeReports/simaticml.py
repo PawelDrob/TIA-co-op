@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 from . import instructions, s7dcl
 from .iface import setpoint_default
 from .names import object_name
-from .s7dcl import RELATIONS, SCL_KEYWORDS, Block, Element, Interface, Member, Network, Rung, part_text, wire_of
+from .s7dcl import COIL_SIGNALS, RELATIONS, SCL_KEYWORDS, Block, Element, Interface, Member, Network, Rung, part_text, pin_key, wire_of
 
 KINDS = {'SW.Blocks.OB': 'ORGANIZATION_BLOCK', 'SW.Blocks.FB': 'FUNCTION_BLOCK', 'SW.Blocks.FC': 'FUNCTION',
          'SW.Blocks.GlobalDB': 'DATA_BLOCK', 'SW.Blocks.InstanceDB': 'DATA_BLOCK', 'SW.Blocks.ArrayDB': 'DATA_BLOCK',
@@ -895,8 +895,11 @@ def _element(eid, e, net, name):
         rest.sort(key=lambda x: (x in flow, x if x in flow else ''))          # pins fed by logic after them
         params = [(instructions.sd_pin(instr, x), direction(x), value(x)) for x in rest]
     params += rung_negated()
-    return Element(eid, instr, instance, params, templates, expression=_text(p, 'Equation') or None,
-                   no_eno=p.get('DisabledENO') == 'true', more=more)
+    el = Element(eid, instr, instance, params, templates, expression=_text(p, 'Equation') or None,
+                 no_eno=p.get('DisabledENO') == 'true', more=more)
+    if el.kind == 'coil':                     # its operand an output, as .s7dcl writes it: the XML wires it as an input
+        el.params = [(n, '=>' if d and pin_key(n) in COIL_SIGNALS else d, v) for n, d, v in el.params]
+    return el
 
 
 # ---------------------------------------------------------------- interface

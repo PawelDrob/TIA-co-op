@@ -509,6 +509,10 @@ class Element:
 CMP = {'EQ_Contact': '==', 'NE_Contact': '<>', 'LT_Contact': '<', 'GT_Contact': '>',
        'LE_Contact': '<=', 'GE_Contact': '>='}
 
+# The pin that holds a coil's operand, by the .s7dcl's name: an output by its instruction (`timer => #t`) where the coil
+# names its pins, its operand above it in the drawing.
+COIL_SIGNALS = ('operand', 'timer', 'counter')
+
 # relation of a Switch case: the SimaticML export's operation -> the .s7dcl export's pragma value, as TIA shows it
 RELATIONS = {'EQ': '==', 'NE': '<>', 'LT': '<', 'GT': '>', 'LE': '<=', 'GE': '>='}
 

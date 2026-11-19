@@ -39,7 +39,7 @@ from html import escape
 
 from . import instructions
 from .diff import Graph, RAIL, SINK, changed_params, compared_params
-from .s7dcl import CMP, Rung, _segments, type_name, wire_of
+from .s7dcl import CMP, COIL_SIGNALS, Rung, _segments, type_name, wire_of
 
 FONT = 11
 LINE = 13
@@ -308,7 +308,6 @@ COIL_TEXT = {'I_Coil': '/', 'JumpCoil': 'JMP', 'I_JumpCoil': 'JMPN', 'ReturnCoil
              'R_BitfieldCoil': 'RESET_BF', 'S_BitfieldCoil': 'SET_BF',
              'Return': 'RET', 'ReturnTrue': 'RET', 'ReturnFalse': 'RET'}
 RETURN_VALUES = {'Return': 'RLO', 'ReturnTrue': 'TRUE', 'ReturnFalse': 'FALSE'}   # above the coil, no operand in the export
-COIL_SIGNALS = ('operand', 'timer', 'counter')    # the operand above a coil, whatever the order in the export
 SQUARE_COILS = ('RT_Coil',)                       # [ RT ], as TIA: square brackets, not arcs
 IEC_TIMER_COIL = re.compile(r'(TP|TON|TOF|TONR)_Coil', re.I)     # one tall coil: the kind over the type, as TIA
 

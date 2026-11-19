@@ -1869,6 +1869,75 @@ END_FUNCTION_BLOCK
         self.assertEqual((c.instr, c.call, c.params), ('CALL', 'Drive', [('iSq01/05', ':=', '#x')]))
 
 
+# Each coil written with more than one operand, as the two exports write it (the bed of the two formats, start state):
+# (SimaticML part, its rung-in, its second pin; .s7dcl name, its signal pin, its second pin). .s7dcl writes the signal
+# pin as an output (`operand =>`), the second as an input; SimaticML wires both from the operand to the pin.
+COILS = [('SBitfield', 'en', 'n', 'S_BitfieldCoil', 'operand', 'n'), ('RBitfield', 'en', 'n', 'R_BitfieldCoil', 'operand', 'n'),
+         ('PCoil', 'in', 'bit', 'P_Coil', 'operand', 'bit'), ('NCoil', 'in', 'bit', 'N_Coil', 'operand', 'bit')] + [
+    (part, 'in', 'value', sd, 'timer', 'pt') for part, sd in (
+        ('CoilTP', 'TP_Coil'), ('CoilTON', 'TON_Coil'), ('CoilTOF', 'TOF_Coil'), ('CoilTONR', 'TONR_Coil'), ('SpCoil', 'SP_Coil'),
+        ('SeCoil', 'SE_Coil'), ('SdCoil', 'SD_Coil'), ('SsCoil', 'SS_Coil'), ('SfCoil', 'SF_Coil'))] + [
+    ('PtCoil', 'in', 'pt', 'PT_Coil', 'timer', 'PT'), ('ScCoil', 'in', 'value', 'SC_Coil', 'counter', 'pv')]
+
+
+class CoilOperandDirection(unittest.TestCase):
+    """A coil's operand is an output by its instruction, which no user changes: .s7dcl writes it `operand =>` (`timer =>`,
+    `counter =>`), SimaticML wires it as an input (zzLadBitLogic network 8, `S_BitfieldCoil( operand => ...`). The arrow is
+    spelling; the operand, the second operand and the kind of coil are changes, read from either format."""
+
+    @staticmethod
+    def xml(part, rung_in, second, signal_uid=21, second_uid=23):
+        """The coil alone on the rail, read from SimaticML. Operands: 21 #start, 22 #stop, 23 #big."""
+        n = NegatedPins('test_taken_away')
+        text = n.net('<Part Name="%s" UId="25" />' % part, ['<Powerrail /><NameCon UId="25" Name="%s" />' % rung_in,
+                                                            n.op(second_uid, 25, second), n.op(signal_uid, 25, 'operand')], 'LAD')
+        return parse_block(_xml_src(text)).networks[0]
+
+    @staticmethod
+    def sd(instr, signal, second, signal_op='#start', second_op='#big', arrow='=>'):
+        """The coil alone on the rail, read from .s7dcl."""
+        text = ('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD" }\n    NETWORK\n        RUNG wire#powerrail\n'
+                '            %s(\n                %s %s %s,\n                %s := %s\n            )\n        END_RUNG\n'
+                '    END_NETWORK\nEND_ORGANIZATION_BLOCK\n' % (instr, signal, arrow, signal_op, second, second_op))
+        return parse_block(src(text, '', 'Main')).networks[0]
+
+    @staticmethod
+    def coil(network):
+        (el,) = network.rungs[0].items
+        return el
+
+    def test_each_coil_reads_alike_from_both_formats(self):
+        for part, rung_in, second, instr, signal, sd_second in COILS:
+            with self.subTest(instr):
+                x, s = self.xml(part, rung_in, second), self.sd(instr, signal, sd_second)
+                self.assertEqual(self.coil(s).sig(), self.coil(x).sig())
+                self.assertFalse(NetDiff(Graph(x.rungs), Graph(s.rungs)).changed)
+                self.assertIn((signal, '=>', '#start'), self.coil(x).params)
+
+    def test_another_operand_or_kind_differs_across_the_formats(self):
+        kinds = {'S_BitfieldCoil': 'R_BitfieldCoil', 'R_BitfieldCoil': 'S_BitfieldCoil', 'P_Coil': 'N_Coil',
+                 'N_Coil': 'P_Coil', 'TP_Coil': 'TON_Coil', 'SC_Coil': 'SP_Coil'}
+        for part, rung_in, second, instr, signal, sd_second in COILS:
+            x = self.xml(part, rung_in, second)
+            others = [self.sd(instr, signal, sd_second, signal_op='#stop'), self.sd(instr, signal, sd_second, second_op='#stop')]
+            if instr in kinds:
+                others.append(self.sd(kinds[instr], signal, sd_second))
+            for k, s in enumerate(others):
+                with self.subTest(instr, other=k):
+                    self.assertNotEqual(self.coil(s).sig(), self.coil(x).sig())
+                    self.assertTrue(NetDiff(Graph(x.rungs), Graph(s.rungs)).changed)
+
+    def test_the_operand_of_a_flip_flop_or_an_edge_contact_stays_an_input(self):
+        """.s7dcl writes `S_SR( operand := ...`, `P_Contact( operand := ...`: no coils."""
+        for part, rung_in, second, instr, sd_second in (('Sr', 's', 'r1', 'S_SR', 'r1'), ('Rs', 'r', 's1', 'S_RS', 's1'),
+                                                        ('PContact', 'in', 'bit', 'P_Contact', 'bit'),
+                                                        ('NContact', 'in', 'bit', 'N_Contact', 'bit')):
+            with self.subTest(instr):
+                x = self.coil(self.xml(part, rung_in, second))
+                self.assertEqual(self.coil(self.sd(instr, 'operand', sd_second, arrow=':=')).sig(), x.sig())
+                self.assertIn(('operand', ':=', '#start'), x.params)
+
+
 # ---------------------------------------------------------------- renamed members and member order
 
 ORD = '''FUNCTION_BLOCK "O"
