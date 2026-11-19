@@ -419,6 +419,40 @@ def parse_header(text, res):
     return kind, line, props
 
 
+# ---------------------------------------------------------------- a part of an operand
+
+_IDENT = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+
+# Names the SD export quotes although they are identifiers (TIA's own list is not published): in SCL the reserved
+# words and a few more, in LAD also instruction names and address mnemonics (as seen in the .s7dcl exports of real
+# projects).
+SCL_KEYWORDS = set('''
+    to by do if of or and not xor mod for else elsif then case while repeat until exit continue return goto true false
+    array struct type begin const label function function_block organization_block data_block var var_input var_output
+    var_in_out var_temp end_var end_if end_for end_while end_case end_repeat end_struct end_type region end_region ref
+    ref_to null at on port sequence
+    '''.split())
+LAD_KEYWORDS = SCL_KEYWORDS | set('interlock interface remote entry timer override id lt gt le ge eq ne left right mid '
+                                  'max min ew pd'.split())
+
+
+def part_text(n, quoted=False, keywords=LAD_KEYWORDS):
+    """A part of an operand as both readers write it: in quotes when quoted, when it is no identifier or is a keyword."""
+    return '"%s"' % n if quoted or not _IDENT.match(n) or n.lower() in keywords else n
+
+
+# A string, kept as it is, or a part in quotes after a dot or a #: a member, a local, a local constant, in an index too
+_QUOTED_PART = re.compile(r'''('(?:[^']|'')*')|(?<=[.#])"((?:[^"]|"")*)"''')
+
+
+def operand_text(text):
+    """A LAD operand of .s7dcl as the SimaticML reader writes it: each part in quotes after a dot or a # as part_text
+    writes it. In LAD, SimaticML holds a part's name and nothing of its quotes, and .s7dcl writes the same name in
+    quotes or not (`"zzInvBen"."step"`, `"zzInvBen".c[24]`, both declared in quotes): only the quotes go, the name
+    stays as written. A global's quotes, the first part's, stay."""
+    return _QUOTED_PART.sub(lambda m: m.group(1) or part_text(m.group(2)), text)
+
+
 # ---------------------------------------------------------------- LAD
 
 @dataclass
@@ -549,7 +583,7 @@ def parse_lad(body, prefix, itf=None):
         m = re.match(r'^(.*?)\((.*)$', t)
         if not m or cur is None:                  # Label(x) before the first rung: Network.label (_LABEL)
             continue
-        head, rest = m.group(1).strip(), m.group(2)
+        head, rest = operand_text(m.group(1).strip()), m.group(2)
         params = []
         if rest.strip() and rest.rstrip().endswith(')'):
             inner = rest.rstrip()[:-1].strip()
@@ -565,6 +599,7 @@ def parse_lad(body, prefix, itf=None):
                 if pt:
                     plines.append(pt)
             params = _param_list(plines)
+        params = [(name, d, operand_text(v)) for name, d, v in params]
         templates = {}
         if 'S7_Templates' in pend:
             for part in pend['S7_Templates'].strip('[] ').split(','):
@@ -769,8 +804,8 @@ def _pins_in_one_case(lines):
 def lad_lines(body):
     """A LAD network's text as compared: wires numbered, without what the two export formats write differently (the
     indentation, the trailing comma an XML export writes after the last parameter, a space after an empty output, the
-    order of a box's named pins and the case of their names)."""
-    lines = [re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()]
+    order of a box's named pins and the case of their names, the quotes round a plain name in an operand: operand_text)."""
+    lines = [operand_text(re.sub(r'\s*,$', '', l.strip())) for l in body.splitlines()]
     lines = _pins_in_one_order(_pins_in_one_case([l for l in lines if l]))
     return numbered('\n'.join(lines)).split('\n') if lines else []
 

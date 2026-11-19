@@ -1327,6 +1327,105 @@ class PinsInAnotherCase(unittest.TestCase):
                          lad_lines('B(\nRet_Val => #b,\nPV := Add(\nin1 := #a\n)\n)'))
 
 
+QUOTED = '''FUNCTION_BLOCK "M"
+    VAR
+        "a" : Bool;
+        q : Bool;
+        arr : Array[0..3] of Bool;
+        "i" : Int;
+    END_VAR
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #"a" )
+            Contact( "Db"."sub" )
+            Contact( #arr[#"i"] )
+            { S7_Templates := "SrcType := Int" }
+            EQ_Contact(
+                in1 := "Db"."step",
+                in2 := 1
+            )
+            Coil( #q )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK
+'''
+UNQUOTED = QUOTED.replace('#"a" )', '#a )').replace('"Db"."sub"', '"Db".sub').replace('[#"i"]', '[#i]').replace(
+    '"Db"."step"', '"Db".step')
+
+# (an operand as .s7dcl writes it, as the report reads it, the SimaticML Access of it): each form a part can take
+_SYM = '<Access Scope="%s"><Symbol>%s</Symbol></Access>'
+_PARTS = [
+    ('"Db"."a"', '"Db".a', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="a"/>')),
+    ('"Db".a', '"Db".a', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="a"/>')),
+    ('#"a"', '#a', _SYM % ('LocalVariable', '<Component Name="a"/>')),
+    ('#"s"."t"', '#s.t', _SYM % ('LocalVariable', '<Component Name="s"/><Component Name="t"/>')),
+    ('"Db"."A"', '"Db".A', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="A"/>')),
+    ('"Db"."c"[#"i", "G"]."x"', '"Db".c[#i, "G"].x', _SYM % (
+        'GlobalVariable', '<Component Name="Db"/><Component Name="c">%s%s</Component><Component Name="x"/>' % (
+            _SYM % ('LocalVariable', '<Component Name="i"/>'), _SYM % ('GlobalVariable', '<Component Name="G"/>')))),
+    ('"Tag"', '"Tag"', _SYM % ('GlobalVariable', '<Component Name="Tag"/>')),
+    ('"Db"."a b"', '"Db"."a b"', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="a b"/>')),
+    ('"Db"."a.b"', '"Db"."a.b"', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="a.b"/>')),
+    ('"Db"."1a"', '"Db"."1a"', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="1a"/>')),
+    ('"Db"."timer"', '"Db"."timer"', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="timer"/>')),
+    ('#"C"', '#C', '<Access Scope="LocalConstant"><Constant Name="C"/></Access>'),
+    ('"Max"', '"Max"', '<Access Scope="GlobalConstant"><Constant Name="Max"/></Access>'),
+]
+
+
+class QuotedMemberNames(unittest.TestCase):
+    """.s7dcl writes a part of an operand in quotes where SimaticML holds only its name (the bed of the two formats,
+    zzBenSafety network 1: `"zzInvBenF"."a"`, `<Component Name="a" />`), and not by the name alone: one export of
+    zzBenLarge writes `"zzInvBen"."step"` and `"zzInvBen".c[24]`, both declared in quotes. Quotes round a plain name are
+    spelling; the name inside them is the member's."""
+
+    def test_each_form_reads_as_from_simaticml(self):
+        import xml.etree.ElementTree as ET
+        from TiaChangeReports.s7dcl import operand_text
+        from TiaChangeReports.simaticml import operand
+        for sd, read, xml in _PARTS:
+            with self.subTest(sd):
+                self.assertEqual(read, operand_text(sd))
+                self.assertEqual(read, operand(ET.fromstring(xml)))
+
+    def test_what_is_no_part_stays(self):
+        from TiaChangeReports.s7dcl import operand_text
+        for text in ("'x.\"a\"'", "'it''s #\"a\"'", 'wire#w1', 'NOT wire#w1', 'T#1s', '16#FF', '%DB1.DBX0.0', '"Db".x.%X1',
+                     '"Fc"'):
+            with self.subTest(text):
+                self.assertEqual(text, operand_text(text))
+        self.assertEqual('NOT #a', operand_text('NOT #"a"'))
+
+    def test_the_elements_read_without_the_quotes(self):
+        (net,) = parse_block(src(QUOTED, '', 'M')).networks
+        self.assertEqual(['#a', '"Db".sub', '#arr[#i]', '"Db".step', '#q'],
+                         [e.params[0][2] for e in net.rungs[0].items if not isinstance(e, tuple)])
+
+    def test_quotes_alone_are_no_change(self):
+        """Neither in the drawing nor in the lines the report compares (Pair._unseen)."""
+        self.assertEqual([], compare_blocks(src(QUOTED, '', 'M'), src(UNQUOTED, '', 'M')).nets)
+
+    def test_the_lines_without_the_quotes(self):
+        from TiaChangeReports.s7dcl import lad_lines
+        self.assertEqual(lad_lines('Contact( #"a" )\nEQ_Contact(\nin1 := "Db"."step"\n)'),
+                         lad_lines('Contact( #a )\nEQ_Contact(\nin1 := "Db".step\n)'))
+        self.assertEqual(['{ S7_Templates := "SrcType := Int" }'], lad_lines('{ S7_Templates := "SrcType := Int" }'))
+
+    def test_a_name_changed_inside_its_quotes_is_a_change(self):
+        for other in ('"Db"."sup"', '"Db"."Sub"', '"Db"."s ub"'):
+            with self.subTest(other):
+                d = _lad(QUOTED, QUOTED.replace('"Db"."sub"', other))
+                (contact,) = (e for e in d.b.elements.values() if e.params[0][2] == '"Db".sub')
+                self.assertEqual('changed', d.status[contact.eid])
+
+    def test_a_name_that_needs_its_quotes_is_no_other_name(self):
+        """`"Db"."a.b"` is one member, `"Db".a.b` a member of a member."""
+        d = _lad(QUOTED, QUOTED.replace('"Db"."sub"', '"Db"."a.b"'))
+        after = _lad(QUOTED.replace('"Db"."sub"', '"Db"."a.b"'), QUOTED.replace('"Db"."sub"', '"Db".a.b'))
+        self.assertTrue(d.changed and after.changed)
+
+
 class MergedNodes(unittest.TestCase):
     def test_contact_deleted_between_two_wire_nodes_is_one_removed(self):
         d = _lad(MERGE, MERGED)
@@ -1747,7 +1846,7 @@ END_FUNCTION_BLOCK
         labelled = parse_block(src(SRC.replace('NETWORK\n        RUNG', 'NETWORK\n        Label(Skip)\n        RUNG', 1)))
         self.assertEqual(len(labelled.networks[0].rungs), len(parse_block(src()).networks[0].rungs))  # a jump label
         self.assertEqual(labelled.networks[0].label, 'Skip')
-        self.assertEqual((e.instr, e.instance), ('ESTOP1', '#"instE"'))
+        self.assertEqual((e.instr, e.instance), ('ESTOP1', '#instE'))     # as SimaticML writes it
         self.assertEqual((r.instr, r.instance), ('RCVDP', '"RcvDb"'))
         self.assertEqual((c.instr, c.call, c.params), ('CALL', 'Drive', [('iSq01/05', ':=', '#x')]))
 

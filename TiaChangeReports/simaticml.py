@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 from . import instructions, s7dcl
 from .iface import setpoint_default
 from .names import object_name
-from .s7dcl import RELATIONS, Block, Element, Interface, Member, Network, Rung, wire_of
+from .s7dcl import RELATIONS, SCL_KEYWORDS, Block, Element, Interface, Member, Network, Rung, part_text, wire_of
 
 KINDS = {'SW.Blocks.OB': 'ORGANIZATION_BLOCK', 'SW.Blocks.FB': 'FUNCTION_BLOCK', 'SW.Blocks.FC': 'FUNCTION',
          'SW.Blocks.GlobalDB': 'DATA_BLOCK', 'SW.Blocks.InstanceDB': 'DATA_BLOCK', 'SW.Blocks.ArrayDB': 'DATA_BLOCK',
@@ -121,7 +121,7 @@ def _plain(el, uids=None, lang=None):
 def _member_sources(owner, path, lang, out):
     """{path: a member's part of the file, without its struct members, which have their own}."""
     for m in _kids(owner, 'Member'):
-        here = path + _name(m.get('Name'))
+        here = path + part_text(m.get('Name'))
         plain = _plain(m, lang=lang)
         out[here] = plain[:3] + ([k for k in plain[3] if k[0] != 'Member'],)
         _member_sources(m, here + '.', lang, out)
@@ -138,7 +138,7 @@ def _read(itf):
 
     def walk(member, path):
         for m in member.children.values():
-            here = path + _name(m.name)
+            here = path + part_text(m.name)
             out[here] = (m.type, m.value, m.comment, m.retain, sorted(m.attrs.items()), m.section,
                          sorted((k, v) for k, v in itf.start.items() if k == here or k.startswith((here + '.', here + '['))))
             walk(m, here + '.')
@@ -331,25 +331,6 @@ def _mltext(owner, composition, lang):
 
 # ---------------------------------------------------------------- operands
 
-_IDENT = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
-
-# Names the SD export quotes although they are identifiers (TIA's own list is not published): in SCL the reserved
-# words and a few more, in LAD also instruction names and address mnemonics (as seen in the .s7dcl exports of real
-# projects).
-SCL_KEYWORDS = set('''
-    to by do if of or and not xor mod for else elsif then case while repeat until exit continue return goto true false
-    array struct type begin const label function function_block organization_block data_block var var_input var_output
-    var_in_out var_temp end_var end_if end_for end_while end_case end_repeat end_struct end_type region end_region ref
-    ref_to null at on port sequence
-    '''.split())
-LAD_KEYWORDS = SCL_KEYWORDS | set('interlock interface remote entry timer override id lt gt le ge eq ne left right mid '
-                                  'max min ew pd'.split())
-
-
-def _name(n, quoted=False, keywords=LAD_KEYWORDS):
-    return '"%s"' % n if quoted or not _IDENT.match(n) or n.lower() in keywords else n
-
-
 def _constant(acc):
     c = _kid(acc, 'Constant')
     if c is None:
@@ -365,7 +346,7 @@ def operand(acc):
     if scope in ('LiteralConstant', 'TypedConstant'):
         return _constant(acc)
     if scope == 'LocalConstant':
-        return '#' + _name(_constant(acc))
+        return '#' + part_text(_constant(acc))
     if scope == 'GlobalConstant':
         return '"%s"' % _constant(acc)
     if scope == 'Label':                                      # a jump label: its name, as .s7dcl writes it
@@ -379,7 +360,7 @@ def operand(acc):
         return _constant(acc) or scope or ''
     parts = []
     for k, comp in enumerate(_kids(sym, 'Component')):
-        s = _name(comp.get('Name'), quoted=(k == 0 and scope == 'GlobalVariable'))
+        s = part_text(comp.get('Name'), quoted=(k == 0 and scope == 'GlobalVariable'))
         if comp.get('AccessModifier') == 'Reference':
             s += '^'
         idx = [operand(a) for a in _kids(comp, 'Access')]
@@ -485,7 +466,7 @@ def _text_walker(out, lang, stl=False):
             elif t == 'Component':
                 q = any(_local(a.tag) == 'BooleanAttribute' and a.get('Name') == 'HasQuotes' and a.text == 'true'
                         for a in c)
-                out.append(_name(c.get('Name'), q, SCL_KEYWORDS))
+                out.append(part_text(c.get('Name'), q, SCL_KEYWORDS))
                 walk(c)
             elif t in ('Constant',):
                 out.append(_constant_scl(c))
@@ -528,12 +509,12 @@ def _scl_access(acc, out, walk):
         out.append('#')
     if _local(acc.tag) == 'Instance':
         for comp in _kids(acc, 'Component'):
-            out.append(_name(comp.get('Name'), scope == 'GlobalVariable'))
+            out.append(part_text(comp.get('Name'), scope == 'GlobalVariable'))
         return
     if scope in ('LiteralConstant', 'TypedConstant', 'LocalConstant', 'GlobalConstant'):
         c = _kid(acc, 'Constant')
         if c is not None and c.get('Name'):
-            out.append(_name(c.get('Name'), scope == 'GlobalConstant'))
+            out.append(part_text(c.get('Name'), scope == 'GlobalConstant'))
         elif c is not None:
             out.append(_text(c, 'ConstantValue'))
         return
@@ -885,7 +866,7 @@ def _element(eid, e, net, name):
         params += rung_negated()
         inst = _kid(ci, 'Instance')
         if inst is not None and inst.get('Scope') == 'LocalVariable':
-            return Element(eid, 'CALL', '#' + '.'.join(_name(c.get('Name')) for c in _kids(inst, 'Component')),
+            return Element(eid, 'CALL', '#' + '.'.join(part_text(c.get('Name')) for c in _kids(inst, 'Component')),
                            params, templates)
         if inst is not None:
             return Element(eid, 'CALL', None, params, templates,
@@ -896,7 +877,7 @@ def _element(eid, e, net, name):
     instance = None
     if inst is not None:
         instance = ('#' if inst.get('Scope') == 'LocalVariable' else '') + \
-            '.'.join(_name(c.get('Name'), inst.get('Scope') == 'GlobalVariable' and k == 0)
+            '.'.join(part_text(c.get('Name'), inst.get('Scope') == 'GlobalVariable' and k == 0)
                      for k, c in enumerate(_kids(inst, 'Component')))
     sized = _card_pins(name_, card) if card is not None else None
     one_operand = name_ in INLINE or instr.endswith(('Coil', 'Contact')) or (spec is not None and spec.form != 'box')
@@ -969,7 +950,7 @@ def _overrides(section, path, lang, itf):
     where the instance sets its own; these become start values, as the SD export lists them ('"x".q := ();' with
     its comment). The members of a struct in the UDT are Member elements of the struct."""
     for m in _kids(section, 'Member'):
-        here = path + _name(m.get('Name'))
+        here = path + part_text(m.get('Name'))
         value, comment = _text(m, 'StartValue') or None, _comment(m, lang)
         if value is not None or comment:
             itf.start[here] = (value or '()', comment)
@@ -987,7 +968,7 @@ def _members(owner, parent, section, lang, itf, db, path='', safety=False):
         typ = _type(m.get('Datatype'))
         value = _text(m, 'StartValue') or None
         name = m.get('Name')
-        here = path + _name(name)
+        here = path + part_text(name)
         if db:                                            # a global DB: start values, as the SD export lists them
             if value is not None:
                 itf.start[here] = (value, None)

@@ -279,7 +279,7 @@ class AgainstTia(unittest.TestCase):
             for p in i['placed']:
                 if not isinstance(p[0], str) and p[0].kind == 'compare':
                     row.setdefault(dict((n, v) for n, _, v in p[0].params)['in2'], lay.ys[k])
-        self.assertLess(abs(row['#PH_FINE'] - row['#"OIL"']), 20)
+        self.assertLess(abs(row['#PH_FINE'] - row['#OIL']), 20)
         self.assertEqual(check(lay), [])
 
     def test_sr_and_ton_nw3_nw4(self):
