@@ -7,7 +7,7 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
 ## What it does
 
 - Exports, imports and compiles PLC blocks, data types, DBs, tag tables, watch and force tables, technology objects, HMI
-  screens, text and graphic lists, and the project's graphics, and saves the project. A technology object of an element or
+  screens, text and graphic lists, VB scripts, and the project's graphics, and saves the project. A technology object of an element or
   version not tried on a real TIA goes in with a note that says so.
 - Keeps a git repo per project under the projects root, with the exports, the logs, your `standards\` and the project's
   notes. Session archives lie in its `archives\` folder, outside git, and only the newest are kept (`archivesKept`, default 10).
@@ -48,6 +48,8 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   cycles as changed, by export differences only, folded.
 - Imports a graphic with the image folder its export wrote beside it, and refuses one whose image is not there. Refuses a
   graphic list that names a graphic the project does not have: import the graphic first.
+- Imports a VB script with a syntax error as TIA does, without a word. The HMI compile then fails only if a screen or
+  another object calls the script, so compile after the import and read its errors.
 
 ## What it does not
 

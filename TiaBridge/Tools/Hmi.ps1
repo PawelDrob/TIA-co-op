@@ -1,6 +1,6 @@
 # Tools\Hmi.ps1 - WinCC Comfort/Advanced kinds for list/export/import/delete (Tools\Objects.ps1):
-# hmi_screen, hmi_template, hmi_popup, hmi_tag_table, hmi_textlist, hmi_cycle, hmi_graphiclist, and the HMI kinds the
-# bridge only exports.
+# hmi_screen, hmi_template, hmi_popup, hmi_tag_table, hmi_textlist, hmi_cycle, hmi_graphiclist, hmi_vbscript, and the HMI
+# kinds the bridge only exports.
 # All SimaticML; see docs/agent/wincc-comfort-openness.md.
 
 function Get-HmiExportOptions([bool]$Full) {
@@ -363,11 +363,22 @@ Register-ObjectKind 'hmi_screen_global' @{
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
 }
 
+# VB scripts: a new one from a file (Code, PreCode, Type) went in, into the folder its path mirrors, and TIA adds a line
+# end to Code on the first import; after that the round trip is identical. The minimal export leaves out PreCode and Type
+# when they hold their defaults (two line ends, Sub), and imported over the script it leaves the full export identical, a
+# Function with a PreCode and a comment too. A screen whose button calls the script (FunctionListEntry Type VBScript)
+# exported the same after an edited script was imported over it. A syntax error imports without a word; the HMI compile
+# fails on it only in a script something calls [PROBE] (2026-11-12 and 2026-11-19, test project). Not deleted: that was
+# not tried, and screens call a script by name.
 Register-ObjectKind 'hmi_vbscript' @{
-    scope = 'hmi'; dir = 'hmi\scripts'; exportOnly = $true
-    description = 'VB scripts (export only)'
+    scope = 'hmi'; dir = 'hmi\scripts'; defaultOverride = $true
+    noDelete = 'Deleting a VB script was not tried on a real TIA, and screens call it by name. Delete it in TIA.'
+    description = 'VB scripts (a syntax error goes in, and the HMI compile finds it only in a script something calls); not deleted'
     items = { param($hmi) Get-GroupTree $hmi.VBScriptFolder 'VBScripts' 'Folders' }
     export = { param($e, $dir, $opt) Export-HmiObject $e $dir $opt }
+    precheck = { param($file, $cache) $doc = Read-HmiDocumentObject $file 'Hmi.RuntimeScripting.VBScript' 'VB script'; if ($doc.refused) { $doc } }
+    import = { param($hmi, $folder, $file, $override) Import-HmiFile (Get-OrCreateGroup $hmi.VBScriptFolder $folder 'Folders').VBScripts $file $override }
+    whoseFile = { param($file, $entries) Get-DocumentFileObject $file }
 }
 
 Register-ObjectKind 'hmi_connection' @{

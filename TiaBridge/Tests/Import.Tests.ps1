@@ -48,7 +48,7 @@ Describe 'import of a kind that has no import' {
         Register-Archive (Get-BridgeSession)
         Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = @('Any.xml') })
     }
-    foreach ($kind in 'system_block', 'hmi_slidein', 'hmi_screen_global', 'hmi_vbscript', 'hmi_connection') {
+    foreach ($kind in 'system_block', 'hmi_slidein', 'hmi_screen_global', 'hmi_connection') {
         It "$kind is export only, and no library tool is named as the way to change it" {
             $r = Invoke-ImportOfKind $kind
             $r.ok | Should Be $false
@@ -1075,5 +1075,61 @@ Describe 'import of graphic lists' {
         $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'hmi_graphiclist'; names = @('glState') })
         $r.ok | Should Be $false
         $r.refused | Should Match '^Kind hmi_graphiclist is not deleted by the bridge\. Deleting a graphic list was not tried on a real TIA'
+    }
+}
+
+# A VB script of an HMI device, in the script folders; screens call it by name from a function list.
+Describe 'import of VB scripts' {
+    $repo = Join-Path $TestDrive 'VBScripts'
+    function Write-VBScript([string]$RelPath, [string]$Name) {
+        Write-TextFile (Join-Path $repo "hmi\scripts\$RelPath") ("<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<Document><Engineering version=`"V20`" />" +
+            "<Hmi.RuntimeScripting.VBScript ID=`"0`"><AttributeList><Code>Dim a`r`na = 1</Code><Name>$Name</Name><Type>Sub</Type></AttributeList>" +
+            "</Hmi.RuntimeScripting.VBScript></Document>")
+    }
+    Write-VBScript 'zzScript.xml' 'zzScript'
+    Write-VBScript 'Motors\zzNew.xml' 'zzNew'
+
+    # the HMI device holds the script zzScript in its folder Logic
+    function Get-KindRoot { [pscustomobject]@{ VBScriptFolder = 'scripts' } }
+    function Get-GroupTree { @(@{ name = 'zzScript'; folder = 'Logic'; obj = [pscustomobject]@{ Name = 'zzScript' } }) }
+    function Get-OrCreateGroup { param($Root, $Folder, $Groups)
+        $scripts = [pscustomobject]@{ Folder = $Folder }
+        Add-Member -InputObject $scripts ScriptMethod Import { param($file, $options)
+            $name = [regex]::Match([System.IO.File]::ReadAllText($file.FullName), '<Name>([^<]*)</Name>').Groups[1].Value
+            $script:imported += @("$name $options into '$($this.Folder)'")
+            , @([pscustomobject]@{ Name = $name }) }
+        [pscustomobject]@{ VBScripts = $scripts }
+    }
+    function Invoke-VBScriptImport([string[]]$Paths) {
+        $script:imported = @(); $script:committed = $null
+        Invoke-ImportTool ([pscustomobject]@{ kind = 'hmi_vbscript'; paths = $Paths })
+    }
+    BeforeEach {
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-TestBridgeProject $repo
+        Register-Archive (Get-BridgeSession)
+    }
+
+    It 'imports a script over itself where it is with Override and a new one into the folder of its path, and names the compile of the HMI' {
+        $r = Invoke-VBScriptImport @('hmi\scripts\zzScript.xml', 'hmi\scripts\Motors\zzNew.xml')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be "zzScript Override into 'Logic',zzNew Override into 'Motors'"
+        $script:committed | Should Be $true
+        $r.next | Should Match '^compile the hmi scope'
+        @((Get-BridgeSession).pending.Values | Sort-Object) -join ' ' | Should Be 'hmi@HMI_1:zzNew hmi@HMI_1:zzScript'
+    }
+
+    It 'refuses a document of another class under hmi_vbscript, before TIA is asked' {
+        Write-TextFile (Join-Path $repo 'hmi\scripts\tlState.xml') '<Document><Hmi.TextGraphicList.TextList ID="0"><AttributeList><Name>tlState</Name></AttributeList></Hmi.TextGraphicList.TextList></Document>'
+        $r = Invoke-VBScriptImport @('hmi\scripts\zzScript.xml', 'hmi\scripts\tlState.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[1].refused | Should Match 'holds Hmi\.TextGraphicList\.TextList, no VB script: import it with its own kind'
+    }
+
+    It 'does not delete a VB script' {
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'hmi_vbscript'; names = @('zzScript') })
+        $r.ok | Should Be $false
+        $r.refused | Should Match '^Kind hmi_vbscript is not deleted by the bridge\. Deleting a VB script was not tried on a real TIA'
     }
 }

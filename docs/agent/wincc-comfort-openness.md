@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-17T13:37:03-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T08:52:00-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -80,6 +80,7 @@ their findings stay in this guide, and the git history of this repo keeps them.
 | `export` / `import` / `delete` kinds `hmi_screen`, `hmi_popup`, `hmi_template`, `hmi_tag_table`, `hmi_textlist` | SimaticML out of and into TIA; exports go to `hmi\screens\`, `hmi\popups\`, ...; screens, pop-ups and templates are always exported full (section 2.3), tag tables and text lists minimal unless `options.full`; screens, pop-ups, templates and tag tables are imported only from `hmi\[<device>\]generated\<kind>\` (tag tables: `generated\tags\`) and only after the HMI validator passed (section 3); a new one goes to the folder its path there mirrors (`hmi\[<device>\]generated\screens\zzStaging\x.xml` -> `zzStaging`), an existing one is replaced where it is; faceplate guard before every screen import |
 | `export` / `import` kind `hmi_cycle` | always the full export, into `hmi\[<device>\]cycles\`, and imported from there only, after the HMI validator passed: a cycle document that is no full export is refused (`cycle.not-full`), as TIA imports a minimal one with `StartAtStartingPoint` false ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses it |
 | `export` / `import` kinds `graphic`, `hmi_graphiclist` | a project graphic as `project\graphics\<name>.xml` with its image in `<name> files\`, imported with that folder: an image the document names that is not there is refused; a graphic list in `hmi\[<device>\]graphiclists\`, minimal unless `options.full`, imported from any path: an entry naming a graphic the project does not have is refused (TIA takes it, and the HMI compile fails), so import graphics first; a name in another case links that graphic ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses both |
+| `export` / `import` kind `hmi_vbscript` | a VB script in `hmi\[<device>\]scripts\`, mirroring its folders, minimal unless `options.full`; imported from any path, a new one into the folder its path there mirrors; a document of another class is refused; a syntax error goes in, and the HMI compile fails on it only when something calls the script ([Openness facts](openness-v20.md) section 2); `override` defaults to true; `delete` refuses it |
 | `compile(hmi)` | the full compiler message tree |
 | `list` / `export` kind `faceplate_type`, `probe` | faceplate type versions and metadata; reflection on any object |
 | `TiaHmiGenerator\hmixml.py` | Python: builds screens and text lists from object dicts, using exported objects as templates, and tag tables from tag dicts, with `Length` and `HmiDataType` from the data type; writes only through a run (`begin` / `plan` / `add` / `finish`) into `hmi\[<device>\]generated\` |
@@ -356,6 +357,11 @@ A trigger without a tag is a self-closing `TagElementTrigger`; it imports
 
 A function parameter without a tag: leave out its `LinkList` (imported
 `[IMPORT]`).
+
+A call of a VB script is an entry of `Type` `VBScript` whose `Name` is the
+script, without parameters as tried `[PROBE]`. The HMI validator knows the
+value only from a TIA export in the repo: without one it refuses a generated
+call of a script (`vocabulary.value`).
 
 ### 4.5 Text lists `[EXPORT]` `[IMPORT]`
 
