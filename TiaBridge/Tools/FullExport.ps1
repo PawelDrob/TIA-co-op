@@ -591,11 +591,11 @@ function Format-PartLine($R) {
 # The run with its times (Times.ps1) in result.times, which the bridge writes into the log only (Bridge.ps1).
 function Invoke-FullExportTool($a) {
     Start-ExportTimes
-    $script:ExportWindow = $null
+    $script:ExportWindow = $null   # no window of an earlier call
     try {
         # TIA's window, minimized after the plan when the run has many .s7dcl exports (Enter-ExportWindow), is put back here
         try { $r = Invoke-FullExportRun $a }
-        finally { $window = Exit-ExportWindow $script:ExportWindow }
+        finally { $window = Exit-ExportWindow }
         if ($r -is [System.Collections.IDictionary] -and -not $r.refused) {
             if ($window) { $r.window = $window }
             $r.times = Stop-ExportTimes
@@ -606,13 +606,16 @@ function Invoke-FullExportTool($a) {
 }
 
 # How many objects the run exports as .s7dcl, for TIA's window (Enter-ExportWindow): the blocks, DBs and data types the plan
-# exports in the selected parts; -1 when that cannot be told before (no plan, or library types, which no plan lists, alone);
-# 0 when no part selected exports .s7dcl. Those TIA refuses as .s7dcl and exports as SimaticML count too.
-function Get-SdExportCount($Plan, [object[]]$Selected) {
-    $kinds = @($Selected | Where-Object { $_.kind -in 'block', 'db', 'type', 'library_type' } | ForEach-Object { $_.kind })
+# exports in the selected parts; 0 when no part selected exports .s7dcl, or only those of PLCs and the project has none; -1
+# when that cannot be told before (no plan, or library types, which no plan lists, alone). Those TIA refuses as .s7dcl and
+# exports as SimaticML count too.
+function Get-S7dclExportCount($Plan, [object[]]$Selected, [int]$PlcCount) {
+    $kinds = @($Selected | Where-Object { $script:ExportWindowKinds -contains $_.kind } | ForEach-Object { $_.kind })
     if (-not $kinds.Count) { return 0 }
     $planned = @($kinds | Where-Object { $_ -ne 'library_type' })
-    if (-not $Plan -or -not $planned.Count) { return -1 }
+    if (-not $planned.Count) { return -1 }
+    if (-not $PlcCount) { return 0 }
+    if (-not $Plan) { return -1 }
     $n = 0
     foreach ($d in $Plan.devices.Values) { foreach ($o in $d.objects.Values) { if ($o.export -and $planned -contains $o.kind) { $n++ } } }
     $n
@@ -647,7 +650,8 @@ function Invoke-FullExportRun($a) {
         }
     }
     $planMs = [int]$planWatch.ElapsedMilliseconds
-    $null = Enter-ExportWindow (Get-SdExportCount $plan $selected)
+    $plcCount = @($software | Where-Object { $_.kind -eq 'plc' }).Count
+    Enter-ExportWindow (Get-S7dclExportCount $plan $selected $plcCount)
 
     # (part, device) pairs of every part, selected or not: a folder is mirrored only when every part that writes it ran
     $jobs = @(foreach ($p in $script:FullExportParts) {
@@ -842,7 +846,7 @@ function Register-FullExportTool {
         'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part, failed items, ' +
         'leftOut (what Openness cannot export, with the reason); the log has details, and times: where the time went, per part and step (tia_* are the calls into Openness), with the slowest objects of each part. Objects whose names give one file name are in failed: neither is exported, the files there stay and are not mirrored away; rename one in TIA. ' +
         'Devices whose names give one folder each get a folder with a mark (deviceFolders); a device holding two software items of one kind is refused and in failed: nothing of it is exported, its files stay. In a TIA with a window, boxes of the call with the icon Success or Information are acknowledged; every other box and every question stays with the user, who may have to close it; all notifications are listed with their icon (prompts). ' +
-        'In a TIA with a window, a run with 20 or more blocks, DBs and data types to export as .s7dcl minimizes TIA''s main window once it has read what to export, and restores it after: on one PC an .s7dcl export took about seven times as long with the window showing. ' +
+        "In a TIA with a window, a run with $script:ExportWindowFrom or more blocks, DBs and data types to export as .s7dcl minimizes TIA's main window once it has read what to export, and restores it after: on one PC an .s7dcl export took about seven times as long with the window showing. " +
         'Before the call, tell the user that TIA''s window may go to the taskbar for the export and come back after, why, and that bringing it up during the export makes the rest slower; then tell them what window in the result says. Commit the repo afterwards.') -Schema @{
         type = 'object'
         properties = @{ parts = @{ type = 'array'; items = @{ type = 'string'; enum = @($script:FullExportParts | ForEach-Object { $_.name }) }

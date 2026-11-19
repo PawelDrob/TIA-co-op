@@ -371,9 +371,9 @@ function Invoke-ExportTool($a) {
     }
     $stop = @{}
     # many .s7dcl exports: TIA's window minimized for them (Window.ps1); fewer, or SimaticML, leave it as it is
-    $win = $null
-    if ($k.name -in 'block', 'db', 'type', 'library_type' -and [string]$opt.format -ne 'xml' -and $todo.Count -ge $script:ExportWindowFrom) {
-        $win = Enter-ExportWindow $todo.Count
+    $script:ExportWindow = $null
+    if ($script:ExportWindowKinds -contains $k.name -and [string]$opt.format -ne 'xml' -and $todo.Count -ge $script:ExportWindowFrom) {
+        Enter-ExportWindow $todo.Count
     }
     try {
         $null = Invoke-ExportBatch (Get-KindDir $k '' ([string]$a.library) ([string]$a.device)) {
@@ -387,7 +387,7 @@ function Invoke-ExportTool($a) {
             }
         }
     }
-    finally { $window = Exit-ExportWindow $win }
+    finally { $window = Exit-ExportWindow }
     # what was exported before stays in the repo; only the export stops
     $ended = $stop.at
     if ($ended) {

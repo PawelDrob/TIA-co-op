@@ -172,7 +172,7 @@ Describe 'full_export' {
         $script:win = @{ minimized = $false; upAfter = $UpAfter; shows = (New-Object System.Collections.ArrayList); during = (New-Object System.Collections.ArrayList) }
         Mock Get-TiaMainWindows { [long]77 }
         Mock Test-WindowMinimized { $script:win.minimized }
-        Mock Test-WindowThere { $true }
+        Mock Test-WindowExists { $true }
         Mock Send-WindowShow { [void]$script:win.shows.Add($Command); $script:win.minimized = ($Command -eq 6) }
         foreach ($b in $plc.BlockGroup.Blocks) {
             $b | Add-Member -Force ScriptMethod ExportAsDocuments { param($d, $n)
@@ -185,9 +185,9 @@ Describe 'full_export' {
 
     It 'minimizes TIA''s window for a run with many .s7dcl exports, restores it after and says so' {
         Set-FakeWindow
-        $script:ExportWindowFrom = 3
+        $from = $script:ExportWindowFrom; $script:ExportWindowFrom = 3
         try { $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'dbs', 'hmi_screens'); full = $true }) }
-        finally { $script:ExportWindowFrom = 20 }
+        finally { $script:ExportWindowFrom = $from }
         ($script:win.during -join ',') | Should Be 'A True,B True,DB1 True'
         ($script:win.shows -join ',') | Should Be '6,9'
         $r.window | Should Match '^TIA''s window was minimized for the export and restored after'
@@ -204,24 +204,24 @@ Describe 'full_export' {
 
     It 'names the part after which the window minimized for the run was up again, and leaves it up' {
         Set-FakeWindow -UpAfter 'B'
-        $script:ExportWindowFrom = 1
+        $from = $script:ExportWindowFrom; $script:ExportWindowFrom = 1
         try { $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'hmi_screens'); full = $true }) }
-        finally { $script:ExportWindowFrom = 20 }
+        finally { $script:ExportWindowFrom = $from }
         ($script:win.shows -join ',') | Should Be '6'
         $r.window | Should Match 'seen after part blocks@PLC_1\): left up'
     }
 
     It 'puts TIA''s window back when the run fails' {
         Set-FakeWindow
-        Mock Invoke-FullExportKindPart { $null = Enter-ExportWindow 100; throw 'the parts failed' }
-        Mock Get-SdExportCount { 0 }
+        Mock Invoke-FullExportKindPart { Enter-ExportWindow 100; throw 'the parts failed' }
+        Mock Get-S7dclExportCount { 0 }
         $null = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks') })
         ($script:win.shows -join ',') | Should Be '6,9'
     }
 
     It 'export minimizes TIA''s window from 20 objects as .s7dcl, and not for SimaticML or fewer' {
         Set-FakeWindow
-        $script:ExportWindowFrom = 2
+        $from = $script:ExportWindowFrom; $script:ExportWindowFrom = 2
         try {
             $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'block'; names = @('*') })
             ($script:win.shows -join ',') | Should Be '6,9'
@@ -234,25 +234,26 @@ Describe 'full_export' {
             $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'block'; names = @('*'); options = [pscustomobject]@{ format = 'xml' } })
             $script:win.shows.Count | Should Be 0
         }
-        finally { $script:ExportWindowFrom = 20 }
+        finally { $script:ExportWindowFrom = $from }
     }
 }
 
-Describe 'Get-SdExportCount' {
+Describe 'Get-S7dclExportCount' {
     $plan = @{ devices = @{ PLC_1 = @{ objects = @{
         'block|A' = @{ kind = 'block'; export = 'full: true' }; 'block|B' = @{ kind = 'block'; export = $null }
         'db|D' = @{ kind = 'db'; export = 'changed' }; 'type|T' = @{ kind = 'type'; export = 'changed' }
         'plc_tag_table|Tags' = @{ kind = 'plc_tag_table'; export = 'changed' } } } } }
 
     It 'counts the blocks, DBs and data types the plan exports in the selected parts' {
-        Get-SdExportCount $plan @((Get-FullExportPart 'blocks'), (Get-FullExportPart 'dbs'), (Get-FullExportPart 'plc_tags')) | Should Be 2
-        Get-SdExportCount $plan @((Get-FullExportPart 'types'), (Get-FullExportPart 'library_types')) | Should Be 1
+        Get-S7dclExportCount $plan @((Get-FullExportPart 'blocks'), (Get-FullExportPart 'dbs'), (Get-FullExportPart 'plc_tags')) 1 | Should Be 2
+        Get-S7dclExportCount $plan @((Get-FullExportPart 'types'), (Get-FullExportPart 'library_types')) 1 | Should Be 1
     }
 
-    It 'cannot tell without a plan or for library types alone, and is 0 without a part that exports .s7dcl' {
-        Get-SdExportCount $null @(Get-FullExportPart 'blocks') | Should Be -1
-        Get-SdExportCount $plan @(Get-FullExportPart 'library_types') | Should Be -1
-        Get-SdExportCount $null @((Get-FullExportPart 'hmi_screens'), (Get-FullExportPart 'plc_tags')) | Should Be 0
+    It 'cannot tell without a plan or for library types alone, and is 0 without a part that exports .s7dcl or a PLC' {
+        Get-S7dclExportCount $null @(Get-FullExportPart 'blocks') 1 | Should Be -1
+        Get-S7dclExportCount $plan @(Get-FullExportPart 'library_types') 1 | Should Be -1
+        Get-S7dclExportCount $null @((Get-FullExportPart 'hmi_screens'), (Get-FullExportPart 'plc_tags')) 1 | Should Be 0
+        Get-S7dclExportCount $null @((Get-FullExportPart 'blocks'), (Get-FullExportPart 'library_types')) 0 | Should Be 0
     }
 }
 

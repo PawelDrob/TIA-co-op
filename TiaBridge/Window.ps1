@@ -33,16 +33,18 @@ public static class TiaBridgeWindow {
 '@
 }
 
-# From this many .s7dcl exports in one call the window is minimized; the wait for Windows to report it minimized.
+# The kinds an export writes as .s7dcl (unless as SimaticML); from this many such exports in one call the window is
+# minimized; the wait for Windows to report it minimized.
+$script:ExportWindowKinds = @('block', 'db', 'type', 'library_type')
 $script:ExportWindowFrom = 20
 $script:ExportWindowWaitMs = 3000
-# The window of the export running (Enter-ExportWindow), for Update-ExportWindowSeen.
+# The window of the export running: Enter-ExportWindow sets it, Update-ExportWindowSeen and Exit-ExportWindow read it.
 $script:ExportWindow = $null
 
 # Seams for the tests: the Windows calls.
 function Get-TiaMainWindows([int]$ProcessId) { @([TiaBridgeWindow]::MainWindows($ProcessId)) }
 function Test-WindowMinimized([long]$Handle) { [TiaBridgeWindow]::IsIconic([IntPtr]$Handle) }
-function Test-WindowThere([long]$Handle) { [TiaBridgeWindow]::IsWindow([IntPtr]$Handle) }
+function Test-WindowExists([long]$Handle) { [TiaBridgeWindow]::IsWindow([IntPtr]$Handle) }
 function Send-WindowShow([long]$Handle, [int]$Command) { $null = [TiaBridgeWindow]::ShowWindowAsync([IntPtr]$Handle, $Command) }
 
 # Waits until Windows reports the window minimized, at most ExportWindowWaitMs; whether it is.
@@ -55,13 +57,14 @@ function Wait-WindowMinimized([long]$Handle) {
     $true
 }
 
-# Minimizes TIA's main window for an export of Count .s7dcl documents (-1: not known before, as many as it may be).
-# Returns the window's state for Exit-ExportWindow, with note set when it was left as it is; $null in a background session,
-# which has no window. Never throws: the export runs whatever happens to the window.
+# Minimizes TIA's main window for an export of Count .s7dcl documents (-1: not known before, as many as it may be). Keeps
+# the window's state for Exit-ExportWindow, with note set when it was left as it is; none in a background session, which
+# has no window. Never throws: the export runs whatever happens to the window.
 function Enter-ExportWindow([int]$Count) {
     $script:ExportWindow = $null
-    if ($script:Bridge.background) { return $null }
-    $s = @{ handle = [long]0; minimized = $false; late = $false; shownAfter = $null; note = $null }
+    if ($script:Bridge.background) { return }
+    # asked: SW_MINIMIZE sent; seen: Windows reported it minimized (in the wait, or at a part's end); late: not in the wait
+    $s = @{ handle = [long]0; asked = $false; seen = $false; late = $false; shownAfter = $null; note = $null }
     $script:ExportWindow = $s
     $step = [TiaBridgeTimes]::Enter('window')
     try {
@@ -79,38 +82,47 @@ function Enter-ExportWindow([int]$Count) {
             else {
                 $s.handle = [long]$found[0]
                 Send-WindowShow $s.handle 6   # SW_MINIMIZE
-                $s.minimized = $true
-                $s.late = -not (Wait-WindowMinimized $s.handle)
+                $s.asked = $true
+                $s.seen = Wait-WindowMinimized $s.handle
+                $s.late = -not $s.seen
             }
         }
     }
     catch {
-        if (-not $s.minimized) { $s.note = "Left as it was: $($_.Exception.Message)" }
+        if (-not $s.asked) { $s.note = "Left as it was: $($_.Exception.Message)" }
         Write-BridgeLog "TIA's window: $($_.Exception.Message)"
     }
     finally { [TiaBridgeTimes]::Exit($step) }
-    $s
 }
 
-# After part After of the export: notes the first part after which the window minimized for it was up again.
+# After part After of the export: notes the first part after which the window, once seen minimized, was up again. One TIA
+# had not minimized in the wait is seen minimized here, or never: then it was never up again, only not down.
 function Update-ExportWindowSeen([string]$After) {
     $s = $script:ExportWindow
-    if (-not $s -or -not $s.minimized -or $s.shownAfter) { return }
-    try { if ((Test-WindowThere $s.handle) -and -not (Test-WindowMinimized $s.handle)) { $s.shownAfter = $After } }
+    if (-not $s -or -not $s.asked -or $s.shownAfter) { return }
+    try {
+        if (-not (Test-WindowExists $s.handle)) { return }
+        if (Test-WindowMinimized $s.handle) { $s.seen = $true }
+        elseif ($s.seen) { $s.shownAfter = $After }
+    }
     catch { Write-BridgeLog "TIA's window: $($_.Exception.Message)" }
 }
 
 # Puts back the window Enter-ExportWindow minimized, if it is still minimized; what was done, for the result's window
-# ($null for no state). Never throws.
-function Exit-ExportWindow($State) {
+# ($null when Enter-ExportWindow kept nothing). Never throws.
+function Exit-ExportWindow {
+    $State = $script:ExportWindow
     $script:ExportWindow = $null
     if (-not $State) { return $null }
-    if (-not $State.minimized) { return $State.note }
+    if (-not $State.asked) { return $State.note }
     $why = 'on one PC an .s7dcl export took about seven times as long with the window showing'
     $step = [TiaBridgeTimes]::Enter('window')
     try {
-        if (-not (Test-WindowThere $State.handle)) { return "TIA's window was minimized for the export and is gone now (TIA ended): nothing to put back." }
+        if (-not (Test-WindowExists $State.handle)) { return "TIA's window was minimized for the export and is gone now (TIA ended): nothing to put back." }
         if (-not (Test-WindowMinimized $State.handle)) {
+            if (-not $State.seen) {
+                return "The bridge asked TIA to minimize its window for the export ($why), and Windows did not report it minimized, $([int]($script:ExportWindowWaitMs / 1000)) s after the ask nor after any part: the export ran with the window showing. Left as it is."
+            }
             $when = if ($State.shownAfter) { " (seen after part $($State.shownAfter))" } else { '' }
             return "TIA's window was minimized for the export ($why) and brought back up during it${when}: left up, so the .s7dcl exports after that cost what they cost with the window showing."
         }

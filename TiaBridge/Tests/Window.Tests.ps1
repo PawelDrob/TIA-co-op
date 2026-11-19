@@ -8,17 +8,17 @@ foreach ($f in 'Mcp.ps1', 'Times.ps1', 'Bridge.ps1', 'Window.ps1') { . (Join-Pat
 function Initialize-WindowSession([hashtable]$Settings = @{}) {
     Initialize-BridgeContext $Settings
     $script:Bridge.processId = 4242
-    $script:win = @{ minimized = $false; there = $true; shows = (New-Object System.Collections.ArrayList) }
+    $script:win = @{ minimized = $false; exists = $true; shows = (New-Object System.Collections.ArrayList) }
     Mock Get-TiaMainWindows { if ($ProcessId -eq 4242) { [long]77 } }
     Mock Test-WindowMinimized { $script:win.minimized }
-    Mock Test-WindowThere { $script:win.there }
+    Mock Test-WindowExists { $script:win.exists }
     Mock Send-WindowShow { [void]$script:win.shows.Add("$Handle $Command"); if ($Command -eq 6) { $script:win.minimized = $true } elseif ($Command -eq 9) { $script:win.minimized = $false } }
 }
 
 Describe 'the Windows calls' {
     It 'lists the windows of a process and finds none for a process without one' {
         @(Get-TiaMainWindows 0).Count | Should Be 0
-        Test-WindowThere 0 | Should Be $false
+        Test-WindowExists 0 | Should Be $false
         Test-WindowMinimized 0 | Should Be $false
     }
 }
@@ -26,44 +26,44 @@ Describe 'the Windows calls' {
 Describe 'TIA''s window for an export' {
     It 'minimizes the main window of the bound TIA and restores it after' {
         Initialize-WindowSession
-        $s = Enter-ExportWindow 100
+        Enter-ExportWindow 100
         $script:win.minimized | Should Be $true
-        $note = Exit-ExportWindow $s
+        $note = Exit-ExportWindow
         ($script:win.shows -join ',') | Should Be '77 6,77 9'
         $note | Should Be 'TIA''s window was minimized for the export and restored after: on one PC an .s7dcl export took about seven times as long with the window showing.'
     }
 
     It 'minimizes for an export whose count is not known before' {
         Initialize-WindowSession
-        $null = Enter-ExportWindow -1
+        Enter-ExportWindow -1
         $script:win.minimized | Should Be $true
     }
 
     It 'leaves a window that was minimized already, and puts nothing back' {
         Initialize-WindowSession
         $script:win.minimized = $true
-        $note = Exit-ExportWindow (Enter-ExportWindow 100)
+        Enter-ExportWindow 100; $note = Exit-ExportWindow
         $script:win.shows.Count | Should Be 0
         $note | Should Be 'TIA''s window was minimized already: left so.'
     }
 
     It 'leaves the window up when it was brought back up during the export, and names the part after which it was seen' {
         Initialize-WindowSession
-        $s = Enter-ExportWindow 100
+        Enter-ExportWindow 100
         Update-ExportWindowSeen 'blocks'
         $script:win.minimized = $false
         Update-ExportWindowSeen 'dbs'
         Update-ExportWindowSeen 'types'
-        $note = Exit-ExportWindow $s
+        $note = Exit-ExportWindow
         ($script:win.shows -join ',') | Should Be '77 6'
         $note | Should Match 'brought back up during it \(seen after part dbs\): left up, so the \.s7dcl exports after that'
     }
 
     It 'puts nothing back when TIA ended during the export' {
         Initialize-WindowSession
-        $s = Enter-ExportWindow 100
-        $script:win.there = $false
-        $note = Exit-ExportWindow $s
+        Enter-ExportWindow 100
+        $script:win.exists = $false
+        $note = Exit-ExportWindow
         ($script:win.shows -join ',') | Should Be '77 6'
         $note | Should Match 'is gone now \(TIA ended\): nothing to put back'
     }
@@ -71,9 +71,9 @@ Describe 'TIA''s window for an export' {
     It 'does nothing in a background session, which has no window' {
         Initialize-WindowSession
         $script:Bridge.background = @{ processId = 4242 }
-        $s = Enter-ExportWindow 100
-        $s | Should Be $null
-        Exit-ExportWindow $s | Should Be $null
+        Enter-ExportWindow 100
+        $script:ExportWindow | Should Be $null
+        Exit-ExportWindow | Should Be $null
         $script:win.shows.Count | Should Be 0
     }
 
@@ -89,39 +89,77 @@ Describe 'TIA''s window for an export' {
         $script:Bridge.reportRun = $reportRun
         $script:windows = $windows
         Mock Get-TiaMainWindows { @([long]77, [long]78) | Select-Object -First $script:windows }
-        $note = Exit-ExportWindow (Enter-ExportWindow $count)
+        Enter-ExportWindow $count; $note = Exit-ExportWindow
         $script:win.shows.Count | Should Be 0
         $note | Should Match "^Left as it was: .*$says"
     }
 
     It 'minimizes from 20 .s7dcl exports' {
         Initialize-WindowSession
-        $null = Enter-ExportWindow 20
+        Enter-ExportWindow 20
         $script:win.minimized | Should Be $true
     }
 
     It 'restores a window TIA minimized only after the wait, and says it took long' {
         Initialize-WindowSession
-        $script:ExportWindowWaitMs = 0
+        $wait = $script:ExportWindowWaitMs; $script:ExportWindowWaitMs = 0
         try {
             Mock Send-WindowShow { [void]$script:win.shows.Add("$Handle $Command"); if ($Command -eq 9) { $script:win.minimized = $false } }
-            $s = Enter-ExportWindow 100
+            Enter-ExportWindow 100
             $script:win.minimized = $true   # TIA got to it during the export
-            $note = Exit-ExportWindow $s
+            $note = Exit-ExportWindow
         }
-        finally { $script:ExportWindowWaitMs = 3000 }
+        finally { $script:ExportWindowWaitMs = $wait }
         ($script:win.shows -join ',') | Should Be '77 6,77 9'
         $note | Should Match 'restored after.* TIA took more than 0 s to minimize it\.$'
+    }
+
+    It 'says the export ran with the window showing when TIA never minimized it, and does not take it for the user''s' {
+        Initialize-WindowSession
+        $wait = $script:ExportWindowWaitMs; $script:ExportWindowWaitMs = 0
+        try {
+            Mock Send-WindowShow { [void]$script:win.shows.Add("$Handle $Command") }
+            Enter-ExportWindow 100
+            Update-ExportWindowSeen 'blocks'
+            Update-ExportWindowSeen 'dbs'
+            $note = Exit-ExportWindow
+        }
+        finally { $script:ExportWindowWaitMs = $wait }
+        ($script:win.shows -join ',') | Should Be '77 6'
+        $note | Should Be ('The bridge asked TIA to minimize its window for the export (on one PC an .s7dcl export took about seven times as long with the window showing), ' +
+                           'and Windows did not report it minimized, 0 s after the ask nor after any part: the export ran with the window showing. Left as it is.')
+    }
+
+    It 'names the part after which a window TIA minimized late was up again' {
+        Initialize-WindowSession
+        $wait = $script:ExportWindowWaitMs; $script:ExportWindowWaitMs = 0
+        try {
+            Mock Send-WindowShow { [void]$script:win.shows.Add("$Handle $Command") }
+            Enter-ExportWindow 100
+            $script:win.minimized = $true; Update-ExportWindowSeen 'blocks'
+            $script:win.minimized = $false; Update-ExportWindowSeen 'dbs'
+            $note = Exit-ExportWindow
+        }
+        finally { $script:ExportWindowWaitMs = $wait }
+        $note | Should Match 'brought back up during it \(seen after part dbs\)'
+    }
+
+    It 'writes nothing into the output of the export it runs in' {
+        Initialize-WindowSession
+        @(Enter-ExportWindow 100).Count | Should Be 0
+        $null = Exit-ExportWindow
+        $script:Bridge.background = @{ processId = 4242 }
+        @(Enter-ExportWindow 100).Count | Should Be 0
     }
 
     It 'never stops the export: a window call that fails is said in the note' {
         Initialize-WindowSession
         Mock Get-TiaMainWindows { throw 'access denied' }
-        { $script:s = Enter-ExportWindow 100 } | Should Not Throw
-        Exit-ExportWindow $script:s | Should Be 'Left as it was: access denied'
+        { Enter-ExportWindow 100 } | Should Not Throw
+        Exit-ExportWindow | Should Be 'Left as it was: access denied'
         Initialize-WindowSession
-        $s = Enter-ExportWindow 100
-        Mock Test-WindowThere { throw 'handle not valid' }
-        Exit-ExportWindow $s | Should Match 'could not be put back \(handle not valid\): the user can bring it up from the taskbar'
+        Enter-ExportWindow 100
+        Mock Test-WindowExists { throw 'handle not valid' }
+        Exit-ExportWindow | Should Match 'could not be put back \(handle not valid\): the user can bring it up from the taskbar'
     }
 }
