@@ -437,20 +437,23 @@ LAD_KEYWORDS = SCL_KEYWORDS | set('interlock interface remote entry timer overri
 
 
 def part_text(n, quoted=False, keywords=LAD_KEYWORDS):
-    """A part of an operand as both readers write it: in quotes when quoted, when it is no identifier or is a keyword."""
+    """A name as both readers write it in an operand or a member's path: in quotes when quoted, when it is no
+    identifier or is a keyword."""
     return '"%s"' % n if quoted or not _IDENT.match(n) or n.lower() in keywords else n
 
 
-# A string, kept as it is, or a part in quotes after a dot or a #: a member, a local, a local constant, in an index too
-_QUOTED_PART = re.compile(r'''('(?:[^']|'')*')|(?<=[.#])"((?:[^"]|"")*)"''')
+# A part in quotes after a dot or a # (a member, a local, a local constant, in an index too), or what is kept whole: a
+# string, a name in quotes elsewhere (a global, which may hold a dot, a # or a ', or a pragma's value)
+_QUOTED_PART = re.compile(r'''(?<=[.#])"((?:[^"]|"")*)"|'(?:[^']|'')*'|"(?:[^"]|"")*"''')
 
 
 def operand_text(text):
-    """A LAD operand of .s7dcl as the SimaticML reader writes it: each part in quotes after a dot or a # as part_text
-    writes it. In LAD, SimaticML holds a part's name and nothing of its quotes, and .s7dcl writes the same name in
-    quotes or not (`"zzInvBen"."step"`, `"zzInvBen".c[24]`, both declared in quotes): only the quotes go, the name
-    stays as written. A global's quotes, the first part's, stay."""
-    return _QUOTED_PART.sub(lambda m: m.group(1) or part_text(m.group(2)), text)
+    """LAD text of .s7dcl, an operand, a box's head or a whole line, with its operands as the SimaticML reader writes
+    them: each part in quotes after a dot or a # as part_text writes it. In LAD, SimaticML holds a part's name and
+    nothing of its quotes, and .s7dcl writes the same name in quotes or not (`"zzInvBen"."step"`, `"zzInvBen".c[24]`,
+    both declared in quotes): only the quotes go, the name stays as written. A global, the first part, a string and a
+    pragma's value are kept whole, whatever they hold."""
+    return _QUOTED_PART.sub(lambda m: m.group(0) if m.group(1) is None else part_text(m.group(1)), text)
 
 
 # ---------------------------------------------------------------- LAD
@@ -804,8 +807,10 @@ def _pins_in_one_case(lines):
 def lad_lines(body):
     """A LAD network's text as compared: wires numbered, without what the two export formats write differently (the
     indentation, the trailing comma an XML export writes after the last parameter, a space after an empty output, the
-    order of a box's named pins and the case of their names, the quotes round a plain name in an operand: operand_text)."""
-    lines = [operand_text(re.sub(r'\s*,$', '', l.strip())) for l in body.splitlines()]
+    order of a box's named pins and the case of their names, the quotes round a plain name in an operand:
+    operand_text, a comment line aside)."""
+    lines = [re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()]
+    lines = [l if l.startswith('//') else operand_text(l) for l in lines]
     lines = _pins_in_one_order(_pins_in_one_case([l for l in lines if l]))
     return numbered('\n'.join(lines)).split('\n') if lines else []
 

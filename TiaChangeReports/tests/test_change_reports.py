@@ -1371,6 +1371,14 @@ _PARTS = [
     ('"Db"."timer"', '"Db"."timer"', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="timer"/>')),
     ('#"C"', '#C', '<Access Scope="LocalConstant"><Constant Name="C"/></Access>'),
     ('"Max"', '"Max"', '<Access Scope="GlobalConstant"><Constant Name="Max"/></Access>'),
+    ('"Db"."c"[24]', '"Db".c[24]', _SYM % ('GlobalVariable', '<Component Name="Db"/><Component Name="c">%s</Component>'
+                                            % '<Access Scope="LiteralConstant"><Constant><ConstantValue>24'
+                                              '</ConstantValue></Constant></Access>')),
+    ('"Db"."p"^."x"', '"Db".p^.x', _SYM % ('GlobalVariable', '<Component Name="Db"/>'
+                                           '<Component Name="p" AccessModifier="Reference"/><Component Name="x"/>')),
+    ('"A#"."b"', '"A#".b', _SYM % ('GlobalVariable', '<Component Name="A#"/><Component Name="b"/>')),
+    ('"O.x"."b"', '"O.x".b', _SYM % ('GlobalVariable', '<Component Name="O.x"/><Component Name="b"/>')),
+    ("\"O'x\".\"b\"", "\"O'x\".b", _SYM % ('GlobalVariable', '<Component Name="O&apos;x"/><Component Name="b"/>')),
 ]
 
 
@@ -1391,8 +1399,8 @@ class QuotedMemberNames(unittest.TestCase):
 
     def test_what_is_no_part_stays(self):
         from TiaChangeReports.s7dcl import operand_text
-        for text in ("'x.\"a\"'", "'it''s #\"a\"'", 'wire#w1', 'NOT wire#w1', 'T#1s', '16#FF', '%DB1.DBX0.0', '"Db".x.%X1',
-                     '"Fc"'):
+        for text in ("'x.\"a\"'", "'it''s #\"a\"'", 'wire#w1', 'NOT wire#w1', 'T#1s', '16#FF', '%DB1.DBX0.0',
+                     '"Db".x.%X1', '"Fc"'):
             with self.subTest(text):
                 self.assertEqual(text, operand_text(text))
         self.assertEqual('NOT #a', operand_text('NOT #"a"'))
@@ -1411,6 +1419,16 @@ class QuotedMemberNames(unittest.TestCase):
         self.assertEqual(lad_lines('Contact( #"a" )\nEQ_Contact(\nin1 := "Db"."step"\n)'),
                          lad_lines('Contact( #a )\nEQ_Contact(\nin1 := "Db".step\n)'))
         self.assertEqual(['{ S7_Templates := "SrcType := Int" }'], lad_lines('{ S7_Templates := "SrcType := Int" }'))
+        self.assertEqual(['// set #"a"'], lad_lines('// set #"a"'))
+
+    def test_an_instance_reads_without_the_quotes(self):
+        """Of an instruction (`#"inst".TON(`) and of a block called as a multi-instance (`#"inst"(`), as SimaticML
+        writes an instance: `'#' + part_text` of each part."""
+        boxes = ('            #"t".TON(\n                PT := T#1s\n            )\n'
+                 '            #"sub"(\n                go := #q\n            )\n')
+        (net,) = parse_block(src(QUOTED.replace('            Coil( #q )\n', boxes), '', 'M')).networks
+        self.assertEqual([('TON', '#t'), ('CALL', '#sub')],
+                         [(e.instr, e.instance) for e in net.rungs[0].items[-2:]])
 
     def test_a_name_changed_inside_its_quotes_is_a_change(self):
         for other in ('"Db"."sup"', '"Db"."Sub"', '"Db"."s ub"'):
