@@ -129,8 +129,9 @@ function Get-ExportBase($Kind, $Entry, [string]$Library = '', [string]$Device = 
 # Objects whose exports would land on one path (Ns:Block and Ns_Block; Abc and ABC; two without a name): that path -> their
 # names. Against every object of the folder, not only those a call exports, as the file may hold an object not asked for,
 # and of every kind writing the folder (block and db share plc\blocks), as an export also removes the other format's files
-# of its base. Entries: of Kind; Root: where the other kinds' items are read.
-function Get-ExportCollisions($Kind, [object[]]$Entries, $Root, [string]$Library = '', [string]$Device = '') {
+# of its base. Entries: of Kind; Root: where the other kinds' items are read; Lists: kind name -> its entries, read
+# before in the same call (the plan of full_export), so TIA's tree is not listed again.
+function Get-ExportCollisions($Kind, [object[]]$Entries, $Root, [string]$Library = '', [string]$Device = '', [hashtable]$Lists = @{}) {
     $step = [TiaBridgeTimes]::Enter('collisions')
     try {
         $byBase = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
@@ -142,7 +143,7 @@ function Get-ExportCollisions($Kind, [object[]]$Entries, $Root, [string]$Library
         foreach ($e in $Entries) { & $add $Kind $e }
         foreach ($o in $script:ObjectKinds.Values) {
             if ($o.name -eq $Kind.name -or $o.dir -ne $Kind.dir -or -not $o.export) { continue }
-            foreach ($e in @(Get-KindItems $o $Root)) { & $add $o $e }
+            foreach ($e in @(if ($Lists.ContainsKey($o.name)) { $Lists[$o.name] } else { Get-KindItems $o $Root })) { & $add $o $e }
         }
         $hits = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
         foreach ($b in $byBase.Keys) { if ($byBase[$b].Count -gt 1) { $hits[$b] = @($byBase[$b] | Sort-Object) } }

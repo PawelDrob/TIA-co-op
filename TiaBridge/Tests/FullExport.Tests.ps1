@@ -1053,7 +1053,10 @@ Describe 'the times of a full_export' {
         $blocks = $t.parts[0]
         "$($blocks.steps.tia_export_s7dcl.n) $($blocks.steps.tia_export_retry.n)" | Should Be '3 1'
         $blocks.steps.Contains('tia_export_xml') | Should Be $false
-        foreach ($s in 'tia_properties', 'result', 'work_folder', 'move', 'compare', 'collisions', 'tia_list', 'progress', 'other') { $blocks.steps.Contains($s) | Should Be $true }
+        foreach ($s in 'tia_properties', 'result', 'work_folder', 'move', 'compare', 'collisions', 'progress', 'other') { $blocks.steps.Contains($s) | Should Be $true }
+        # the blocks and DBs were listed by the plan, for the part and for its collisions
+        $blocks.steps.Contains('tia_list') | Should Be $false
+        $t.plan.steps.Contains('tia_list') | Should Be $true
         $blocks.tiaMs | Should Not BeLessThan 80
         $t.parts[2].steps.Contains('tia_list') | Should Be $true
         $t.parts[3].steps.tia_export_xml.n | Should Be 1

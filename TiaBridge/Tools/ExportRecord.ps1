@@ -18,7 +18,7 @@ $script:SkipKinds = @('block', 'db', 'type', 'plc_tag_table')
 # reads older dates. An attribute an object does not have reads $null and is left out. The dates: what each edit moves
 # [PROBE] (2026-10-08). The rest is written into its file (the header: S7_Author, S7_Family, S7_UserDefinedId, S7_Version,
 # S7_IECCheck, S7_GenerateENOforSCL), and whether editing it in TIA moves a date is not probed: Openness cannot set it.
-# IsIECCheckEnabled and SetENOAutomatically have no .NET property and are read through GetAttribute (Read-TiaAttribute).
+# IsIECCheckEnabled and SetENOAutomatically have no .NET property; all of them are read in one call (Read-TiaAttributeValues).
 $script:BlockHeaderAttributes = @('HeaderAuthor', 'HeaderFamily', 'HeaderName', 'HeaderVersion', 'IsIECCheckEnabled', 'SetENOAutomatically', 'Namespace')
 $script:ExportStateAttributes = @{
     block = @('ModifiedDate', 'CodeModifiedDate', 'InterfaceModifiedDate', 'ParameterModified', 'StructureModified', 'CompileDate', 'CreationDate',
@@ -136,6 +136,41 @@ function Read-TiaAttribute($Obj, [string]$Name) {
     finally { [TiaBridgeTimes]::Exit($step) }
 }
 
+# The values of Names of Obj, read in one call into TIA (IEngineeringObject.GetAttributes) -> name -> value, for the names
+# Obj offers; $null when Obj has no GetAttributes (an object of PowerShell's own, a test's) or the read failed otherwise,
+# and the caller reads the names one at a time. GetAttributes refuses the whole call when the object lacks one of the
+# names (EngineeringNotSupportedException), not nulls as its documentation says: every DB and data type and the F-blocks
+# among them [PROBE] (2026-11-19, docs\agent\openness-v20.md, GetAttributes). Then GetAttributeInfos says which names the
+# object offers, and those are read in a second call. Kind: when the last object of it lacked a name, the next one asks
+# GetAttributeInfos first, which saves the refused call; one that offered them all turns that back.
+function Read-TiaAttributeValues($Obj, [string[]]$Names, [string]$Kind) {
+    if (-not $Obj.PSObject.Methods['GetAttributes']) { return $null }
+    try {
+        if (-not $script:AttributeInfosFirst[$Kind]) {
+            try { return ConvertTo-AttributeMap $Names $Obj.GetAttributes([System.Collections.Generic.IEnumerable[string]]$Names) }
+            catch { if (Test-TiaEndedError $_) { throw } }
+        }
+        $step = [TiaBridgeTimes]::Enter('tia_attribute')
+        try { $offered = @($Obj.GetAttributeInfos() | ForEach-Object { [string]$_.Name }) }
+        finally { [TiaBridgeTimes]::Exit($step) }
+        $asked = [string[]]@($Names | Where-Object { $offered -contains $_ })
+        $script:AttributeInfosFirst[$Kind] = $asked.Count -lt $Names.Count
+        if (-not $asked.Count) { return [ordered]@{} }
+        ConvertTo-AttributeMap $asked $Obj.GetAttributes([System.Collections.Generic.IEnumerable[string]]$asked)
+    }
+    catch { if (Test-TiaEndedError $_) { throw }; $null }
+}
+
+function ConvertTo-AttributeMap([string[]]$Names, $Values) {
+    $m = [ordered]@{}
+    for ($i = 0; $i -lt $Names.Count; $i++) { $m[$Names[$i]] = $Values[$i] }
+    $m
+}
+
+# A plan starts with no knowledge of which kinds lack names (Read-TiaAttributeValues).
+function Reset-AttributeReads { $script:AttributeInfosFirst = @{} }
+Reset-AttributeReads
+
 # The values of an object compared for unequal: name -> text, the dates in round trip form ('o', with their Kind).
 function Read-ExportState($Kind, $Entry) {
     $step = [TiaBridgeTimes]::Enter('tia_state')
@@ -143,13 +178,21 @@ function Read-ExportState($Kind, $Entry) {
     finally { [TiaBridgeTimes]::Exit($step) }
 }
 
+# Each value as before the one call: a name it did not answer (the object does not offer it) is read as a .NET property,
+# which gives nothing for a name the object does not have; when the one call failed, every name is read on its own, so a
+# value that does not read is named (unread) and the object is exported.
 function Read-ExportStateValues($Kind, $Entry) {
+    $names = [string[]]$script:ExportStateAttributes[$Kind.name]
+    $got = Read-TiaAttributeValues $Entry.obj $names $Kind.name
     $s = [ordered]@{}
-    foreach ($a in $script:ExportStateAttributes[$Kind.name]) {
+    foreach ($a in $names) {
         try {
-            $r = Read-ObjectProperty $Entry.obj $a
-            if (-not $r.has -and $script:GetAttributeOnly -contains $a) { $r = Read-TiaAttribute $Entry.obj $a }
-            $v = $r.value
+            if ($null -ne $got -and $got.Contains($a)) { $v = $got[$a] }
+            else {
+                $r = Read-ObjectProperty $Entry.obj $a
+                if (-not $r.has -and $null -eq $got -and $script:GetAttributeOnly -contains $a) { $r = Read-TiaAttribute $Entry.obj $a }
+                $v = $r.value
+            }
         }
         catch {
             if (Test-TiaEndedError $_) { throw }
@@ -307,6 +350,7 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
     $unusable = $read.error
     if (-not $unusable) { $unusable = Get-HeadDifference $read.record.head $head }
     $plan = @{ head = $head; old = $read.record; unusable = $unusable; all = $(if ($Full) { 'full: true' } else { $unusable }); devices = @{} }
+    Reset-AttributeReads
     foreach ($s in @($Software | Where-Object { $_.kind -eq 'plc' })) {
         $device = [string]$s.device
         $d = @{ all = $null; entries = @{}; objects = (New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)) }

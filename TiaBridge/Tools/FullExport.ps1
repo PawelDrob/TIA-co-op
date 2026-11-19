@@ -384,7 +384,8 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
     $entries = @(if ($dp) { $dp.entries[$k.name] } else { Get-KindItems $k $Root })
     if ($Part.filter) { $entries = @($entries | Where-Object { & $Part.filter $_ }) }
     $Record.count = $entries.Count
-    $collisions = Get-ExportCollisions $k $entries $Root '' $Device
+    # the other kinds of the folder from the plan too: what was listed for it holds for this call
+    $collisions = Get-ExportCollisions $k $entries $Root '' $Device $(if ($dp) { $dp.entries } else { @{} })
     $none = New-Object psobject
     $n = 0
     foreach ($e in $entries) {

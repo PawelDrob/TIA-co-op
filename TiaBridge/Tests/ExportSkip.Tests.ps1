@@ -9,6 +9,10 @@ if (-not ('Siemens.Engineering.ExportOptions' -as [type])) {
     Add-Type -TypeDefinition 'namespace Siemens.Engineering { [System.Flags] public enum ExportOptions { None = 0, WithDefaults = 1, WithReadOnly = 2 } }'
 }
 
+if (-not ('FakeSiemens.NonRecoverableException' -as [type])) {
+    Add-Type -TypeDefinition 'namespace FakeSiemens { public class NonRecoverableException : System.Exception { public NonRecoverableException(string m) : base(m) { } } }'
+}
+
 function Test-TiaAlive { $true }
 function Get-LibraryLink { $null }
 function Get-TiaVersionText { $script:tiaVersion }
@@ -40,6 +44,28 @@ function New-Group([object[]]$Items, [string]$Property, [object[]]$Groups = @())
     $g | Add-Member NoteProperty $Property $Items
     $g
 }
+# Gives a fake object TIA's GetAttributes and GetAttributeInfos [PROBE] (2026-11-19): GetAttributes answers a list of names
+# in one call and refuses the whole call when the object lacks one of them. It offers its properties and attrs (the names
+# only GetAttribute reads); Lacks: properties it does not offer as attributes. calls counts the calls of each. Single: no
+# GetAttributes, as the objects the bridge read one name at a time.
+function Add-AttributeMethods($Obj, [string[]]$Lacks = @(), [switch]$Single) {
+    if (-not $Obj.PSObject.Properties['attrs']) { $Obj | Add-Member NoteProperty attrs @{} }
+    $Obj | Add-Member NoteProperty lacks $Lacks -Force
+    $Obj | Add-Member NoteProperty calls @{ GetAttributes = 0; GetAttributeInfos = 0; GetAttribute = 0 } -Force
+    $Obj | Add-Member ScriptMethod Offered { @(@($this.PSObject.Properties | Where-Object { $_.MemberType -eq 'NoteProperty' -and $this.lacks -notcontains $_.Name } | ForEach-Object { $_.Name }) + @($this.attrs.Keys)) } -Force
+    $Obj | Add-Member ScriptMethod GetAttributeInfos { $this.calls.GetAttributeInfos++; @($this.Offered() | ForEach-Object { [pscustomobject]@{ Name = $_ } }) } -Force
+    $Obj | Add-Member ScriptMethod GetAttribute { param($Name)
+        $this.calls.GetAttribute++
+        if ($this.Offered() -notcontains $Name) { throw "'$Name' is not supported by type 'Fake'." }
+        if ($this.attrs.ContainsKey($Name)) { $this.attrs[$Name] } else { $this.$Name } } -Force
+    if ($Single) { return }
+    $Obj | Add-Member ScriptMethod GetAttributes { param($Names)
+        $this.calls.GetAttributes++
+        $offered = $this.Offered()
+        foreach ($n in $Names) { if ($offered -notcontains $n) { throw "'$n' is not supported by type 'Fake'." } }
+        , @(foreach ($n in $Names) { if ($this.attrs.ContainsKey($n)) { $this.attrs[$n] } else { $this.$n } }) } -Force
+}
+function New-Ending { [System.Management.Automation.MethodInvocationException]::new('outer', [FakeSiemens.NonRecoverableException]::new('Unexpected exception')) }
 # Moves an object's date on, as an edit in TIA does.
 function Step-Date($Obj, [string]$Attribute = 'ModifiedDate') { $Obj.$Attribute = $Obj.$Attribute.AddSeconds(1) }
 
@@ -595,5 +621,111 @@ Describe 'the record of full_export' {
         Mock Write-TextFileAtomic { throw 'disk full' }
         $r = Invoke-FullExportTool $script:parts
         $r.recordError | Should Match 'not written.*disk full'
+    }
+}
+
+Describe 'full_export reads what TIA says of an object in one call, and lists TIA''s tree once' {
+    Mock Get-TiaSoftwareList { $script:software }
+    Mock Get-TiaProject { $script:project }
+    Mock Test-IsDataBlock { $Block.Name -like '*DB*' }
+
+    # A block with a value for every name the record reads of a block: one call can answer them all. The IEC check and ENO are
+    # attributes only GetAttribute reads; a null value is left out, as before.
+    function New-FullBlock {
+        $b = New-PlcObject 'FC9' '' @{ CodeModifiedDate = [datetime]::new(2026, 10, 8, 13, 0, 0, [DateTimeKind]::Local); ParameterModified = [datetime]::new(2026, 10, 8, 14, 0, 0, [DateTimeKind]::Unspecified)
+                                       StructureModified = [datetime]::new(2026, 10, 8, 15, 0, 0, [DateTimeKind]::Utc); CompileDate = [datetime]::new(2026, 10, 9, 0, 0, 0, [DateTimeKind]::Utc)
+                                       CreationDate = [datetime]::new(2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc); Number = 9; ProgrammingLanguage = [System.DayOfWeek]::Monday
+                                       MemoryLayout = 'Optimized'; HeaderAuthor = 'me'; HeaderFamily = ''; HeaderName = 'n'; HeaderVersion = '0.1'; Namespace = $null }
+        $b | Add-Member NoteProperty attrs @{ IsIECCheckEnabled = $true; SetENOAutomatically = $false }
+        $b
+    }
+    function Get-Text($Obj, [string]$Kind = 'block') { Get-StateText (Read-ExportState (Get-ObjectKind $Kind) @{ obj = $Obj; name = $Obj.Name }) }
+
+    It 'gives the same state text as the reads one name at a time, in one call into TIA' {
+        $single = New-FullBlock; Add-AttributeMethods $single -Single
+        $one = New-FullBlock; Add-AttributeMethods $one
+        Reset-AttributeReads
+        $text = Get-Text $one
+        $text | Should Be (Get-Text $single)
+        $text | Should Match '(?m)^CodeModifiedDate=2026-10-08T13:00:00\.0000000[+-]\d\d:\d\d$'
+        $text | Should Match '(?m)^ProgrammingLanguage=Monday$'
+        $text | Should Match '(?m)^IsIECCheckEnabled=True$'
+        $text | Should Not Match 'Namespace'
+        "$($one.calls.GetAttributes) $($one.calls.GetAttributeInfos) $($one.calls.GetAttribute)" | Should Be '1 0 0'
+    }
+
+    It 'a name the object lacks: TIA refuses the whole call, and the names it offers are read in one more' {
+        Reset-AttributeReads
+        $single = New-FullBlock; $single.attrs.Remove('SetENOAutomatically'); Add-AttributeMethods $single -Single
+        $one = New-FullBlock; $one.attrs.Remove('SetENOAutomatically'); Add-AttributeMethods $one
+        $text = Get-Text $one
+        $text | Should Be (Get-Text $single)
+        $text | Should Not Match 'SetENOAutomatically'
+        "$($one.calls.GetAttributes) $($one.calls.GetAttributeInfos)" | Should Be '2 1'
+        # the next object of the kind asks which names it offers first; one that offers them all turns that back
+        $next = New-FullBlock; Add-AttributeMethods $next
+        $null = Get-Text $next
+        "$($next.calls.GetAttributes) $($next.calls.GetAttributeInfos)" | Should Be '1 1'
+        $last = New-FullBlock; Add-AttributeMethods $last
+        $null = Get-Text $last
+        "$($last.calls.GetAttributes) $($last.calls.GetAttributeInfos)" | Should Be '1 0'
+    }
+
+    It 'a property TIA does not offer as an attribute is read as before' {
+        Reset-AttributeReads
+        $single = New-FullBlock; Add-AttributeMethods $single -Single
+        $one = New-FullBlock; Add-AttributeMethods $one -Lacks 'Number'
+        $text = Get-Text $one
+        $text | Should Be (Get-Text $single)
+        $text | Should Match '(?m)^Number=9$'
+    }
+
+    It 'an object whose values do not read in one call is read one name at a time, and exported when one of them does not read' {
+        Initialize-SkipTest 'unread-one-call'
+        if (-not ('SkipTestBlock' -as [type])) {
+            Add-Type -TypeDefinition 'public class SkipTestBlock { public string Name; public System.DateTime ModifiedDate { get { return new System.DateTime(2026, 10, 8, 0, 0, 0, System.DateTimeKind.Utc); } } public bool IsConsistent { get { return true; } } public System.DateTime CompileDate { get { throw new System.NotSupportedException("not offered"); } } }'
+        }
+        $b = New-Object SkipTestBlock
+        $b.Name = 'FC1'
+        foreach ($m in 'ExportAsDocuments', 'Export') { $b | Add-Member ScriptMethod $m $script:o.FC1.PSObject.Methods[$m].Script }
+        $b | Add-Member NoteProperty text 'code of FC1'
+        $b | Add-Member NoteProperty exports 0
+        $b | Add-Member NoteProperty IsKnowHowProtected $false
+        $b | Add-Member NoteProperty reads 0
+        # as TIA: the getter's error refuses the call, whichever names it holds
+        $b | Add-Member ScriptMethod GetAttributeInfos { @('ModifiedDate', 'IsConsistent', 'CompileDate') | ForEach-Object { [pscustomobject]@{ Name = $_ } } }
+        $b | Add-Member ScriptMethod GetAttributes { param($Names) $this.reads++; throw 'not offered' }
+        $script:blocks.Blocks = @($script:o.FB1, $b, $script:o.IDB1, $script:o.DB1)
+        $script:o.FC1 = $b
+        $null = Invoke-FullExportTool $script:parts
+        Reset-Exports
+        $r = Invoke-FullExportTool $script:parts
+        Get-Exported | Should Be 'FC1'
+        @($r.details | Where-Object { $_.part -eq 'blocks' })[0].why['a value of it does not read'] | Should Be 1
+        $b.reads | Should Be 4
+    }
+
+    It 'the parts take the plan''s lists: TIA''s tree is listed once' {
+        Initialize-SkipTest 'lists'
+        $t = (Invoke-FullExportTool $script:parts).times
+        $t.plan.steps.tia_list.n | Should Be 4
+        foreach ($p in $t.parts) { "$($p.part) $($p.steps.Contains('tia_list'))" | Should Be "$($p.part) False" }
+    }
+
+    Context 'TIA ends in the read' {
+        It 'stops the export at the first part, as before, and asks TIA nothing more of the object' {
+            Initialize-SkipTest 'ended-read'
+            $f = Join-Path $script:repo '.tiabridge-export.json'
+            $before = [System.IO.File]::ReadAllText($f)
+            Add-AttributeMethods $script:o.FC1
+            $script:readEnded = $false
+            $script:o.FC1 | Add-Member ScriptMethod GetAttributes { param($Names) $this.calls.GetAttributes++; $script:readEnded = $true; throw (New-Ending) } -Force
+            Mock Test-TiaAlive { -not $script:readEnded }
+            $r = Invoke-FullExportTool $script:parts
+            $r.tiaEnded | Should Be $true
+            $r.note | Should Match 'TIA Portal ended at part blocks'
+            "$($script:o.FC1.calls.GetAttributes) $($script:o.FC1.calls.GetAttributeInfos) $($script:o.FC1.calls.GetAttribute)" | Should Be '1 0 0'
+            [System.IO.File]::ReadAllText($f) | Should Be $before
+        }
     }
 }
