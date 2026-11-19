@@ -11,8 +11,9 @@ with no claude on the PATH (without-claude); the rows of the folder, the server 
 make (three_rows); the folder as a second clone on it finds it (rules_there); the server registered for this folder
 only (this_folder_only); another folder stored while the first is typed, and this folder's server another command
 (another_folder_stored); the server of this folder this clone's or another command while your Windows user's is another
-clone's, with the viewer of another clone and a folder that is no full path (servers); Claude Code's state and the
-bridge's settings that cannot be read (unreadable). All the while it watches the hidden desktop for console windows: the first run's uv sync may
+clone's, with the viewer of another clone and a folder that is no full path (servers); a projectsRoot that names no
+folder with the field emptied (no-folder); Claude Code's state and the bridge's settings that cannot be read
+(unreadable). All the while it watches the hidden desktop for console windows: the first run's uv sync may
 have one, the second run none. Pictures and done.txt of each run go to a folder of its own under <folder>. It starts
 no TIA, writes nothing of the real user's, and ends the dashboard it started by its Windows process number.
 """
@@ -305,6 +306,9 @@ def main(argv=None):
                 if name == 'this-folder-another-for-you':     # with the viewer of another clone, and a folder that is no full path typed
                     register.register(register.command(str(temp / 'other' / 'TiaChangeReports' / 'viewer')), key + r'\Classes', key + r'\UserChoice', notify=False)
                 run(desktop, clone, env, out / name, [*options, '--settings'] + (['--snap-folder', 'Repos'] if name == 'this-folder-another-for-you' else []), report)
+            bridge_file = clone / 'TiaBridge' / 'settings.json'      # a projectsRoot that names no folder, and the field emptied
+            bridge_file.write_text(json.dumps({**json.loads(bridge_file.read_text(encoding='ascii')), 'projectsRoot': ''}), encoding='ascii')
+            run(desktop, clone, env, out / 'no-folder', [*options, '--settings', '--snap-folder', ' '], report)
             (temp / 'home' / '.claude' / '.claude.json').write_text('{not json', encoding='utf-8')
             (clone / 'TiaBridge' / 'settings.json').write_text('{not json', encoding='ascii')
             run(desktop, clone, env, out / 'unreadable', [*options, '--settings'], report)

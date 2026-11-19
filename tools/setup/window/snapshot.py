@@ -28,7 +28,7 @@ class Snapshot:
         self.plan = [('opens', w.page, '0-opens')]      # what a double-click opens: the first page, or the menu after Finish
         for i, (key, _, _) in enumerate(model.PAGES):
             self.plan.append(('page', i, f'{i + 1}-{key}'))
-            if key == 'bridge':
+            if key in ('bridge', 'viewer'):     # the pages whose rows have details
                 self.plan.append(('detail', i, f'{i + 1}-{key}-what-changes'))
             if self.changes and key in PRESSED_ON:
                 self.plan.append(('press', i, f'{i + 1}-{key}-done'))
