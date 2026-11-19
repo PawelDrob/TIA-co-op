@@ -583,7 +583,7 @@ def _output(pin):
     return bool(re.match(r'^(out\d*|ret_val|done|busy|error|status|eno|q|et|cv)$', pin, re.I))
 
 
-# templates the SD export writes (a type the instruction fixes is left out there: _left_out)
+# templates the SD export writes; it leaves out a type the instruction fixes, and so does this reader (_left_out)
 TEMPLATES = ('SrcType', 'DestType', 'time_type', 'value_type', 'count_type')
 
 
@@ -684,7 +684,7 @@ def lad_rungs(flg, prefix, lang='LAD'):
                 if pin != 'out':
                     order[w] = int(pin[2:] or 0)              # in1, in2, ...: the order of the branches
             continue
-        spec = instructions.lookup(instructions.sd_name(p.get('Name'))) if tag == 'Part' else None
+        spec = instructions.lookup(_part_instr(p)) if tag == 'Part' else None
         rin_name = (spec and spec.rung_pin(0, fl)) or next((n for n in RUNG_IN if n in fl), None)
         rout_name = (spec and spec.rung_pin(1, fl)) or next((n for n in RUNG_OUT if n in fl), None)
         rin, rout = fl.get(rin_name), fl.get(rout_name)

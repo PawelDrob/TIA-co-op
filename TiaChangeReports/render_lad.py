@@ -261,9 +261,8 @@ def undrawn_settings(el, partner, drawn):
     if partner is None:
         return []
 
-    def settings(x):
-        spec = instructions.lookup(x.instr)
-        return {**(spec.fixed if spec else {}), **x.more, **x.templates}
+    def settings(version):
+        return {**instructions.fixed_types(version.instr), **version.more, **version.templates}
     mine, theirs = settings(el), settings(partner)
     out = []
     for k in sorted(mine):
@@ -402,7 +401,7 @@ class View:
             if self.dbcall:
                 self.inst = '"%s"' % el.call.strip('"')
             self.title = '"%s"' % (self.dbcall or el.call or self._fb_type(el.instance) or (el.instance or '').lstrip('#')).strip('"')
-        types = dict(spec.fixed) if spec else {}          # what the instruction fixes, an export's own over it
+        types = instructions.fixed_types(el.instr)        # what the instruction fixes, an export's own over it
         types.update(el.templates)
         self.second = types.get(spec.second, '') if spec and spec.second else ''
         if spec and spec.line is not None:                # TIA's line holds these, whatever else the export has

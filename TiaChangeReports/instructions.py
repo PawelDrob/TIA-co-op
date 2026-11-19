@@ -208,7 +208,7 @@ for _sd, _title, _rung, _ins in (('Cu', 'S_CU', 'CU', 'S PV R'), ('Cd', 'S_CD', 
 
 # The type lines of the extended and Communication boxes, from TIA's screen, else the help's drawings: {title: (line, pair, second, fixed)}. A type
 # the .s7dcl leaves out is fixed. Any other extended box has none. A box with no type line can have a fixed type too: SimaticML writes it, .s7dcl
-# not (TRCV's value_type UDInt, beside a LEN of UInt; 226's run, every export of these boxes, the value never changed).
+# not (TRCV's value_type UDInt, beside a LEN of UInt; the same value in every export of these boxes seen, whatever their operands).
 _TO = ('src_type', 'TO', 'dest_type')
 _PTR = ('ptr_type',)
 _VARIANT = {'ptr_type': 'Variant'}
@@ -297,16 +297,21 @@ def f_templates(instr, pragmas):
 SYMBOL_CONTACTS = ('Contact', 'I_Contact', 'P_Contact', 'N_Contact', 'Not')
 
 
-# The count of inputs of a box that takes no more (Card): SimaticML writes it in some exports and not in others (226's run: none on these
-# at the start state, Card 2 on each after I001, which changed none of them), .s7dcl never.
+# The count of inputs of a box that takes no more (Card): SimaticML writes it in some exports and not in others (none on these boxes, then
+# Card 2 on each, in two exports of a block between which none of them changed), .s7dcl never.
 FIXED_CARD = {'Sub': '2', 'Div': '2', 'Mod': '2'}
+
+
+def fixed_types(instr):
+    """{template: type} of the types an instruction fixes (Instruction.fixed), {} for one the report does not know."""
+    spec = lookup(instr)
+    return dict(spec.fixed) if spec else {}
 
 
 def left_out(instr, template, value):
     """Whether a SimaticML template of an element (instr: its .s7dcl name) is one the .s7dcl leaves out: at the value the
     instruction fixes, a type (Instruction.fixed) or a count of inputs (FIXED_CARD). Another value is the export's own."""
-    spec = lookup(instr)
-    fixed = dict(spec.fixed if spec else {}, **({'Card': FIXED_CARD[instr]} if instr in FIXED_CARD else {}))
+    fixed = dict(fixed_types(instr), **({'Card': FIXED_CARD[instr]} if instr in FIXED_CARD else {}))
     return fixed.get(template) == value
 
 

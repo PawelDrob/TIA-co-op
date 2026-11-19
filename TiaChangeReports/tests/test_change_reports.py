@@ -1959,7 +1959,8 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
     """A type template the instruction fixes: SimaticML writes it, .s7dcl leaves it out (zzComXOucOth network 6, TUSEND's
     `value_type` UDInt). Read from SimaticML at that value it is left out as well, so that the box compares and its
     network's text reads alike from both formats; another value is read and compared. Sub, Div and Mod take two inputs
-    only: their Card 2, which SimaticML writes in some exports and not in others (226's I001), is no change."""
+    only: their Card 2, which SimaticML writes in some exports and not in others (zzLadMath, two exports with its Sub, Div
+    and Mod unchanged), is no change."""
 
     @staticmethod
     def element(part, templates, pins=('in',)):
