@@ -1,5 +1,5 @@
 # Tools\Objects.ps1 - list, export, import, delete, delete_folder and compile over the object kinds that Tools\Plc.ps1,
-# Tools\Hmi.ps1 and Tools\Library.ps1 register.
+# Tools\Hmi.ps1, Tools\Library.ps1, Tools\FullExport.ps1 (graphic) and Tools\Settings.ps1 (the settings parts) register.
 #
 # A kind is a hashtable: scope ('plc'|'hmi'|'library'|'project'), dir (repo folder), description, defaultOverride,
 # exportOnly (import and delete refused), noOverride (why import never replaces one: override refused), overrideWhy (why
@@ -535,9 +535,9 @@ function Invoke-ImportTool($a) {
     # exist yet is kept by name and resolves (2026-10-06; ImportStaging.ps1 imported screens twice for it).
     $items = New-Object System.Collections.ArrayList
     # a kind TIA imports only outside a transaction (noUndo): passed past Get-NoUndoRefusal above
-    $outside = @{}
-    if ($k.noUndo) { $outside.OutsideTransaction = $true }
-    $w = Invoke-TiaWrite "import of $($files.Count) $($k.name) file(s)" @outside -RollbackIf { @($items | Where-Object { -not $_.ok }).Count -gt 0 } -Body {
+    $writeMode = @{}
+    if ($k.noUndo) { $writeMode.OutsideTransaction = $true }
+    $w = Invoke-TiaWrite "import of $($files.Count) $($k.name) file(s)" @writeMode -RollbackIf { @($items | Where-Object { -not $_.ok }).Count -gt 0 } -Body {
         $stopped = $false
         foreach ($p in $plan) {
             $item = $p.item
@@ -609,7 +609,7 @@ function Invoke-ImportTool($a) {
     }
     if ($w.note) { $r.transactionNote = $w.note }
     if ($w.commitError) { $r.commitError = $w.commitError }
-    if ($k.noUndo -and $reachedTia) { $r.noUndo = Get-NoUndoNote $k }
+    if ($k.noUndo -and $reachedTia) { $r.noUndo = Get-NoUndoNote $k ([bool]@($items | Where-Object { $_.ok }).Count) }
     # the object is in TIA, so no failed item and no rollback; not ok, as what refers to the name asked for is broken
     $other = @($items | Where-Object { $_.importedAs -and -not $_.rolledBack })
     if ($other.Count) {
@@ -650,9 +650,11 @@ function Get-NoUndoRefusal($Kind, $Session, [bool]$NoUndo) {
     $null
 }
 
-# The result's noUndo: what went in with no undo, the way back, and that the user hears it.
-function Get-NoUndoNote($Kind) {
-    "Imported outside a transaction ($($Kind.noUndo)): TIA has no undo of it. $(Get-NoUndoWayBack) Tell the user what was imported and that it has no undo."
+# The result's noUndo: what went in with no undo, the way back, and that the user hears it. Imported: an item went in;
+# else TIA failed, and what it took before failing stays.
+function Get-NoUndoNote($Kind, [bool]$Imported) {
+    if ($Imported) { return "Imported outside a transaction ($($Kind.noUndo)): TIA has no undo of it. $(Get-NoUndoWayBack) Tell the user what was imported and that it has no undo." }
+    "Run outside a transaction ($($Kind.noUndo)) and failed: what TIA took of it before failing stays, with no undo. $(Get-NoUndoWayBack) Tell the user it failed and that what went in has no undo."
 }
 
 # The names of a batch whose import failed, that were not in the project before and are not now. Listed again, as without
@@ -1020,10 +1022,10 @@ function Register-ObjectTools {
         'hmi_vbscript: a script with a syntax error goes in without a word; the HMI compile reported no error for it while nothing called the script, and failed once a screen did (other callers not tried). A screen event calls a script as a function list entry of Type VBScript naming it; a screen whose button called it so stayed as it was through an import over the script. ' +
         'project_texts, alarm_classes, diagnostics_settings and supervisions: the settings parts full_export writes, from its files, each over the project''s own (supervisions: the PLC''s). A file of another name, or an XML not of its kind, is refused before TIA sees it. ' +
         'alarm_classes and diagnostics_settings take the .dat, or the .xml full_export writes beside it, which the bridge packs into a .dat as TIA exports it; a .dat whose .xml beside it differs is refused, as the edit is in the .xml. ' +
-        'An alarm class''s display name is a project text: a DisplayName edited with Culture="<language>" landed, one without it went in as a second DisplayName and the text stayed. A diagnostics category''s Activation edited in the .xml landed, and a block title edited in the project texts. ' +
+        'An alarm class''s display name is a project text: a DisplayName edited with Culture="en-US" landed (one language tried), one without it went in as a second DisplayName and the text stayed. A diagnostics category''s Activation edited in the .xml landed, and a block title edited in the project texts. ' +
         'project_texts and alarm_classes TIA imports only outside a transaction ("The operation is not permitted within a transaction."): they have no undo, and a failure half way leaves what went in. Refused unless this session holds an archive (a skipped one is none: archive(reason) makes one) and no_undo is true, ' +
         'which only the user''s yes allows, once told what has no undo and that the way back is that archive, which holds the project as it was when made; the refusal says both. The result''s noUndo says it again: pass it on to the user. diagnostics_settings and supervisions run in a transaction. ' +
-        "$script:SupervisionsFirstImport Supervision settings (project\supervision) and PLC alarm texts (plc\alarms) are no kind: their import was not tried. " +
+        "$script:SupervisionsFirstImport The result's prodiag says when this import did it: pass it on to the user. Supervision settings (project\supervision) and PLC alarm texts (plc\alarms) are no kind: their import was not tried. " +
         'An existing object is replaced where it is; a new one goes to ' +
         'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables, cycles, slide-ins and global screens. ' +
         'override defaults to true, except hmi_template, hmi_screen_global and hmi_tag_table (an existing one is refused). ' +
@@ -1036,7 +1038,7 @@ function Register-ObjectTools {
         'or whose number is no whole number; any write before the session archive; project_texts and alarm_classes without an archive of this session or without no_undo true; ' +
         'an F-block (the file or the object it replaces) or the document of an F-compliant PLC data type without safety: true (a data type by its document only: with the mark taken out, nothing refuses it); override of a know-how protected block (not of a technology object, see technology_object); override of hmi_tag_table (it crashed TIA: delete the table first, then import). ' +
         'Import HMI documents only after the user''s yes to their preview. Skill tia-change, hmi.md, holds that stop and the order of HMI imports. Never re-import a screen that holds an alarm view or diagnostics view ' +
-        '(the export drops them), nor global elements that hold an alarm window or alarm indicator, nor a slide-in that holds a control the export leaves out (taken to drop them too, not tried). A call is all or nothing: one refused or failed file and nothing of the call is imported ' +
+        '(the export drops them), nor global elements that hold an alarm window or alarm indicator, nor a slide-in that holds a control the export leaves out (taken to drop them too, not tried). A call is all or nothing: one refused or failed file and nothing of the call is imported, except that a failure of project_texts or alarm_classes, which run without a transaction, leaves the files before it ' +
         '(the result says which file and why); put blocks that depend on each other in one call. Compile afterwards.') -Schema @{
         type = 'object'; required = @('kind', 'paths')
         properties = @{

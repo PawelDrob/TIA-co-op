@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:41:18-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:50:15-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -171,9 +171,11 @@ back over the project's own:
   export writes it, it went in as a second `DisplayName`, and the text stayed.
 - **The first supervisions import set up ProDiag.** On the project without ProDiag settings, importing its headers-only
   sheet initialised them: their export, refused before, then worked, and the project texts gained 230 rows of ProDiag
-  categories (both dates).
-- **After these imports** a compile of the PLC and of the HMI had 0 errors (2026-11-19). Whether a part needs one was not
-  tried, apart from the block title above.
+  categories (both dates). The same import rolled back in its transaction took both back: the settings' export still
+  answered that they are not initialized, and the project texts kept their rows (2026-11-19).
+- **After these imports** a compile of the PLC and of the HMI had 0 errors (2026-11-19). Whether a part needs a compile
+  was not tried; a block title edited through the project texts turned the block not consistent in the paragraph above
+  (2026-11-18).
 - **Not tried:** an import of supervision settings and of PLC alarm text lists and texts; a new alarm class; project texts
   of a second language through TiaBridge (the paragraph above tried them by script).
 

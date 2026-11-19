@@ -1,5 +1,5 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'Tools\Objects.ps1', 'Tools\Plc.ps1', 'Tools\Library.ps1', 'Tools\Hmi.ps1', 'Tools\FullExport.ps1') { . (Join-Path $here "..\$f") }
+foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'Tools\Objects.ps1', 'Tools\Plc.ps1', 'Tools\Library.ps1', 'Tools\Hmi.ps1', 'Tools\FullExport.ps1', 'Tools\Settings.ps1') { . (Join-Path $here "..\$f") }
 
 # A batch import is all or nothing (decided 2026-10-05: FBs that depend on each other go in together).
 # Stand-ins: a fake object kind, and Invoke-TiaWrite that runs the body and honours -RollbackIf like the real one.
@@ -1289,7 +1289,7 @@ Describe 'import of the settings parts' {
         $r.ok | Should Be $false
         $r.items[0].ok | Should Be $false
         $r.note | Should Be 'No transaction: the files before the failure stay imported.'
-        $r.noUndo | Should Match 'TIA has no undo of it'
+        $r.noUndo | Should Match '^Run outside a transaction \(TIA refuses it inside one.*\) and failed: what TIA took of it before failing stays, with no undo\. The way back is archives'
         @((Get-BridgeSession).failed.Keys) -join ' ' | Should Match 'alarm_classes:alarm-classes'
     }
 
@@ -1303,12 +1303,32 @@ Describe 'import of the settings parts' {
         @((Get-BridgeSession).pending.Values) -join ' ' | Should Be 'plc@PLC_1:diagnostics_settings:systemdiagnostics-settings'
     }
 
-    It 'imports the supervisions of a PLC with Override in a transaction, and says what the first import did to a project' {
+    # the ProDiag settings as read before the import and after it
+    function Test-ProDiagSettings { $script:proDiagReads++; $script:proDiagStates[$script:proDiagReads - 1] }
+
+    It 'imports the supervisions of a PLC with Override in a transaction, and says so when the import initialised ProDiag' {
+        $script:proDiagReads = 0; $script:proDiagStates = @('no', 'yes')
         $r = Invoke-SettingsImportTool 'supervisions' @('plc\supervisions\supervisions.xlsx')
         $r.ok | Should Be $true
         $script:imported -join ',' | Should Be 'supervisions supervisions.xlsx Override'
         $script:outside | Should Be $false
-        $r.prodiag | Should Match 'initialised the project''s ProDiag settings'
+        $r.items[0].proDiagSettingsBefore | Should Be 'no'
+        $r.prodiag | Should Match '^This import initialised the project''s ProDiag settings, which it had none of before\..*Tell the user\.$'
+    }
+
+    It 'says nothing of ProDiag when the project had its settings, and warns when they could not be read' {
+        $script:proDiagReads = 0; $script:proDiagStates = @('yes')
+        $r = Invoke-SettingsImportTool 'supervisions' @('plc\supervisions\supervisions.xlsx')
+        $r.ok | Should Be $true
+        $r.ContainsKey('prodiag') | Should Be $false
+        $script:proDiagReads | Should Be 1
+        $script:proDiagReads = 0; $script:proDiagStates = @('unread', 'yes')
+        $r = Invoke-SettingsImportTool 'supervisions' @('plc\supervisions\supervisions.xlsx')
+        $r.prodiag | Should Match '^Whether this import initialised the project''s ProDiag settings could not be read\. Importing a supervisions sheet into a project without ProDiag settings initialises them'
+    }
+
+    It 'refuses a supervisions file of another name before TIA is asked' {
+        $script:proDiagReads = 0; $script:proDiagStates = @('yes')
         Write-TextFile (Join-Path $repo 'plc\supervisions\other.xlsx') 'xlsx'
         $r = Invoke-SettingsImportTool 'supervisions' @('plc\supervisions\other.xlsx')
         $r.items[0].refused | Should Match "'other' is not it"

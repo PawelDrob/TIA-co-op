@@ -56,8 +56,9 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   graphic list that names a graphic the project does not have: import the graphic first.
 - Imports project texts and alarm classes only when you say so, and only with an archive of this session: TIA imports
   them only outside a transaction, so they have no undo, and that archive is the way back. Imports the alarm classes and
-  system diagnostics settings from the `.dat` or from the `.xml` beside it. Does not import supervision settings or PLC
-  alarm texts, as their import was not tried.
+  system diagnostics settings from the `.dat` or from the `.xml` beside it.
+- Imports a PLC's ProDiag supervisions. Into a project without ProDiag settings that also sets them up and adds rows of
+  ProDiag categories to the project texts: the agent is told to say so before, and the result says so when it happened.
 - Imports a VB script with a syntax error as TIA does, without a word. The HMI compile found the error only once a screen
   called the script (other callers were not tried), so compile after the import and read its errors.
 
@@ -72,6 +73,7 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
 - Read the contents of a global library's types, only their version metadata. Bring a type into the project library to work on it.
 - Export what Openness does not carry, or the hardware configuration: see [Limitations](../README.md#limitations).
 - Archive to a path over 143 characters, which TIA refuses.
+- Import supervision settings or PLC alarm texts: their import was not tried.
 - Protect unsaved edits: a refused HMI import can end TIA, and they go with it.
 
 ## How to use
