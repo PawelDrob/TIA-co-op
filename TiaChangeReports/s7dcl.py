@@ -576,13 +576,22 @@ def parse_lad(body, prefix, itf=None):
     return rungs
 
 
+_NAMED_PIN = re.compile(r'^("[^"]+"|[A-Za-z_]\w*)\s*(:=|=>)\s*(.*)$')        # a quoted name: "iSq01/05"
+
+
+def _named_pin(line):
+    """(name, ':=' or '=>', value) of a box's line that names its pin, the name unquoted; None for another line."""
+    m = _NAMED_PIN.match(line)
+    return (m.group(1).strip('"'), m.group(2), m.group(3).strip()) if m else None
+
+
 def _param_list(plines):
     out = []
     for pt in plines:
         pt = pt.rstrip().rstrip(',').rstrip()
-        m = re.match(r'^("[^"]+"|[A-Za-z_]\w*)\s*(:=|=>)\s*(.*)$', pt)        # a quoted name: "iSq01/05"
-        if m:
-            out.append((m.group(1).strip('"'), m.group(2), m.group(3).strip()))
+        pin = _named_pin(pt)
+        if pin:
+            out.append(pin)
         elif pt:
             out.append((None, None, pt))
     return out
@@ -707,11 +716,8 @@ def numbered(network):
     return re.sub(r'\bwire#(\w+)', lambda m: 'wire#%s' % wires.setdefault(m.group(1).lower(), len(wires)), network, flags=re.I)
 
 
-_NAMED_PIN = re.compile(r'("[^"]+"|[A-Za-z_]\w*)\s*(?::=|=>)')      # as _param_list reads a name
-
-
 def _pin_line_key(line):
-    return pin_key(_NAMED_PIN.match(line).group(1).strip('"')), line
+    return pin_key(_named_pin(line)[0]), line
 
 
 def _pins_in_one_order(lines):
@@ -724,7 +730,7 @@ def _pins_in_one_order(lines):
         if not out[-1].endswith('('):
             continue
         end = k
-        while end < len(lines) and _NAMED_PIN.match(lines[end]) and not lines[end].endswith('('):
+        while end < len(lines) and _named_pin(lines[end]) and not lines[end].endswith('('):
             end += 1
         if end < len(lines) and lines[end].startswith(')'):
             out += sorted(lines[k:end], key=_pin_line_key)
