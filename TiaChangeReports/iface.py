@@ -274,7 +274,7 @@ def _unfold(node, types, opened, fbs=False):
     (types), in its own section, as TIA lists them when it opens; a UDT or struct among them too. Under an in-out their
     boxes are empty, as the in-out's own (_boxes). fbs (an instance DB's members): an FB instance too, onto its FB's
     Input, Output, InOut and Static, one inside it as well. Not an array, an FB instance elsewhere, or a type the input
-    lacks (a system FB): those stay as they are. opened: the types opened above it, which it does not open again (a UDT
+    lacks (no file of it, such as TON_TIME): those stay as they are. opened: the types opened above it, which it does not open again (a UDT
     or FB that would hold itself by a chain)."""
     name = type_name(node.type).lower()
     if not node.children and not re.match(r'Array\s*\[', node.type or '', re.I) and name not in opened:
