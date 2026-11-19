@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+<job id="setup">
+<!--
+  Double-click: the first setup of this clone, page by page, and after it the settings (tools\setup\window).
+  Windows runs this file with wscript.exe, which has no console; the window runs on pythonw.exe, which has none either.
+  Without the clone's Python environment yet, it makes it first with uv sync, in a console that shows its progress.
+  Its arguments go to the window, whose options tools\setup\window\__main__.py lists. Under cscript.exe it prints what
+  it would show in a box, for a test. Where Windows Script Host is turned off, run tools\setup\setup.ps1 instead.
+-->
+<script language="JScript"><![CDATA[
+var TITLE = 'TIA-co-op setup';
+var UV_PAGE = 'https://docs.astral.sh/uv/getting-started/installation/';
+var shell = new ActiveXObject('WScript.Shell');
+var files = new ActiveXObject('Scripting.FileSystemObject');
+var clone = files.GetParentFolderName(WScript.ScriptFullName);
+var inConsole = /cscript\.exe$/i.test(WScript.FullName);
+
+function say(text, yesNo) {
+    // A box under wscript; a line under cscript, which a test reads. True for Yes.
+    if (inConsole) {
+        WScript.Echo(text);
+        return false;
+    }
+    return shell.Popup(text, 0, TITLE, yesNo ? 4 + 48 : 48) == 6;
+}
+
+function quoted(text) {
+    return '"' + text + '"';
+}
+
+function findUv() {
+    // On the PATH, else where its installer puts it: a PATH read before the install lacks it (setup.py, uv_path).
+    var folders = shell.ExpandEnvironmentStrings('%PATH%').split(';');
+    for (var i = 0; i < folders.length; i++) {
+        var folder = folders[i].replace(/^"|"$/g, '');
+        if (folder && files.FileExists(files.BuildPath(folder, 'uv.exe'))) {
+            return files.BuildPath(folder, 'uv.exe');
+        }
+    }
+    var installed = shell.ExpandEnvironmentStrings('%USERPROFILE%\\.local\\bin\\uv.exe');
+    return files.FileExists(installed) ? installed : null;
+}
+
+var pythonw = files.BuildPath(clone, '.venv\\Scripts\\pythonw.exe');
+if (!files.FileExists(pythonw)) {
+    var uv = findUv();
+    if (!uv) {
+        if (say('uv is missing. It makes the Python environment of this repo, which setup runs on.\n\n' +
+                'Install it as ' + UV_PAGE + ' says, then double-click Setup again.' +
+                (inConsole ? '' : '\n\nOpen that page now?'), true)) {
+            shell.Run(UV_PAGE);
+        }
+        WScript.Quit(1);
+    }
+    // A console, which the person sees uv in: the first sync downloads Python. It stays open on a failure.
+    var sync = 'title ' + TITLE + ': making the Python environment& cd /d ' + quoted(clone) + '& ' + quoted(uv) + ' sync' +
+               '& if errorlevel 1 (echo.& echo uv sync failed; its message is above. Press a key to close.& pause > nul& exit 1)';
+    if (shell.Run('cmd.exe /d /s /c ' + quoted(sync), 1, true) != 0 || !files.FileExists(pythonw)) {
+        WScript.Quit(1);
+    }
+}
+var options = [];
+for (var i = 0; i < WScript.Arguments.length; i++) {
+    options.push(quoted(WScript.Arguments(i)));
+}
+shell.CurrentDirectory = clone;
+shell.Run(quoted(pythonw) + ' -X utf8 -m tools.setup.window ' + options.join(' '), 1, false);
+if (inConsole) {
+    WScript.Echo('started ' + pythonw);
+}
+]]></script>
+</job>
+</package>

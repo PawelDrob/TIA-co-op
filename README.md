@@ -56,7 +56,10 @@ Changing this repository: [CONTRIBUTING.md](CONTRIBUTING.md) and [tools/README.m
 
 ## Setup
 
-Clone this repository, then run this in its folder:
+Clone this repository, then double-click **Setup** (`Setup.wsf`) in its folder. It makes the Python environment and takes
+you through the setup page by page. Double-clicked again, it shows what is set up and which dashboard runs.
+
+From a terminal, or for an agent, run this in the clone's folder instead:
 
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup/setup.ps1

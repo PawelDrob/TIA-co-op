@@ -5,4 +5,4 @@
 # How-Tos
 
 * [Development dashboard](development-dashboard.md) - How to see what waits for you while agents change this repo, answer their questions on review pages and on a ticket's page, take a page down, and reach the dashboard from another machine through tailscale serve.
-* [Setup](setup.md) - How to set up this repository on a Windows PC, with one command for agents and the bridge.
+* [Setup](setup.md) - How to set up this repository on a Windows PC, with the setup window a person double-clicks or one command for agents, and what the window shows after the first run.
