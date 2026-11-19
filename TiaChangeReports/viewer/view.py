@@ -61,21 +61,22 @@ def block_of(path):
 
 def _xml_db(src):
     """The SimaticML of a DB read as a global DB's: its members with their retain, and the start values it sets. The
-    reader leaves both out of an instance DB and a DB of a UDT (as the .s7dcl has them; ticket 356 of the tracker)."""
+    reader leaves both out of an instance DB and a DB of a UDT, which the .s7dcl does not repeat either."""
     return parse_interface(ET.fromstring(src.xml.lstrip('﻿').encode('utf-8')), LANG, db=True)
 
 
 def type_of(blk):
-    """(name, its interface or None) of the FB or UDT a DB is of; None for any other block. Read as a call's
+    """(name, its interface or None) of the FB or UDT a DB is of; (None, None) for any other block. Read as a call's
     interface (compare.Callees): by name in any case, the project's block before a library type."""
     name = decl_type(blk.decl) if blk.kind == 'DATA_BLOCK' else ''
     if not name:
-        return None
+        return None, None
     itf = blk.callees(name) if blk.callees else None
-    return name.strip('"'), itf if getattr(getattr(itf, 'block', None), 'kind', '') in ('FUNCTION_BLOCK', 'TYPE') else None
+    kind = getattr(getattr(itf, 'block', None), 'kind', '')
+    return name.strip('"'), itf if kind in ('FUNCTION_BLOCK', 'TYPE') else None
 
 
-def db_retain(blk, src, base):
+def own_retain(blk, src, base):
     """The retain a DB sets itself: on the members its FB leaves to the instance ("Set in IDB") and on every member of a
     DB of a UDT. The .s7dcl writes it as S7_StandardRetain, a SimaticML export on each such member."""
     if src.xml is None:
@@ -128,13 +129,13 @@ def heading(blk):
     return '%s [%s%s]' % (d.name, d.kind, blk.props.get('S7_BlockNumber') or '')
 
 
-def _type_html(typ, root, table):
-    """An instance DB's or a DB of a UDT's interface: the file its members come from, which start values are its own,
-    and the table; or that its members could not be read, above the start values the DB sets (table)."""
-    name, itf = typ
+def _type_html(name, itf, root, table):
+    """An instance DB's or a DB of a UDT's interface: the file its members come from (itf, the FB's or UDT's), which
+    start values are its own, and the table; or that its members could not be read, above the start values the DB sets
+    (table)."""
     if itf is None:
-        return ('<div class="of none">Instance of %s: its members could not be read, no file of %s in the project.</div>'
-                '%s' % (escape(name), escape(name), table))
+        return ('<div class="of none">Instance of %s: its members could not be read, no file of %s in the project.'
+                '</div>%s' % (escape(name), escape(name), table))
     kind = 'UDT' if itf.block.kind == 'TYPE' else 'FB'
     path = os.path.relpath(itf.block.label, root).replace(os.sep, '/')
     head = 'Members of %s %s, from %s.' % (kind, escape(name), escape(path))
@@ -148,15 +149,14 @@ def block_html(blk, src, rel, root=''):
     """The block drawn: header, properties, interface, every network. The report's Collapse all and Expand all when
     something folds. An instance DB or a DB of a UDT with the members of its FB or UDT (from root), and a line saying
     from which file, or that they could not be read."""
-    typ = type_of(blk)
-    itf = iface.html(blk, blk, whole=True,
-                     db_retain=bool(typ and typ[1] is not None and db_retain(blk, src, typ[1])))
+    name, base = type_of(blk)
+    itf = iface.html(blk, blk, whole=True, db_retain=base is not None and own_retain(blk, src, base))
     parts = ['<div class="bh"><b>%s</b>%s<span class="paths">%s</span>%s</div>'
              % (escape(heading(blk)), version_html(src.version, src.version), escape(rel),
                 FOLD_ALL if blk.networks or folds(itf) else ''),
              _props_html(blk)]
-    if typ:
-        itf = _type_html(typ, root, itf)
+    if name:
+        itf = _type_html(name, base, root, itf)
     if itf:
         parts.append('<div class="nw itfw"><div class="nwh"><b>Interface</b><span class="tag">DECLARATION</span></div>'
                      '%s</div>' % itf)

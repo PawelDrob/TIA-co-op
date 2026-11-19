@@ -223,11 +223,12 @@ def _tree(itf, types=None, base=None, unfold=False, db_retain=False):
             node.value = value
         if comment:
             node.comment = comment
-    own = (getattr(getattr(base, 'block', None), 'name', '').lower(),) if base is not None else ()
+    block = getattr(base, 'block', None)                    # the DB's FB, already open: not again inside
+    opened = (block.name.lower(),) if block is not None else ()
     for m in root.children.values():
         _fill(m, types, unfold)
         if unfold:
-            _unfold(m, types, own, base is not None)
+            _unfold(m, types, opened, base is not None)
     return root
 
 
@@ -257,9 +258,10 @@ def _unfold(node, types, opened, fbs=False):
     if not node.children and not re.match(r'Array\s*\[', node.type or '', re.I) and name not in opened:
         owner = _owner(node, types, None)
         block = getattr(owner, 'block', None)                # a UDT's or FB's file; none for a struct in the UDT
-        if owner is not None and (block is None or block.kind == 'TYPE' or fbs and block.kind == 'FUNCTION_BLOCK'):
+        fb = block is not None and block.kind == 'FUNCTION_BLOCK'
+        if owner is not None and (block is None or block.kind == 'TYPE' or fbs and fb):
             for k, m in owner.root.children.items():
-                if block is not None and block.kind == 'FUNCTION_BLOCK' and m.section not in INSTANCE_SECTIONS:
+                if fb and m.section not in INSTANCE_SECTIONS:
                     continue
                 kid = _new_inner(node, k, types, None)
                 kid.section = node.section

@@ -494,8 +494,8 @@ class InstanceDb(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.dir = tmp.name
-        _write(self.dir, {'blocks/Pump.s7dcl': PUMP, 'blocks/Pump.s7res': PUMP_RES, 'blocks/Valve.s7dcl': VALVE, 'blocks/Seal.s7dcl': SEAL,
-                          'blocks/PumpDb.s7dcl': PUMP_DB, 'types/Probe.s7dcl': PROBE})
+        _write(self.dir, {'blocks/Pump.s7dcl': PUMP, 'blocks/Pump.s7res': PUMP_RES, 'blocks/Valve.s7dcl': VALVE,
+                          'blocks/Seal.s7dcl': SEAL, 'blocks/PumpDb.s7dcl': PUMP_DB, 'types/Probe.s7dcl': PROBE})
         os.mkdir(os.path.join(self.dir, '.git'))
 
     def page(self, rel):
@@ -545,8 +545,9 @@ class InstanceDb(unittest.TestCase):
         self.assertNotIn('open', [n for _, _, n in order])
 
     def test_retain_as_the_fb_declares_it_and_set_in_the_instance(self):
-        def retain(html, name):
-            return bool(re.search(r'<span class="cb on', re.findall(r'<td[^>]*>(.*?)</td>', self.cells(html)[0][name])[2]))
+        def retain(html, name):                                          # its Retain cell ticked
+            cell = re.findall(r'<td[^>]*>(.*?)</td>', self.cells(html)[0][name])[2]
+            return 'class="cb on' in cell
         html = self.page('blocks/PumpDb.s7dcl')
         self.assertEqual([retain(html, n) for n in ('stat', 'count', 'kept')], [False, True, True])
         _write(self.dir, {'blocks/PumpDb.s7dcl': PUMP_DB.replace('"TRUE"', '"FALSE"')})
@@ -558,7 +559,7 @@ class InstanceDb(unittest.TestCase):
         html = self.page('blocks/LostDb.s7dcl')
         self.assertIn('Instance of Gone: its members could not be read, no file of Gone', html)
         self.assertNotIn('No members', html)
-        self.assertEqual(self.cells(html)[1], [(1, '', 'speed')])         # only what the DB itself says, below the line
+        self.assertEqual(self.cells(html)[1], [(1, '', 'speed')])         # only what the DB says, below the line
         self.assertLess(html.index('could not be read'), html.index('<table class="itf"'))
 
     def test_a_db_of_a_udt_shows_the_udts_members(self):
@@ -583,6 +584,22 @@ class InstanceDb(unittest.TestCase):
                                                                    '"kept" Datatype="Int" Remanence="NonRetain"')})
         self.assertEqual(*[re.search(r'<div class="of">.*?</table>', self.page('blocks/PumpDb.' + x), re.S).group(0)
                            for x in ('s7dcl', 'xml')])
+
+    def test_a_db_of_a_udt_from_simaticml_gives_the_same_table(self):
+        _write(self.dir, {
+            'blocks/ProbeDb.s7dcl': '{\n    S7_StandardRetain := "TRUE"\n}\n'
+                                    'DATA_BLOCK ProbeDb : Probe\n    down := 7;\nEND_DATA_BLOCK\n',
+            'blocks/ProbeDb.xml': PUMP_DB_XML.split('<Interface>')[0].replace('Pump', 'Probe').replace('>FB<', '>UDT<')
+            + '<Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">'
+              '<Section Name="Static"><Member Name="up" Datatype="Bool" Remanence="Retain" />'
+              '<Member Name="down" Datatype="Int" Remanence="Retain"><StartValue>7</StartValue></Member></Section>'
+              '</Sections></Interface><Name>ProbeDb</Name><Number>4</Number>'
+              '<ProgrammingLanguage>DB</ProgrammingLanguage></AttributeList></SW.Blocks.InstanceDB></Document>'})
+        tables = [re.search(r'<div class="of">.*?</table>', self.page('blocks/ProbeDb.' + x), re.S).group(0)
+                  for x in ('s7dcl', 'xml')]
+        self.assertEqual(tables[0], tables[1])
+        self.assertIn('<td>7</td>', tables[1])
+        self.assertIn('<span class="cb on dis">', tables[1].split('>up<')[1].split('</tr>')[0])   # the DB's retain
 
     def test_the_reports_table_of_an_instance_db_is_as_before(self):
         from TiaChangeReports import iface
