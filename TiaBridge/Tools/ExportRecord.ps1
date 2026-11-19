@@ -178,19 +178,22 @@ function Read-ExportState($Kind, $Entry) {
     finally { [TiaBridgeTimes]::Exit($step) }
 }
 
-# Each value from the one call (Read-TiaAttributeValues). A name it did not answer (the object does not offer it) is read
-# as a .NET property, which gives nothing for a name the object does not have. When the call failed, every name is read
-# on its own, so a value that does not read is named (unread) and the object is exported.
+# Each value from the one call (Read-TiaAttributeValues), when it gave one. Every other name is read on its own, as a .NET
+# property, or through GetAttribute where it has none and the object offers it: a name the call did not answer (the
+# object does not offer it, which then gives nothing), a name it answered null, and every name when the call failed. So a
+# value whose getter throws is named (unread) and the object exported, whether TIA refuses the call for it or answers
+# null: which of the two TIA does is not probed, as no object of the copies had such a getter (ticket 364).
 function Read-ExportStateValues($Kind, $Entry) {
     $names = [string[]]$script:ExportStateAttributes[$Kind.name]
     $got = Read-TiaAttributeValues $Entry.obj $names $Kind.name
     $s = [ordered]@{}
     foreach ($a in $names) {
         try {
-            if ($null -ne $got -and $got.Contains($a)) { $v = $got[$a] }
+            $answered = $null -ne $got -and $got.Contains($a)
+            if ($answered -and $null -ne $got[$a]) { $v = $got[$a] }
             else {
                 $r = Read-ObjectProperty $Entry.obj $a
-                if (-not $r.has -and $null -eq $got -and $script:GetAttributeOnly -contains $a) { $r = Read-TiaAttribute $Entry.obj $a }
+                if (-not $r.has -and ($null -eq $got -or $answered) -and $script:GetAttributeOnly -contains $a) { $r = Read-TiaAttribute $Entry.obj $a }
                 $v = $r.value
             }
         }

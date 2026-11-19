@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T01:08:48-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T01:27:00-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -129,9 +129,11 @@ and edits Openness makes in place; after each change the default `full_export` a
   (`InstanceOfName`, `IsIECCheckEnabled`, `SetENOAutomatically`), instance DB (the last two), data type
   (`CodeModifiedDate` and nine more), F-block (`SetENOAutomatically`) and an STL FB (the last two). A name no object has
   is refused alone and among others. `GetAttributes(AttributeAccessOptions)` answers name and value pairs, but gives an
-  enum as `Siemens.Engineering.Contract.EnumToClientRepresentation`. TiaBridge reads the values `full_export`
-  compares in one call. After a refusal it reads the names `GetAttributeInfos` lists, in a second call. On the copy of
-  246 blocks, DBs, data types and tag tables, in a session without a window, that took 1.6 s against 3.6 s one by one.
+  enum as `Siemens.Engineering.Contract.EnumToClientRepresentation`. Not probed: what the call does for a name whose
+  getter throws, as no object of the copies had one. On the copy of 246 blocks, DBs, data types and tag tables, in a
+  session without a window, the values `full_export` compares took 1.6 s read in one call, after a refusal the names
+  `GetAttributeInfos` lists in a second, against 3.6 s one by one. How TiaBridge reads them:
+  [TiaBridge internals](../dev/tools/tia-bridge.md#the-project-repo).
 - **Candidates for skipping:** system blocks have the dates of a block, but no step changed one; the force table has no date
   (`IsConsistent` only); no technology object or watch table was in the project. They are exported every time.
 

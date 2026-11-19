@@ -680,8 +680,9 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
         $text | Should Match '(?m)^Number=9$'
     }
 
-    It 'an object whose values do not read in one call is read one name at a time, and exported when one of them does not read' {
-        Initialize-SkipTest 'unread-one-call'
+    # FC1 as a .NET object whose CompileDate getter throws, offering ModifiedDate, IsConsistent and CompileDate, with
+    # GetAttributes as given: what TIA does for a getter that throws is not probed (ticket 364), so both ways are tested.
+    function Set-UnreadBlock([scriptblock]$GetAttributes) {
         if (-not ('SkipTestBlock' -as [type])) {
             Add-Type -TypeDefinition 'public class SkipTestBlock { public string Name; public System.DateTime ModifiedDate { get { return new System.DateTime(2026, 10, 8, 0, 0, 0, System.DateTimeKind.Utc); } } public bool IsConsistent { get { return true; } } public System.DateTime CompileDate { get { throw new System.NotSupportedException("not offered"); } } }'
         }
@@ -692,17 +693,37 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
         $b | Add-Member NoteProperty exports 0
         $b | Add-Member NoteProperty IsKnowHowProtected $false
         $b | Add-Member NoteProperty reads 0
-        # as TIA: the getter's error refuses the call, whichever names it holds
         $b | Add-Member ScriptMethod GetAttributeInfos { @('ModifiedDate', 'IsConsistent', 'CompileDate') | ForEach-Object { [pscustomobject]@{ Name = $_ } } }
-        $b | Add-Member ScriptMethod GetAttributes { param($Names) $this.reads++; throw 'not offered' }
+        $b | Add-Member ScriptMethod GetAttributes $GetAttributes
         $script:blocks.Blocks = @($script:o.FB1, $b, $script:o.IDB1, $script:o.DB1)
         $script:o.FC1 = $b
+        $b
+    }
+    function Assert-UnreadExported {
         $null = Invoke-FullExportTool $script:parts
         Reset-Exports
         $r = Invoke-FullExportTool $script:parts
         Get-Exported | Should Be 'FC1'
         @($r.details | Where-Object { $_.part -eq 'blocks' })[0].why['a value of it does not read'] | Should Be 1
+    }
+
+    It 'an object whose values do not read in one call is read one name at a time, and exported when one of them does not read' {
+        Initialize-SkipTest 'unread-one-call'
+        # TIA refusing the call for the getter's error, whichever names it holds
+        $b = Set-UnreadBlock { param($Names) $this.reads++; throw 'not offered' }
+        Assert-UnreadExported
         # two plans, each: the one call, then the call of the names GetAttributeInfos lists; both refused
+        $b.reads | Should Be 4
+    }
+
+    It 'a name the one call answers null is read on its own, so a getter that throws is unread and the object exported' {
+        Initialize-SkipTest 'unread-null'
+        # TIA answering null for the getter's error: the one call refused for the names FC1 lacks, then the names it offers
+        $b = Set-UnreadBlock { param($Names)
+            $this.reads++
+            if (@($Names | Where-Object { @('ModifiedDate', 'IsConsistent', 'CompileDate') -notcontains $_ }).Count) { throw "'$($Names[1])' is not supported by type 'Fake'." }
+            , @(foreach ($n in $Names) { if ($n -eq 'CompileDate') { $null } else { $this.$n } }) }
+        Assert-UnreadExported
         $b.reads | Should Be 4
     }
 
