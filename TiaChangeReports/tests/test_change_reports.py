@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from collections import Counter
 
-from TiaChangeReports import iface, render_lad
+from TiaChangeReports import iface, instructions, render_lad
 from TiaChangeReports.compare import compare_blocks, pair_networks
 from TiaChangeReports.diff import Graph, NetDiff, changed_params
 from TiaChangeReports.page import _pair_lines, columns_html, render
@@ -21,6 +21,7 @@ from TiaChangeReports.render_lad import Layout
 from TiaChangeReports.s7dcl import Element, SET_IN_IDB, parse_block, parse_interface
 from TiaChangeReports.source import BlockSource, FolderSnapshot, LibVersion, from_file, pair_blocks
 from TiaChangeReports.verify import check
+from TiaChangeReports.viewer import view
 
 PLANT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'plant')
 V1, V2 = os.path.join(PLANT, 'v1'), os.path.join(PLANT, 'v2')
@@ -1963,16 +1964,72 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
     and Mod unchanged), is no change."""
 
     @staticmethod
-    def element(part, templates, pins=('in',)):
-        """The box alone on the rail, read from SimaticML, #start on each of pins, #big on its out."""
+    def block(part, templates, pins=('in',)):
+        """A block whose first network holds the box alone on the rail, read from SimaticML, #start on each of pins,
+        #big on its out; no calls."""
         n = NegatedPins('test_taken_away')
         tvs = ''.join('<TemplateValue Name="%s" Type="Type">%s</TemplateValue>' % kv for kv in templates)
         text = n.net('<Part Name="%s" UId="25">%s</Part>' % (part, tvs),
                      ['<Powerrail /><NameCon UId="25" Name="en" />'] + [n.op(21, 25, p) for p in pins]
                      + ['<NameCon UId="25" Name="out" /><IdentCon UId="23" />'], 'LAD')
-        net = parse_block(_xml_src(text)).networks[0]
+        blk = parse_block(_xml_src(text))
+        blk.callees = None
+        return blk
+
+    @staticmethod
+    def sd_block(instr, pins=('in',)):
+        """The same box read from .s7dcl, as the .s7dcl writes it: no template."""
+        lines = ['                %s := #start,' % p for p in pins] + ['                out => #big']
+        text = ('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD" }\n    NETWORK\n        RUNG wire#powerrail\n'
+                '            %s(\n%s\n            )\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
+                % (instr, '\n'.join(lines)))
+        blk = parse_block(src(text, '', 'Main'))
+        blk.callees = None
+        return blk
+
+    @staticmethod
+    def box(net):
         (el,) = [x for r in net.rungs for x in r.items if isinstance(x, Element)]
-        return net, el
+        return el
+
+    def element(self, part, templates, pins=('in',)):
+        """(the network, the box) of block()."""
+        net = self.block(part, templates, pins).networks[0]
+        return net, self.box(net)
+
+    @staticmethod
+    def drawn(blk, partner=None):
+        """The texts the first network's SVG holds: alone, as the viewer draws it, or beside partner, the other version
+        of its box with another operand, as a report draws a network it lists."""
+        net = blk.networks[0]
+        if partner is None:
+            svg = view.lad_svg(net, blk)
+        else:
+            el = TemplatesTheInstructionFixes.box(net)
+            svg = Layout(net.rungs, blk.interface, None, '', 'same', {el.eid: partner}).svg({el.eid: 'changed'}, {el.eid: partner})
+        return sorted(re.sub(r'<[^>]+>', '', x) for x in re.findall(r'<text[^>]*>.*?</text>', svg, re.S))
+
+    def test_a_box_tia_draws_no_type_on_is_drawn_without_one_from_either_format(self):
+        """TRCV, TUSEND, TURCV, WWW and the process-image boxes: TIA shows no type on them. Neither does the viewer, nor a
+        report that lists the network for another operand, from SimaticML or from .s7dcl."""
+        for part, template, value in FIXED_TEMPLATES:
+            if instructions.lookup(instructions.sd_name(part)).line != ():
+                continue
+            with self.subTest(part):
+                xml, sd = self.block(part, [(template, value)], ('REQ',)), self.sd_block(part, ('REQ',))
+                other = Element('x', self.box(sd.networks[0]).instr, None, [('REQ', ':=', '#stop'), ('out', '=>', '#big')], {})
+                for partner in (None, other):
+                    drawn = self.drawn(xml, partner)
+                    self.assertFalse([x for x in drawn if template in x or value in x], drawn)
+                    self.assertEqual(drawn, self.drawn(sd, partner))
+
+    def test_the_type_tia_shows_under_the_name_stays_drawn_from_either_format(self):
+        """RDREC: TIA writes Variant under the box's name; both formats draw it, the viewer and a report alike."""
+        xml, sd = self.block('RDREC', [('ptr_type', 'Variant')], ('REQ',)), self.sd_block('RDREC', ('REQ',))
+        other = Element('x', 'RDREC', None, [('REQ', ':=', '#stop'), ('out', '=>', '#big')], {})
+        for partner in (None, other):
+            self.assertIn('Variant', self.drawn(xml, partner))
+            self.assertEqual(self.drawn(xml, partner), self.drawn(sd, partner))
 
     def test_each_template_at_the_value_the_instruction_fixes_is_left_out(self):
         for part, template, value in FIXED_TEMPLATES:
