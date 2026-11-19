@@ -701,11 +701,29 @@ def numbered(network):
     return re.sub(r'\bwire#(\w+)', lambda m: 'wire#%s' % wires.setdefault(m.group(1).lower(), len(wires)), network, flags=re.I)
 
 
+_NAMED_PIN = re.compile(r'(\w+)\s*(?::=|=>)')
+
+
+def _pins_in_one_order(lines):
+    """Each box's named pin lines in one order, as Element.sig compares them: TIA's export varies it."""
+    out, run = [], None
+    for line in lines + ['']:
+        if run is not None and _NAMED_PIN.match(line):
+            run.append(line)
+            continue
+        out += sorted(run or [], key=lambda x: (_NAMED_PIN.match(x).group(1).lower(), x))
+        run = [] if line.endswith('(') else None
+        out.append(line)
+    return out[:-1]
+
+
 def lad_lines(body):
     """A LAD network's text as compared: wires numbered, without what the two export formats write differently (the
-    indentation, the trailing comma an XML export writes after the last parameter, a space after an empty output)."""
-    lines = (l.strip() for l in numbered(body).splitlines())
-    return [re.sub(r'\s*,$', '', l) for l in lines if l]
+    indentation, the trailing comma an XML export writes after the last parameter, a space after an empty output, the
+    order of a box's named pins)."""
+    lines = [re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()]
+    lines = _pins_in_one_order([l for l in lines if l])
+    return numbered('\n'.join(lines)).split('\n') if lines else []
 
 
 def texts_for_keys(s, res):

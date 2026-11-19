@@ -1229,9 +1229,14 @@ class PinsInAnotherOrder(unittest.TestCase):
     between two exports of one block (the CTU of zzBenTimers, the Deserialize of zzLadMove): no change."""
 
     def test_the_same_pins_in_another_order_are_the_same_box(self):
-        d = _lad(BOX, BOX_OTHER_ORDER)
+        (b,), (a,) = (parse_block(src(x, '', 'M')).networks for x in (BOX, BOX_OTHER_ORDER))
+        d = NetDiff(Graph(b.rungs), Graph(a.rungs))
         self.assertFalse(d.changed)
         self.assertEqual(statuses(d, d.a), Counter(same=3))
+
+    def test_the_network_is_not_listed(self):
+        """Its lines are compared with the pins in one order too: not changed, nor in another order."""
+        self.assertEqual([], compare_blocks(src(BOX, '', 'M'), src(BOX_OTHER_ORDER, '', 'M')).nets)
 
     def test_a_pin_fed_otherwise_is_still_told(self):
         d = _lad(BOX, BOX_OTHER_ORDER.replace('#speed', '#level'))
