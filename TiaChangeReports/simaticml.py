@@ -101,17 +101,19 @@ def _other_language(el, lang):
 def _plain(el, uids=None, lang=None):
     """An element without what TIA writes differently per export: the export time and how it was exported, the object
     numbers (ID left out; UId, which tells what a wire connects, numbered by first appearance in its network), the order
-    of the languages and a language without a text, TIA's expansion of a UDT member under a Member (_expansion), and a
-    block's number while automatic numbering is on (TIA's; a user cannot set it then, and an .s7dcl does not write it).
+    of the languages and a language without a text, TIA's expansion of a UDT member under a Member (_expansion), a
+    block's number while automatic numbering is on (TIA's; a user cannot set it then, and an .s7dcl does not write it),
+    and a part's template at the value its instruction fixes (_left_out).
     lang: only this language's texts (the others are compared apart, as texts)."""
     tag = _local(el.tag)
     if uids is None or tag == 'SW.Blocks.CompileUnit':
         uids = {}
     auto = tag == 'AttributeList' and _text(el, 'AutoNumber') == 'true'
+    instr = _part_instr(el) if tag == 'Part' else None
     kids = [_plain(c, uids, lang) for c in el
             if _local(c.tag) != 'DocumentInfo' and not (tag == 'Member' and _local(c.tag) == 'Sections' and _expansion(c))
             and not (_local(c.tag) == 'MultilingualTextItem' and _no_text(c)) and not (lang and _other_language(c, lang))
-            and not (auto and _local(c.tag) == 'Number')]
+            and not (auto and _local(c.tag) == 'Number') and not (instr and _left_out(instr, c))]
     if tag == 'ObjectList' and all(k[0] == 'MultilingualTextItem' for k in kids):
         kids = sorted(kids, key=repr)
     attrs = sorted((k, uids.setdefault(v, len(uids)) if k == 'UId' else v) for k, v in el.attrib.items() if k != 'ID')
@@ -581,8 +583,21 @@ def _output(pin):
     return bool(re.match(r'^(out\d*|ret_val|done|busy|error|status|eno|q|et|cv)$', pin, re.I))
 
 
-# templates the SD export writes (a type the instruction fixes is left out there)
+# templates the SD export writes (a type the instruction fixes is left out there: _left_out)
 TEMPLATES = ('SrcType', 'DestType', 'time_type', 'value_type', 'count_type')
+
+
+def _part_instr(p):
+    """The .s7dcl's name of a part's instruction: the F-box SCALE has an instance, the legacy SCALE (S_Scale) none."""
+    name = p.get('Name')
+    return name if name == 'SCALE' and _kid(p, 'Instance') is not None else instructions.sd_name(name)
+
+
+def _left_out(instr, kid):
+    """Whether a part's child is a template the .s7dcl leaves out (instructions.left_out): a type at the value the instruction
+    fixes, which TIA writes in every SimaticML export (TUSEND's value_type UDInt), or a Card it fixes, which it writes in some.
+    Read so, an element compares and its text reads as from .s7dcl; another value stays."""
+    return _local(kid.tag) == 'TemplateValue' and instructions.left_out(instr, kid.get('Name'), (kid.text or '').strip())
 
 # parts whose single remaining operand is written inline, without a name
 INLINE = {'Contact', 'Coil', 'SCoil', 'RCoil', 'ResetIECTimerCoil', 'CuCoil', 'CdCoil', 'PBox', 'NBox'}
@@ -817,11 +832,11 @@ def _element(eid, e, net, name):
     templates, more = {}, {}
     card = None
     name_ = p.get('Name')
-    instr = instructions.sd_name(name_)
-    if name_ == 'SCALE' and _kid(p, 'Instance') is not None:     # the F-box of this name has an instance, the legacy SCALE (S_Scale) none
-        instr = name_
+    instr = _part_instr(p)
     spec = instructions.lookup(instr)
     for tv in _kids(p, 'TemplateValue'):
+        if _left_out(instr, tv):
+            continue
         if tv.get('Name') in TEMPLATES or (spec and spec.reads(tv.get('Name'))):
             templates[tv.get('Name')] = (tv.text or '').strip()
         elif tv.get('Type') == 'Operation':               # a Switch relation: CASE0 EQ, in .s7dcl CASE0 := "=="

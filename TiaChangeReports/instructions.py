@@ -207,7 +207,8 @@ for _sd, _title, _rung, _ins in (('Cu', 'S_CU', 'CU', 'S PV R'), ('Cd', 'S_CD', 
     CATALOGUE[_sd] = Instruction(_title, rung=(_rung, 'Q'), pins=_pins(_ins, outs='CV CV_BCD=CVBCD'), above='Top')
 
 # The type lines of the extended and Communication boxes, from TIA's screen, else the help's drawings: {title: (line, pair, second, fixed)}. A type
-# the .s7dcl leaves out is fixed. Any other extended box has none.
+# the .s7dcl leaves out is fixed. Any other extended box has none. A box with no type line can have a fixed type too: SimaticML writes it, .s7dcl
+# not (TRCV's value_type UDInt, beside a LEN of UInt; 226's run, every export of these boxes, the value never changed).
 _TO = ('src_type', 'TO', 'dest_type')
 _PTR = ('ptr_type',)
 _VARIANT = {'ptr_type': 'Variant'}
@@ -234,6 +235,10 @@ EXTENDED_TYPES = {
     'GET': (None, ('remote_type', '-', 'local_type'), '', {'remote_type': 'Remote', 'local_type': 'Variant'}),
     'PUT': (None, ('remote_type', '-', 'local_type'), '', {'remote_type': 'Remote', 'local_type': 'Variant'}),
     'SCALE': (('value_type',), None, '', {}),
+    'TRCV': ((), None, '', {'value_type': 'UDInt'}), 'TUSEND': ((), None, '', {'value_type': 'UDInt'}),
+    'TURCV': ((), None, '', {'value_type': 'UDInt'}), 'WWW': ((), None, '', {'value_type': 'DB_WWW'}),
+    'UPDAT_PI': ((), None, '', {'value_type': 'PIP'}), 'UPDAT_PO': ((), None, '', {'value_type': 'PIP'}),
+    'SYNC_PI': ((), None, '', {'value_type': 'PIP'}), 'SYNC_PO': ((), None, '', {'value_type': 'PIP'}),
 }
 _EXTENDED_XML = {}
 for _title, _xml, _sd, _ins, _ios, _outs in EXTENDED + COMMUNICATION + SAFETY:
@@ -290,6 +295,19 @@ def f_templates(instr, pragmas):
 
 # What a contact shows by a symbol or not at all, what a coil shows inside it by its own table: no name to write.
 SYMBOL_CONTACTS = ('Contact', 'I_Contact', 'P_Contact', 'N_Contact', 'Not')
+
+
+# The count of inputs of a box that takes no more (Card): SimaticML writes it in some exports and not in others (226's run: none on these
+# at the start state, Card 2 on each after I001, which changed none of them), .s7dcl never.
+FIXED_CARD = {'Sub': '2', 'Div': '2', 'Mod': '2'}
+
+
+def left_out(instr, template, value):
+    """Whether a SimaticML template of an element (instr: its .s7dcl name) is one the .s7dcl leaves out: at the value the
+    instruction fixes, a type (Instruction.fixed) or a count of inputs (FIXED_CARD). Another value is the export's own."""
+    spec = lookup(instr)
+    fixed = dict(spec.fixed if spec else {}, **({'Card': FIXED_CARD[instr]} if instr in FIXED_CARD else {}))
+    return fixed.get(template) == value
 
 
 def lookup(instr):

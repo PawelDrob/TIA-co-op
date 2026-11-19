@@ -1944,6 +1944,88 @@ class CoilOperandDirection(unittest.TestCase):
                 self.assertIn(('operand', ':=', '#start'), x.params)
 
 
+# Each type template the bed of the two formats reads from SimaticML at its start state and no .s7dcl of the same box
+# writes, at the value it has there: (SimaticML part, template, value). The instruction fixes each (Instruction.fixed).
+FIXED_TEMPLATES = [(p, 'remote_type', 'Remote') for p in ('GET', 'PUT')] + [(p, 'local_type', 'Variant') for p in ('GET', 'PUT')] + [
+    (p, 'value_type', 'UDInt') for p in ('TRCV', 'TUSEND', 'TURCV')] + [
+    (p, 'ptr_type', 'Variant') for p in ('USEND', 'URCV', 'BSEND', 'BRCV', 'RD_REC', 'RDREC', 'WRREC', 'RD_DPAR', 'RD_DPARA',
+                                         'UBLKMOV', 'FILL')] + [
+    (p, 'value_type', 'PIP') for p in ('UPDAT_PI', 'UPDAT_PO', 'SYNC_PI', 'SYNC_PO')] + [
+    ('WWW', 'value_type', 'DB_WWW'), ('READ_DBL', 'src_type', 'Variant'), ('WRIT_DBL', 'src_type', 'Variant'),
+    ('RD_DPARM', 'record_type', 'Variant'), ('BLKMOV', 'blk_type', 'Variant'), ('DECO', 'value_type', 'UInt')]
+
+
+class TemplatesTheInstructionFixes(unittest.TestCase):
+    """A type template the instruction fixes: SimaticML writes it, .s7dcl leaves it out (zzComXOucOth network 6, TUSEND's
+    `value_type` UDInt). Read from SimaticML at that value it is left out as well, so that the box compares and its
+    network's text reads alike from both formats; another value is read and compared. Sub, Div and Mod take two inputs
+    only: their Card 2, which SimaticML writes in some exports and not in others (226's I001), is no change."""
+
+    @staticmethod
+    def element(part, templates, pins=('in',)):
+        """The box alone on the rail, read from SimaticML, #start on each of pins, #big on its out."""
+        n = NegatedPins('test_taken_away')
+        tvs = ''.join('<TemplateValue Name="%s" Type="Type">%s</TemplateValue>' % kv for kv in templates)
+        text = n.net('<Part Name="%s" UId="25">%s</Part>' % (part, tvs),
+                     ['<Powerrail /><NameCon UId="25" Name="en" />'] + [n.op(21, 25, p) for p in pins]
+                     + ['<NameCon UId="25" Name="out" /><IdentCon UId="23" />'], 'LAD')
+        net = parse_block(_xml_src(text)).networks[0]
+        (el,) = [x for r in net.rungs for x in r.items if isinstance(x, Element)]
+        return net, el
+
+    def test_each_template_at_the_value_the_instruction_fixes_is_left_out(self):
+        for part, template, value in FIXED_TEMPLATES:
+            with self.subTest(part, template=template):
+                net, el = self.element(part, [(template, value)])
+                self.assertNotIn(template, el.templates)
+                self.assertNotIn(template, net.body)
+
+    def test_another_value_is_read(self):
+        for part, template, value in FIXED_TEMPLATES:
+            with self.subTest(part, template=template):
+                net, el = self.element(part, [(template, 'DB_ANY')])
+                self.assertEqual(el.templates[template], 'DB_ANY')
+                self.assertIn('%s := DB_ANY' % template, net.body)
+
+    def test_deco_reads_alike_from_both_formats(self):
+        """zzLadWordLogic network 5: SimaticML writes value_type UInt and return_type Word, .s7dcl return_type alone."""
+        x, xel = self.element('DECO', [('value_type', 'UInt'), ('return_type', 'Word')])
+        text = ('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD" }\n    NETWORK\n        RUNG wire#powerrail\n'
+                '            { S7_Templates := "return_type := Word" }\n            DECO(\n                in := #start,\n'
+                '                out => #big\n            )\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n')
+        s = parse_block(src(text, '', 'Main')).networks[0]
+        (sel,) = [x for r in s.rungs for x in r.items if isinstance(x, Element)]
+        self.assertEqual(sel.sig(), xel.sig())
+        self.assertFalse(NetDiff(Graph(x.rungs), Graph(s.rungs)).changed)
+        self.assertIn('S7_Templates := "return_type := Word"', x.body)
+        x2, xel2 = self.element('DECO', [('value_type', 'USInt'), ('return_type', 'Word')])
+        self.assertNotEqual(sel.sig(), xel2.sig())
+
+    def arithmetic(self, part, card=None):
+        """The block's first network: the box on the rail, #start - #stop to #big; its Card if given."""
+        n = NegatedPins('test_taken_away')
+        tvs = '<TemplateValue Name="Card" Type="Cardinality">%s</TemplateValue>' % card if card else ''
+        return n.net('<Part Name="%s" UId="25">%s<TemplateValue Name="SrcType" Type="Type">Int</TemplateValue></Part>'
+                     % (part, tvs), ['<Powerrail /><NameCon UId="25" Name="en" />', n.op(21, 25, 'in1'), n.op(22, 25, 'in2'),
+                                     '<NameCon UId="25" Name="out" /><IdentCon UId="23" />'], 'LAD')
+
+    def listed(self, before, after):
+        """(state, note) of the networks the report from before to after lists, and the block's note."""
+        n = NegatedPins('test_taken_away')
+        ds = [x for x in LibraryInstances.run_(n, {n.PATH: before}, {n.PATH: after})[2] if 'D.s7dcl' not in (x.path_a or x.path_b)]
+        return [(p.state, p.not_shown) for d in ds for p in d.nets if p.state != 'same'] + [('block', d.not_shown) for d in ds]
+
+    def test_card_two_on_a_box_of_two_inputs_is_no_change(self):
+        for part in ('Sub', 'Div', 'Mod'):
+            with self.subTest(part):
+                self.assertEqual(self.listed(self.arithmetic(part), self.arithmetic(part, 2)), [])
+                self.assertEqual(self.listed(self.arithmetic(part, 2), self.arithmetic(part)), [])
+
+    def test_another_card_is_listed(self):
+        self.assertNotEqual(self.listed(self.arithmetic('Sub', 2), self.arithmetic('Sub', 3)), [])
+        self.assertNotEqual(self.listed(self.arithmetic('Add'), self.arithmetic('Add', 2)), [])
+
+
 # ---------------------------------------------------------------- renamed members and member order
 
 ORD = '''FUNCTION_BLOCK "O"
