@@ -178,16 +178,27 @@ Describe 'Invoke-TiaWrite' {
     }
 
     # it has no refusal of TIA's own behind the bridge's, as a transaction has: a state not read as offline refuses it
-    It 'refuses a write outside a transaction unless every device reads offline, naming what it could not read' {
+    It 'refuses a write outside a transaction unless every device reads offline, and says what is left for each state' {
         Set-FakePortal { }
         $script:bodyRan = $false
+        $head = 'This write has no undo, as TIA runs it without a transaction, so the bridge runs it only while every device reads offline. Nothing was written.'
+        $inTia = 'Until then the bridge does not import project texts or alarm classes: tell the user they can change them in TIA.'
+        # a device TIA gives no state for: never offline, so the user is told what is left to them
         $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Offline' } }, @{ device = 'HMI_1'; kind = 'hmi'; deviceItem = $null })
         $m = try { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true }; '' } catch { $_.Exception.Message }
-        $m | Should Be 'This write has no undo, as TIA runs it without a transaction, so the bridge runs it only while every device reads offline, and not every device reads offline: HMI_1 reads unknown. Nothing was written. Tell the user; it stays refused until each device reads offline.'
+        $m | Should Be "$head TIA gives no online state for HMI_1, and whether it ever does for such a device was not probed: while it gives none, this write is refused. $inTia"
+        # a state on its way: wait, or go offline
         $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Connecting' } })
-        { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true } } | Should Throw 'not every device reads offline: PLC_1 reads connecting.'
+        $m = try { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true }; '' } catch { $_.Exception.Message }
+        $m | Should Be "$head PLC_1 reads connecting: wait until it reads offline, or ask the user to go offline in TIA, then call this again."
+        # both at once: each is told
+        $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Connecting' } }, @{ device = 'HMI_1'; kind = 'hmi'; deviceItem = $null })
+        $m = try { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true }; '' } catch { $_.Exception.Message }
+        $m | Should Be "$head TIA gives no online state for HMI_1, and whether it ever does for such a device was not probed: while it gives none, this write is refused. $inTia PLC_1 reads connecting: wait until it reads offline, or ask the user to go offline in TIA, then call this again."
+        # states that cannot be read
         function Get-TiaSoftwareList { throw 'the device list could not be read' }
-        { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true } } | Should Throw "and the devices' online states could not be read (the device list could not be read). Nothing was written."
+        $m = try { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true }; '' } catch { $_.Exception.Message }
+        $m | Should Be "$head The devices' online states could not be read (the device list could not be read): while they cannot be read, this write is refused. $inTia"
         $script:bodyRan | Should Be $false
         # a write in a transaction keeps TIA's own refusal behind the bridge's: an unknown state does not refuse it
         $script:fakeSoftware = @(@{ device = 'HMI_1'; kind = 'hmi'; deviceItem = $null })

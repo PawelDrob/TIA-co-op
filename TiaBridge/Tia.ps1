@@ -446,13 +446,15 @@ function Set-CommittedFact([string]$Key, $Value) {
 # by its words or by a device that reads online (another TIA language); $null for a write that asks for none
 # (useTransactions off), refused by a device that reads online. OfflineOnly: a write with no undo (-OutsideTransaction),
 # which has no refusal of TIA's own behind this one: also refused unless every device reads offline, so a state that reads
-# unknown, connecting or the like, or that cannot be read at all, refuses it. The refusal text, or $null.
+# unknown, connecting or the like, or that cannot be read at all, refuses it. The only such writes import project texts and
+# alarm classes, so the refusal names them: with no state to wait for, the user changes them in TIA. The refusal text, or $null.
 function Get-OnlineRefusal($TransactionError, [switch]$OfflineOnly) {
-    $online = @(); $notOffline = @(); $unread = $null
+    $online = @(); $noState = @(); $passing = @(); $unread = $null
     try {
         $states = @(Get-DeviceStates @(Get-TiaSoftwareList))
         $online = @($states | Where-Object { $_.online -eq 'online' } | ForEach-Object { $_.device })
-        $notOffline = @($states | Where-Object { $_.online -notin 'online', 'offline' } | ForEach-Object { "$($_.device) reads $($_.online)" })
+        $noState = @($states | Where-Object { $_.online -eq 'unknown' } | ForEach-Object { $_.device })
+        $passing = @($states | Where-Object { $_.online -notin 'online', 'offline', 'unknown' } | ForEach-Object { "$($_.device) reads $($_.online)" })
     }
     catch {
         if (Test-TiaEndedError $_) { throw }
@@ -465,9 +467,13 @@ function Get-OnlineRefusal($TransactionError, [switch]$OfflineOnly) {
         $who = $(if ($online.Count) { " Online: $($online -join ', ')." } else { '' })
         return "TIA is online: go offline first.$why$who Nothing was written. Ask the user to go offline in TIA, then call this again."
     }
-    if ($OfflineOnly -and ($unread -or $notOffline.Count)) {
-        $what = if ($unread) { "the devices' online states could not be read ($unread)" } else { "not every device reads offline: $($notOffline -join ', ')" }
-        return "This write has no undo, as TIA runs it without a transaction, so the bridge runs it only while every device reads offline, and $what. Nothing was written. Tell the user; it stays refused until each device reads offline."
+    if ($OfflineOnly -and ($unread -or $noState.Count -or $passing.Count)) {
+        $text = 'This write has no undo, as TIA runs it without a transaction, so the bridge runs it only while every device reads offline. Nothing was written.'
+        $inTia = 'Until then the bridge does not import project texts or alarm classes: tell the user they can change them in TIA.'
+        if ($unread) { $text += " The devices' online states could not be read ($unread): while they cannot be read, this write is refused. $inTia" }
+        elseif ($noState.Count) { $text += " TIA gives no online state for $($noState -join ', '), and whether it ever does for such a device was not probed: while it gives none, this write is refused. $inTia" }
+        if ($passing.Count) { $text += " $($passing -join ', '): wait until it reads offline, or ask the user to go offline in TIA, then call this again." }
+        return $text
     }
     $null
 }

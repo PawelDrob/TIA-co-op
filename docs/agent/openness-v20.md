@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:50:15-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T13:25:37-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -159,8 +159,8 @@ back over the project's own:
 
 | Part | Call | In a transaction | Tried |
 |---|---|---|---|
-| project texts (`.xlsx`) | `Project.ImportProjectTexts(FileInfo, true)`, result `State` `Info` | refused: *The operation is not permitted within a transaction.* | round trip identical; a block title edited in the sheet landed; the earlier export imported again put it back |
-| alarm classes (`.dat`) | `AlarmClassDataProvider.Import(FileInfo)`, `Success` | refused, the same | round trip identical but `CreationDate`; the earlier export imported again put an edit back. See the list below for an `.xml` packed into a `.dat` and the display name |
+| project texts (`.xlsx`) | `Project.ImportProjectTexts(FileInfo, true)`, result `State` `Info` | refused: *The operation is not permitted within a transaction.* | round trip identical; a block title edited in the sheet landed; the earlier export imported again put that title back |
+| alarm classes (`.dat`) | `AlarmClassDataProvider.Import(FileInfo)`, `Success` | refused, the same | round trip identical but `CreationDate`; the earlier export imported again put back an edited display name (one without `Culture`). See the list below for an `.xml` packed into a `.dat` and the display name |
 | system diagnostics settings (`.dat`) | `SystemdiagnosticsSettingsDataProvider.Import(FileInfo)`, `Success` | allowed | round trip identical but `CreationDate`; a category's `Activation` edited in its XML landed |
 | ProDiag supervisions (`.xlsx`) | `SupervisionProvider.ImportSupervisionsFromXlsx(FileInfo, ImportOptions.Override)`, `Success` | allowed | round trip identical, of a sheet with headers only; no edit tried |
 
@@ -172,7 +172,7 @@ back over the project's own:
 - **The first supervisions import set up ProDiag.** On the project without ProDiag settings, importing its headers-only
   sheet initialised them: their export, refused before, then worked, and the project texts gained 230 rows of ProDiag
   categories (both dates). The same import rolled back in its transaction took both back: the settings' export still
-  answered that they are not initialized, and the project texts kept their rows (2026-11-19).
+  answered that they are not initialized, and the project texts kept the 215 rows they had, with none of the 230 added (2026-11-19).
 - **After these imports** a compile of the PLC and of the HMI had 0 errors (2026-11-19). Whether a part needs a compile
   was not tried; a block title edited through the project texts turned the block not consistent in the paragraph above
   (2026-11-18).

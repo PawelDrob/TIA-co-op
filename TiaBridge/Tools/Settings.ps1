@@ -84,7 +84,8 @@ function Import-SettingsDat($Service, $File, [string]$What) {
 }
 
 # Each kind's object is always there, so an import without override is refused before TIA sees it (Get-ImportRefusal).
-$script:SettingsOverrideWhy = 'The project always has its own, and an import without Override was not tried: leave override out, or pass true.'
+$script:SettingsOverrideWhy = 'The project always has its own, and the import call TIA offers for it takes no Override: leave override out, or pass true.'
+$script:SupervisionsOverrideWhy = 'The PLC always has its own, and an import without Override was not tried: leave override out, or pass true.'
 
 $script:NotInTransaction = 'TIA refuses it inside one: "The operation is not permitted within a transaction."'
 
@@ -143,7 +144,7 @@ function Test-ProDiagSettings {
 }
 
 Register-ObjectKind 'supervisions' @{
-    scope = 'plc'; dir = 'plc\supervisions'; importDir = 'plc\supervisions'; defaultOverride = $true; overrideWhy = $script:SettingsOverrideWhy; extensions = @('.xlsx')
+    scope = 'plc'; dir = 'plc\supervisions'; importDir = 'plc\supervisions'; defaultOverride = $true; overrideWhy = $script:SupervisionsOverrideWhy; extensions = @('.xlsx')
     compileWhy = 'whether these need one was not tried'
     noDelete = 'The ProDiag supervisions of a PLC are one sheet; change them by importing it.'
     description = 'ProDiag supervisions of a PLC: supervisions.xlsx, as full_export writes it in plc\supervisions, over the PLC''s own; not deleted'
