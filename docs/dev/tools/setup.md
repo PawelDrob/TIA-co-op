@@ -4,7 +4,7 @@ title: First setup internals
 description: How first setup's steps look before they change, so that the command and the setup window run the same checks and changes; what the window keeps; how it tells a dashboard on a port from another program.
 tags: [dev, setup, dashboard]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T09:22:24-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T09:59:48-05:00 }
 sources:
   - id: setup
     resource: ../../../tools/setup/
@@ -24,8 +24,7 @@ in which file, and its `make()` makes it, reading the files again first, and ret
 step changes nothing until `make()` is called.
 
 - The command calls each step in setup's order (`steps()`), prints each finding, and calls `make()` of a change at
-  once. Its output and exit codes are the same as before steps returned findings; `tools\setup\tests\test_setup.py`
-  holds them.
+  once. `tools\setup\tests\test_setup.py` holds what it prints and its exit codes, run as a person or an agent runs it.
 - The window calls the same steps to read, and `make()` when a person presses the change's button. A finding's
   `shown`, when set, is what the window shows in place of the line the command prints: that line may speak of the
   command (`--projects-root`) or name only its topic.

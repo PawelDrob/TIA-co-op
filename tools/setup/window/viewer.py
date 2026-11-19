@@ -5,13 +5,16 @@ from TiaChangeReports.viewer import register as viewer_register
 
 
 def state(classes=viewer_register.CLASSES, choice=viewer_register.CHOICE):
-    """register.state(), with 'this': the command that would open a file in this clone, and 'note': what a choice in
-    "Open with" for another program does. {'error': ...} when the registry cannot be read."""
+    """register.state(), with 'this': the command that would open a file in this clone, 'key' and 'progid': where it
+    registers and as what, and 'note': what a choice in "Open with" for another program does. {'error': ...} when the
+    registry cannot be read."""
     try:
         found = viewer_register.state(classes, choice)
     except OSError as e:
         return {'error': f'The registry could not be read: {e}'}
     found['this'] = viewer_register.command()
+    found['key'] = 'HKEY_CURRENT_USER\\' + classes
+    found['progid'] = viewer_register.PROGID
     found['note'] = viewer_register.choice_note(found['chosen']) if found['chosen'] else ''
     return found
 

@@ -9,7 +9,7 @@ It has no rule of its own about what is set up: every check and change is a step
 
 - Start: `Setup.wsf` at the clone's top runs `.venv\Scripts\pythonw.exe -X utf8 -m tools.setup.window` in the clone, after
   `uv sync` when there is no `.venv` yet; its arguments go to the window. From a terminal, in the clone:
-  `<py> -m tools.setup.window [--page N | --settings]`.
+  `<py> -m tools.setup.window [--page N | --settings]` (`--settings`: the menu).
 - Unit tests, no window (the hook's first setup tests): `<py> -m unittest discover -s tools/setup/tests -t .`. The model
   on made-up findings; the buttons against the command in a temp clone with a temp home and fake claude, whose files and
   claude calls must come out the same; the dashboards on free ports with `tests\stub_dashboard.py`; `Setup.wsf` under
@@ -17,12 +17,12 @@ It has no rule of its own about what is set up: every check and change is a step
 - Check by hand, as it opens windows: `<py> tools\setup\tests\check_window.py --out <folder>`. It runs on a desktop of its
   own (`CreateDesktop`), so it may run on a PC in use: a fresh clone of this tree in a temp folder with a temp home, the
   first double-click through `wscript.exe`, every button pressed (the viewer under a test key, the dashboards on free
-  ports), pictures of every page and of the settings, then a second double-click, which must open the settings with no
+  ports), pictures of every page and of the menu, then a second double-click, which must open the menu with no
   console window. It starts no TIA and writes nothing of the real user's.
 
 | File | What |
 |---|---|
-| `model.py` | The pages, the rows of each page and of the settings, from one read of setup's steps; where the end of the first run is kept. No tkinter |
+| `model.py` | The pages, the rows of each, and the menu, from one read of setup's steps; where the end of the first run is kept. No tkinter |
 | `dashboards.py` | Both dashboards: what answers on their ports, start with no console, open. No tkinter |
 | `viewer.py` | The block viewer's registration, through its `register.py`. No tkinter |
 | `main_window.py` | The window; reads and changes run off its thread, one at a time |

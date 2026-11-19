@@ -32,14 +32,19 @@ class TheWindowsChanges(SetupCase):
             self.patch.stop()
             self.patch = None
 
-    def read(self, setup, folder=None):
-        return model.read(setup, lambda: {}, lambda: [(d, Status('stopped')) for d in dashboards()], folder)
+    def read(self, setup):
+        return model.read(setup, lambda: {}, lambda: [(d, Status('stopped')) for d in dashboards()])
+
+    def page(self, setup, page, folder=''):
+        """The rows of a page as the window draws them: the bridge page plans for the folder in its field."""
+        look = self.read(setup)
+        return model.page_rows(model.with_folder(look, setup, folder) if page == 'bridge' else look, page)
 
     def press_every_change(self, setup, folder):
         """Each button that changes something, page by page, as a person presses them; the outcomes."""
         outcomes = []
-        for page in ('pc', 'bridge'):
-            for row in model.page_rows(self.read(setup, folder), page):
+        for page in ('installed', 'repository', 'bridge'):
+            for row in self.page(setup, page, folder):
                 for action in row.actions:
                     if action.kind == 'make':
                         outcomes.append(model.outcome(action.finding.make()))
@@ -82,19 +87,19 @@ class TheWindowsChanges(SetupCase):
     def test_a_step_skipped_stays_not_done_and_its_button_still_does_it(self):
         setup = self.setup_module()
         look = self.read(setup)
-        status = next(r for r in model.settings_groups(look)[1][1] if r.key == 'status line')
+        status = next(r for r in model.page_rows(look, 'bridge') if r.key == 'status line')
         self.assertEqual(status.state, 'todo')
         self.assertNotIn('statusLine', self.user())
         failed, text = model.outcome(status.actions[0].finding.make())
         self.assertFalse(failed, text)
         self.assertIn('statusLine', self.user())
-        status = next(r for r in model.settings_groups(self.read(setup))[1][1] if r.key == 'status line')
+        status = next(r for r in self.page(setup, 'bridge') if r.key == 'status line')
         self.assertEqual(status.state, 'ok')
 
     def test_a_failed_change_shows_the_tools_own_message(self):
         self.extra_env = {'FAKE_CLAUDE_FAIL': 'mcp add'}
         setup = self.setup_module()
-        server = next(r for r in model.page_rows(self.read(setup), 'bridge') if r.key == 'MCP server tia')
+        server = next(r for r in self.page(setup, 'bridge') if r.key == 'MCP server tia')
         failed, text = model.outcome(server.actions[0].finding.make())
         self.assertTrue(failed)
         self.assertIn('Filename too long', text)
@@ -102,7 +107,7 @@ class TheWindowsChanges(SetupCase):
     def test_reading_changes_nothing(self):
         setup = self.setup_module()
         before = self.state()
-        self.read(setup, ANSWER)
+        self.page(setup, 'bridge', ANSWER)
         self.assertEqual(self.state(), before)
 
     def test_a_worktree_shows_what_setup_says_and_nothing_else(self):
@@ -113,7 +118,7 @@ class TheWindowsChanges(SetupCase):
         look = self.read(setup)
         self.assertEqual(look.findings, {})
         self.assertIn('worktree of', setup.worktree_refusal(look.worktree_of))
-        self.assertTrue(model.same_folder(look.worktree_of, self.temp / 'clone'))
+        self.assertTrue(setup.same_path(look.worktree_of, self.temp / 'clone'))
 
 
 if __name__ == '__main__':

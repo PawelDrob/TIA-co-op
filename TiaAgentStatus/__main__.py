@@ -39,9 +39,9 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 from TiaAgentStatus import state as st    # noqa: E402
 from TiaAgentStatus import statusline    # noqa: E402
+from TiaAgentStatus.procs import WinProcesses    # noqa: E402
 
 DASHBOARD_PORT = 8771     # the setup window looks for the dashboard here (tools\setup\window\dashboards.py)
-from TiaAgentStatus.procs import WinProcesses    # noqa: E402
 
 
 def positive_seconds(text):

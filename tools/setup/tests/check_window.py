@@ -6,7 +6,7 @@ A fresh clone of this tree (with its changes not yet committed) in a temp folder
 local app data, fake claude on the PATH: the first double-click (wscript.exe Setup.wsf) makes the .venv with uv sync and
 opens page 1; the window pictures every page, presses every button that changes something (the viewer under a test key,
 the dashboards on free ports: the development dashboard's port held by another program, the TIA dashboard started for
-real from the temp clone) and finishes. The second double-click must open the settings; a third, with no claude on the
+real from the temp clone) and finishes. The second double-click must open the menu; a third, with no claude on the
 PATH, pictures what a PC without Claude Code sees. All the while it watches the
 hidden desktop for console windows: the first run's uv sync may have one, the second run none. Pictures and done.txt of
 each run go to <folder>\\first and <folder>\\second. It starts no TIA, writes nothing of the real user's, and ends the

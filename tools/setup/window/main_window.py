@@ -1,5 +1,6 @@
-"""The setup window: the pages of the first run, then the settings. It draws the rows of model.py and runs their actions
-off the window's thread; every read and change goes through setup.py, the viewer's register.py or the dashboards."""
+"""The setup window: the pages of the first run, walked with Back and Next; after it, a menu that opens each page. It draws
+the rows of model.py and runs their actions off the window's thread; every read and change goes through setup.py, the
+viewer's register.py or the dashboards."""
 import dataclasses
 import queue
 import threading
@@ -38,8 +39,10 @@ class SetupWindow(tk.Tk):
         self.clone = str(self.setup.CLONE)
         self.boards = dash.dashboards(context.ports)
         self.look = None
-        # an index of model.PAGES, None for the settings: the first run until it is finished, then the settings
-        self.page = page if page is not None else model.first_page(context.first_run, self.clone)
+        # an index of model.PAGES, None for the menu: the first run walks the pages until Finish, then the menu
+        first = model.first_page(context.first_run, self.clone)
+        self.page = page if page is not None else first
+        self.walking = first is not None
         self.details = {}           # row key: (failed, text) of its last action, until Refresh
         self.busy = ''
         self.results = queue.Queue()
@@ -106,10 +109,9 @@ class SetupWindow(tk.Tk):
         self._render()
 
     def act(self, row, action):
-        key = row.key
         board = next((d for d in self.boards if d.key == action.target), None)
         if action.kind == 'page':
-            return self.go(next(i for i, (k, _) in enumerate(model.PAGES) if k == action.target))
+            return self.go(model.page_index(action.target))
         if action.kind == 'open':
             return dash.open_page(board)
         if action.kind == 'make':
@@ -125,7 +127,7 @@ class SetupWindow(tk.Tk):
             label = f'Starting the {board.title.lower()}…'
 
         def done(result):
-            self.details[key] = (True, f'Failed: {result}') if isinstance(result, Exception) else result
+            self.details[row.key] = (True, f'Failed: {result}') if isinstance(result, Exception) else result
             self.reload()
         self.work(label, job, done)
 
@@ -141,6 +143,7 @@ class SetupWindow(tk.Tk):
             self.context.first_run.finish(self.clone)
         except OSError as e:
             self.details['read'] = (True, f'The end of the first run could not be kept, in {self.context.first_run.path}: {e}')
+        self.walking = False
         self.go(None)
 
     def _folder_typed(self):
@@ -161,7 +164,8 @@ class SetupWindow(tk.Tk):
         tkfont.nametofont('TkTextFont').configure(family='Segoe UI', size=9)
         self.bold = base.copy()
         self.bold.configure(weight='bold')
-        self.big = tkfont.Font(self, family='Segoe UI', size=14, weight='bold')
+        self.big = tkfont.Font(self, family='Segoe UI', size=16, weight='bold')
+        self.entry_font = tkfont.Font(self, family='Segoe UI', size=11, weight='bold')
         self.mark_font = tkfont.Font(self, family='Segoe UI Symbol', size=11)
         self.configure(background=BACKGROUND)
         style = ttk.Style(self)
@@ -169,7 +173,9 @@ class SetupWindow(tk.Tk):
             style.configure(name, background=BACKGROUND)
         style.configure('Card.TFrame', background=CARD)
         style.configure('Card.TLabel', background=CARD)
+        style.configure('About.TLabel', background=CARD, foreground=GRAY)
         style.configure('Title.TLabel', background=CARD, font=self.bold)
+        style.configure('Entry.TLabel', background=CARD, font=self.entry_font)
         style.configure('Gray.TLabel', foreground=GRAY)
         style.configure('Big.TLabel', font=self.big)
 
@@ -183,8 +189,8 @@ class SetupWindow(tk.Tk):
         self.heading.grid(row=0, column=0, sticky='w')
         self.where = ttk.Label(top, style='Gray.TLabel')
         self.where.grid(row=0, column=1, sticky='e')
-        self.intro = ttk.Label(self, wraplength=self.px(WIDTH - 40), justify='left')
-        self.intro.grid(row=1, column=0, sticky='ew', padx=16, pady=(6, 8))
+        self.line = ttk.Label(self, style='Gray.TLabel')
+        self.line.grid(row=1, column=0, sticky='ew', padx=16, pady=(0, 10))
         middle = ttk.Frame(self)
         middle.grid(row=2, column=0, sticky='nsew', padx=(16, 4))
         middle.rowconfigure(0, weight=1)
@@ -210,39 +216,28 @@ class SetupWindow(tk.Tk):
         if look and look.worktree_of:
             return self._render_worktree(look)
         if self.page is None:
-            self.heading.configure(text='TIA-co-op settings')
-            self.where.configure(text=self.clone)
-            self.intro.configure(text=self._settings_intro(look))
+            self._head(*model.MENU, self.clone)
             if look:
-                for heading, rows in model.settings_groups(look):
-                    ttk.Label(self.body, text=heading, style='Big.TLabel', font=self.bold).pack(anchor='w', pady=(10, 2))
-                    for row in rows:
-                        self._row(row)
+                for entry in model.menu_entries(look):
+                    self._entry(*entry)
         else:
-            key, title = model.PAGES[self.page]
-            self.heading.configure(text=title)
-            self.where.configure(text=f'First setup, page {self.page + 1} of {len(model.PAGES)}')
-            self.intro.configure(text=model.INTROS[key])
+            key, title, line = model.PAGES[self.page]
+            self._head(title, line, f'First setup, page {self.page + 1} of {len(model.PAGES)}' if self.walking else '')
             if look:
-                shown = self._page_look() if key == 'bridge' else look
+                shown = self.page_look() if key == 'bridge' else look
                 if key == 'bridge':
                     self._folder_field(shown)
                 for row in model.page_rows(shown, key):
-                    self._row(row)
-                note = model.page_note(look, key)
-                if note:
-                    ttk.Label(self.body, text=note, wraplength=self.px(TEXT_WIDTH + 160), justify='left', style='Gray.TLabel').pack(anchor='w', pady=(8, 0))
+                    self._row(row, key)
         self._message()
         self._buttons()
 
-    def _settings_intro(self, look):
-        if not look:
-            return 'Reading what is set up…'
-        count = model.open_items(look)
-        state = 'Everything is set up.' if not count else f'{count} not done or missing: each says what it needs.'
-        return f'What is registered and where, read just now. {state} Every page of the first setup opens again below.'
+    def _head(self, title, line, where):
+        self.heading.configure(text=title)
+        self.line.configure(text=line)
+        self.where.configure(text=where)
 
-    def _page_look(self):
+    def page_look(self):
         """The look with the projects step planned for the folder in the field: on the bridge page only."""
         look = dataclasses.replace(self.look, findings=dict(self.look.findings))
         return model.with_folder(look, self.setup, self.folder.get())
@@ -253,37 +248,56 @@ class SetupWindow(tk.Tk):
         frame = ttk.Frame(self.body)
         frame.pack(fill='x', pady=(0, 6))
         ttk.Label(frame, text='Project repos folder:').pack(side='left')
-        entry = ttk.Entry(frame, textvariable=self.folder, width=60)
-        entry.pack(side='left', padx=6)
+        ttk.Entry(frame, textvariable=self.folder, width=60).pack(side='left', padx=6)
         ttk.Button(frame, text='Browse…', command=self._browse).pack(side='left')
         warning = model.folder_warning(self.setup, self.folder.get())
         if warning and not any(f.kind == 'warning' for f in look.findings.get('projectsRoot', [])):
             ttk.Label(self.body, text='Warning: ' + warning, foreground=MARKS['warning'][1], wraplength=self.px(TEXT_WIDTH + 160),
                       justify='left').pack(anchor='w')
 
-    def _row(self, row):
+    def _card(self, state):
         card = ttk.Frame(self.body, style='Card.TFrame', padding=(self.px(10), self.px(8)))
         card.pack(fill='x', pady=3)
         card.columnconfigure(1, weight=1)
-        mark, colour = MARKS.get(row.state, MARKS['info'])
-        tk.Label(card, text=mark, foreground=colour, background=CARD, font=self.mark_font, width=2).grid(row=0, column=0, rowspan=3, sticky='n')
-        ttk.Label(card, text=row.title, style='Title.TLabel').grid(row=0, column=1, sticky='w')
-        ttk.Label(card, text=row.text, style='Card.TLabel', wraplength=self.px(TEXT_WIDTH), justify='left').grid(row=1, column=1, sticky='w')
+        mark, colour = MARKS.get(state, MARKS['info'])
+        tk.Label(card, text=mark, foreground=colour, background=CARD, font=self.mark_font, width=2).grid(row=0, column=0, rowspan=4, sticky='n')
+        buttons = ttk.Frame(card, style='Card.TFrame')
+        buttons.grid(row=0, column=2, rowspan=4, sticky='ne', padx=(8, 0))
+        return card, buttons
+
+    def _text(self, card, row, text, style='Card.TLabel', **options):
+        ttk.Label(card, text=text, style=style, wraplength=self.px(TEXT_WIDTH), justify='left', **options).grid(row=row, column=1, sticky='w')
+
+    def _row(self, row, page):
+        card, buttons = self._card(row.state)
+        title = ttk.Frame(card, style='Card.TFrame')
+        title.grid(row=0, column=1, sticky='w')
+        ttk.Label(title, text=row.title, style='Title.TLabel').pack(side='left')
+        if row.optional:
+            ttk.Label(title, text='optional', style='About.TLabel').pack(side='left', padx=6)
+        if row.about:
+            self._text(card, 1, row.about, 'About.TLabel')
+        self._text(card, 2, row.text)
         failed, detail = self.details.get(row.key, (False, ''))
         if failed:      # a change that worked shows in the row read after it; one that failed, here in the tool's words
-            ttk.Label(card, text=detail, style='Card.TLabel', foreground=BAD,
-                      wraplength=self.px(TEXT_WIDTH), justify='left').grid(row=2, column=1, sticky='w', pady=(4, 0))
-        buttons = ttk.Frame(card, style='Card.TFrame')
-        buttons.grid(row=0, column=2, rowspan=3, sticky='ne', padx=(8, 0))
-        current = model.PAGES[self.page][0] if self.page is not None else None
+            self._text(card, 3, detail, foreground=BAD)
         for action in row.actions:
-            if action.kind == 'page' and action.target == current:
+            if action.kind == 'page' and action.target == page:
                 continue
             ttk.Button(buttons, text=action.label, command=lambda a=action: self.act(row, a),
                        state='disabled' if self.busy else 'normal').pack(side='left', padx=(4, 0))
 
+    def _entry(self, key, title, line, state, summary):
+        """An entry of the menu: a page, what it holds now, and Open."""
+        card, buttons = self._card(state)
+        ttk.Label(card, text=title, style='Entry.TLabel').grid(row=0, column=1, sticky='w')
+        self._text(card, 1, line, 'About.TLabel')
+        self._text(card, 2, summary)
+        ttk.Button(buttons, text='Open', command=lambda: self.go(model.page_index(key)),
+                   state='disabled' if self.busy else 'normal').pack(side='left')
+
     def _message(self):
-        failed, text = self.details.get('read', (False, ''))
+        _, text = self.details.get('read', (False, ''))
         if text:
             ttk.Label(self.body, text=text, foreground=BAD, wraplength=self.px(TEXT_WIDTH + 160), justify='left').pack(anchor='w', pady=6)
 
@@ -293,20 +307,18 @@ class SetupWindow(tk.Tk):
         ttk.Label(self.bottom, text=self.busy, style='Gray.TLabel').pack(side='left', padx=10)
         if self.page is None:
             ttk.Button(self.bottom, text='Close', command=self.destroy).pack(side='right')
-            for i, (_, title) in reversed(list(enumerate(model.PAGES))):
-                ttk.Button(self.bottom, text=f'{i + 1} {title}', command=lambda i=i: self.go(i), state=state).pack(side='right', padx=(4, 0))
-            ttk.Label(self.bottom, text='Pages:', style='Gray.TLabel').pack(side='right', padx=4)
+            return
+        if not self.walking:
+            ttk.Button(self.bottom, text='Menu', command=lambda: self.go(None), state=state).pack(side='right')
             return
         last = self.page == len(model.PAGES) - 1
         ttk.Button(self.bottom, text='Finish' if last else 'Next', state=state,
                    command=self.finish if last else lambda: self.go(self.page + 1)).pack(side='right')
         ttk.Button(self.bottom, text='Back', command=lambda: self.go(self.page - 1),
                    state='disabled' if self.page == 0 or self.busy else 'normal').pack(side='right', padx=4)
-        if self.context.first_run.done(self.clone):
-            ttk.Button(self.bottom, text='Settings', command=lambda: self.go(None), state=state).pack(side='right', padx=12)
 
     def _render_worktree(self, look):
-        self.heading.configure(text='A worktree')
-        self.where.configure(text=self.clone)
-        self.intro.configure(text=model.sentence(self.setup.worktree_refusal(look.worktree_of)) + ' Double-click Setup in the main tree for its settings.')
+        self._head('Worktree', 'A worktree of ' + look.worktree_of, self.clone)
+        ttk.Label(self.body, text=model.sentence(self.setup.worktree_refusal(look.worktree_of)) + ' Double-click Setup in the main tree.',
+                  wraplength=self.px(TEXT_WIDTH + 160), justify='left').pack(anchor='w')
         ttk.Button(self.bottom, text='Close', command=self.destroy).pack(side='right')

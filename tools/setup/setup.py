@@ -363,10 +363,18 @@ def is_full_path(text):
     return isinstance(text, str) and '"' not in text and bool(re.match(r'^[A-Za-z]:[\\/]', text))
 
 
+class NotAFullPath(ValueError):
+    """A folder that is no full path on a drive; text is what was given."""
+
+    def __init__(self, text):
+        super().__init__(f'{text} is not a full path on a drive. Give one such as --projects-root "C:\\TIA-Projects"')
+        self.text = text
+
+
 def normal_root(text):
     """The folder as it is stored: with an upper-case drive letter and one kind of slash."""
     if not is_full_path(text):
-        raise ValueError(f'{text} is not a full path on a drive. Give one such as --projects-root "C:\\TIA-Projects"')
+        raise NotAFullPath(text)
     path = os.path.normpath(text)
     return path[0].upper() + path[1:]
 
@@ -487,7 +495,8 @@ def projects_root_step(answer=None, write=False):
             stored = None
         root = normal_root(answer or stored) if answer or stored else None
     except ValueError as e:
-        return [Finding('missing', f'projectsRoot: {e}', TOPIC_ROOT)]
+        shown = f'{e.text} is not a full path on a drive, such as C:\\TIA-Projects.' if isinstance(e, NotAFullPath) else ''
+        return [Finding('missing', f'projectsRoot: {e}', TOPIC_ROOT, shown=shown)]
     if not root:
         question = ((f'{BRIDGE_SETTINGS} holds {no_folder} as projectsRoot, which names no folder. ' if no_folder else '')
                     + f'Where should the project repos live? The default is {default_projects_root()}.')
@@ -500,8 +509,9 @@ def projects_root_step(answer=None, write=False):
     kept = [r for r in allow if r not in old_rules]
     updated = kept + [r for r in allow_rules(root) if r not in kept]
     if (changed or updated != allow) and not write:
-        plan = ([f'projectsRoot: sets it to {root} in {BRIDGE_SETTINGS}' + (f', in place of {stored}' if stored else f', in place of {no_folder}' if no_folder else '') + '.']
-                if changed else [f'projectsRoot {stored} stays.'])
+        # what the window shows before Save; the command makes it at once and prints the outcome
+        plan = ([f'Sets the folder to {root} in {BRIDGE_SETTINGS}' + (f', in place of {stored}' if stored else f', in place of {no_folder}' if no_folder else '') + '.']
+                if changed else [f'Keeps the folder {stored}.'])
         plan.append(f'Claude Code allow rules for read, edit and git in that folder, in {user_file}:')
         plan += [f'    adds {r}' for r in updated if r not in allow] + [f'    takes away {r}' for r in allow if r not in updated]
         return [Finding('change', '\n'.join(plan), TOPIC_ROOT, lambda: projects_root_step(answer, write=True))]
@@ -537,10 +547,11 @@ def tia_step():
     tia_root = bridge.get(name, DEFAULT_TIA_ROOT)
     if not (tia_root and isinstance(tia_root, str)):    # the bridge takes it over its default
         return [Finding('missing', f'TIA Portal V20 with TIA Openness: {BRIDGE_SETTINGS} holds {json.dumps(tia_root)} as tiaRoot, which names no folder', TOPIC_TIA,
+                        shown=f'tiaRoot in {BRIDGE_SETTINGS} names no folder.',
                         person_step=f'Set tiaRoot in {BRIDGE_SETTINGS} to the folder of TIA Portal V20, or take it out for the default, {DEFAULT_TIA_ROOT}.')]
     if (Path(tia_root) / 'PublicAPI' / 'V20' / 'Siemens.Engineering.dll').exists():
-        return [Finding('ok', f'TIA Portal V20 with TIA Openness, {tia_root}', TOPIC_TIA)]
-    return [Finding('missing', f'TIA Portal V20 with TIA Openness: not found in {tia_root}', TOPIC_TIA,
+        return [Finding('ok', f'TIA Portal V20 with TIA Openness, {tia_root}', TOPIC_TIA, shown=f'Found in {tia_root}.')]
+    return [Finding('missing', f'TIA Portal V20 with TIA Openness: not found in {tia_root}', TOPIC_TIA, shown=f'Not found in {tia_root}.',
                     person_step=f'Install TIA Portal V20 with the TIA Openness option. If V20 is in another folder, set tiaRoot in {BRIDGE_SETTINGS}.')]
 
 
@@ -550,8 +561,8 @@ def openness_step():
     whoami = shutil.which('whoami', path=os.path.join(os.environ['SystemRoot'], 'System32'))
     code, output = run(whoami, '/groups', '/fo', 'csv', '/nh') if whoami else (127, '')
     if code == 0 and re.search(r'^"(?:[^"\\]*\\)?' + OPENNESS_GROUP + '"', output, re.IGNORECASE | re.MULTILINE):
-        return [Finding('ok', f"the Windows group '{OPENNESS_GROUP}'", TOPIC_GROUP)]
-    return [Finding('missing', f"the Windows group '{OPENNESS_GROUP}': TIA refuses Openness to a user outside it", TOPIC_GROUP,
+        return [Finding('ok', f"the Windows group '{OPENNESS_GROUP}'", TOPIC_GROUP, shown='You are a member.')]
+    return [Finding('missing', f"the Windows group '{OPENNESS_GROUP}': TIA refuses Openness to a user outside it", TOPIC_GROUP, shown='You are not a member.',
                     person_step=f"Join the Windows group '{OPENNESS_GROUP}' (an administrator or IT adds you), then log off and on.")]
 
 

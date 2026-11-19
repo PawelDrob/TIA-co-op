@@ -1,80 +1,72 @@
-"""What the setup window shows: the pages of the first run and the settings, as rows built from what first setup's
-steps find (tools\\setup\\setup.py). No tkinter, and no rule of its own about what is set up: every check and every
-change is a step of setup.py, the viewer's register.py or a dashboard's own answer, read fresh each time.
+"""What the setup window shows: its pages, each a list of rows, and the menu that leads to them after the first run. The
+rows come from what first setup's steps find (tools\\setup\\setup.py). No tkinter, and no rule of its own about what is set
+up: every check and every change is a step of setup.py, the viewer's register.py or a dashboard's own answer, read fresh
+each time.
 
-A row is one thing: its state, a title, a text and the actions a person can take on it. The window draws rows and runs
-their actions; it keeps nothing about what is registered. Whether the first run is done is kept per user, outside the
-clone (FirstRun).
+A page has a short title and one line saying what it is; each row says what it is about itself, and whether it is
+optional. The first run walks the pages in order; after it, the window opens on the menu, one entry a page. Whether the
+first run is done is kept per user, outside the clone (FirstRun).
 """
 import json
 import os
 from dataclasses import dataclass, field
 
-# The pages of the first run, in order: (key, title).
+from tools.setup.setup import same_path
+
+# The pages, in the order of the first run: (key, title, what the page is).
 PAGES = (
-    ('pc', 'What this PC has'),
-    ('bridge', 'Claude Code and the bridge'),
-    ('viewer', 'Block viewer'),
-    ('dashboards', 'Dashboards'),
-    ('finish', 'What you do by hand'),
+    ('installed', 'Installed', 'Tools used by this repository'),
+    ('repository', 'Repository settings', 'Settings of this clone'),
+    ('bridge', 'Bridge', 'What Claude Code needs to work on your TIA projects'),
+    ('viewer', 'Block viewer', 'Exported blocks opened with a double-click'),
+    ('dashboards', 'Dashboards', 'Local pages in your browser'),
+    ('by-hand', 'By hand', 'What only you can do'),
 )
+MENU = ('Settings', 'This clone, by subject')
 
-INTROS = {
-    'pc': 'What this repo uses, and whether this PC has it. Something missing does not stop the pages: each item says what '
-          'it is for and how to get it. Install what you need, then press Refresh.',
-    'bridge': 'TiaBridge lets an agent in Claude Code work on your TIA projects. First the folder your project repos live in, '
-              'then what Claude Code needs to start the bridge. Each item says what it changes and where; nothing changes '
-              'until you press its button. Skip what you do not want: it shows as not done in the settings.',
-    'viewer': 'The block viewer shows an exported block (.s7dcl) as TIA draws it. Registered, a double-click on such a file '
-              'opens it there. This is for your Windows user only, and Unregister takes it back.',
-    'dashboards': 'Two local pages in your browser. They run with no console window and have an icon in the notification '
-                  'area of the taskbar, whose right-click menu stops them. Start one now, or later from the settings: '
-                  'nothing starts with Windows.',
-    'finish': 'What only you can do. Finish ends the first run: the next double-click on Setup opens the settings, from '
-              'which every page here can be opened again.',
-}
-
-# Why each thing on the first page is wanted, in the words of a person deciding whether to install it.
-NEEDED_FOR = {
-    'uv': 'Makes the Python environment every tool of this repo runs on, this window too.',
-    'git': 'Keeps this repo and your project repos: the bridge commits each export of a project.',
-    'Claude Code': 'Runs the agents that change your TIA projects through the bridge. Tested with Claude Code only; '
-                   'without it the bridge and the tools still run.',
-    'TIA Portal': 'The bridge works on your projects through TIA Portal V20 and its TIA Openness option.',
-    'Openness group': 'TIA lets only members of this Windows group use Openness, which the bridge needs.',
+PAGE_TOPICS = {
+    'installed': ('uv', 'git', 'Claude Code', 'TIA Portal', 'Openness group'),
+    'repository': ('commit hook', 'tracked settings'),
+    'bridge': ('projectsRoot', 'MCP server tia', 'plugin', 'status line'),
 }
 
 TITLES = {
-    'uv': 'uv', 'git': 'git', 'Claude Code': 'Claude Code', 'TIA Portal': 'TIA Portal V20', 'Openness group': 'Windows group',
-    'commit hook': 'Commit checks', 'MCP server tia': 'MCP server tia', 'plugin': 'Plugin', 'status line': 'Status line',
-    'tracked settings': 'Settings of this repo', 'projectsRoot': 'Project repos folder',
+    'uv': 'uv', 'git': 'git', 'Claude Code': 'Claude Code', 'TIA Portal': 'TIA Portal V20', 'Openness group': 'Openness group',
+    'commit hook': 'Commit checks', 'tracked settings': 'Claude Code settings of this repository',
+    'projectsRoot': 'Project repos folder', 'MCP server tia': 'MCP server tia', 'plugin': 'Plugin', 'status line': 'Status line',
 }
 
-PAGE_TOPICS = {
-    'pc': ('uv', 'git', 'Claude Code', 'TIA Portal', 'Openness group'),
-    'bridge': ('projectsRoot', 'MCP server tia', 'plugin', 'status line', 'commit hook', 'tracked settings'),
+# What each thing is, in its own row: for a person deciding whether to set it up.
+ABOUT = {
+    'uv': 'Makes the Python environment every tool here runs on, this window too.',
+    'git': 'Keeps this repository and your project repos; the bridge commits each export.',
+    'Claude Code': 'Runs the agents that change your TIA projects through the bridge. This repository is tested with it only.',
+    'TIA Portal': 'TIA Portal V20 with its TIA Openness option, which the bridge works through.',
+    'Openness group': "The Windows group 'Siemens TIA Openness': TIA lets only its members use Openness.",
+    'commit hook': 'Runs the checks of this repository on each commit. For changing this repository.',
+    'tracked settings': '.claude\\settings.json: the plugin and UTF-8 for a Claude Code session in this folder.',
+    'projectsRoot': 'Where your project repos live. The bridge keeps its sessions there; Claude Code may read, edit and use git there.',
+    'MCP server tia': 'Lets Claude Code start the bridge, TiaBridge, as its server tia.',
+    'plugin': 'The engineering skills the work on this repository uses: tickets, reviews, audits.',
+    'status line': "A row in Claude Code's status line: what the bridge and its TIA are doing.",
+    'viewer': 'A double-click on an exported block (.s7dcl) shows it as the change report draws it.',
 }
-
-# The settings window's groups of setup's topics; the bridge's other settings and the viewer and dashboards follow.
-SETTINGS_GROUPS = (
-    ('This clone', ('commit hook', 'tracked settings')),
-    ('Claude Code', ('Claude Code', 'MCP server tia', 'plugin', 'status line')),
-    ('Bridge', ('projectsRoot',)),
-    ('This PC', ('uv', 'git', 'TIA Portal', 'Openness group')),
-)
+OPTIONAL = {'Claude Code', 'commit hook', 'plugin', 'status line', 'viewer', 'development', 'tia'}
 
 KINDS = {'ok': 'ok', 'done': 'ok', 'change': 'todo', 'question': 'todo', 'missing': 'missing', 'warning': 'warning'}
 CHANGE_LABELS = {'commit hook': 'Turn on', 'MCP server tia': 'Register', 'plugin': 'Install', 'status line': 'Add',
                  'projectsRoot': 'Save'}
-RESTART = ('Claude Code reads its servers and plugins when a session starts: a session in this folder that was running '
-           'before a change here has neither. End it and run claude --continue there; it comes back with its conversation.')
-NO_CLAUDE = 'Needs Claude Code, which is not on the PATH (first page).'
+# A topic setup prints nothing for while it is right.
+QUIET_OK = {'tracked settings': 'Right.'}
+RESTART = ('Claude Code reads its servers and plugins when a session starts. End a session that ran in this folder before '
+           'a change here, and run claude --continue there: it comes back with its conversation.')
+NO_CLAUDE = 'Needs Claude Code, which is not on the PATH (Installed).'
 
 
 @dataclass
 class Action:
     """A button of a row. kind: make (a setup step's change, in finding), register, unregister, start, open (a dashboard,
-    target its key), page (a page of the first run, target its key)."""
+    target its key), page (a page, target its key)."""
     label: str
     kind: str
     finding: object = None
@@ -88,6 +80,8 @@ class Row:
     text: str
     actions: list = field(default_factory=list)
     key: str = ''        # what the row is about: a topic of setup, viewer, or a dashboard's key
+    about: str = ''      # what it is
+    optional: bool = False
 
 
 @dataclass
@@ -100,14 +94,13 @@ class Look:
     person_steps: list = field(default_factory=list)
     bridge_settings: dict = field(default_factory=dict)
     bridge_settings_error: str = ''
-    viewer: dict = field(default_factory=dict)        # viewer.state(): register.state(), 'this' and 'note'
+    viewer: dict = field(default_factory=dict)        # viewer.state()
     dashboards: list = field(default_factory=list)    # (Dashboard, Status)
 
 
-def read(setup, viewer_state, dashboards, folder=None):
+def read(setup, viewer_state, dashboards):
     """A Look from the steps of setup (the module tools\\setup\\setup.py), changing nothing. viewer_state() gives the
-    viewer's registration, dashboards() each dashboard with what its port answers. folder: a projects folder a person
-    typed, which the projects step then plans for."""
+    viewer's registration, dashboards() each dashboard with what its port answers."""
     look = Look(clone=str(setup.CLONE))
     worktree_of = setup.main_tree_if_worktree()
     if worktree_of:
@@ -115,7 +108,7 @@ def read(setup, viewer_state, dashboards, folder=None):
         return look
     look.claude = setup.shutil.which('claude') or ''
     claude_step = [] if look.claude else [setup.claude_step]       # with claude, setup's steps hold it
-    for step in [setup.uv_step, *claude_step, *setup.steps(look.claude, folder)]:
+    for step in [setup.uv_step, *claude_step, *setup.steps(look.claude)]:
         for finding in step():
             look.findings.setdefault(finding.topic, []).append(finding)
             if finding.person_step:
@@ -138,10 +131,6 @@ def without_topic(text, topic):
     return text
 
 
-# A topic setup prints nothing for while it is right.
-QUIET_OK = {'tracked settings': 'Enables the plugin and UTF-8 for a Claude Code session here (.claude\\settings.json).'}
-
-
 def sentence(text):
     return text[:1].upper() + text[1:]
 
@@ -151,18 +140,18 @@ def shown(finding, topic):
     return finding.shown or without_topic(finding.text, topic)
 
 
-def topic_row(look, topic, explain=False):
-    """The row of one of setup's topics: the worst state of its findings, their texts, a button for a change. explain:
-    say what it is for even when it is there, as the first page does."""
+def topic_row(look, topic):
+    """The row of one of setup's topics: the worst state of its findings, their texts, what a person does about one that is
+    missing, and a button for a change."""
     found = look.findings.get(topic, [])
-    title = TITLES.get(topic, topic)
+    title, about, optional = TITLES.get(topic, topic), ABOUT.get(topic, ''), topic in OPTIONAL
     if not found:
         if topic in ('MCP server tia', 'plugin') and not look.claude:
-            return Row('missing', title, NO_CLAUDE, [Action('First page', 'page', target='pc')], topic)
+            return Row('missing', title, NO_CLAUDE, [Action('Installed', 'page', target='installed')], topic, about, optional)
         if topic in QUIET_OK:
-            return Row('ok', title, QUIET_OK[topic], key=topic)
+            return Row('ok', title, QUIET_OK[topic], key=topic, about=about, optional=optional)
         reason = 'git is missing.' if topic == 'commit hook' else 'its settings file cannot be read.'
-        return Row('info', title, 'Not checked: ' + reason, key=topic)
+        return Row('info', title, 'Not checked: ' + reason, key=topic, about=about, optional=optional)
     states = [KINDS.get(f.kind, 'info') for f in found]
     state = next((s for s in ('missing', 'todo', 'warning', 'ok') if s in states), 'info')
     texts, actions = [], []
@@ -172,50 +161,51 @@ def topic_row(look, topic, explain=False):
             actions.append(Action(CHANGE_LABELS.get(topic, 'Do it'), 'make', f))
         else:
             texts.append(shown(f, topic))
+        if f.person_step:
+            texts.append(f.person_step)
     if topic == 'projectsRoot':
         actions = [Action('Change…', 'page', target='bridge')] + actions
-    if topic in NEEDED_FOR and (explain or state != 'ok'):
-        texts.insert(0, NEEDED_FOR[topic])
-    return Row(state, title, '\n'.join(texts), actions, topic)
+    return Row(state, title, '\n'.join(texts), actions, topic, about, optional)
 
 
 def viewer_row(look):
     v = look.viewer
-    title = 'Block viewer (.s7dcl)'
+    title, about = 'Block viewer (.s7dcl)', ABOUT['viewer']
     if v.get('error'):
-        return Row('missing', title, v['error'], key='viewer')
+        return Row('missing', title, v['error'], key='viewer', about=about, optional=True)
     note = ('\n' + v['note']) if v.get('note') else ''
     if v.get('command') and v.get('default'):
         if v['command'] == v['this']:
-            return Row('ok', title, 'A double-click on an .s7dcl file opens it in the block viewer of this clone.' + note,
-                       [Action('Unregister', 'unregister')], 'viewer')
+            return Row('ok', title, 'Registered for this clone.' + note, [Action('Unregister', 'unregister')], 'viewer', about, True)
         return Row('warning', title, f'Registered for another clone: {v["command"]}. Register this clone to take it over.' + note,
-                   [Action('Register this clone', 'register'), Action('Unregister', 'unregister')], 'viewer')
-    return Row('todo', title, 'Not registered. Register writes, for your Windows user only, the program TiaChangeReports.BlockViewer '
-               f'and .s7dcl under HKEY_CURRENT_USER\\Software\\Classes, with the command {v.get("this", "")}' + note,
-               [Action('Register', 'register')], 'viewer')
+                   [Action('Register this clone', 'register'), Action('Unregister', 'unregister')], 'viewer', about, True)
+    return Row('todo', title, f'Not registered. Register writes {v.get("progid", "")} and .s7dcl under {v.get("key", "")}, '
+               f'for your Windows user only, with the command {v.get("this", "")}' + note,
+               [Action('Register', 'register')], 'viewer', about, True)
 
 
 def dashboard_row(dashboard, status, clone):
     """A dashboard: running (its address, and whether it is this clone's), not running, or another program on its port."""
+    common = dict(key=dashboard.key, about=dashboard.purpose, optional=True)
     if status.state == 'running':
-        whose = '' if not status.clone else (' Of this clone.' if same_folder(status.clone, clone) else f' Of the clone {status.clone}.')
-        text = f'Running at {dashboard.url}.{whose} To stop it, use its icon\'s menu in the notification area.'
-        return Row('ok', dashboard.title, dashboard.purpose + '\n' + text, [Action('Open', 'open', target=dashboard.key)], dashboard.key)
+        whose = '' if not status.clone else (' Of this clone.' if same_path(status.clone, clone) else f' Of the clone {status.clone}.')
+        return Row('ok', dashboard.title, f'Running at {dashboard.url}.{whose} Its icon in the notification area stops it.',
+                   [Action('Open', 'open', target=dashboard.key)], **common)
     if status.state == 'other':
-        return Row('warning', dashboard.title, dashboard.purpose + '\n' + status.text, key=dashboard.key)
-    return Row('todo', dashboard.title, f'{dashboard.purpose}\nNot running. Started, it is at {dashboard.url}.',
-               [Action('Start', 'start', target=dashboard.key)], dashboard.key)
-
-
-def same_folder(a, b):
-    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+        return Row('warning', dashboard.title, status.text, **common)
+    return Row('todo', dashboard.title, f'Not running. Started, it is at {dashboard.url}, with no console window; nothing starts it with Windows.',
+               [Action('Start', 'start', target=dashboard.key)], **common)
 
 
 def page_rows(look, page):
-    """The rows of a page of the first run."""
+    """The rows of a page."""
     if page in PAGE_TOPICS:
-        return [topic_row(look, t, explain=page == 'pc') for t in PAGE_TOPICS[page]]
+        rows = [topic_row(look, t) for t in PAGE_TOPICS[page]]
+        if page == 'bridge':
+            rows += bridge_settings_rows(look)
+            if look.claude:
+                rows.append(Row('info', 'After a change here', RESTART, key='restart'))
+        return rows
     if page == 'viewer':
         return [viewer_row(look)]
     if page == 'dashboards':
@@ -223,32 +213,34 @@ def page_rows(look, page):
     return [Row('info', f'{n}.', step) for n, step in enumerate(look.person_steps, 1)]
 
 
-def page_note(look, page):
-    """A line under a page's rows: the restart that the bridge page's changes need."""
-    return RESTART if page == 'bridge' and look.claude else ''
+def bridge_settings_rows(look):
+    """The bridge's other settings, as TiaBridge\\settings.json holds them; the folder has its own row."""
+    rows = [Row('missing', 'TiaBridge\\settings.json', look.bridge_settings_error)] if look.bridge_settings_error else []
+    return rows + [Row('info', name, json.dumps(value, ensure_ascii=False), about='A setting of the bridge, in TiaBridge\\settings.json.')
+                   for name, value in look.bridge_settings.items() if name.lower() != 'projectsroot']
 
 
-def settings_groups(look):
-    """The settings window: (heading, rows) for each group, read fresh."""
-    groups = [(heading, [topic_row(look, t) for t in topics]) for heading, topics in SETTINGS_GROUPS]
-    by_heading = dict(groups)
-    if look.claude:
-        by_heading['Claude Code'].append(Row('info', 'After a change here', RESTART))
-    bridge = by_heading['Bridge']
-    if look.bridge_settings_error:
-        bridge.append(Row('missing', 'TiaBridge\\settings.json', look.bridge_settings_error))
-    for name, value in look.bridge_settings.items():
-        if name.lower() != 'projectsroot':
-            bridge.append(Row('info', name, json.dumps(value, ensure_ascii=False)))
-    groups.append(('Block viewer', [viewer_row(look)]))
-    groups.append(('Dashboards', [dashboard_row(d, s, look.clone) for d, s in look.dashboards]))
-    return groups
+def open_count(rows):
+    """How many rows are not done or missing. A dashboard that is not running is no part of the setup: it runs when a
+    person wants it."""
+    return sum(r.state in ('todo', 'missing') for r in rows if r.key not in ('development', 'tia'))
 
 
-def open_items(look):
-    """How many things of the setup are not done or missing, for the settings' headline. A dashboard that is not running
-    is no part of the setup: it runs when a person wants it."""
-    return sum(r.state in ('todo', 'missing') for heading, rows in settings_groups(look) if heading != 'Dashboards' for r in rows)
+def menu_entries(look):
+    """The menu after the first run: (key, title, line, state, what the page holds now) for each page but the last."""
+    entries = []
+    for key, title, line in PAGES[:-1]:
+        rows = page_rows(look, key)
+        count = open_count(rows)
+        missing = any(r.state == 'missing' for r in rows if not r.optional)
+        if key == 'dashboards':
+            running = sum(r.state == 'ok' for r in rows)
+            entries.append((key, title, line, 'ok' if running else 'info', f'{running} of {len(rows)} running'))
+        elif count:
+            entries.append((key, title, line, 'missing' if missing else 'todo', f'{count} not done or missing'))
+        else:
+            entries.append((key, title, line, 'ok', 'All set'))
+    return entries
 
 
 def outcome(findings):
@@ -278,8 +270,13 @@ def folder_offered(look, setup):
     return stored if isinstance(stored, str) and stored else setup.default_projects_root()
 
 
+def page_index(key):
+    """The place of a page among PAGES, by its key."""
+    return next(i for i, (k, _, _) in enumerate(PAGES) if k == key)
+
+
 def first_page(first_run, clone):
-    """Where a double-click opens: page 1 until the first run of this clone is finished, then the settings (None)."""
+    """Where a double-click opens: the first page until the first run of this clone is finished, then the menu (None)."""
     return None if first_run.done(clone) else 0
 
 
@@ -304,10 +301,10 @@ class FirstRun:
         return [f for f in folders if isinstance(f, str)] if isinstance(folders, list) else []
 
     def done(self, clone):
-        return any(same_folder(f, clone) for f in self._folders())
+        return any(same_path(f, clone) for f in self._folders())
 
     def finish(self, clone):
-        folders = [f for f in self._folders() if not same_folder(f, clone)] + [clone]
+        folders = [f for f in self._folders() if not same_path(f, clone)] + [clone]
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         temp = self.path + '.new'
         with open(temp, 'w', encoding='utf-8') as f:

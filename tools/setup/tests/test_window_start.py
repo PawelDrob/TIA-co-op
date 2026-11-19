@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 from TiaChangeReports.viewer import register
+from tools.setup.window import __main__ as window_main
 from tools.setup.window import viewer
 
 REPO = Path(__file__).resolve().parents[3]
@@ -40,6 +41,26 @@ class SetupFile(unittest.TestCase):
 
     def test_it_is_at_the_top_of_the_clone(self):
         self.assertTrue((REPO / 'Setup.wsf').is_file())
+
+
+class SnapOnlyInATestsEnvironment(unittest.TestCase):
+    """--snap finishes the first run and --snap-changes presses every button: neither may land on the person's own."""
+
+    def refusal(self, *args, config=None):
+        environ = {'CLAUDE_CONFIG_DIR': config} if config else {}
+        return window_main.refusal(window_main.parse(list(args)), environ)
+
+    def test_snap_without_its_own_first_run_record_is_refused(self):
+        self.assertIn('--first-run', self.refusal('--snap', 'out'))
+        self.assertEqual(self.refusal('--snap', 'out', '--first-run', 'f.json'), '')
+
+    def test_changes_need_a_test_key_and_a_claude_config_in_the_temp_folder(self):
+        snap = ('--snap', 'out', '--first-run', 'f.json', '--snap-changes')
+        temp_config = os.path.join(tempfile.gettempdir(), 'setup-x', 'config')
+        self.assertIn('--viewer-key', self.refusal(*snap, config=temp_config))
+        self.assertIn('CLAUDE_CONFIG_DIR', self.refusal(*snap, '--viewer-key', 'K'))
+        self.assertIn('CLAUDE_CONFIG_DIR', self.refusal(*snap, '--viewer-key', 'K', config=os.path.expanduser(r'~\.claude')))
+        self.assertEqual(self.refusal(*snap, '--viewer-key', 'K', config=temp_config), '')
 
 
 class Viewer(unittest.TestCase):

@@ -4,7 +4,7 @@ title: Setup
 description: How to set up this repository on a Windows PC, with the setup window a person double-clicks or one command for agents, and what the window shows after the first run.
 tags: [setup, tia-portal]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T09:22:24-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T09:59:48-05:00 }
 sources:
   - id: setup
     resource: ../../tools/setup/
@@ -75,6 +75,10 @@ value until then.
 
 The settings of the bridge are in [TiaBridge](../../TiaBridge/README.md#settings).
 
+**`claude plugin list` shows the plugin many times.** Claude Code has been seen to add an entry of project scope for clones
+and worktrees where sessions ran, and to keep it after the folder is gone. Leave these entries: no harm has been seen from
+them, and removing one also changes the tracked `.claude/settings.json`.
+
 ## The setup window
 
 `Setup.wsf` at the top of the clone. Windows runs it with Windows Script Host, so no console window opens. Where your
@@ -84,33 +88,28 @@ company has turned Windows Script Host off, Windows says so in a box: use the co
 Python environment yet, a console window runs `uv sync` so that you see it work (the first one downloads Python). It closes
 by itself when it is done, or stays open with uv's message when it fails. Then the window opens on its first page.
 
-**The pages**, one subject each, with Back and Next:
+**The pages.** Each has a short title and a line saying what it is. Each row says what it is about, is marked optional
+when you can do without it, and, when something is missing, says how to get it. A row that changes something says what and
+in which file, and changes nothing until you press its button.
 
-1. What this PC has: uv, git, Claude Code, TIA Portal V20 with TIA Openness, and the Windows group **Siemens TIA
-   Openness**. Each says what it is for and, when it is missing, how to get it. Nothing missing stops the pages.
-2. Claude Code and the bridge: the folder of your project repos (the stored one, or `%USERPROFILE%\TIA-Projects` to start
-   with; type it or pick it with Browse), then the server `tia`, the plugin, the status line and the commit checks. Each
-   says what it changes and in which file before you press its button. Claude Code reads servers and plugins when a
-   session starts, so restart a session that was running: end it and run `claude --continue`.
-3. The block viewer: Register makes a double-click on an `.s7dcl` file open it in the viewer of this clone, for your
-   Windows user only; Unregister takes it back. These are the viewer's `--register` and `--unregister`.
-4. The dashboards: the [development dashboard](development-dashboard.md) and the
-   [TIA dashboard](../../TiaAgentStatus/README.md), each with Start (no console window) or, while it runs, Open. Nothing
-   starts with Windows.
-5. What you do by hand, then Finish.
+| Page | What it holds |
+|---|---|
+| Installed | uv, git, Claude Code, TIA Portal V20 with TIA Openness, the Windows group **Siemens TIA Openness**. Nothing missing stops the pages |
+| Repository settings | The commit checks, and the Claude Code settings of this repository |
+| Bridge | The folder of your project repos (the stored one, or `%USERPROFILE%\TIA-Projects` to start with; type it or pick it with Browse), the server `tia`, the plugin, the status line, the bridge's other settings |
+| Block viewer | Register: a double-click on an `.s7dcl` file opens it in the viewer of this clone, for your Windows user only. Unregister takes it back. These are the viewer's `--register` and `--unregister` |
+| Dashboards | The [development dashboard](development-dashboard.md) and the [TIA dashboard](../../TiaAgentStatus/README.md): Start (no console window) or, while one runs, Open. Nothing starts with Windows; its icon's menu in the notification area stops it |
+| By hand | What only you can do |
 
-Next without pressing a button skips that step. A change that fails shows the tool's own message under its row.
+The first double-click walks them with Back and Next, and Finish ends it. Next without pressing a button skips that step. A
+change that fails shows the tool's own message under its row. Claude Code reads servers and plugins when a session starts:
+end a session that was running and run `claude --continue`.
 
-**After Finish** the same double-click opens the settings: what is registered and where, read fresh each time and on
-Refresh, with the buttons of anything not done, a step you skipped too. A dashboard shows as running only when its port
-answers as that dashboard; a dashboard started from another clone says so, and another program on its port is named with
-its process number. Stop a dashboard from its icon's menu in the notification area. The buttons at the bottom open each
-page again. Which clones finished the first run is kept in `%LOCALAPPDATA%\TIA-co-op\setup-window.json`: delete it, and
-the pages come again.
+**After Finish** the same double-click opens a menu: one entry a page, with what it holds now ("All set", or how many are
+not done or missing, a step you skipped too). Open goes to the page, read fresh, as is everything on Refresh. A dashboard
+shows as running only when its port answers as that dashboard; a dashboard of another clone says so, and another program
+on its port is named with its process number. Which clones finished the first run is kept in
+`%LOCALAPPDATA%\TIA-co-op\setup-window.json`: delete it, and the pages come again.
 
 In a worktree the window says what the command says: a worktree needs only `uv sync`, and its settings belong to the main
 tree.
-
-**`claude plugin list` shows the plugin many times.** Claude Code has been seen to add an entry of project scope for clones
-and worktrees where sessions ran, and to keep it after the folder is gone. Leave these entries: no harm has been seen from
-them, and removing one also changes the tracked `.claude/settings.json`.

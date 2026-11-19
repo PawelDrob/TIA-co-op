@@ -1,13 +1,13 @@
-"""--snap: the window with no one at it, transparent on the screen: a picture of each page and of the settings, then it
-ends. With changes, it presses each button that changes something and pictures the outcome. Writes done.txt last,
-with the outcome of each press, so a check knows it ended."""
+"""--snap: the window with no one at it, transparent on the screen: a picture of what opens, of each page, of the menu
+and of a page opened from it, then it ends. With changes, it presses each button that changes something and pictures the
+outcome. Writes done.txt last, with the outcome of each press, so a check knows it ended."""
 import os
 
 from TiaArchiveCompare.window.snapshot import screenshot
 from tools.setup.window import model
 
 POLL_MS = 100
-TALL = 1500       # the settings, whole
+PRESSED_ON = ('repository', 'bridge', 'viewer', 'dashboards')
 
 
 class Snapshot:
@@ -22,12 +22,13 @@ class Snapshot:
         w.attributes('-alpha', 0)
         w.maxsize(4000, 4000)       # Tk holds a window to the screen: the shots have the same size on any screen
         w.geometry('%dx%d' % (w.px(900), w.px(680)))
-        self.plan = [('opens', w.page, '0-opens')]      # what a double-click opens: page 1, or the settings after Finish
-        for i, (key, _) in enumerate(model.PAGES):
+        self.plan = [('opens', w.page, '0-opens')]      # what a double-click opens: the first page, or the menu after Finish
+        for i, (key, _, _) in enumerate(model.PAGES):
             self.plan.append(('page', i, f'{i + 1}-{key}'))
-            if self.changes and key in ('bridge', 'viewer', 'dashboards'):
+            if self.changes and key in PRESSED_ON:
                 self.plan.append(('press', i, f'{i + 1}-{key}-done'))
-        self.plan.append(('settings', None, '6-settings'))
+        self.plan += [('menu', None, f'{len(model.PAGES) + 1}-menu'),
+                      ('from menu', model.page_index('bridge'), f'{len(model.PAGES) + 2}-bridge-from-the-menu')]
         w.after(POLL_MS, self._next)
         w.mainloop()
         self.log += [f'{key}: {"failed" if failed else "ok"}: {text}' for key, (failed, text) in w.details.items()]
@@ -48,11 +49,10 @@ class Snapshot:
         if what == 'press' and self._press(page):
             return w.after(POLL_MS, self._next)      # one more button: the next round sees its outcome
         self.plan.pop(0)
-        if what == 'settings':
+        if what == 'menu':
             w.finish()
-            w.geometry('%dx%d' % (w.px(900), w.px(TALL)))
         elif what == 'opens':
-            self.log.append('opens ' + ('the settings' if page is None else f'page {page + 1}'))
+            self.log.append('opens ' + ('the menu' if page is None else f'page {page + 1}'))
         elif w.page != page:
             w.go(page)
         w.update()
@@ -66,7 +66,8 @@ class Snapshot:
         if w.page != page:
             w.go(page)
         key = model.PAGES[page][0]
-        for row in model.page_rows(w._page_look(), key):
+        look = w.page_look() if key == 'bridge' else w.look
+        for row in model.page_rows(look, key):
             for action in row.actions:
                 if action.kind in ('make', 'register', 'start') and (row.key, action.kind) not in self.pressed:
                     self.pressed.add((row.key, action.kind))
