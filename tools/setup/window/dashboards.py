@@ -97,7 +97,7 @@ def probe(dashboard):
         return Status('running')
     program = listener(dashboard.port)
     return Status('other', text=f'Port {dashboard.port} is taken by {program or "another program"}, which does not answer as the '
-                                f'{dashboard.title.lower()}. Close that program, or start the dashboard by hand with --port.')
+                                f'{dashboard.title.lower()}. Close that program, then press Refresh and Start.')
 
 
 LISTEN_LINE = re.compile(r'^\s*TCP\s+(?:[\d.]+|\[[^\]]*\]):(\d+)\s+(?:0\.0\.0\.0|\[::\]):0\s+\S+\s+(\d+)\s*$')

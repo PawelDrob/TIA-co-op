@@ -43,14 +43,11 @@ class Pages(unittest.TestCase):
         self.assertFalse(row(model.page_rows(look(), 'installed'), 'git').optional)
         self.assertTrue(row(model.page_rows(look(), 'bridge'), 'status line').optional)
 
-    def test_something_missing_says_how_to_get_it_in_its_own_row(self):
-        rows = model.page_rows(look(*setup.tia_step(), Finding('missing', "the Windows group 'X': TIA refuses", 'Openness group',
-                                                               shown='You are not a member.', person_step='Join the group, then log off and on.')), 'installed')
-        group = row(rows, 'Openness group')
-        self.assertEqual((group.state, group.text), ('missing', 'You are not a member.\nJoin the group, then log off and on.'))
-        tia = row(rows, 'TIA Portal')
-        if tia.state == 'missing':
-            self.assertIn('Install TIA Portal V20 with the TIA Openness option', tia.text)
+    def test_a_row_shows_the_words_setup_writes_for_the_window_with_its_commands_and_details(self):
+        found = Finding('missing', 'commit hook: core.hooksPath is x, ...', 'commit hook', shown='Off. This turns it on:',
+                        commands=['git config core.hooksPath .githooks'], details=['one', 'two'])
+        hook = row(model.page_rows(look(found), 'repository'), 'commit hook')
+        self.assertEqual((hook.text, hook.commands, hook.details), ('Off. This turns it on:', ['git config core.hooksPath .githooks'], ['one', 'two']))
 
     def test_a_change_shows_what_it_changes_and_where_with_its_button(self):
         change = Finding('change', 'MCP server tia: registers it for your Windows user: claude mcp add ... Claude Code keeps it in C:\\home\\.claude.json',
@@ -91,8 +88,10 @@ class Pages(unittest.TestCase):
 
     def test_the_bridge_page_says_a_running_session_needs_a_restart_and_holds_the_bridges_settings(self):
         rows = model.page_rows(look(bridge_settings={'projectsRoot': 'C:\\R', 'archivesKept': 3}), 'bridge')
-        self.assertIn('claude --continue', row(rows, 'restart').text)
-        self.assertEqual([(r.title, r.text) for r in rows if r.title == 'archivesKept'], [('archivesKept', '3')])
+        self.assertEqual(row(rows, 'restart').commands, ['claude --continue'])
+        self.assertEqual([(r.title, r.text) for r in rows if r.title == 'archivesKept'], [('archivesKept', 'Value: 3')])
+        paths = model.page_rows(look(bridge_settings={'tiaRoot': 'C:\\TIA\\V20'}), 'bridge')
+        self.assertEqual([r.text for r in paths if r.title == 'tiaRoot'], ['Value: C:\\TIA\\V20'])
 
     def test_settings_that_cannot_be_read_are_named(self):
         rows = model.page_rows(look(bridge_settings_error='TiaBridge\\settings.json cannot be read'), 'bridge')
@@ -113,9 +112,14 @@ class Pages(unittest.TestCase):
         self.assertEqual(model.without_topic('MCP server tia, for this folder', 'MCP server tia'), 'for this folder')
         self.assertEqual(model.without_topic('git', 'git'), 'git')
 
-    def test_the_last_page_lists_what_a_person_does(self):
-        rows = model.page_rows(look(person_steps=['Join the group.', 'Answer Yes.']), 'by-hand')
-        self.assertEqual([(r.title, r.text) for r in rows], [('1.', 'Join the group.'), ('2.', 'Answer Yes.')])
+    def test_by_hand_lists_what_is_missing_that_no_button_does_then_what_follows_setup(self):
+        group = Finding('missing', 'g', 'Openness group', shown='You are not a member. An administrator adds you.', person_step='Join.')
+        rows = model.page_rows(look(group, Finding('ok', 'git', 'git'), last_steps=setup.window_last_steps('claude')), 'by-hand')
+        self.assertEqual([r.title for r in rows], ['Openness group', 'After setup', 'First connect'])
+        self.assertEqual(rows[0].state, 'missing')
+        self.assertEqual(rows[1].commands, ['claude --continue'])
+        without = model.page_rows(look(claude='', last_steps=setup.window_last_steps('')), 'by-hand')
+        self.assertIn('TiaBridge.ps1', without[0].commands[0])
 
     def test_a_page_is_found_by_its_key(self):
         self.assertEqual(model.page_index('installed'), 0)
@@ -127,9 +131,10 @@ class Menu(unittest.TestCase):
         return look(*findings, viewer=dict(VIEWER, command='x', default=True), dashboards=[(d, Status('stopped')) for d in dashboards()], **more)
 
     def test_one_entry_a_page_with_what_it_holds_now(self):
-        entries = model.menu_entries(self.lk())
-        self.assertEqual([e[0] for e in entries], [k for k, _, _ in model.PAGES[:-1]])
+        entries = model.menu_entries(self.lk(last_steps=setup.window_last_steps('claude')))
+        self.assertEqual([e[0] for e in entries], [k for k, _, _ in model.PAGES])
         self.assertEqual(entries[0][1:3], model.PAGES[0][1:])
+        self.assertEqual(entries[-1][3:], ('info', '2 to do after setup'))
 
     def test_a_skipped_step_shows_as_not_done_and_its_page_does_it(self):
         change = Finding('change', 'status line: adds the TIA row', 'status line', make=lambda: [])
@@ -157,8 +162,8 @@ class Viewer(unittest.TestCase):
     def test_not_registered_says_what_register_writes_and_where(self):
         r = self.viewer(key='HKEY_CURRENT_USER\\Software\\Test\\Classes', progid='The.Viewer')
         self.assertEqual(r.state, 'todo')
-        self.assertIn('The.Viewer and .s7dcl under HKEY_CURRENT_USER\\Software\\Test\\Classes', r.text)
-        self.assertIn(self.THIS, r.text)
+        self.assertEqual(r.commands, [self.THIS])
+        self.assertIn('HKEY_CURRENT_USER\\Software\\Test\\Classes\\The.Viewer: the program and its open command', r.details)
         self.assertEqual([a.kind for a in r.actions], ['register'])
         self.assertTrue(r.optional)
 
@@ -171,7 +176,7 @@ class Viewer(unittest.TestCase):
         other = self.THIS.replace('clone', 'other')
         r = self.viewer(command=other, default=True)
         self.assertEqual(r.state, 'warning')
-        self.assertIn(other, r.text)
+        self.assertEqual(r.details, [f'It opens with: {other}'])
         self.assertEqual([a.kind for a in r.actions], ['register', 'unregister'])
 
     def test_a_choice_in_open_with_is_said(self):

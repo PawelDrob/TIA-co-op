@@ -15,7 +15,7 @@ TITLE = 'TIA-co-op setup'
 WIDTH, HEIGHT = 900, 680
 TEXT_WIDTH = 600
 PUMP_MS, TYPING_MS = 50, 300
-BACKGROUND, CARD = '#f6f7f9', '#ffffff'
+BACKGROUND, CARD, CODE = '#f6f7f9', '#ffffff', '#eef0f3'
 MARKS = {'ok': ('✔', '#007800'), 'todo': ('●', '#b06000'), 'missing': ('✖', '#b22222'), 'warning': ('!', '#b06000'),
          'info': ('·', '#808080')}
 GRAY, BAD = '#606060', '#b22222'
@@ -44,6 +44,7 @@ class SetupWindow(tk.Tk):
         self.page = page if page is not None else first
         self.walking = first is not None
         self.details = {}           # row key: (failed, text) of its last action, until Refresh
+        self.shown_details = set()  # the rows whose detail is open
         self.busy = ''
         self.results = queue.Queue()
         self.folder = tk.StringVar(self)
@@ -167,6 +168,7 @@ class SetupWindow(tk.Tk):
         self.big = tkfont.Font(self, family='Segoe UI', size=16, weight='bold')
         self.entry_font = tkfont.Font(self, family='Segoe UI', size=11, weight='bold')
         self.mark_font = tkfont.Font(self, family='Segoe UI Symbol', size=11)
+        self.code_font = tkfont.Font(self, family='Consolas', size=9)
         self.configure(background=BACKGROUND)
         style = ttk.Style(self)
         for name in ('TFrame', 'TLabel'):
@@ -178,6 +180,7 @@ class SetupWindow(tk.Tk):
         style.configure('Entry.TLabel', background=CARD, font=self.entry_font)
         style.configure('Gray.TLabel', foreground=GRAY)
         style.configure('Big.TLabel', font=self.big)
+        style.configure('Link.TButton', padding=(4, 0))
 
     def _layout(self):
         self.columnconfigure(0, weight=1)
@@ -270,22 +273,45 @@ class SetupWindow(tk.Tk):
 
     def _row(self, row, page):
         card, buttons = self._card(row.state)
-        title = ttk.Frame(card, style='Card.TFrame')
-        title.grid(row=0, column=1, sticky='w')
+        column = ttk.Frame(card, style='Card.TFrame')
+        column.grid(row=0, column=1, sticky='ew')
+        title = ttk.Frame(column, style='Card.TFrame')
+        title.pack(anchor='w')
         ttk.Label(title, text=row.title, style='Title.TLabel').pack(side='left')
         if row.optional:
             ttk.Label(title, text='optional', style='About.TLabel').pack(side='left', padx=6)
-        if row.about:
-            self._text(card, 1, row.about, 'About.TLabel')
-        self._text(card, 2, row.text)
+        for text, style in ((row.about, 'About.TLabel'), (row.text, 'Card.TLabel')):
+            if text:
+                ttk.Label(column, text=text, style=style, wraplength=self.px(TEXT_WIDTH), justify='left').pack(anchor='w')
+        self._lines(column, row.commands)
+        if row.details:
+            shown = row.key in self.shown_details
+            ttk.Button(column, text='Hide what changes' if shown else 'Show what changes', style='Link.TButton',
+                       command=lambda: self._toggle_details(row.key)).pack(anchor='w', pady=(2, 0))
+            if shown:
+                self._lines(column, row.details)
         failed, detail = self.details.get(row.key, (False, ''))
         if failed:      # a change that worked shows in the row read after it; one that failed, here in the tool's words
-            self._text(card, 3, detail, foreground=BAD)
+            ttk.Label(column, text=detail, style='Card.TLabel', foreground=BAD, wraplength=self.px(TEXT_WIDTH), justify='left').pack(anchor='w', pady=(4, 0))
         for action in row.actions:
             if action.kind == 'page' and action.target == page:
                 continue
             ttk.Button(buttons, text=action.label, command=lambda a=action: self.act(row, a),
                        state='disabled' if self.busy else 'normal').pack(side='left', padx=(4, 0))
+
+    def _lines(self, parent, lines):
+        """Commands and what changes: one a line, in a fixed-width font, never wrapped. A line longer than the row scrolls
+        in its field, where it can be selected and copied whole."""
+        for line in lines:
+            field = tk.Entry(parent, font=self.code_font, relief='flat', readonlybackground=CODE, foreground='#202020',
+                             highlightthickness=0, borderwidth=4)
+            field.insert(0, line)
+            field.configure(state='readonly')
+            field.pack(fill='x', pady=(2, 0))
+
+    def _toggle_details(self, key):
+        self.shown_details ^= {key}
+        self._render()
 
     def _entry(self, key, title, line, state, summary):
         """An entry of the menu: a page, what it holds now, and Open."""

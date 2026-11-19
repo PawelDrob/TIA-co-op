@@ -25,6 +25,8 @@ class Snapshot:
         self.plan = [('opens', w.page, '0-opens')]      # what a double-click opens: the first page, or the menu after Finish
         for i, (key, _, _) in enumerate(model.PAGES):
             self.plan.append(('page', i, f'{i + 1}-{key}'))
+            if key == 'bridge':
+                self.plan.append(('detail', i, f'{i + 1}-{key}-what-changes'))
             if self.changes and key in PRESSED_ON:
                 self.plan.append(('press', i, f'{i + 1}-{key}-done'))
         self.plan += [('menu', None, f'{len(model.PAGES) + 1}-menu'),
@@ -51,12 +53,17 @@ class Snapshot:
         self.plan.pop(0)
         if what == 'menu':
             w.finish()
+        elif what == 'detail':
+            w.shown_details = {'projectsRoot'}      # Show what changes, on the folder's row
+            w.go(page)
         elif what == 'opens':
             self.log.append('opens ' + ('the menu' if page is None else f'page {page + 1}'))
         elif w.page != page:
             w.go(page)
         w.update()
         screenshot(w, os.path.join(self.folder, name + '.png'))
+        if what == 'detail':
+            w.shown_details = set()
         w.after(POLL_MS, self._next)
 
     def _press(self, page):

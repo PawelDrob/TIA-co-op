@@ -4,7 +4,7 @@ title: Setup
 description: How to set up this repository on a Windows PC, with the setup window a person double-clicks or one command for agents, and what the window shows after the first run.
 tags: [setup, tia-portal]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T09:59:48-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T10:23:17-05:00 }
 sources:
   - id: setup
     resource: ../../tools/setup/
@@ -90,7 +90,8 @@ by itself when it is done, or stays open with uv's message when it fails. Then t
 
 **The pages.** Each has a short title and a line saying what it is. Each row says what it is about, is marked optional
 when you can do without it, and, when something is missing, says how to get it. A row that changes something says what and
-in which file, and changes nothing until you press its button.
+in which file, shows the commands it runs on lines of their own, and changes nothing until you press its button. **Show
+what changes** lists each change in full, such as every allow rule with its whole path.
 
 | Page | What it holds |
 |---|---|

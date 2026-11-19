@@ -76,6 +76,53 @@ class TheWindowsChanges(SetupCase):
         self.assertEqual(code, 0, out)
         self.assertEqual(self.state(), by_window)
 
+    def rows_read_as_written_for_the_window(self, setup, folder):
+        """Every row of every page reads as a sentence for a person: it starts with a capital, names no key or option of the
+        command, and keeps commands and rules out of its running text."""
+        for page, _, _ in model.PAGES:
+            for row in self.page(setup, page, folder):
+                for line in [row.about, *row.text.split('\n')]:
+                    if line:
+                        self.assertTrue(line[0].isupper() or line[0].isdigit(), (page, row.title, line))
+                        for word in ('projectsRoot', '--projects-root', 'core.hooksPath', 'run this again', 'Allow(', 'Read(/',
+                                     'claude --continue', 'claude mcp', 'claude plugin', 'git config', 'git restore', 'pythonw.exe'):
+                            self.assertNotIn(word, line, (page, row.title))
+                for line in row.commands:
+                    self.assertNotIn('\n', line)
+
+    def test_every_row_reads_as_written_for_the_window_before_and_after_the_buttons(self):
+        setup = self.setup_module()
+        self.rows_read_as_written_for_the_window(setup, ANSWER)
+        self.press_every_change(setup, ANSWER)
+        self.rows_read_as_written_for_the_window(setup, ANSWER)
+
+    def test_without_claude_the_rows_read_as_written_for_the_window_too(self):
+        (self.fakes / 'claude.cmd').unlink()
+        self.system_root = self.temp / 'no-group'
+        (self.system_root / 'System32').mkdir(parents=True)
+        setup = self.setup_module()
+        self.rows_read_as_written_for_the_window(setup, 'Repos')
+
+    def test_a_missing_tia_or_group_says_how_to_get_it_in_its_own_row(self):
+        (self.tia / 'PublicAPI' / 'V20' / 'Siemens.Engineering.dll').unlink()
+        self.group = r'MACHINE\Users'
+        setup = self.setup_module()
+        rows = {r.key: r for r in self.page(setup, 'installed')}
+        self.assertEqual(rows['TIA Portal'].state, 'missing')
+        self.assertIn('Install TIA Portal V20 with the TIA Openness option', rows['TIA Portal'].text)
+        self.assertIn('TiaBridge\\settings.json', rows['TIA Portal'].text)
+        self.assertNotIn(str(self.clone), rows['TIA Portal'].text)
+        self.assertIn('An administrator or IT adds you', rows['Openness group'].text)
+
+    def test_the_folders_row_says_one_thing_a_line_with_the_rules_one_click_away(self):
+        setup = self.setup_module()
+        folder = next(r for r in self.page(setup, 'bridge', ANSWER) if r.key == 'projectsRoot')
+        lines = folder.text.split('\n')
+        self.assertEqual(lines[:3], ['Not saved. Save sets:', f'Folder: {ANSWER}', 'Saved in: TiaBridge\\settings.json'])
+        self.assertEqual(lines[3], f'Claude Code may read, edit and use git there: 6 allow rules to add, in {self.user_settings}.')
+        self.assertEqual(sum(line.startswith('+ ') for line in folder.details), 6)
+        self.assertNotIn('Read(', folder.text)
+
     def test_after_the_buttons_the_command_finds_nothing_to_do(self):
         setup = self.setup_module()
         self.press_every_change(setup, ANSWER)

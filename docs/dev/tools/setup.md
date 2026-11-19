@@ -4,7 +4,7 @@ title: First setup internals
 description: How first setup's steps look before they change, so that the command and the setup window run the same checks and changes; what the window keeps; how it tells a dashboard on a port from another program.
 tags: [dev, setup, dashboard]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T09:59:48-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T10:23:17-05:00 }
 sources:
   - id: setup
     resource: ../../../tools/setup/
@@ -25,9 +25,11 @@ step changes nothing until `make()` is called.
 
 - The command calls each step in setup's order (`steps()`), prints each finding, and calls `make()` of a change at
   once. `tools\setup\tests\test_setup.py` holds what it prints and its exit codes, run as a person or an agent runs it.
-- The window calls the same steps to read, and `make()` when a person presses the change's button. A finding's
-  `shown`, when set, is what the window shows in place of the line the command prints: that line may speak of the
-  command (`--projects-root`) or name only its topic.
+- The window calls the same steps to read, and `make()` when a person presses the change's button. It shows a finding's
+  words for the window, not the line the command prints, which may speak of the command (`--projects-root`) or name only
+  its topic: `shown`, sentences with short paths (`short()`: under the clone from its folder, under the user's folder
+  from `~`); `commands`, one a line, drawn in a fixed-width field that never wraps; `details`, what changes with full
+  paths, behind "Show what changes". `window_last_steps()` is `last_steps()` in the same form.
 - `topic` groups the findings into the window's rows. `person_step` is a line of "A person does these".
 
 The window adds no rule of its own about what is set up. What is registered is read fresh on each read and on Refresh;

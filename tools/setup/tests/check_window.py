@@ -155,7 +155,7 @@ def environment(temp):
     fakes.mkdir()
     shutil.copy(HERE / 'fake_claude.py', fakes)
     (fakes / 'claude.cmd').write_text(f'@"{sys.executable}" "%~dp0fake_claude.py" %*\n')
-    for folder in ('home', 'config', 'local'):
+    for folder in ('home', 'home/.claude', 'local'):
         (temp / folder).mkdir()
     uv = shutil.which('uv')
     cache = subprocess.run([uv, 'cache', 'dir'], capture_output=True, text=True, creationflags=NO_WINDOW).stdout.strip()
@@ -164,7 +164,7 @@ def environment(temp):
     keep = ('SystemRoot', 'SystemDrive', 'ComSpec', 'PATHEXT', 'TEMP', 'TMP', 'APPDATA', 'ProgramData', 'ProgramFiles',
             'ProgramFiles(x86)', 'windir', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'USERNAME', 'USERDOMAIN', 'COMPUTERNAME')
     env = {k: os.environ[k] for k in keep if k in os.environ}
-    env.update(PATH=os.pathsep.join(path), USERPROFILE=str(temp / 'home'), HOME=str(temp / 'home'), CLAUDE_CONFIG_DIR=str(temp / 'config'),
+    env.update(PATH=os.pathsep.join(path), USERPROFILE=str(temp / 'home'), HOME=str(temp / 'home'), CLAUDE_CONFIG_DIR=str(temp / 'home' / '.claude'),
                LOCALAPPDATA=str(temp / 'local'), UV_CACHE_DIR=cache)
     return env
 
@@ -209,9 +209,13 @@ def main(argv=None):
             report.append(f'.venv made: {(clone / ".venv" / "Scripts" / "pythonw.exe").exists()}')
             consoles = run(desktop, clone, env, out / 'second', options, report)
             report.append('no console on the second double-click' if not consoles else 'FAILED: a console on the second double-click')
-            # claude's installer puts it beside uv's, which the .venv no longer needs
+            # claude's installer puts it beside uv: uv alone goes in a folder of its own, so that this PC still has uv
+            only_uv = temp / 'only-uv'
+            only_uv.mkdir()
+            shutil.copy(shutil.which('uv'), only_uv)
             away = (str(temp / 'fakes'), str(Path(shutil.which('uv')).parent))
-            without_claude = dict(env, PATH=os.pathsep.join(p for p in env['PATH'].split(os.pathsep) if p not in away))
+            kept = [p for p in env['PATH'].split(os.pathsep) if p not in away]
+            without_claude = dict(env, PATH=os.pathsep.join([str(only_uv), *kept]))
             if shutil.which('claude', path=without_claude['PATH']):
                 raise SystemExit(f'claude is still on the PATH of the run without it: {without_claude["PATH"]}')
             run(desktop, clone, without_claude, out / 'without-claude', [*options, '--page', '1'], report)

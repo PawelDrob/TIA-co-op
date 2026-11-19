@@ -44,7 +44,7 @@ ABOUT = {
     'TIA Portal': 'TIA Portal V20 with its TIA Openness option, which the bridge works through.',
     'Openness group': "The Windows group 'Siemens TIA Openness': TIA lets only its members use Openness.",
     'commit hook': 'Runs the checks of this repository on each commit. For changing this repository.',
-    'tracked settings': '.claude\\settings.json: the plugin and UTF-8 for a Claude Code session in this folder.',
+    'tracked settings': 'The file .claude\\settings.json of this repository: it turns on the plugin and UTF-8 for a Claude Code session in this folder.',
     'projectsRoot': 'Where your project repos live. The bridge keeps its sessions there; Claude Code may read, edit and use git there.',
     'MCP server tia': 'Lets Claude Code start the bridge, TiaBridge, as its server tia.',
     'plugin': 'The engineering skills the work on this repository uses: tickets, reviews, audits.',
@@ -57,10 +57,10 @@ KINDS = {'ok': 'ok', 'done': 'ok', 'change': 'todo', 'question': 'todo', 'missin
 CHANGE_LABELS = {'commit hook': 'Turn on', 'MCP server tia': 'Register', 'plugin': 'Install', 'status line': 'Add',
                  'projectsRoot': 'Save'}
 # A topic setup prints nothing for while it is right.
-QUIET_OK = {'tracked settings': 'Right.'}
+QUIET_OK = {'tracked settings': 'Both are on.'}
 RESTART = ('Claude Code reads its servers and plugins when a session starts. End a session that ran in this folder before '
-           'a change here, and run claude --continue there: it comes back with its conversation.')
-NO_CLAUDE = 'Needs Claude Code, which is not on the PATH (Installed).'
+           'a change here, and run this there; it comes back with its conversation:')
+NO_CLAUDE = 'Needs Claude Code, which this PC does not have yet: the page Installed says how to get it.'
 
 
 @dataclass
@@ -82,6 +82,8 @@ class Row:
     key: str = ''        # what the row is about: a topic of setup, viewer, or a dashboard's key
     about: str = ''      # what it is
     optional: bool = False
+    commands: list = field(default_factory=list)    # one a line, as written: the window shows them in a fixed-width font
+    details: list = field(default_factory=list)     # what changes, one thing a line, one click away
 
 
 @dataclass
@@ -91,7 +93,7 @@ class Look:
     worktree_of: str = ''        # the main tree when this is a worktree: the window then only says what setup says
     claude: str = ''
     findings: dict = field(default_factory=dict)      # topic: [Finding]
-    person_steps: list = field(default_factory=list)
+    last_steps: list = field(default_factory=list)    # setup.window_last_steps(): [Finding]
     bridge_settings: dict = field(default_factory=dict)
     bridge_settings_error: str = ''
     viewer: dict = field(default_factory=dict)        # viewer.state()
@@ -111,9 +113,7 @@ def read(setup, viewer_state, dashboards):
     for step in [setup.uv_step, *claude_step, *setup.steps(look.claude)]:
         for finding in step():
             look.findings.setdefault(finding.topic, []).append(finding)
-            if finding.person_step:
-                look.person_steps.append(finding.person_step)
-    look.person_steps += setup.last_steps(look.claude)
+    look.last_steps = setup.window_last_steps(look.claude)
     try:
         look.bridge_settings = setup.read_bridge_settings()
     except ValueError as e:
@@ -136,8 +136,8 @@ def sentence(text):
 
 
 def shown(finding, topic):
-    """A finding's text as a row shows it: what setup gives for the window, else its line without the topic."""
-    return finding.shown or without_topic(finding.text, topic)
+    """A finding's text as a row shows it: what setup writes for the window, else its line as a sentence without the topic."""
+    return finding.shown or sentence(without_topic(finding.text, topic))
 
 
 def topic_row(look, topic):
@@ -147,25 +147,23 @@ def topic_row(look, topic):
     title, about, optional = TITLES.get(topic, topic), ABOUT.get(topic, ''), topic in OPTIONAL
     if not found:
         if topic in ('MCP server tia', 'plugin') and not look.claude:
-            return Row('missing', title, NO_CLAUDE, [Action('Installed', 'page', target='installed')], topic, about, optional)
+            return Row('missing', title, NO_CLAUDE, [Action('Go to Installed', 'page', target='installed')], topic, about, optional)
         if topic in QUIET_OK:
             return Row('ok', title, QUIET_OK[topic], key=topic, about=about, optional=optional)
         reason = 'git is missing.' if topic == 'commit hook' else 'its settings file cannot be read.'
         return Row('info', title, 'Not checked: ' + reason, key=topic, about=about, optional=optional)
     states = [KINDS.get(f.kind, 'info') for f in found]
     state = next((s for s in ('missing', 'todo', 'warning', 'ok') if s in states), 'info')
-    texts, actions = [], []
+    texts, actions, commands, details = [], [], [], []
     for f in found:
+        texts.append(shown(f, topic) if f.shown or f.kind != 'change' else 'Not done. ' + shown(f, topic))
+        commands += f.commands
+        details += f.details
         if f.kind == 'change':
-            texts.append('Not done. ' + sentence(shown(f, topic)))
             actions.append(Action(CHANGE_LABELS.get(topic, 'Do it'), 'make', f))
-        else:
-            texts.append(shown(f, topic))
-        if f.person_step:
-            texts.append(f.person_step)
     if topic == 'projectsRoot':
         actions = [Action('Change…', 'page', target='bridge')] + actions
-    return Row(state, title, '\n'.join(texts), actions, topic, about, optional)
+    return Row(state, title, '\n'.join(texts), actions, topic, about, optional, commands, details)
 
 
 def viewer_row(look):
@@ -177,11 +175,13 @@ def viewer_row(look):
     if v.get('command') and v.get('default'):
         if v['command'] == v['this']:
             return Row('ok', title, 'Registered for this clone.' + note, [Action('Unregister', 'unregister')], 'viewer', about, True)
-        return Row('warning', title, f'Registered for another clone: {v["command"]}. Register this clone to take it over.' + note,
-                   [Action('Register this clone', 'register'), Action('Unregister', 'unregister')], 'viewer', about, True)
-    return Row('todo', title, f'Not registered. Register writes {v.get("progid", "")} and .s7dcl under {v.get("key", "")}, '
-               f'for your Windows user only, with the command {v.get("this", "")}' + note,
-               [Action('Register', 'register')], 'viewer', about, True)
+        return Row('warning', title, 'Registered for another clone. Register this clone to take it over.' + note,
+                   [Action('Register this clone', 'register'), Action('Unregister', 'unregister')], 'viewer', about, True,
+                   details=[f'It opens with: {v["command"]}'])
+    return Row('todo', title, 'Not registered. Register sets it up for your Windows user only, to open with:' + note,
+               [Action('Register', 'register')], 'viewer', about, True, commands=[v.get('this', '')],
+               details=[f'{v.get("key", "")}\\{v.get("progid", "")}: the program and its open command',
+                        f'{v.get("key", "")}\\.s7dcl: the program a double-click opens'])
 
 
 def dashboard_row(dashboard, status, clone):
@@ -204,19 +204,28 @@ def page_rows(look, page):
         if page == 'bridge':
             rows += bridge_settings_rows(look)
             if look.claude:
-                rows.append(Row('info', 'After a change here', RESTART, key='restart'))
+                rows.append(Row('info', 'After a change here', RESTART, key='restart', commands=['claude --continue']))
         return rows
     if page == 'viewer':
         return [viewer_row(look)]
     if page == 'dashboards':
         return [dashboard_row(d, s, look.clone) for d, s in look.dashboards]
-    return [Row('info', f'{n}.', step) for n, step in enumerate(look.person_steps, 1)]
+    return by_hand_rows(look)
+
+
+def by_hand_rows(look):
+    """What only a person can do: each thing a step found missing that no button here does, then what follows setup."""
+    missing = [Row('missing', TITLES.get(f.topic, f.topic), shown(f, f.topic), key=f.topic, about=ABOUT.get(f.topic, ''),
+                   commands=f.commands, details=f.details)
+               for found in look.findings.values() for f in found if f.person_step]
+    return missing + [Row('info', f.topic, shown(f, f.topic), key=f.topic, commands=f.commands) for f in look.last_steps]
 
 
 def bridge_settings_rows(look):
     """The bridge's other settings, as TiaBridge\\settings.json holds them; the folder has its own row."""
     rows = [Row('missing', 'TiaBridge\\settings.json', look.bridge_settings_error)] if look.bridge_settings_error else []
-    return rows + [Row('info', name, json.dumps(value, ensure_ascii=False), about='A setting of the bridge, in TiaBridge\\settings.json.')
+    return rows + [Row('info', name, 'Value: ' + (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)),
+                       about='A setting of the bridge, in TiaBridge\\settings.json.')
                    for name, value in look.bridge_settings.items() if name.lower() != 'projectsroot']
 
 
@@ -227,13 +236,17 @@ def open_count(rows):
 
 
 def menu_entries(look):
-    """The menu after the first run: (key, title, line, state, what the page holds now) for each page but the last."""
+    """The menu after the first run: (key, title, line, state, what the page holds now) for each page."""
     entries = []
-    for key, title, line in PAGES[:-1]:
+    for key, title, line in PAGES:
         rows = page_rows(look, key)
         count = open_count(rows)
         missing = any(r.state == 'missing' for r in rows if not r.optional)
-        if key == 'dashboards':
+        if key == 'by-hand':
+            todo = sum(r.state == 'missing' for r in rows)
+            entries.append((key, title, line, 'missing' if todo else 'info',
+                            (f'{todo} missing; ' if todo else '') + f'{len(rows) - todo} to do after setup'))
+        elif key == 'dashboards':
             running = sum(r.state == 'ok' for r in rows)
             entries.append((key, title, line, 'ok' if running else 'info', f'{running} of {len(rows)} running'))
         elif count:
@@ -259,7 +272,7 @@ def with_folder(look, setup, folder):
 def folder_warning(setup, folder):
     """The long-path warning on a typed folder, '' for one that is fine or no full path."""
     try:
-        return setup.long_path_warning(setup.normal_root(folder.strip()))
+        return setup.long_path_warning(setup.normal_root(folder.strip()), setup.WINDOW_LONG_PATH)
     except ValueError:
         return ''
 
