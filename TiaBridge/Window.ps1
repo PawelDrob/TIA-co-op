@@ -10,7 +10,8 @@
 # Every way a call leaves the window, as the user at the screen sees it (Tests\Window.Tests.ps1 has one test each):
 # - exported all, or the export threw: minimized, then back as it was (maximized, normal size, its monitor); a throw
 #   carries no result, the window comes back all the same
-# - TIA ended during the export: nothing to put back; a handle Windows gave to another program is not touched
+# - TIA ended during the export, or in the wait for its minimize: nothing to put back; a handle Windows gave to another
+#   program is not touched
 # - TIA does not answer at the start (not minimized within the wait): the bridge posts the way back at once, behind its
 #   minimize, so whenever TIA handles the two the window ends as it was; the export runs with the window showing
 # - TIA does not answer at the end: the restore is posted and waited for; not done within the wait, the result says it
@@ -111,13 +112,19 @@ function Enter-ExportWindow([int]$Count) {
             elseif (Test-WindowMinimized $found[0]) { $s.note = 'TIA''s window was minimized already: left so.' }
             else {
                 $h = [long]$found[0]
+                $gone = 'Left as it was: TIA''s window is gone (TIA ended).'
                 $back = if (Test-WindowMaximized $h) { $script:SwShowMaximized } else { $script:SwRestore }
-                Send-WindowShow $h $script:SwMinimize
-                if (Wait-WindowState $h) { $s.handle = $h; $s.minimized = $true }
+                if (-not (Test-TiaWindow $h)) { $s.note = $gone }
                 else {
-                    # behind the minimize, so TIA handles both in that order whenever it answers: the window ends as it was
-                    Send-WindowShow $h $back
-                    $s.note = "Left as it was: TIA did not minimize its window within $([int]($script:ExportWindowWaitMs / 1000)) s (busy, or not answering), so the bridge asked it at once to put the window back as it was; the export ran with the window showing."
+                    Send-WindowShow $h $script:SwMinimize
+                    if (Wait-WindowState $h) { $s.handle = $h; $s.minimized = $true }
+                    # 3 s later the handle may be another program's: TIA ended in the wait, and its queue with it
+                    elseif (-not (Test-TiaWindow $h)) { $s.note = $gone }
+                    else {
+                        # behind the minimize, so TIA handles both in that order whenever it answers: the window ends as it was
+                        Send-WindowShow $h $back
+                        $s.note = "Left as it was: TIA did not minimize its window within $([int]($script:ExportWindowWaitMs / 1000)) s (busy, or not answering), so the bridge asked it at once to put the window back as it was; the export ran with the window showing."
+                    }
                 }
             }
         }

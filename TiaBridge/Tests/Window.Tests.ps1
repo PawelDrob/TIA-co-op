@@ -117,6 +117,23 @@ Describe 'TIA''s window after an export: TIA ended or did not answer' {
         $note | Should Match 'is gone now \(TIA ended\): nothing to put back'
     }
 
+    It 'TIA ended in the wait and Windows gave the handle to another program: no way back goes to it' {
+        Initialize-WindowSession
+        $script:win.busy = $true
+        Mock Send-WindowShow { [void]$script:win.shows.Add($Command); if ($Command -eq 6) { $script:win.owner = 999 } }
+        Invoke-WithoutWait { Enter-ExportWindow 100; $script:note = Exit-ExportWindow }
+        ($script:win.shows -join ',') | Should Be '6'
+        $script:note | Should Be 'Left as it was: TIA''s window is gone (TIA ended).'
+    }
+
+    It 'a handle that is no longer TIA''s when the bridge is about to minimize it: nothing is posted' {
+        Initialize-WindowSession
+        Mock Get-WindowProcessId { 999 }
+        Enter-ExportWindow 100; $note = Exit-ExportWindow
+        $script:win.shows.Count | Should Be 0
+        $note | Should Be 'Left as it was: TIA''s window is gone (TIA ended).'
+    }
+
     It 'TIA does not answer at the start: the way back is posted behind the minimize, and the window ends as it was (<state>)' -TestCases @(
         @{ state = 'normal'; back = 9 }, @{ state = 'max'; back = 3 }
     ) {
