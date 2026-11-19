@@ -1,4 +1,4 @@
-"""pythonw -X utf8 -m tools.setup.window [--page N | --settings] [--snap DIR [--snap-changes]]
+"""pythonw -X utf8 -m tools.setup.window [--page N | --settings] [--snap DIR [--snap-changes] [--snap-folder F]]
                                      [--viewer-key KEY] [--ports DEV,TIA] [--first-run FILE]
 
 (from the clone's folder; Setup.wsf at its top starts it so, with no console at any moment)
@@ -8,7 +8,8 @@ own steps (tools\\setup\\setup.py).
 --page N opens page N, --settings the menu, whether the first run is done or not.
 --snap DIR: no one at the window: a picture of each page and of the menu, in DIR, then it ends (tests\\check_window.py).
   Only with --first-run. --snap-changes also presses every button that changes something and pictures the outcome: only
-  with --viewer-key and CLAUDE_CONFIG_DIR in the temp folder, a test's (refusal()).
+  with --viewer-key and CLAUDE_CONFIG_DIR in the temp folder, a test's (refusal()). --snap-folder F: F typed in the Bridge
+  page's folder field first, as a person changing the folder does.
 --viewer-key KEY: register the block viewer under HKEY_CURRENT_USER\\KEY\\Classes, not for real (a test's key).
 --ports DEV,TIA: the dashboards' ports, for a test. --first-run FILE: where the end of the first run is kept, for a test.
 """
@@ -29,6 +30,7 @@ def parse(argv):
     where.add_argument('--settings', action='store_true')
     p.add_argument('--snap')
     p.add_argument('--snap-changes', action='store_true')
+    p.add_argument('--snap-folder')
     p.add_argument('--viewer-key')
     p.add_argument('--ports')
     p.add_argument('--first-run')
@@ -70,7 +72,7 @@ def main(argv=None):
         window.go(None)
     if a.snap:
         from tools.setup.window.snapshot import Snapshot
-        return Snapshot(window, a.snap, a.snap_changes).run()
+        return Snapshot(window, a.snap, a.snap_changes, a.snap_folder).run()
     window.mainloop()
     return 0
 

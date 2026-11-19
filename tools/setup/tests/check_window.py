@@ -9,7 +9,8 @@ the dashboards on free ports: the development dashboard's port held by another p
 real from the temp clone) and finishes. The second double-click must open the menu. The ones after picture states:
 with no claude on the PATH (without-claude); the rows of the folder, the server and the viewer each with a change to
 make (three_rows); the folder as a second clone on it finds it (rules_there); the server registered for this folder
-only (this_folder_only). All the while it watches the hidden desktop for console windows: the first run's uv sync may
+only (this_folder_only); another folder stored while the first is typed, and this folder's server another command
+(another_folder_stored). All the while it watches the hidden desktop for console windows: the first run's uv sync may
 have one, the second run none. Pictures and done.txt of each run go to a folder of its own under <folder>. It starts
 no TIA, writes nothing of the real user's, and ends the dashboard it started by its Windows process number.
 """
@@ -208,6 +209,26 @@ def this_folder_only(temp, clone):
     state_file.write_text(json.dumps(state), encoding='utf-8')
 
 
+def another_folder_stored(temp, clone):
+    """Another folder stored, with some of its allow rules, while the person types the first run's folder in the field; the
+    server tia of your Windows user this clone's, of this folder another command. Returns the folder to type."""
+    bridge_file = clone / 'TiaBridge' / 'settings.json'
+    bridge = json.loads(bridge_file.read_text(encoding='utf-8'))
+    old = str(temp / 'home' / 'Old-Projects')
+    bridge['projectsRoot'] = old
+    bridge_file.write_text(json.dumps(bridge), encoding='ascii')
+    config = temp / 'home' / '.claude'
+    user = json.loads((config / 'settings.json').read_text(encoding='utf-8'))
+    user['permissions']['allow'] += first_setup.allow_rules(old)[:3]
+    (config / 'settings.json').write_text(json.dumps(user, indent=2), encoding='utf-8')
+    state = json.loads((config / '.claude.json').read_text(encoding='utf-8'))
+    this = {'type': 'stdio', 'command': first_setup.BRIDGE_COMMAND[0], 'args': [*first_setup.BRIDGE_COMMAND[1:-1], str(clone / 'TiaBridge' / 'TiaBridge.ps1')]}
+    state['mcpServers'] = {'tia': this}
+    state['projects'] = {clone.as_posix(): {'mcpServers': {'tia': {'type': 'stdio', 'command': 'powershell.exe', 'args': ['-File', r'C:\Tools\tool.ps1']}}}}
+    (config / '.claude.json').write_text(json.dumps(state), encoding='utf-8')
+    return str(temp / 'home' / 'TIA-Projects')
+
+
 def run(desktop, clone, env, out, options, report):
     """One double-click on the hidden desktop, as Explorer does it: wscript.exe on Setup.wsf, its arguments for the snap."""
     watcher = desktop.watch()
@@ -264,6 +285,8 @@ def main(argv=None):
             run(desktop, clone, env, out / 'rules-there', [*options, '--settings'], report)
             this_folder_only(temp, clone)
             run(desktop, clone, env, out / 'this-folder-only', [*options, '--settings'], report)
+            typed = another_folder_stored(temp, clone)
+            run(desktop, clone, env, out / 'another-folder-stored', [*options, '--settings', '--snap-folder', typed], report)
         finally:
             holder.kill()
             pid = dash.listener(tia).split('process ')[-1].rstrip(')')

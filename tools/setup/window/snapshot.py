@@ -11,8 +11,11 @@ PRESSED_ON = ('repository', 'bridge', 'viewer', 'dashboards')
 
 
 class Snapshot:
-    def __init__(self, window, folder, changes):
+    def __init__(self, window, folder, changes, typed=None):
+        """typed: a projects folder typed in the Bridge page's field, as a person changing it does."""
         self.window, self.folder, self.changes = window, folder, changes
+        if typed:
+            window.folder.set(typed)
         self.log = []
         self.pressed = set()
 

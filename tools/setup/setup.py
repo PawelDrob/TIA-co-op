@@ -310,7 +310,7 @@ def add_server(claude, scope, done_text):
 
 
 def server_change(claude, scope, plan, write, done_text, details=(), now='Not registered.'):
-    """now: what a session in this folder starts before the change, in the window's words."""
+    """now: the row's first sentence in the window, what is registered for this clone before the change."""
     if write:
         return add_server(claude, scope, done_text)
     command = subprocess.list2cmdline(['claude', 'mcp', 'add', '--scope', scope, 'tia', '--', *BRIDGE_COMMAND])
