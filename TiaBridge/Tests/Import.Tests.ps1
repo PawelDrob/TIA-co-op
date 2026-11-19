@@ -1388,7 +1388,7 @@ Describe 'import of the settings parts' {
         $script:proDiagReads | Should Be 1
         $script:proDiagReads = 0; $script:proDiagStates = @('unread', 'yes')
         $r = Invoke-SettingsImportTool 'supervisions' @('plc\supervisions\supervisions.xlsx')
-        $r.prodiag | Should Match '^Whether this import initialised the project''s ProDiag settings could not be read\. Importing a supervisions sheet into a project without ProDiag settings initialises them'
+        $r.prodiag | Should Match '^Whether this import initialised the project''s ProDiag settings could not be read\. On the one project tried, which had no ProDiag settings, importing its supervisions sheet \(headers only\) initialised them'
     }
 
     It 'refuses a supervisions file of another name before TIA is asked' {

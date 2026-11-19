@@ -4,7 +4,7 @@ title: Known issues
 description: What TIA Openness V20 cannot do and which problems of the tools are not solved, for anyone changing the tools.
 tags: [dev, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T13:25:37-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T13:34:48-05:00 }
 ---
 
 # Known issues
@@ -49,7 +49,7 @@ The list is in [the README, Limitations](../../README.md#limitations), and what 
 What each tool does not do is in its README, under "What it does not". Beyond those:
 
 - **The bridge, not run on content:** technology objects of elements and versions other than those its import names as tried, PLC alarm text lists, connections, external sources. They are built from the API documentation.
-- **Project texts and alarm classes have no undo when imported:** TIA refuses a transaction for them. The bridge imports them only while every device reads offline, while the archive the session made is there, and on the person's word (`no_undo`), and names that archive as the way back. Whether TIA keeps part of a file whose import failed was not tried. Importing the earlier export put back one edit of each when tried, a block title and a display name; whether rows added since go away was not tried. A device TIA gives no online state for refuses these imports for as long as it gives none: the person changes these parts in TIA. The import of supervision settings and PLC alarm texts was not tried, and the bridge does not import them.
+- **Project texts and alarm classes have no undo when imported:** TIA refuses a transaction for them. The bridge imports them only while every PLC and classic HMI device reads offline (WinCC Unified devices, drives and I/O devices are not asked), while the archive the session made is there, and on the person's word (`no_undo`), and names that archive as the way back. Whether TIA keeps part of a file whose import failed was not tried. Importing the earlier export undid one edit of each when tried: a block title, and a second `DisplayName` without `Culture` that had not changed the display name's text. Undoing a display-name change that landed, and whether rows added since go away, were not tried. A device TIA gives no online state for refuses these imports for as long as it gives none: the person changes these parts in TIA. The import of supervision settings and PLC alarm texts was not tried, and the bridge does not import them.
 - **The bridge does not reach software units:** their folders are a tree of their own.
 - **A killed bridge leaves its background TIA and copy.** The next `background_open` removes copies of bridges that are gone and lists the TIA processes, which a person ends.
 - **Logins of protected projects,** UMC included: [the Archive Compare README](../../TiaArchiveCompare/README.md#what-it-does-not), Protected projects.

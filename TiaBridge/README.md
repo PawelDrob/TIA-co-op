@@ -55,8 +55,8 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
 - Imports a graphic with the image folder its export wrote beside it, and refuses one whose image is not there. Refuses a
   graphic list that names a graphic the project does not have: import the graphic first.
 - Imports project texts and alarm classes only when you say so, only while the archive this session made is there, and
-  only while every device reads offline: TIA imports them only outside a transaction, so they have no undo, and that
-  archive is the way back. Imports the alarm classes and
+  only while every PLC and classic HMI device reads offline (WinCC Unified devices, drives and I/O devices are not
+  asked): TIA imports them only outside a transaction, so they have no undo, and that archive is the way back. Imports the alarm classes and
   system diagnostics settings from the `.dat` or from the `.xml` beside it.
 - Imports a PLC's ProDiag supervisions. On the one project tried, without ProDiag settings, importing its sheet (headers
   only) also set them up and added rows of ProDiag categories to the project texts: the agent is told to say so before,

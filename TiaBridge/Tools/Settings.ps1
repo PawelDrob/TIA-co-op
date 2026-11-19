@@ -127,7 +127,7 @@ Register-ObjectKind 'diagnostics_settings' @{
 
 # What importing a supervisions sheet did to a project without ProDiag settings (docs\agent\openness-v20.md): said in the
 # import text before, and in the result when an import initialised them (Test-ProDiagSettings before and after).
-$script:SupervisionsFirstImport = 'Importing a supervisions sheet into a project without ProDiag settings initialises them (seen with a sheet holding headers only), and the project texts gain rows of ProDiag categories: 230 on the project tried. full_export''s part supervision_settings reads none on such a project. Tell the user before such an import. An import rolled back took both back when tried.'
+$script:SupervisionsFirstImport = 'On the one project tried, which had no ProDiag settings, importing its supervisions sheet (headers only) initialised them, and the project texts gained 230 rows of ProDiag categories; other projects and sheets were not tried. full_export''s part supervision_settings reads none on such a project. Tell the user before such an import. An import rolled back took both back when tried.'
 
 # Whether the project has ProDiag settings: 'yes' when their export works, 'no' when it answers "Global settings are not
 # initialized" (Export-SupervisionSettings), 'unread' when it fails otherwise; into a temporary folder removed after.

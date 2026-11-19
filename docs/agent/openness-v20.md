@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T13:25:37-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T13:34:48-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -160,7 +160,7 @@ back over the project's own:
 | Part | Call | In a transaction | Tried |
 |---|---|---|---|
 | project texts (`.xlsx`) | `Project.ImportProjectTexts(FileInfo, true)`, result `State` `Info` | refused: *The operation is not permitted within a transaction.* | round trip identical; a block title edited in the sheet landed; the earlier export imported again put that title back |
-| alarm classes (`.dat`) | `AlarmClassDataProvider.Import(FileInfo)`, `Success` | refused, the same | round trip identical but `CreationDate`; the earlier export imported again put back an edited display name (one without `Culture`). See the list below for an `.xml` packed into a `.dat` and the display name |
+| alarm classes (`.dat`) | `AlarmClassDataProvider.Import(FileInfo)`, `Success` | refused, the same | round trip identical but `CreationDate`; the earlier export imported again undid an edit that had added a second `DisplayName` without `Culture`. See the list below for an `.xml` packed into a `.dat` and the display name |
 | system diagnostics settings (`.dat`) | `SystemdiagnosticsSettingsDataProvider.Import(FileInfo)`, `Success` | allowed | round trip identical but `CreationDate`; a category's `Activation` edited in its XML landed |
 | ProDiag supervisions (`.xlsx`) | `SupervisionProvider.ImportSupervisionsFromXlsx(FileInfo, ImportOptions.Override)`, `Success` | allowed | round trip identical, of a sheet with headers only; no edit tried |
 

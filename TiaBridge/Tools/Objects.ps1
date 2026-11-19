@@ -10,7 +10,7 @@
 # imports from; for an HMI kind, where the HMI validator looks), usedBy (of a project kind: the scopes whose devices use its objects, so an
 # import counts as a write on each of them, recorded as <kind>:<name>), extensions (the file extensions it imports, in
 # place of the PLC document check), noUndo (why TIA refuses its import inside a transaction: then it runs without one, only
-# while the archive this session made is there and every device reads offline, and with no_undo true, the user's word;
+# while the archive this session made is there and every PLC and classic HMI reads offline, and with no_undo true, the user's word;
 # Get-NoUndoRefusal, Get-OnlineRefusal), and scriptblocks
 # items(root) -> @{ obj; name; folder }, info(entry), export(entry, dir, options), import(root, folder, file, override), precheck, whoseFile, afterImport. A kind without
 # export or import does not support it.
@@ -636,7 +636,7 @@ function Get-SessionArchive($Session) {
 # The way back from an import with no undo, in words: the session's archive, and that it holds the project as it was made.
 function Get-NoUndoWayBack($Archive) {
     "The way back is $($Archive.path), the archive this session made at $($Archive.at), which holds the project as it was then, not as just before this import: what was written since is not in it. " +
-        'Importing the part''s earlier export again put back one edit of each when tried, a block title in the project texts and a display name in the alarm classes; whether rows added since go away was not tried, and that import has no undo either.'
+        'Importing the part''s earlier export again undid one edit of each when tried: a block title in the project texts, and in the alarm classes a second DisplayName without Culture, which had not changed the display name''s text. Undoing a display-name change that landed, and whether rows added since go away, were not tried; that import has no undo either.'
 }
 
 # What a kind with no undo does, said first in its refusals.
@@ -1044,7 +1044,7 @@ function Register-ObjectTools {
         'alarm_classes and diagnostics_settings take the .dat, or the .xml full_export writes beside it, which the bridge packs into a .dat as TIA exports it; a .dat whose .xml beside it differs is refused, as the edit is in the .xml. ' +
         'An alarm class''s display name is a project text: a DisplayName edited with Culture="en-US" landed (one language tried), one without it went in as a second DisplayName and the text stayed. A diagnostics category''s Activation edited in the .xml landed, and a block title edited in the project texts. ' +
         'project_texts and alarm_classes TIA imports only outside a transaction ("The operation is not permitted within a transaction."): they have no undo. A call stops at the first file that fails and the files before it stay in; whether TIA keeps part of the file that failed was not tried. ' +
-        'Refused unless every device reads offline (a state that reads unknown, or cannot be read, refuses them; the refusal says what is left: wait or go offline, or, for a device TIA gives no state for, change them in TIA), unless the archive this session made is still in archives\ (a skipped one is none: archive(reason) makes one), and unless no_undo is true, ' +
+        'Refused unless every PLC and classic HMI device reads offline (WinCC Unified devices, drives and I/O devices are not asked; a state that reads unknown, or cannot be read, refuses them; the refusal says what is left: wait or go offline, or, for a device TIA gives no state for, change them in TIA), unless the archive this session made is still in archives\ (a skipped one is none: archive(reason) makes one), and unless no_undo is true, ' +
         'which only the user''s yes allows, once told what has no undo and that the way back is that archive, which holds the project as it was when made; the refusal names it and its time. The result''s noUndo says what went in, which file failed and what was not imported, and the way back: pass it on to the user. diagnostics_settings and supervisions run in a transaction. ' +
         "$script:SupervisionsFirstImport The result's prodiag says when this import did it: pass it on to the user. Supervision settings (project\supervision) and PLC alarm texts (plc\alarms) are no kind: their import was not tried. " +
         'An existing object is replaced where it is; a new one goes to ' +
