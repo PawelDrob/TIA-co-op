@@ -18,6 +18,7 @@
 # (master copies are placed through them).
 
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Times.ps1')   # the steps of a full_export
+. (Join-Path (Split-Path -Parent $PSScriptRoot) 'Window.ps1')  # TIA's window minimized for an export of many .s7dcl documents
 
 $script:ObjectKinds = [ordered]@{}
 
@@ -369,24 +370,35 @@ function Invoke-ExportTool($a) {
         }
     }
     $stop = @{}
-    $null = Invoke-ExportBatch (Get-KindDir $k '' ([string]$a.library) ([string]$a.device)) {
-        $n = 0
-        foreach ($e in $todo) {
-            $item = Export-KindEntry $k $e $opt ([string]$a.device) ([string]$a.library) $collisions
-            [void]$items.Add($item)
-            $n++
-            Write-ObjectProgress $k.name $n $todo.Count $item -Device ([string]$a.device)
-            if (Test-ItemEndedTia $item) { $stop.at = $item; break }
+    # many .s7dcl exports: TIA's window minimized for them (Window.ps1); fewer, or SimaticML, leave it as it is
+    $win = $null
+    if ($k.name -in 'block', 'db', 'type', 'library_type' -and [string]$opt.format -ne 'xml' -and $todo.Count -ge $script:ExportWindowFrom) {
+        $win = Enter-ExportWindow $todo.Count
+    }
+    try {
+        $null = Invoke-ExportBatch (Get-KindDir $k '' ([string]$a.library) ([string]$a.device)) {
+            $n = 0
+            foreach ($e in $todo) {
+                $item = Export-KindEntry $k $e $opt ([string]$a.device) ([string]$a.library) $collisions
+                [void]$items.Add($item)
+                $n++
+                Write-ObjectProgress $k.name $n $todo.Count $item -Device ([string]$a.device)
+                if (Test-ItemEndedTia $item) { $stop.at = $item; break }
+            }
         }
     }
+    finally { $window = Exit-ExportWindow $win }
     # what was exported before stays in the repo; only the export stops
     $ended = $stop.at
     if ($ended) {
-        return @{ ok = $false; kind = $k.name; items = @($items); tiaEnded = $true; stopped = "The export stopped at $($ended.name)."
-                  unchanged = Get-ExportItemsUnchanged $items
-                  note = "TIA Portal ended at $($ended.name). $(Set-TiaEnded (Get-ItemTiaEndedCause $ended))" }
+        $r = @{ ok = $false; kind = $k.name; items = @($items); tiaEnded = $true; stopped = "The export stopped at $($ended.name)."
+                unchanged = Get-ExportItemsUnchanged $items
+                note = "TIA Portal ended at $($ended.name). $(Set-TiaEnded (Get-ItemTiaEndedCause $ended))" }
+        if ($window) { $r.window = $window }
+        return $r
     }
     $r = @{ ok = -not @($items | Where-Object { -not $_.ok }).Count; kind = $k.name; items = @($items); unchanged = Get-ExportItemsUnchanged $items }
+    if ($window) { $r.window = $window }
     $note = if ($a.library) { Get-SharedFolderNote 'Library' ([string]$a.library) (Get-GlobalLibraryNames) }
             elseif ($a.device -and $k.scope -in 'plc', 'hmi') { Get-SharedFolderNote 'Device' ([string]$a.device) @(Get-TiaSoftwareList | Where-Object { $_.kind -eq $k.scope } | ForEach-Object { [string]$_.device }) }
     if ($note) { $r.folderNote = $note }
@@ -1012,7 +1024,9 @@ function Register-ObjectTools {
         'into a folder of the type, .libinfo + .libint + .s7dcl/.s7res (SD) or .xml (SimaticML); options.format picks one, without it the type keeps the format ' +
         'its folder holds (SD for a new export). The folder is replaced whole, so the type is in one format only (a folder holding a git repo is not: that export is refused and the folder stays as it was); the item''s removed lists the files of the other ' +
         'format: commit them with the export. Use xml for a type whose LAD/FBD has operands indexed in several dimensions (a[i, j]; the SD import keeps only the last index, ' +
-        'the export''s note says so). options.released exports the default released version into <name>.released for comparison. faceplate_type: version metadata only, plus <type>.type.json (name, library folder, versions) for the HMI preview.') -Schema @{
+        'the export''s note says so). options.released exports the default released version into <name>.released for comparison. faceplate_type: version metadata only, plus <type>.type.json (name, library folder, versions) for the HMI preview. ' +
+        "In a TIA with a window, an export of $script:ExportWindowFrom or more block, db, type or library_type objects, format not xml, minimizes TIA's main window for the export and restores it after: on one PC an .s7dcl export took about seven times as long with the window showing. " +
+        'Before such an export, tell the user that TIA''s window will go to the taskbar for it and come back after, why, and that bringing it up during the export makes the rest slower; then tell them what window in the result says.') -Schema @{
         type = 'object'; required = @('kind', 'names')
         properties = @{
             kind = @{ type = 'string'; enum = $kinds }

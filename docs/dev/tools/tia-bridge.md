@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T15:14:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T16:38:23-05:00 }
 ---
 
 # TiaBridge internals
@@ -48,6 +48,7 @@ Tools return paths, counts, states and messages. Bulk content goes through files
 | `Tools\Settings.ps1` | The import kinds of the settings parts `full_export` writes: `project_texts`, `alarm_classes`, `diagnostics_settings`, `supervisions` |
 | `Tools\ExportRecord.ps1` | What `full_export` skips: the record of the last export, and why it exports an object |
 | `Times.ps1` | Where the time of a `full_export` goes: the steps of each part, and its slowest objects |
+| `Window.ps1` | TIA's main window minimized for an export of many `.s7dcl` documents, and restored after |
 | `Tools\Safety.ps1`, `Probe.ps1`, `Report.ps1` | `safety_login`, `probe`, `change_report` |
 | `Tests\` | [Testing](../testing.md) |
 
@@ -203,7 +204,11 @@ One per project, under `projectsRoot`, made by `connect`:
 - **`full_export` says where its time goes,** in `times` of its log (`Times.ps1`); the answer has one line in its place (`Invoke-BridgeToolCall`). One stopwatch gives its ticks to one step at a time, and a step entered inside another takes its time from the outer one, so the steps of a part add up to the part's `ms`. The code enters a step through the class `TiaBridgeTimes`, compiled once at load (`[TiaBridgeTimes]::Enter('move')`, `::Exit` in a `finally`): a step costs about 2 µs and no call into TIA (`stepChanges` counts them).
   - `plan`: what TIA says of the objects before any part (`Get-ExportPlan`). `parts`: one entry per part and device, with `objects` (median, 90th percentile, slowest) and `slowest`, the ten objects that took longest, with their time in Openness and the size of their files. `once`: the rest, the session, the mirror, git, the count of unchanged files, the record and the result. `logMs`: the making of the log's text, written in by `Write-ToolLog`.
   - Steps named `tia_*` are calls into Openness: `tia_list` (the walk of TIA's tree), `tia_properties` (an object's class and know-how protection; a library type's formats and versions), `tia_state` (the values the plan compares) and `tia_attribute` (inside it: `GetAttributeInfos` after a refused call, or a name read on its own), `tia_export_s7dcl`, `tia_export_xml`, `tia_export_retry` (the SimaticML export after a refused SD export), `tia_export_tag_table` (the plan's compare), `tia_export_file` (an export call of a file part), `tia_alive` (`Test-TiaAlive`'s read of the project's name; when it is asked: [the error contract](#the-error-contract)).
-  - The bridge's own: `result` (TIA's result made into the bridge's), `collisions` (names that give one file), `paths` (an object's folder, `Get-KindDir`), `process_lookup` (`Test-TiaAlive`'s look for TIA's process), `work_folder`, `compare` (with the file in place), `move`, `remove` (old files no export wrote again), `file_part` (a file part's own export around its calls into TIA: a `.dat` unpacked, a list written), `record`, `record_read`, `record_compare`, `record_files`, `record_save`, `progress` (the progress lines), `mirror`, `git`, `unchanged_count`, `summary`, and `other`, what no step names.
+  - The bridge's own: `result` (TIA's result made into the bridge's), `collisions` (names that give one file), `paths` (an object's folder, `Get-KindDir`), `process_lookup` (`Test-TiaAlive`'s look for TIA's process), `work_folder`, `compare` (with the file in place), `move`, `remove` (old files no export wrote again), `file_part` (a file part's own export around its calls into TIA: a `.dat` unpacked, a list written), `record`, `record_read`, `record_compare`, `record_files`, `record_save`, `progress` (the progress lines), `mirror`, `git`, `unchanged_count`, `summary`, `window` (TIA's window minimized and put back), and `other`, what no step names.
+- **An export of many `.s7dcl` documents minimizes TIA's window** (`Window.ps1`), as an `ExportAsDocuments` call cost about seven times as much with it showing on one PC ([Export time with a window](../../agent/openness-v20.md)). `full_export` decides after the plan, from the blocks, DBs and data types it exports (`Get-SdExportCount`; without a plan it cannot tell, and minimizes). `export` decides from the objects it matched, for `block`, `db`, `type` and `library_type` not as `xml`. From `$script:ExportWindowFrom` (20) of them, in a connect session, unless it is a report run or `minimizeTiaForExport` is false. Every other case leaves the window as it is, and the result's `window` says why (`full_export` always says; `export` only from 20).
+  - The window is the one top-level window of the bound TIA process (`$script:Bridge.processId`) that is visible, has no owner and has a minimize box; none or several: left alone. One minimized already: left so, nothing put back.
+  - It is minimized and restored by `ShowWindowAsync` (`SW_MINIMIZE`, `SW_RESTORE`), posted, so a TIA that does not answer never holds the bridge; the bridge waits up to 3 s for Windows to report it minimized. `SW_RESTORE` brings a window that was maximized back maximized, at its place.
+  - It is put back in a `finally` (`Exit-ExportWindow`), after a failed export too, only while it is still minimized: a window the user brought up stays up, and the result names the part after which it was seen up (`Update-ExportWindowSeen`, after each part). A window gone (TIA ended) is not put back.
 
 ## The reviewed change
 

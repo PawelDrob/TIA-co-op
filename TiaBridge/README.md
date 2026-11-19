@@ -44,6 +44,12 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
     - an object edited: its files may hold the edit or not.
   - The objects exported every time are read when the export reaches their part, so an edit to one of them may be in
     this export or not; the next export takes it. This too was read from the code, not tried.
+  - In a TIA with a window, an export with 20 or more blocks, DBs and data types to export as `.s7dcl` minimizes TIA's
+    main window once it knows what it exports, and restores it after: on one PC, a full export of a project of 473
+    objects took 57 s with the window showing and 17 s with it minimized. The agent tells you before. If you bring the window up during
+    the export, it stays up and the rest of the export is slower. A window that was maximized comes back maximized.
+    `export` of 20 or more of these objects or of library types does the same. Nothing of this in a background session,
+    which has no window, or in a report run of the TIA dashboard. The setting `minimizeTiaForExport` turns it off.
   - Its log (`logs\<time>_full_export.json`, under `times`) says where the time went: per part and step, the calls into
     Openness (`tia_*`) apart from the bridge's own work, and the slowest objects of each part with the size of their
     files. The answer to the agent says only where the times are.
@@ -121,6 +127,7 @@ one bridge per TIA. Why, and what is not explained yet:
 | `archivesKept` | `10` | Session archives kept per project; at least 1 stays |
 | `maxResponseChars` | `20000` | The longest result a tool returns; the full one is in the repo's `logs` |
 | `useTransactions` | `true` | Whether writes run in a TIA transaction |
+| `minimizeTiaForExport` | `true` | Whether an export with 20 or more `.s7dcl` documents minimizes TIA's window for it and restores it after |
 | `author` | The Windows user | The author of released library type versions |
 | `backgroundRoot` | `<projectsRoot>\_bridge\background` | The scratch folder of background sessions |
 | `standardsTemplate` | None | A folder copied into `standards` of a new project repo, never over a file |

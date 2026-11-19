@@ -44,6 +44,7 @@ function Get-BridgeSettings([string]$Path) {
         archivesKept = 10
         maxResponseChars = 20000
         useTransactions = $true
+        minimizeTiaForExport = $true
     }
     if ($Path -and (Test-Path $Path)) {
         $f = Get-Content $Path -Raw | ConvertFrom-Json

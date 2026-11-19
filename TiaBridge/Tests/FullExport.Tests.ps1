@@ -165,6 +165,95 @@ Describe 'full_export' {
         $lines = @($script:logLines | Where-Object { $_ -like 'progress {*' } | ForEach-Object { $p = $_.Substring(9) | ConvertFrom-Json; "$($p.kind) $($p.device) $($p.n)/$($p.of) $($p.name) $($p.ok)" })
         $lines -join '|' | Should Be 'hmi_screen HMI_B 1/2 S2 True|hmi_screen HMI_B 2/2 Bad False'
     }
+
+    # TIA's window (Window.ps1) as a fake: each .s7dcl export of a block notes whether it was minimized then; the user brings
+    # the window up after the export of block UpAfter.
+    function Set-FakeWindow([string]$UpAfter = '') {
+        $script:win = @{ minimized = $false; upAfter = $UpAfter; shows = (New-Object System.Collections.ArrayList); during = (New-Object System.Collections.ArrayList) }
+        Mock Get-TiaMainWindows { [long]77 }
+        Mock Test-WindowMinimized { $script:win.minimized }
+        Mock Test-WindowThere { $true }
+        Mock Send-WindowShow { [void]$script:win.shows.Add($Command); $script:win.minimized = ($Command -eq 6) }
+        foreach ($b in $plc.BlockGroup.Blocks) {
+            $b | Add-Member -Force ScriptMethod ExportAsDocuments { param($d, $n)
+                [void]$script:win.during.Add("$($this.Name) $($script:win.minimized)")
+                foreach ($x in '.s7dcl', '.s7res') { Set-Content (Join-Path $d.FullName "$n$x") 'sd' }
+                if ($this.Name -eq $script:win.upAfter) { $script:win.minimized = $false }
+                [pscustomobject]@{ State = 'Success'; Messages = @() } }
+        }
+    }
+
+    It 'minimizes TIA''s window for a run with many .s7dcl exports, restores it after and says so' {
+        Set-FakeWindow
+        $script:ExportWindowFrom = 3
+        try { $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'dbs', 'hmi_screens'); full = $true }) }
+        finally { $script:ExportWindowFrom = 20 }
+        ($script:win.during -join ',') | Should Be 'A True,B True,DB1 True'
+        ($script:win.shows -join ',') | Should Be '6,9'
+        $r.window | Should Match '^TIA''s window was minimized for the export and restored after'
+        $r.times.once.steps.window.n | Should Be 2
+    }
+
+    It 'leaves TIA''s window as it is for a run with few .s7dcl exports, and says so' {
+        Set-FakeWindow
+        $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'dbs'); full = $true })
+        ($script:win.during -join ',') | Should Be 'A False,B False,DB1 False'
+        $script:win.shows.Count | Should Be 0
+        $r.window | Should Be 'Left as it was: 3 object(s) to export as .s7dcl; TIA''s window is minimized from 20.'
+    }
+
+    It 'names the part after which the window minimized for the run was up again, and leaves it up' {
+        Set-FakeWindow -UpAfter 'B'
+        $script:ExportWindowFrom = 1
+        try { $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'hmi_screens'); full = $true }) }
+        finally { $script:ExportWindowFrom = 20 }
+        ($script:win.shows -join ',') | Should Be '6'
+        $r.window | Should Match 'seen after part blocks@PLC_1\): left up'
+    }
+
+    It 'puts TIA''s window back when the run fails' {
+        Set-FakeWindow
+        Mock Invoke-FullExportKindPart { $null = Enter-ExportWindow 100; throw 'the parts failed' }
+        Mock Get-SdExportCount { 0 }
+        $null = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks') })
+        ($script:win.shows -join ',') | Should Be '6,9'
+    }
+
+    It 'export minimizes TIA''s window from 20 objects as .s7dcl, and not for SimaticML or fewer' {
+        Set-FakeWindow
+        $script:ExportWindowFrom = 2
+        try {
+            $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'block'; names = @('*') })
+            ($script:win.shows -join ',') | Should Be '6,9'
+            ($script:win.during -join ',') | Should Be 'A True,B True'
+            $r.window | Should Match 'restored after'
+            $script:win.shows.Clear()
+            $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'block'; names = @('A') })
+            $script:win.shows.Count | Should Be 0
+            $r.Contains('window') | Should Be $false
+            $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'block'; names = @('*'); options = [pscustomobject]@{ format = 'xml' } })
+            $script:win.shows.Count | Should Be 0
+        }
+        finally { $script:ExportWindowFrom = 20 }
+    }
+}
+
+Describe 'Get-SdExportCount' {
+    $plan = @{ devices = @{ PLC_1 = @{ objects = @{
+        'block|A' = @{ kind = 'block'; export = 'full: true' }; 'block|B' = @{ kind = 'block'; export = $null }
+        'db|D' = @{ kind = 'db'; export = 'changed' }; 'type|T' = @{ kind = 'type'; export = 'changed' }
+        'plc_tag_table|Tags' = @{ kind = 'plc_tag_table'; export = 'changed' } } } } }
+
+    It 'counts the blocks, DBs and data types the plan exports in the selected parts' {
+        Get-SdExportCount $plan @((Get-FullExportPart 'blocks'), (Get-FullExportPart 'dbs'), (Get-FullExportPart 'plc_tags')) | Should Be 2
+        Get-SdExportCount $plan @((Get-FullExportPart 'types'), (Get-FullExportPart 'library_types')) | Should Be 1
+    }
+
+    It 'cannot tell without a plan or for library types alone, and is 0 without a part that exports .s7dcl' {
+        Get-SdExportCount $null @(Get-FullExportPart 'blocks') | Should Be -1
+        Get-SdExportCount $plan @(Get-FullExportPart 'library_types') | Should Be -1
+        Get-SdExportCount $null @((Get-FullExportPart 'hmi_screens'), (Get-FullExportPart 'plc_tags')) | Should Be 0
+    }
 }
 
 Describe 'file parts' {
