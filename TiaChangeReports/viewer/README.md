@@ -26,7 +26,7 @@ Opens one PLC block export in your default browser, drawn as the [change report]
 - Opens the SimaticML `.xml` of a block, named on the command line or chosen in "Open with", as the report reads it:
   experimental.
 - A file it cannot draw opens on its text, with the reason above it. An `.xml` file that is not a block's SimaticML
-  opens that way: "This file cannot be drawn: not a SimaticML block export".
+  opens that way too, the reason saying what the reader found in that file.
 
 ## What it does not
 
@@ -54,11 +54,12 @@ files, for your Windows user only:
 ```
 
 Then a block's `.xml` opens in the viewer by a right-click on it, Open with, Block viewer. For `.xml`, the register
-command writes one value: `TiaChangeReports.BlockViewer` under
-`HKEY_CURRENT_USER\Software\Classes\.xml\OpenWithProgids`. Nothing else of `.xml` changes: the program a double-click
-opens it with, and a choice you made for it in "Open with", stay.
+command writes one value, `TiaChangeReports.BlockViewer` under
+`HKEY_CURRENT_USER\Software\Classes\.xml\OpenWithProgids`, and makes that key when it is not there. The program a
+double-click opens an `.xml` file with, and a choice you made for it in "Open with", stay.
 
-To take that back, which restores the program `.s7dcl` files opened with before and removes that one value of `.xml`:
+To take that back, which restores the program `.s7dcl` files opened with before, and removes that one value of `.xml`
+and the key the register command made for it when nothing else is in it:
 
 ```
 .venv\Scripts\python.exe -X utf8 TiaChangeReports\viewer --unregister

@@ -6,7 +6,8 @@ Standard library only (winreg).
                   last kept, to put back), PROGID among .s7dcl's OpenWithProgids, and of .xml one value: PROGID among
                   its OpenWithProgids. .xml's default and a choice made for it stay. Returns the lines to print
   unregister(...) all of that taken back: PROGID removed, .s7dcl's default back to that program, the key gone when empty;
-                  of .xml only that value, its key and the other programs' values stay
+                  of .xml that value, and a key register made for it when it holds nothing else. A key of .xml that
+                  was there before, and the other programs' values, stay
   state(...)      what is registered now, read only: the open command, whether .s7dcl's default is PROGID, a choice in
                   "Open with" that names another program, whether .xml's OpenWithProgids holds PROGID
 
@@ -20,10 +21,13 @@ import winreg
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROGID = 'TiaChangeReports.BlockViewer'
 EXT = '.s7dcl'
-XML_LIST = r'.xml\OpenWithProgids'          # the one key of .xml register writes in, and there only the value PROGID
+EXT_LIST = EXT + r'\OpenWithProgids'
+XML = '.xml'
+XML_LIST = XML + r'\OpenWithProgids'        # the one key of .xml register writes in, and there only the value PROGID
 CLASSES = r'Software\Classes'
 CHOICE = r'Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.s7dcl\UserChoice'
 PREVIOUS = 'TiaChangeReports.Previous'      # .s7dcl's default before register, on PROGID's key
+MADE = 'TiaChangeReports.XmlKeyMade'        # the topmost key of .xml register made, XML or XML_LIST, on PROGID's key
 TYPE_NAME = 'SIMATIC SD block'
 APP_NAME = 'Block viewer'
 
@@ -65,13 +69,26 @@ def delete_tree(root, sub):
     winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
 
 
-def _empty(root, sub):
+def delete_value(root, sub, name):
+    """The value name of root\\sub deleted; nothing when it is not there."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub, 0, winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, name)
+    except OSError:
+        pass
+
+
+def _keys_and_values(root, sub):
+    """(subkeys, values) of root\\sub; None when it is not there."""
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub) as k:
-            n_keys, n_values, _ = winreg.QueryInfoKey(k)
-            return n_keys == 0 and n_values == 0
+            return winreg.QueryInfoKey(k)[:2]
     except OSError:
-        return False
+        return None
+
+
+def _empty(root, sub):
+    return _keys_and_values(root, sub) == (0, 0)
 
 
 def _notify():
@@ -88,7 +105,10 @@ def register(cmd=None, classes=CLASSES, choice=CHOICE, notify=True):
     if before and before != PROGID:                       # the one there last, to put back
         write_value(classes, PROGID, before, PREVIOUS)
     write_value(classes, EXT, PROGID)
-    write_value(classes, EXT + r'\OpenWithProgids', '', PROGID)
+    write_value(classes, EXT_LIST, '', PROGID)
+    made = next((sub for sub in (XML, XML_LIST) if _keys_and_values(classes, sub) is None), None)
+    if made:                                              # kept from the register that made it, to take back
+        write_value(classes, PROGID, made, MADE)
     write_value(classes, XML_LIST, '', PROGID)
     if notify:
         _notify()
@@ -121,6 +141,7 @@ def state(classes=CLASSES, choice=CHOICE):
 
 def unregister(classes=CLASSES, notify=True):
     previous = read_value(classes, PROGID, PREVIOUS)
+    made = read_value(classes, PROGID, MADE)
     delete_tree(classes, PROGID)
     if read_value(classes, EXT) == PROGID:
         if previous:
@@ -128,22 +149,14 @@ def unregister(classes=CLASSES, notify=True):
         else:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, classes + '\\' + EXT, 0, winreg.KEY_SET_VALUE) as k:
                 winreg.DeleteValue(k, '')
-    for sub in (EXT + r'\OpenWithProgids', XML_LIST):
-        _delete_value(classes, sub, PROGID)
-    for sub in (EXT + r'\OpenWithProgids', EXT):
+    for sub in (EXT_LIST, XML_LIST):
+        delete_value(classes, sub, PROGID)
+    xml_made = {XML: [XML_LIST, XML], XML_LIST: [XML_LIST]}.get(made, [])   # a key of .xml that was there stays
+    for sub in [EXT_LIST, EXT] + xml_made:
         if _empty(classes, sub):
             winreg.DeleteKey(winreg.HKEY_CURRENT_USER, classes + '\\' + sub)
     if notify:
         _notify()
     return ['%s files no longer open in the block viewer%s.' % (EXT, ': back to %s' % previous if previous else ''),
             '"Open with" no longer lists the block viewer for .xml files.']
-
-
-def _delete_value(root, sub, name):
-    """The value name of root\\sub deleted; nothing when it is not there."""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub, 0, winreg.KEY_SET_VALUE) as k:
-            winreg.DeleteValue(k, name)
-    except OSError:
-        pass
 

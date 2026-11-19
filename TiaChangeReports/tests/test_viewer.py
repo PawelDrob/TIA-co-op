@@ -230,26 +230,25 @@ class Register(unittest.TestCase):
         self.classes = self.root + r'\Classes'
         self.choice = self.root + r'\UserChoice'
         self.addCleanup(register.delete_tree, 'Software', self.root.split('\\', 1)[1])
-        create, open_key, delete = winreg.CreateKeyEx, winreg.OpenKey, winreg.DeleteKey
-
         def mine(path):
             if not path.lower().startswith(self.root.lower() + '\\'):
                 self.fail('written outside the test key: ' + path)
 
-        def creating(root, path, *rest):
-            mine(path)
-            return create(root, path, *rest)
-
-        def opening(root, path, reserved=0, access=winreg.KEY_READ):
-            if access & (winreg.KEY_SET_VALUE | winreg.KEY_CREATE_SUB_KEY):
+        def writing(real):                  # CreateKey(Ex), DeleteKey(Ex): always a write
+            def call(root, path, *rest, **named):
                 mine(path)
-            return open_key(root, path, reserved, access)
+                return real(root, path, *rest, **named)
+            return call
 
-        def deleting(root, path):
-            mine(path)
-            return delete(root, path)
-        for name, fake in (('CreateKeyEx', creating), ('OpenKey', opening), ('DeleteKey', deleting)):
-            self.enterContext(mock.patch.object(winreg, name, fake))
+        def opening(real):                  # OpenKey(Ex): a write when the access asks for one
+            def call(root, path, reserved=0, access=winreg.KEY_READ):
+                if access & (winreg.KEY_SET_VALUE | winreg.KEY_CREATE_SUB_KEY):
+                    mine(path)
+                return real(root, path, reserved, access)
+            return call
+        for name in ('CreateKey', 'CreateKeyEx', 'DeleteKey', 'DeleteKeyEx', 'OpenKey', 'OpenKeyEx'):
+            guard = opening if name.startswith('Open') else writing
+            self.enterContext(mock.patch.object(winreg, name, guard(getattr(winreg, name))))
 
     def get(self, sub, name=''):
         return register.read_value(self.classes, sub, name)
@@ -332,10 +331,28 @@ class Register(unittest.TestCase):
         lines = register.unregister(self.classes, notify=False)
         self.assertEqual(self.tree('.xml'), before)
         self.assertEqual(lines[1], '"Open with" no longer lists the block viewer for .xml files.')
-        register.delete_tree(self.classes, '.xml')
+
+    def test_unregister_takes_back_the_keys_of_xml_register_made_and_only_those(self):
+        cases = {'no .xml': {},
+                 '.xml with its own default': {'.xml': {'': 'xmlfile'}},
+                 'an empty list': {'.xml': {}, r'.xml\OpenWithProgids': {}}}
+        for case, before in cases.items():
+            with self.subTest(case):
+                register.delete_tree(self.classes, '.xml')
+                for sub, values in before.items():
+                    register.write_value(self.classes, sub, values.get('', ''))
+                    if '' not in values:
+                        register.delete_value(self.classes, sub, '')
+                register.register('cmd', self.classes, self.choice, notify=False)
+                register.register('cmd', self.classes, self.choice, notify=False)     # again: what it made stays known
+                register.unregister(self.classes, notify=False)
+                self.assertEqual(self.tree('.xml'), before)
+
+    def test_a_key_register_made_that_another_program_wrote_in_since_stays(self):
         register.register('cmd', self.classes, self.choice, notify=False)
+        register.write_value(self.classes, r'.xml\OpenWithProgids', '', 'Other.Xml')
         register.unregister(self.classes, notify=False)
-        self.assertEqual(self.tree('.xml'), {'.xml': {}, r'.xml\OpenWithProgids': {}})
+        self.assertEqual(self.tree('.xml'), {'.xml': {}, r'.xml\OpenWithProgids': {'Other.Xml': ''}})
 
     def test_the_command_runs_pythonw_of_this_tree_on_the_viewer(self):
         cmd = register.command(r'C:\repo\TiaChangeReports\viewer')

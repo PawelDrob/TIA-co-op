@@ -8,7 +8,7 @@ browser with the block drawn as the change report draws it, and a switch to the 
 opens on its text, with why. --html: writes the page to out.html instead, nothing opened. --lang: the language of
 titles and comments (default en-US, else the first language with a text).
 --register: a double-click on an .s7dcl opens it here, and "Open with" lists it for .xml files (one value under
-.xml\\OpenWithProgids, nothing else of .xml), for the current user; --unregister takes that back.
+.xml\\OpenWithProgids; what opens .xml files stays), for the current user; --unregister takes that back.
 Exit code 0; 2 on a usage error; 1 when the page could not be opened (said in a message box too: pythonw.exe has no
 console).
 """

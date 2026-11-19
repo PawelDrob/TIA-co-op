@@ -159,8 +159,8 @@ class Viewer(unittest.TestCase):
     def viewer(self, **state):
         return model.viewer_row(look(viewer={**VIEWER, 'this': self.THIS, **state}))
 
-    XML = ('HKEY_CURRENT_USER\\K\\.xml\\OpenWithProgids: the value P, which lists it in "Open with" for .xml files, and '
-           'nothing else of .xml')
+    XML = ('HKEY_CURRENT_USER\\K\\.xml\\OpenWithProgids: the value P, which lists it in "Open with" for .xml files; '
+           'what opens .xml files stays')
 
     def test_not_registered_says_what_register_writes_and_where(self):
         r = self.viewer(key='HKEY_CURRENT_USER\\Software\\Test\\Classes', progid='The.Viewer')
@@ -169,7 +169,7 @@ class Viewer(unittest.TestCase):
         self.assertEqual(r.details, ['HKEY_CURRENT_USER\\Software\\Test\\Classes\\The.Viewer: the program and its open command',
                                      'HKEY_CURRENT_USER\\Software\\Test\\Classes\\.s7dcl: the program a double-click opens',
                                      'HKEY_CURRENT_USER\\Software\\Test\\Classes\\.xml\\OpenWithProgids: the value The.Viewer, '
-                                     'which lists it in "Open with" for .xml files, and nothing else of .xml (not there now)'])
+                                     'which lists it in "Open with" for .xml files; what opens .xml files stays (not there now)'])
         self.assertEqual([a.kind for a in r.actions], ['register'])
         self.assertTrue(r.optional)
 
@@ -180,7 +180,7 @@ class Viewer(unittest.TestCase):
         r = self.viewer(command=self.THIS, default=True, xml=True)
         self.assertEqual(r.state, 'ok')
         self.assertEqual(r.text, 'Registered for this clone. "Open with" lists it for .xml files.')
-        self.assertEqual(r.details, [])
+        self.assertEqual(r.details, [self.XML + ' (there now)'])
         self.assertEqual([a.kind for a in r.actions], ['unregister'])
 
     def test_registered_for_this_clone_without_the_xml_value_is_to_do(self):

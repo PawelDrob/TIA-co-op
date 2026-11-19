@@ -179,17 +179,18 @@ def viewer_row(look):
     # What Register writes for .xml, and whether it is there: the value names the program id, so it opens with the
     # command above, this clone's or another's.
     xml = (f'{v.get("key", "")}\\.xml\\OpenWithProgids: the value {v.get("progid", "")}, which lists it in "Open with" '
-           f'for .xml files, and nothing else of .xml ({"there now" if v.get("xml") else "not there now"})')
-    both = [Action('Register', 'register'), Action('Unregister', 'unregister')]
+           f'for .xml files; what opens .xml files stays ({"there now" if v.get("xml") else "not there now"})')
+    unregister = Action('Unregister', 'unregister')
     if v.get('command') and v.get('default'):
         if v['command'] == v['this']:
             if v.get('xml'):
                 return Row('ok', title, 'Registered for this clone. "Open with" lists it for .xml files.',
-                           [Action('Unregister', 'unregister')], 'viewer', about, True, note=note)
+                           [unregister], 'viewer', about, True, details=[xml], note=note)
             return Row('todo', title, 'Registered for this clone, but "Open with" does not list it for .xml files. '
-                       'Register adds it.', both, 'viewer', about, True, details=[xml], note=note)
+                       'Register adds it.', [Action('Register', 'register'), unregister], 'viewer', about, True,
+                       details=[xml], note=note)
         return Row('warning', title, 'Registered for another clone. Register this clone to take it over.',
-                   [Action('Register this clone', 'register'), both[1]], 'viewer', about, True,
+                   [Action('Register this clone', 'register'), unregister], 'viewer', about, True,
                    details=[f'It opens with: {v["command"]}', xml], note=note)
     return Row('todo', title, 'Not registered. Register sets it up for your Windows user only, to open with:',
                [Action('Register', 'register')], 'viewer', about, True, commands=[v.get('this', '')],

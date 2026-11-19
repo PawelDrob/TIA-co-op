@@ -4,7 +4,7 @@ title: Block viewer internals
 description: How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click and for Open with on .xml, and what its tests cover.
 tags: [dev, change-reports, plc]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:18:27-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:31:57-05:00 }
 ---
 
 # Block viewer internals
@@ -50,9 +50,9 @@ The title bar, the comment field and the text table are written in `view.py`: th
 - The program id `TiaChangeReports.BlockViewer`, with its open command.
 - `.s7dcl`'s default set to that id, keeping the id that was there last on the program id's key, to restore.
 - That id among `.s7dcl\OpenWithProgids`.
-- That id among `.xml\OpenWithProgids`, and nothing else of `.xml`: Explorer lists it in Open with for `.xml` files, under its `FriendlyAppName` (Block viewer), and `.xml`'s default and its `UserChoice` stay. On Windows 11, asked through `SHAssocEnumHandlers` from a new process, the shell lists such an id at once, with no `SHChangeNotify` and no sign-out; the menu of an Explorer already running, which caches, was not looked at.
+- That id among `.xml\OpenWithProgids`, the key made when it is not there (the topmost key it made of `.xml` kept on the program id's key): Explorer lists it in Open with for `.xml` files, under its `FriendlyAppName` (Block viewer), and `.xml`'s default and its `UserChoice` stay. The shell lists such an id from the registry at once, with no sign-out: `SHAssocEnumHandlers` in a new process gives it with no `SHChangeNotify`.
 
-`--unregister` takes all of it back and removes `.s7dcl`'s key when nothing else is in it; of `.xml` it removes only that value, and leaves the key and the other programs' values. A choice made in Open with (`FileExts\.s7dcl\UserChoice`) beats the default and is hashed by Windows so that no program writes it: register names it and leaves it. Both tell Explorer through `SHChangeNotify`.
+`--unregister` takes all of it back and removes `.s7dcl`'s key when nothing else is in it; of `.xml` it removes that value, and a key it made when nothing else is in it; a key of `.xml` that was there before, and the other programs' values, stay. A choice made in Open with (`FileExts\.s7dcl\UserChoice`) beats the default and is hashed by Windows so that no program writes it: register names it and leaves it. Both tell Explorer through `SHChangeNotify`.
 
 ## Tests
 
