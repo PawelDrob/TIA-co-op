@@ -223,10 +223,11 @@ def _tree(itf, types=None, base=None, unfold=False, db_retain=False):
             node.value = value
         if comment:
             node.comment = comment
+    own = (getattr(getattr(base, 'block', None), 'name', '').lower(),) if base is not None else ()
     for m in root.children.values():
         _fill(m, types, unfold)
         if unfold:
-            _unfold(m, types, ())
+            _unfold(m, types, own, base is not None)
     return root
 
 
@@ -245,24 +246,28 @@ def _instance(root, base, types, db_retain):
             root.children[k] = kid
 
 
-def _unfold(node, types, opened_udts):
+def _unfold(node, types, opened, fbs=False):
     """The viewer's: a member of a UDT type that has no members yet gets the UDT's members, from the UDT's file
     (types), in its own section, as TIA lists them when it opens; a UDT or struct among them too. Under an in-out their
-    boxes are empty, as the in-out's own (_boxes). Not an array, an FB instance or a UDT the input lacks: those stay as
-    they are. opened_udts: the UDTs opened above it, which it does not open again (a UDT that would hold itself)."""
+    boxes are empty, as the in-out's own (_boxes). fbs (an instance DB's members): an FB instance too, onto its FB's
+    Input, Output, InOut and Static, one inside it as well. Not an array, an FB instance elsewhere, or a type the input
+    lacks (a system FB): those stay as they are. opened: the types opened above it, which it does not open again (a UDT
+    or FB that would hold itself by a chain)."""
     name = type_name(node.type).lower()
-    if not node.children and not re.match(r'Array\s*\[', node.type or '', re.I) and name not in opened_udts:
+    if not node.children and not re.match(r'Array\s*\[', node.type or '', re.I) and name not in opened:
         owner = _owner(node, types, None)
-        block = getattr(owner, 'block', None)                # a UDT's file; none for a struct in the UDT
-        if owner is not None and (block is None or block.kind == 'TYPE'):
-            for k in owner.root.children:
+        block = getattr(owner, 'block', None)                # a UDT's or FB's file; none for a struct in the UDT
+        if owner is not None and (block is None or block.kind == 'TYPE' or fbs and block.kind == 'FUNCTION_BLOCK'):
+            for k, m in owner.root.children.items():
+                if block is not None and block.kind == 'FUNCTION_BLOCK' and m.section not in INSTANCE_SECTIONS:
+                    continue
                 kid = _new_inner(node, k, types, None)
                 kid.section = node.section
                 kid.under_in_out = node.section == 'IN_OUT'
                 node.children[k] = kid
-            opened_udts += (name,) if block is not None else ()
+            opened += (name,) if block is not None else ()
     for m in node.children.values():
-        _unfold(m, types, opened_udts)
+        _unfold(m, types, opened, fbs)
 
 
 def _fill(node, types, unfold=False):

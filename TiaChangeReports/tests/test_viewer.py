@@ -419,9 +419,17 @@ VALVE = '''FUNCTION_BLOCK "Valve"
     END_VAR
     VAR
         time : Int := 4;
+        seal : _.Seal;
     END_VAR
     VAR_TEMP
         tmp : Int;
+    END_VAR
+END_FUNCTION_BLOCK
+'''
+SEAL = '''FUNCTION_BLOCK "Seal"
+    VAR
+        worn : Bool;
+        wait : TON_TIME;
     END_VAR
 END_FUNCTION_BLOCK
 '''
@@ -486,7 +494,7 @@ class InstanceDb(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.dir = tmp.name
-        _write(self.dir, {'blocks/Pump.s7dcl': PUMP, 'blocks/Pump.s7res': PUMP_RES, 'blocks/Valve.s7dcl': VALVE,
+        _write(self.dir, {'blocks/Pump.s7dcl': PUMP, 'blocks/Pump.s7res': PUMP_RES, 'blocks/Valve.s7dcl': VALVE, 'blocks/Seal.s7dcl': SEAL,
                           'blocks/PumpDb.s7dcl': PUMP_DB, 'types/Probe.s7dcl': PROBE})
         os.mkdir(os.path.join(self.dir, '.git'))
 
@@ -507,7 +515,7 @@ class InstanceDb(unittest.TestCase):
         cells, order = self.cells(html)
         self.assertEqual([x for x in order if x[0] == 1], [
             (1, '', 'start'), (1, '', 'speed'), (1, '', 'running'), (1, '', 'pos'), (1, '', 'stat'), (1, '▼', 'cmd'),
-            (1, '▼', 'drive'), (1, '', 'other'), (1, '', 'count'), (1, '', 'kept')])     # no Temp, no Constant
+            (1, '▼', 'drive'), (1, '▼', 'other'), (1, '', 'count'), (1, '', 'kept')])     # no Temp, no Constant
         self.assertEqual(re.findall(r'data-d="0"><span class="tw">▼</span>(\w+)', html),
                          ['Input', 'Output', 'InOut', 'Static'])
         self.assertIn('<td>9</td>', cells['speed'])                                    # the DB's own: black
@@ -516,8 +524,25 @@ class InstanceDb(unittest.TestCase):
         self.assertIn('<td>2</td>', cells['cmd', 'down'])                              # a nested start value
         self.assertIn('<td>6</td>', cells['drive', 'time'])                           # inside a multi-instance
         self.assertNotIn(('drive', 'tmp'), cells)                                      # its Temp neither
+        self.assertEqual([x for x in order if x[0] > 1], [                             # every multi-instance opens
+            (2, '', 'up'), (2, '', 'down'),
+            (2, '', 'open'), (2, '', 'time'), (2, '▼', 'seal'), (3, '', 'worn'), (3, '', 'wait'),
+            (2, '', 'open'), (2, '', 'time'), (2, '▼', 'seal'), (3, '', 'worn'), (3, '', 'wait')])
+        self.assertIn('<span class="dflt">4</span>', cells['other', 'time'])          # the FB's default in it
         self.assertIn('Members of FB Pump, from blocks/Pump.s7dcl.', html)
         self.assertNotIn('No members', html)
+
+    def test_a_multi_instance_of_its_own_fb_by_a_chain_stays_closed(self):
+        fb = 'FUNCTION_BLOCK "%s"\n    VAR\n        %s : _.%s;\n    END_VAR\nEND_FUNCTION_BLOCK\n'
+        _write(self.dir, {'blocks/Ping.s7dcl': fb % ('Ping', 'pong', 'Pong'),
+                          'blocks/Pong.s7dcl': fb % ('Pong', 'ping', 'Ping'),
+                          'blocks/PingDb.s7dcl': 'DATA_BLOCK PingDb : Ping\nEND_DATA_BLOCK\n'})
+        self.assertEqual(self.cells(self.page('blocks/PingDb.s7dcl'))[1], [(1, '▼', 'pong'), (2, '', 'ping')])
+
+    def test_an_fbs_own_page_keeps_its_multi_instances_closed(self):
+        order = self.cells(self.page('blocks/Pump.s7dcl'))[1]
+        self.assertIn((1, '', 'drive'), order)
+        self.assertNotIn('open', [n for _, _, n in order])
 
     def test_retain_as_the_fb_declares_it_and_set_in_the_instance(self):
         def retain(html, name):
@@ -564,7 +589,7 @@ class InstanceDb(unittest.TestCase):
         blk, _, _, _ = view.block_of(os.path.join(self.dir, 'blocks', 'PumpDb.s7dcl'))
         self.assertEqual([r.path for r in iface.block_rows(blk, blk)],
                          [('speed',), ('cmd',), ('cmd', 'up'), ('cmd', 'down'), ('drive',), ('drive', 'open'),
-                          ('drive', 'time'), ('drive', 'tmp')])
+                          ('drive', 'time'), ('drive', 'seal'), ('drive', 'tmp')])
 
 
 if __name__ == '__main__':
