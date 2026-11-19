@@ -543,7 +543,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
             $script:imported += @("slide-in $edge $options")
             , @([pscustomobject]@{ SlideinType = $edge }) }
         $hmi = [pscustomobject]@{ ScreenSlideinFolder = [pscustomobject]@{ ScreenSlideins = $slideins }
-                                  ScreenGlobalElements = [pscustomobject]@{}; ScreenOverview = [pscustomobject]@{} }
+                                  ScreenGlobalElements = [pscustomobject]@{ IsKnowHowProtected = [bool]$script:globalKnowHow }; ScreenOverview = [pscustomobject]@{} }
         Add-Member -InputObject $hmi ScriptMethod ImportScreenGlobalElements { param($file, $options) $script:imported += @("ScreenGlobalElements $options") }
         Add-Member -InputObject $hmi ScriptMethod ImportScreenOverview { param($file, $options) $script:imported += @("ScreenOverview $options") }
         $hmi
@@ -582,6 +582,17 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match "exists and override is false; nothing imported\. .*alarm window and an alarm indicator"
         $r.items[0].refused | Should Match "user"
+    }
+
+    It 'gives the reason for override only to the refusal for want of it, not to one of another cause' {
+        $repo = New-HmiRepo 'GlobalOtherRefusal'
+        Write-TextFile (Join-Path $repo 'hmi\global\ScreenGlobalElements.xml') (New-GlobalElementsDocument)
+        $script:globalKnowHow = $true
+        try { $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\ScreenGlobalElements.xml') -Override $true }
+        finally { $script:globalKnowHow = $false }
+        $r.ok | Should Be $false
+        $r.items[0].refused | Should Match 'know-how'
+        $r.items[0].refused | Should Not Match 'alarm window'
     }
 
     It 'imports the global elements and the overview through their own imports, with override true' {

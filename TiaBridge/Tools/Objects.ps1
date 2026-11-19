@@ -499,7 +499,7 @@ function Invoke-ImportTool($a) {
         else {
             $fDocument = -not $safety -and $k.scope -in 'plc', 'library' -and (Test-FBlockDocument $f.file)
             $refusal = Get-ImportRefusal -KindName $k.name -Name $f.objectName -Existing $ex -Override $override -Safety $safety -FDocument $fDocument -SystemKnowHow ([bool]$k.systemKnowHow)
-            if ($refusal) { $item.refused = $(if ($k.noOverride) { "$refusal $($k.noOverride)" } elseif ($k.overrideWhy) { "$refusal $($k.overrideWhy)" } else { $refusal }) }
+            if ($refusal) { $item.refused = $(if ($k.noOverride) { "$refusal $($k.noOverride)" } elseif ($k.overrideWhy -and $ex -and -not $override) { "$refusal $($k.overrideWhy)" } else { $refusal }) }
             elseif ($k.precheck) {
                 $g = & $k.precheck $f $cache $entries
                 if ($g) { foreach ($key in $g.Keys) { if ($key -ne 'ok') { $item[$key] = $g[$key] } } }
