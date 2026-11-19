@@ -748,7 +748,7 @@ def _pins_in_one_case(lines):
     for line in lines:
         m = _NAMED_PIN.match(line)
         if pragma:
-            pragma = not line.startswith('}')
+            pragma = not line.endswith('}')
         elif line.startswith('{'):
             pragma = not line.endswith('}')
         elif depth and m:

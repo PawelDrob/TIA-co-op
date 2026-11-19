@@ -1315,6 +1315,11 @@ class PinsInAnotherCase(unittest.TestCase):
         self.assertEqual(['{', 'S7_GenerateENO := "TRUE";', 'F_User_Card := "1"', '}', 'B(', '{', 'S7_X := "1"', '}',
                           'pv := #a', ')'], got)
 
+    def test_a_pragma_block_ends_at_its_closing_brace(self):
+        """Its last line may hold the brace (`S7_X := "1" }`): the box after it is lowered."""
+        from TiaChangeReports.s7dcl import lad_lines
+        self.assertEqual(['{', 'S7_X := "1" }', 'B(', 'pv := #a', ')'], lad_lines('{\nS7_X := "1" }\nB(\nPV := #a\n)'))
+
     def test_lines_of_a_pin_in_another_case(self):
         from TiaChangeReports.s7dcl import lad_lines
         self.assertEqual(lad_lines('B(\nRET_VAL => #b,\npv := Add(\nIN1 := #a\n)\n)'),

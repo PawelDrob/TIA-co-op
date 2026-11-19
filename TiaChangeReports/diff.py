@@ -188,7 +188,7 @@ def changed_params(x, y):
     cannot be named so), '#instr' (another instruction: the relation of a compare, the kind of a contact or coil).
     Wire names do not count."""
     def keyed(e):
-        return {(n.lower() if n else '#%d' % k): (d or '', _norm(v)) for k, (n, d, v) in enumerate(e.params)}
+        return {(pin_key(n) if n else '#%d' % k): (d or '', _norm(v)) for k, (n, d, v) in enumerate(e.params)}
     kx, ky = keyed(x), keyed(y)
     out = {k for k in list(kx) + list(ky) if kx.get(k) != ky.get(k)}
     for t in set(x.templates) | set(y.templates):
@@ -212,7 +212,7 @@ def renamed_call(x, y):
     with at least half of their pins in common (another block with other pins is a call replaced)."""
     if x.instr != 'CALL' or y.instr != 'CALL' or x.instance != y.instance or x.call == y.call:
         return False
-    px, py = ({(n or '').lower() for n, _, _ in e.params if n} for e in (x, y))
+    px, py = ({pin_key(n) for n, _, _ in e.params if n} for e in (x, y))
     return 2 * len(px & py) >= max(len(px), len(py))
 
 
@@ -237,7 +237,7 @@ def _nodes(g, exchange={}):
             nodes.setdefault(uf.find(s), []).append((e.eid, 'in'))
             nodes.setdefault(uf.find(d), []).append((e.eid, 'out'))
     for e, pin, n in g.pins:
-        box, name = exchange.get((e.eid, (pin or '').lower()), (e.eid, (pin or '').lower()))
+        box, name = exchange.get((e.eid, pin_key(pin)), (e.eid, pin_key(pin)))
         nodes.setdefault(uf.find(n), []).append((box, 'pin ' + name))
     return nodes
 
@@ -252,7 +252,7 @@ def _feeds(g, key):
     out = {e: set() for e, _, _ in ends}
     for e, pin, n in g.pins:
         for x in _before_node(ends, inputs, uf.find(n)):
-            out[x].add((key(e.eid), (pin or '').lower()))
+            out[x].add((key(e.eid), pin_key(pin)))
     return out
 
 
@@ -633,7 +633,7 @@ class NetDiff:
     def _pin_wires(self):
         """{(box id before, pin): (the wire it reads before, after)} by the text, for the pins of paired boxes."""
         def wires(e):
-            return {(n or '').lower(): wire_of(v) for n, _, v in e.params if wire_of(v) is not None}
+            return {pin_key(n): wire_of(v) for n, _, v in e.params if wire_of(v) is not None}
         out = {}
         for e in self.b.elements:
             o = self.other.get(e)
@@ -824,11 +824,11 @@ class NetDiff:
             if e is not None and e.eid in self.pair:
                 y = self.other[e.eid].eid
                 links += [(ub.find(s), at_a[y][0], 1, e.eid), (ub.find(d), at_a[y][1], 1, e.eid)]
-        pins_a = {(e.eid, (p or '').lower()): ua.find(n) for e, p, n in self.a.pins}
+        pins_a = {(e.eid, pin_key(p)): ua.find(n) for e, p, n in self.a.pins}
         for e, p, n in self.b.pins:
-            key = (self.other[e.eid].eid, (p or '').lower()) if e.eid in self.pair else None
+            key = (self.other[e.eid].eid, pin_key(p)) if e.eid in self.pair else None
             if key in pins_a:
-                out = any(d == '=>' and (m or '').lower() == key[1] for m, d, _ in e.params)
+                out = any(d == '=>' and pin_key(m) == key[1] for m, d, _ in e.params)
                 links.append((ub.find(n), pins_a[key], 1 + 2 * len(self.b.elements), (e.eid, key[1], out)))
         return links
 
@@ -930,7 +930,7 @@ class NetDiff:
                     nexts.setdefault(uf.find(start), []).append(e.eid)
             pins_at = {}
             for box, pin, n in g.pins:
-                pins_at.setdefault(uf.find(n), set()).add((key(box.eid), (pin or '').lower()))
+                pins_at.setdefault(uf.find(n), set()).add((key(box.eid), pin_key(pin)))
             sink = uf.find(SINK)
             ways = {e.eid: (None if uf.find(d) == sink else nexts.get(uf.find(d), []), pins_at.get(uf.find(d), set()))
                     for e, _, d in g.edges if e is not None}
@@ -1118,10 +1118,10 @@ class NetDiff:
         seen = {(ub.find(RAIL), ua.find(RAIL)), (ub.find(SINK), ua.find(SINK))}
         for i, j in pairs:
             seen.update(zip(ends_b[i], ends_a[j]))
-        pins = {(e.eid, (pin or '').lower()): n for e, pin, n in self.a.pins}
+        pins = {(e.eid, pin_key(pin)): n for e, pin, n in self.a.pins}
         for e, pin, n in self.b.pins:
             o = self.other.get(e.eid)
-            n_a = pins.get((o.eid, (pin or '').lower())) if o else None
+            n_a = pins.get((o.eid, pin_key(pin))) if o else None
             if n_a:
                 seen.add((ub.find(n), ua.find(n_a)))
         return len({b for b, _ in seen}) == len({a for _, a in seen}) == len(seen)
