@@ -4,7 +4,7 @@ title: Known issues
 description: What TIA Openness V20 cannot do and which problems of the tools are not solved, for anyone changing the tools.
 tags: [dev, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:10:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T11:22:59-05:00 }
 ---
 
 # Known issues
@@ -18,7 +18,7 @@ The list is in [the README, Limitations](../../README.md#limitations), and what 
 - **Faceplate type contents** do not export: a person builds the type in TIA from a staging screen.
 - **Master copy contents** do not export: `full_export` lists each master copy and what it holds in `library\mastercopies\mastercopies.json`. Placing one in the project and making one from project objects work, for the PLC (`master_copy_to_project`, `master_copy_from_project`).
 - **Blocks that are not consistent** can refuse their export: compile them first, on the project open in TIA after `connect` (its session archive is the way back) or in a background session on a copy.
-- **The 14 screen objects TIA does not export,** such as the alarm view: an import over their screen deletes them with no message. Such screens go in `hmi\handbuilt.json`, and the validator refuses a generated document over them (`handbuilt.override`). A slide-in or global screen holding one goes in that list too, and the validator refuses any import over it: an import is taken to delete those objects there as well, though on these that was not tried.
+- **The 14 screen objects TIA does not export,** such as the alarm view: an import over their screen deletes them with no message. Such screens go in `hmi\handbuilt.json`, and the validator refuses a generated document over them (`handbuilt.override`). A slide-in holding one goes there too, and so do the global elements when they hold an alarm window or alarm indicator, which they can hold for every screen and which do not export either. The validator then refuses any import over them: an import is taken to delete those objects there as well, though on these that was not tried.
 - **F-system blocks and the F-OB:** `full_export` lists them as left out.
 - **Know-how protected blocks:** an import over one replaces it unprotected, with no message, so the bridge refuses it. Technology objects are the exception: TIA reports some of them as know-how protected although nobody protected them (seen on a PID_Compact 2.4), and the rule would refuse every import over such an object. So the bridge does not apply it to technology objects and imports over an existing one.
 - **External source contents** do not export: counted only.

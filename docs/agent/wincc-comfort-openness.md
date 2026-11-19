@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:10:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T11:09:47-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full

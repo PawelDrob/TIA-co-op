@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:10:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T11:09:47-05:00 }
 ---
 
 # TiaBridge internals

@@ -357,7 +357,7 @@ function Test-GraphicListFile($File, [hashtable]$Cache) {
 # exports cannot carry, as it is taken to on a screen, is [INFERRED], not tried: the validator refuses one listed in
 # handbuilt.json (rules\handbuilt.py), and the result says so. A new one and a delete were not tried.
 # overrideLoses of the result, when one went in.
-$script:HmiFixedScreenNote = 'An Override is taken to drop what Openness cannot export (alarm views and the like, wincc-comfort-openness.md 7.1), as on a screen; on these it was not tried. List such objects in hmi\[<device>\]handbuilt.json, and the validator refuses the import.'
+$script:HmiFixedScreenNote = 'An Override is taken to drop what Openness cannot export, as on a screen; on these it was not tried. If the global elements held an alarm window or alarm indicator, or a slide-in a control the export leaves out, look in TIA whether it is still there; the session archive holds the project as it was. List such a slide-in or the global elements in hmi\[<device>\]handbuilt.json, and the validator refuses the next import over it.'
 $script:HmiFixedScreenAfterImport = { param($result, $items) if (@($items | Where-Object { $_.ok }).Count) { $result.overrideLoses = $script:HmiFixedScreenNote } }
 # The global screens by name, as list and whoseFile name them, with the HmiTarget import of each; the document's object
 # is Hmi.Screen.<name>.

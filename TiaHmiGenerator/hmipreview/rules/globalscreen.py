@@ -8,8 +8,9 @@ these imports was not tried.
                              Hmi.Screen.ScreenGlobalElements nor Hmi.Screen.ScreenOverview.
   globalscreen.screen-item   error: a screen item in the global elements. TIA ended on the import of a text field there:
                              "The HmiScreenItemData object is not allowed in screen Global screen." [PROBE] (2026-11-12).
-                             Other items were not tried, so every one is refused; the alarm window and alarm indicator,
-                             which the global elements hold in TIA, count as invisible to Openness
+                             Other items were not tried, so every one is refused. The global elements can hold an alarm
+                             window and an alarm indicator in TIA (docs/agent/wincc-screen-objects.md,
+                             ScreenGlobalElements), which count as invisible to Openness
                              (docs/agent/wincc-comfort-openness.md 7.1).
 """
 from ..findings import error

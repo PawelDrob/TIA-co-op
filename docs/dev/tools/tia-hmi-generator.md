@@ -4,7 +4,7 @@ title: TiaHmiGenerator internals
 description: How WinCC Comfort screens are generated with hmixml, what the validator checks, how the preview server works, and how the screen object catalogue is built.
 tags: [dev, hmi, wincc-comfort]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:10:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T11:22:59-05:00 }
 ---
 
 # TiaHmiGenerator internals
@@ -40,7 +40,7 @@ A new rule group is a new file in `hmipreview\rules\` defining `check(repo, ctx)
 | `resolution` | No known device, no device chosen, declared panel against hardware, screen size |
 | `links` | A target that neither exists nor is planned; open planned items, an error at import |
 | `geometry` | An object outside the screen; overlaps; an object hidden below another |
-| `handbuilt` | A generated document replacing hand-built objects; overlap with them; at import, a slide-in or global screen export that holds them |
+| `handbuilt` | A generated document replacing hand-built objects; overlap with them; at import, the export of a slide-in or global screen that `handbuilt.json` names |
 | `staleness` | A TIA export newer than the generated document, an error at import unless override is passed |
 | `structure` | Grouped faceplates, duplicate names and screen numbers |
 | `dependent` | A property that does not follow its main one (`catalogue\dependent.json`), which can end TIA |
