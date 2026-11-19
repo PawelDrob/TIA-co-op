@@ -85,7 +85,7 @@ class Row:
     commands: list = field(default_factory=list)    # one a line, as written: the window shows them in a fixed-width font
     details: list = field(default_factory=list)     # what changes, one thing a line, one click away
     note: str = ''       # a line under the commands, about them
-    blocks: list = field(default_factory=list)      # [(text, commands)] in reading order, when a row has more than one finding
+    blocks: list = field(default_factory=list)      # [(text, commands)] in reading order, one a finding of setup's
 
 
 @dataclass

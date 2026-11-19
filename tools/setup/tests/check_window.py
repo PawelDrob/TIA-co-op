@@ -8,7 +8,8 @@ opens page 1; the window pictures every page, presses every button that changes 
 the dashboards on free ports: the development dashboard's port held by another program, the TIA dashboard started for
 real from the temp clone) and finishes. The second double-click must open the menu; a third, with no claude on the
 PATH, pictures what a PC without Claude Code sees; a fourth, the rows of the folder, the server and the viewer
-each with a change to make (three_rows), and a fifth, the folder as a second clone on it finds it (rules_there). All
+each with a change to make (three_rows), a fifth the folder as a second clone on it finds it (rules_there), and a
+sixth the server registered for this folder only (this_folder_only). All
 the while it watches the hidden desktop for console windows: the first run's uv sync may have one, the second run none. Pictures and done.txt of
 each run go to <folder>\\first and <folder>\\second. It starts no TIA, writes nothing of the real user's, and ends the
 dashboard it started by its Windows process number.
@@ -198,6 +199,16 @@ def rules_there(temp, clone):
     (config / 'settings.json').write_text(json.dumps(user, indent=2), encoding='utf-8')
 
 
+def this_folder_only(temp, clone):
+    """The server tia of this clone for this folder only, none for your Windows user: a session here starts this clone."""
+    state_file = temp / 'home' / '.claude' / '.claude.json'
+    state = json.loads(state_file.read_text(encoding='utf-8'))
+    tia = {'type': 'stdio', 'command': first_setup.BRIDGE_COMMAND[0], 'args': [*first_setup.BRIDGE_COMMAND[1:-1], str(clone / 'TiaBridge' / 'TiaBridge.ps1')]}
+    state.pop('mcpServers', None)
+    state['projects'] = {clone.as_posix(): {'mcpServers': {'tia': tia}}}
+    state_file.write_text(json.dumps(state), encoding='utf-8')
+
+
 def run(desktop, clone, env, out, options, report):
     """One double-click on the hidden desktop, as Explorer does it: wscript.exe on Setup.wsf, its arguments for the snap."""
     watcher = desktop.watch()
@@ -252,6 +263,8 @@ def main(argv=None):
             run(desktop, clone, env, out / 'three-rows', [*options, '--settings'], report)
             rules_there(temp, clone)
             run(desktop, clone, env, out / 'rules-there', [*options, '--settings'], report)
+            this_folder_only(temp, clone)
+            run(desktop, clone, env, out / 'this-folder-only', [*options, '--settings'], report)
         finally:
             holder.kill()
             pid = dash.listener(tia).split('process ')[-1].rstrip(')')

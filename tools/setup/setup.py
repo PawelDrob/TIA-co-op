@@ -309,17 +309,19 @@ def add_server(claude, scope, done_text):
     return [Finding('done', done_text, TOPIC_SERVER)]
 
 
-def server_change(claude, scope, plan, write, done_text, details=()):
+def server_change(claude, scope, plan, write, done_text, details=(), now='Not registered.'):
+    """now: what a session in this folder starts before the change, in the window's words."""
     if write:
         return add_server(claude, scope, done_text)
     command = subprocess.list2cmdline(['claude', 'mcp', 'add', '--scope', scope, 'tia', '--', *BRIDGE_COMMAND])
     return [Finding('change', f'MCP server tia: registers it {plan}: {command}. Claude Code keeps it in {claude_state_file()}', TOPIC_SERVER,
                     lambda: server_step(claude, write=True), commands=[command], details=details,
-                    shown=f'Not registered. Register adds it {plan}, in {short(claude_state_file())}, with:')]
+                    shown=f'{now} Register adds it {plan}, in {short(claude_state_file())}, with:')]
 
 
 def holder_of(script):
-    """What a server tia of the user's runs, as the window names it: another clone when it runs a bridge's script."""
+    """What a server tia that is not this clone's runs, of your Windows user or of this folder, as the window names it:
+    another clone when it runs a bridge's script."""
     return 'another clone' if script and Path(script).name.lower() == BRIDGE_SCRIPT.name.lower() else 'another command'
 
 
@@ -344,7 +346,10 @@ def server_step(claude, write=False):
                             commands=['claude mcp remove --scope local tia'], details=[f'In this folder tia starts {local_runs or "another command"}.'])
                     ] if local and not is_this_clone(local) and not (user and not is_this_clone(user)) else []
     if not user:
-        made = server_change(claude, 'user', 'for your Windows user', write, 'MCP server tia registered, user scope')
+        # with this clone's entry in this folder a session here starts it already; the user's is for other folders
+        now, plan = (('Registered for this folder only, so a session here starts this clone.', 'for your Windows user too, for sessions in other folders')
+                     if local and is_this_clone(local) else ('Not registered.', 'for your Windows user'))
+        made = server_change(claude, 'user', plan, write, 'MCP server tia registered, user scope', now=now)
         return made if write else made + before_yours
     if is_this_clone(user):
         return [Finding('ok', 'MCP server tia', TOPIC_SERVER, shown='Registered for your Windows user: it starts the bridge of this clone.')] + before_yours
@@ -359,7 +364,7 @@ def server_step(claude, write=False):
         return [Finding('ok', f'MCP server tia, for this folder; {elsewhere}', TOPIC_SERVER, commands=['claude mcp remove --scope user tia'],
                         details=starts, shown=f'Registered for this folder; {holder} has it for your Windows user. To make this clone the one '
                                               'for all folders, run this, then press Refresh and Register:')]
-    return [Finding('missing', f'MCP server tia: in this folder it is registered for {script_of(local) or "another command"}; left as it is. To move it here: claude mcp remove --scope local tia, then run this again', TOPIC_SERVER,
+    return [Finding('missing', f'MCP server tia: in this folder it is registered for {local_runs or "another command"}; left as it is. To move it here: claude mcp remove --scope local tia, then run this again', TOPIC_SERVER,
                     shown=f'Registered in this folder for {holder_of(local_runs)}, which stays as it is. To move it here, run this, then press Refresh:',
                     commands=['claude mcp remove --scope local tia'], details=[f'In this folder tia starts {local_runs or "another command"}.'])]
 

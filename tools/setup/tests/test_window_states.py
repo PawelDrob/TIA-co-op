@@ -93,6 +93,9 @@ class Server(Rows):
         """(state, [(the start of each text, its commands' starts)])."""
         holder = {'clone': 'another clone', 'command': 'another command'}
         before_yours = (f'In this folder, though, {holder.get(local)} is registered, and a session here starts that one.', [REMOVE_LOCAL])
+        if user == 'none' and local == 'this':      # a session here starts this clone already
+            return 'todo', [('Registered for this folder only, so a session here starts this clone. Register adds it for your Windows '
+                             'user too, for sessions in other folders,', ['claude mcp add --scope user tia'])]
         if user == 'none':
             blocks = [('Not registered. Register adds it for your Windows user,', ['claude mcp add --scope user tia'])]
             return 'todo', blocks + ([before_yours] if local in holder else [])
@@ -126,12 +129,20 @@ class Server(Rows):
         self.assertEqual(self.server_row(setup, 'this', 'command').details, [f'In this folder tia starts {COMMAND}.'])
         self.assertEqual(self.server_row(setup, 'command', 'clone').details, [f'In this folder tia starts {OTHER_CLONE}.'])
 
-    def test_the_command_says_once_that_this_folder_starts_another(self):
+    def test_the_command_says_once_that_this_folder_starts_another_and_its_exit_code_stays(self):
+        """Both states the warning comes in: your Windows user's tia none, which setup then registers, and this clone's.
+        A warning is no failure: setup's exit code is that of the same run without it."""
         setup = self.setup_module()
-        self.server_row(setup, 'none', 'command')
-        code, out = self.answered()      # the command, in a process of its own with the fixture's environment
-        self.assertEqual(out.count('which a session here starts in place of the one of your Windows user'), 1, out)
-        self.assertIn('done     MCP server tia registered, user scope', out)
+        for user, line_before in (('none', 'done     MCP server tia registered, user scope'), ('this', 'ok       MCP server tia')):
+            with self.subTest(user=user):
+                self.server_row(setup, user, 'command')
+                code, out = self.answered()      # the command, in a process of its own with the fixture's environment
+                self.assertEqual(code, 0, out)
+                lines = out.splitlines()
+                warnings = [i for i, line in enumerate(lines) if 'which a session here starts in place of the one of your Windows user' in line]
+                self.assertEqual(len(warnings), 1, out)
+                self.assertTrue(lines[warnings[0]].startswith('warning  MCP server tia: in this folder it is registered for '), out)
+                self.assertEqual(lines[warnings[0] - 1], line_before, out)
 
 
 class Viewer(Rows):
