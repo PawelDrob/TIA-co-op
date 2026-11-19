@@ -299,4 +299,20 @@ Describe 'the mirror' {
         Read-Repo 'plc\blocks\L.xml' | Should Be 'old'
         $r.failed | Should Match '^blocks@PLC_1: L: '
     }
+
+    It 'stops at an object TIA does not permit to export, after which TIA did not answer, though it answers again, and removes no file of the objects after it' {
+        $f = New-TestBlock 'F'
+        $f | Add-Member -Force ScriptMethod ExportAsDocuments { param($d, $n) $script:goneOnce = $true; throw "The export of block 'F' is not permitted." }
+        $f | Add-Member -Force ScriptMethod Export { param($file, $o) throw "The export of block 'F' is not permitted." }
+        New-TestRepo @((New-TestBlock 'A'), $f, (New-TestBlock 'C'))
+        foreach ($x in 'A.s7dcl', 'C.s7dcl') { Write-Old $script:repo "plc\blocks\$x" }
+        Invoke-Git $script:repo @('init', '-q'); Invoke-Git $script:repo @('add', '-A'); Invoke-Git $script:repo @('commit', '-q', '-m', 'test')
+        Mock Get-TiaProject { [pscustomobject]@{ Name = 'P'; ProjectLibrary = $null } }
+        # no answer once, right after F's export; an answer at every ask after it
+        Mock Test-TiaAlive { if ($script:goneOnce) { $script:goneOnce = $false; return $false }; $true }
+        $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'dbs') })
+        Read-Repo 'plc\blocks\C.s7dcl' | Should Be 'old'
+        @($r.removed) | Should BeNullOrEmpty
+        $r.tiaEnded | Should Be $true
+    }
 }

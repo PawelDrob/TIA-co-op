@@ -433,8 +433,10 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
                     finally { [TiaBridgeTimes]::Exit($step) }
                 }
                 [void]$done.Add(@{ entry = $e; object = $o; item = $item; knowHowProtected = $khp })
-                # Set-ItemError asked TIA after the object's last call into TIA (the retry's, when that ended TIA): its answer stands
-                if (Test-ItemEndedTia $item) { break }
+                # Set-ItemError asked TIA after the object's last call into TIA (the retry's, when that ended TIA): its answer
+                # stands. The part stops where its loop ends, whatever the item is (one TIA does not permit to export too):
+                # a part that ended early and is not stopped would be mirrored, with the files of the objects after it removed
+                if (Test-ItemEndedTia $item) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; break }
             }
             finally {
                 if ($null -ne $kept) { Add-ObjectTime $mark ([string]$e.name) ([string]$e.folder) $kept -Skipped }
@@ -462,7 +464,6 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
         $f = [ordered]@{ name = $item.name; folder = $item.folder }
         if ($item.error) { $f.error = $item.error } elseif ($item.messages) { $f.messages = $item.messages }
         [void]$Record.failed.Add($f)
-        if (Test-ItemEndedTia $item) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
     }
 }
 
