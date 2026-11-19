@@ -147,7 +147,8 @@ class Server(Rows):
 
 
 class Viewer(Rows):
-    """The viewer: not registered, this clone's, another clone's; with "Open with" naming another program or not."""
+    """The viewer: not registered, this clone's, another clone's, each of the two with the value for .xml or without
+    (registered before Register wrote it); with "Open with" naming another program or not."""
 
     def setUp(self):
         super().setUp()
@@ -159,18 +160,43 @@ class Viewer(Rows):
         other = register.command(r'C:\Work\other\TiaChangeReports\viewer')
         note = ('Windows opens .s7dcl files with Other.Editor, as chosen in "Open with": right-click one, Open with, Choose another app, '
                 'Block viewer, Always.')
-        for registered, chosen in itertools.product(('none', 'this', 'other'), (False, True)):
-            with self.subTest(registered=registered, chosen=chosen):
+        key = 'HKEY_CURRENT_USER\\' + self.keys[0]
+        xml = (f'{key}\\.xml\\OpenWithProgids: the value TiaChangeReports.BlockViewer, which lists it in "Open with" for .xml files, '
+               'and nothing else of .xml')
+        for registered, listed, chosen in itertools.product(('none', 'this', 'other'), (True, False), (False, True)):
+            if registered == 'none' and listed:
+                continue
+            with self.subTest(registered=registered, xml=listed, chosen=chosen):
                 register.delete_tree('Software', self.keys[0].split('\\', 1)[1].rsplit('\\', 1)[0])
                 if registered != 'none':
                     register.register(None if registered == 'this' else other, *self.keys, notify=False)
+                    if not listed:
+                        register._delete_value(self.keys[0], register.XML_LIST, register.PROGID)
                 if chosen:
                     register.write_value(self.keys[1], '', 'Other.Editor', 'ProgId')
                 row = model.viewer_row(model.Look(clone=str(self.clone), viewer=viewer.state(*self.keys)))
-                expected = {'none': ('todo', 'Not registered. Register sets it up for your Windows user only, to open with:', [register.command()]),
-                            'this': ('ok', 'Registered for this clone.', []),
-                            'other': ('warning', 'Registered for another clone. Register this clone to take it over.', [])}[registered]
-                self.assertEqual((row.state, row.text, row.commands), expected)
+                there = xml + (' (there now)' if listed else ' (not there now)')
+                expected = {
+                    ('none', False): ('todo', 'Not registered. Register sets it up for your Windows user only, to open with:',
+                                     [register.command()], [f'{key}\\TiaChangeReports.BlockViewer: the program and its open command',
+                                                            f'{key}\\.s7dcl: the program a double-click opens', there]),
+                    ('this', True): ('ok', 'Registered for this clone. "Open with" lists it for .xml files.', [], []),
+                    ('this', False): ('todo', 'Registered for this clone, but "Open with" does not list it for .xml files. '
+                                      'Register adds it.', [], [there]),
+                    ('other', True): ('warning', 'Registered for another clone. Register this clone to take it over.', [],
+                                      [f'It opens with: {other}', there]),
+                    ('other', False): ('warning', 'Registered for another clone. Register this clone to take it over.', [],
+                                       [f'It opens with: {other}', there])}[registered, listed]
+                self.assertEqual((row.state, row.text, row.commands, row.details), expected)
                 self.assertEqual(row.note, note if chosen else '')
-                if registered == 'other':
-                    self.assertEqual(row.details, [f'It opens with: {other}'])
+
+    def test_register_this_clone_over_another_lists_it_for_xml_and_unregister_takes_only_that_back(self):
+        register.write_value(self.keys[0], register.XML_LIST, '', 'Other.Xml')
+        register.register(register.command(r'C:\Work\other\TiaChangeReports\viewer'), *self.keys, notify=False)
+        register._delete_value(self.keys[0], register.XML_LIST, register.PROGID)       # registered before the .xml value
+        self.assertEqual(viewer.register(*self.keys)[0], False)
+        row = model.viewer_row(model.Look(clone=str(self.clone), viewer=viewer.state(*self.keys)))
+        self.assertEqual((row.state, row.text), ('ok', 'Registered for this clone. "Open with" lists it for .xml files.'))
+        self.assertEqual(viewer.unregister(self.keys[0])[0], False)
+        self.assertEqual(viewer.state(*self.keys)['xml'], False)
+        self.assertEqual(register.read_value(self.keys[0], register.XML_LIST, 'Other.Xml'), '')

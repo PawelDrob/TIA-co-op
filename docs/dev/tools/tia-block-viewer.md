@@ -1,10 +1,10 @@
 ---
 type: Guide
 title: Block viewer internals
-description: How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click, and what its tests cover.
+description: How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click and for Open with on .xml, and what its tests cover.
 tags: [dev, change-reports, plc]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T17:08:45-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:18:27-05:00 }
 ---
 
 # Block viewer internals
@@ -50,14 +50,15 @@ The title bar, the comment field and the text table are written in `view.py`: th
 - The program id `TiaChangeReports.BlockViewer`, with its open command.
 - `.s7dcl`'s default set to that id, keeping the id that was there last on the program id's key, to restore.
 - That id among `.s7dcl\OpenWithProgids`.
+- That id among `.xml\OpenWithProgids`, and nothing else of `.xml`: Explorer lists it in Open with for `.xml` files, under its `FriendlyAppName` (Block viewer), and `.xml`'s default and its `UserChoice` stay. On Windows 11, asked through `SHAssocEnumHandlers` from a new process, the shell lists such an id at once, with no `SHChangeNotify` and no sign-out; the menu of an Explorer already running, which caches, was not looked at.
 
-`--unregister` takes all of it back and removes `.s7dcl`'s key when nothing else is in it. A choice made in Open with (`FileExts\.s7dcl\UserChoice`) beats the default and is hashed by Windows so that no program writes it: register names it and leaves it. Both tell Explorer through `SHChangeNotify`.
+`--unregister` takes all of it back and removes `.s7dcl`'s key when nothing else is in it; of `.xml` it removes only that value, and leaves the key and the other programs' values. A choice made in Open with (`FileExts\.s7dcl\UserChoice`) beats the default and is hashed by Windows so that no program writes it: register names it and leaves it. Both tell Explorer through `SHChangeNotify`.
 
 ## Tests
 
 In the report's suite, so a change to the drawing runs them:
 
-- `test_viewer.py`: the drawing against the report, a UDT member's members from the UDT's file (and the report's table without them), an instance DB's and a DB of a UDT's members from both formats, the source and the files it cannot draw, the opening with a stand-in for `os.startfile`, and the registration in a key of the test's own under `HKEY_CURRENT_USER`, removed after.
+- `test_viewer.py`: the drawing against the report, a UDT member's members from the UDT's file (and the report's table without them), an instance DB's and a DB of a UDT's members from both formats, the source and the files it cannot draw, the opening with a stand-in for `os.startfile`, and the registration in a key of the test's own under `HKEY_CURRENT_USER`, removed after; a key opened to write anywhere else fails the test before it is written.
 - `test_interface_fold.py`: the interface fold of the viewer and of the report, one section or member at a time and all at once by Collapse all, Expand all, C and E, in headless Edge or Chrome, skipped without one.
 
 No test opens a window or the default browser.

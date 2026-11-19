@@ -1,11 +1,14 @@
-"""Double-click: .s7dcl files open in the viewer, for the current user only (HKEY_CURRENT_USER\\Software\\Classes), and
-back. Nothing else registers: a person runs `--register` and `--unregister`. Standard library only (winreg).
+"""Double-click: .s7dcl files open in the viewer, and "Open with" lists it for .xml files, for the current user only
+(HKEY_CURRENT_USER\\Software\\Classes), and back. Nothing else registers: a person runs `--register` and `--unregister`.
+Standard library only (winreg).
 
   register(...)   the program id PROGID with its open command (command()), .s7dcl's default set to it (the program there
-                  last kept, to put back), PROGID among .s7dcl's OpenWithProgids. Returns the lines to print
-  unregister(...) all of that taken back: PROGID removed, .s7dcl's default back to that program, the key gone when empty
+                  last kept, to put back), PROGID among .s7dcl's OpenWithProgids, and of .xml one value: PROGID among
+                  its OpenWithProgids. .xml's default and a choice made for it stay. Returns the lines to print
+  unregister(...) all of that taken back: PROGID removed, .s7dcl's default back to that program, the key gone when empty;
+                  of .xml only that value, its key and the other programs' values stay
   state(...)      what is registered now, read only: the open command, whether .s7dcl's default is PROGID, a choice in
-                  "Open with" that names another program
+                  "Open with" that names another program, whether .xml's OpenWithProgids holds PROGID
 
 classes: the key under HKEY_CURRENT_USER both work in, a test's own key in a test. choice: where Windows keeps a
 choice the person made in "Open with" (UserChoice), which beats a default and which no program may write: register
@@ -17,6 +20,7 @@ import winreg
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROGID = 'TiaChangeReports.BlockViewer'
 EXT = '.s7dcl'
+XML_LIST = r'.xml\OpenWithProgids'          # the one key of .xml register writes in, and there only the value PROGID
 CLASSES = r'Software\Classes'
 CHOICE = r'Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.s7dcl\UserChoice'
 PREVIOUS = 'TiaChangeReports.Previous'      # .s7dcl's default before register, on PROGID's key
@@ -85,9 +89,11 @@ def register(cmd=None, classes=CLASSES, choice=CHOICE, notify=True):
         write_value(classes, PROGID, before, PREVIOUS)
     write_value(classes, EXT, PROGID)
     write_value(classes, EXT + r'\OpenWithProgids', '', PROGID)
+    write_value(classes, XML_LIST, '', PROGID)
     if notify:
         _notify()
-    lines = ['%s files open in the block viewer: %s' % (EXT, cmd)]
+    lines = ['%s files open in the block viewer: %s' % (EXT, cmd),
+             '"Open with" lists the block viewer for .xml files. What a double-click on one opens stays as it was.']
     chosen = other_choice(choice)
     if chosen:
         lines.append(choice_note(chosen))
@@ -107,9 +113,10 @@ def choice_note(chosen):
 
 def state(classes=CLASSES, choice=CHOICE):
     """What is registered, changing nothing: {'command': PROGID's open command or None, 'default': whether .s7dcl's
-    default is PROGID, 'chosen': other_choice()}. The command is this tree's when it equals command()."""
+    default is PROGID, 'chosen': other_choice(), 'xml': whether .xml's OpenWithProgids holds PROGID}. The command is this
+    tree's when it equals command(); "Open with" on an .xml file runs that command too."""
     return {'command': read_value(classes, PROGID + r'\shell\open\command'), 'default': read_value(classes, EXT) == PROGID,
-            'chosen': other_choice(choice)}
+            'chosen': other_choice(choice), 'xml': read_value(classes, XML_LIST, PROGID) is not None}
 
 
 def unregister(classes=CLASSES, notify=True):
@@ -121,16 +128,22 @@ def unregister(classes=CLASSES, notify=True):
         else:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, classes + '\\' + EXT, 0, winreg.KEY_SET_VALUE) as k:
                 winreg.DeleteValue(k, '')
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, classes + '\\' + EXT + r'\OpenWithProgids', 0,
-                            winreg.KEY_SET_VALUE) as k:
-            winreg.DeleteValue(k, PROGID)
-    except OSError:
-        pass
+    for sub in (EXT + r'\OpenWithProgids', XML_LIST):
+        _delete_value(classes, sub, PROGID)
     for sub in (EXT + r'\OpenWithProgids', EXT):
         if _empty(classes, sub):
             winreg.DeleteKey(winreg.HKEY_CURRENT_USER, classes + '\\' + sub)
     if notify:
         _notify()
-    return ['%s files no longer open in the block viewer%s.' % (EXT, ': back to %s' % previous if previous else '')]
+    return ['%s files no longer open in the block viewer%s.' % (EXT, ': back to %s' % previous if previous else ''),
+            '"Open with" no longer lists the block viewer for .xml files.']
+
+
+def _delete_value(root, sub, name):
+    """The value name of root\\sub deleted; nothing when it is not there."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub, 0, winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, name)
+    except OSError:
+        pass
 

@@ -7,7 +7,8 @@ python TiaChangeReports\\viewer --register | --unregister
 browser with the block drawn as the change report draws it, and a switch to the file's text. A file it cannot draw
 opens on its text, with why. --html: writes the page to out.html instead, nothing opened. --lang: the language of
 titles and comments (default en-US, else the first language with a text).
---register: a double-click on an .s7dcl opens it here, for the current user; --unregister takes that back.
+--register: a double-click on an .s7dcl opens it here, and "Open with" lists it for .xml files (one value under
+.xml\\OpenWithProgids, nothing else of .xml), for the current user; --unregister takes that back.
 Exit code 0; 2 on a usage error; 1 when the page could not be opened (said in a message box too: pythonw.exe has no
 console).
 """
@@ -28,7 +29,8 @@ def main(argv=None, open_page=browser.open_page, message=browser.message):
     p.add_argument('--html', metavar='OUT', help='write the page to OUT, open nothing')
     p.add_argument('--lang', default='en-US', help='text language of titles and comments (default en-US)')
     todo = p.add_mutually_exclusive_group()
-    todo.add_argument('--register', action='store_true', help='open .s7dcl files here on a double-click')
+    todo.add_argument('--register', action='store_true',
+                      help='open .s7dcl files here on a double-click, and list the viewer in "Open with" for .xml files')
     todo.add_argument('--unregister', action='store_true', help='take --register back')
     a = p.parse_args(argv)
     if a.register or a.unregister:

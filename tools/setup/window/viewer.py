@@ -1,6 +1,6 @@
-"""The block viewer's registration for a double-click on an .s7dcl, through the viewer's own register.py, which the
-commands --register and --unregister run. No tkinter. classes and choice: the keys under HKEY_CURRENT_USER it works
-in, a test's own in a test; the real ones tell Explorer of a change."""
+"""The block viewer's registration for a double-click on an .s7dcl and for "Open with" on an .xml, through the
+viewer's own register.py, which the commands --register and --unregister run. No tkinter. classes and choice: the keys
+under HKEY_CURRENT_USER it works in, a test's own in a test; the real ones tell Explorer of a change."""
 from TiaChangeReports.viewer import register as viewer_register
 
 

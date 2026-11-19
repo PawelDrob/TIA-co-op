@@ -1,6 +1,6 @@
 # Guides
 
-* [Block viewer internals](tia-block-viewer.md) - How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click, and what its tests cover.
+* [Block viewer internals](tia-block-viewer.md) - How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click and for Open with on .xml, and what its tests cover.
 * [First setup internals](setup.md) - How first setup's steps look before they change, so that the command and the setup window run the same checks and changes; what the window keeps; how it tells a dashboard on a port from another program.
 * [TiaAgentStatus internals](tia-agent-status.md) - The bridge's state files and how the dashboard, the status line and the herdr watcher read them, tell live bridges from orphans, and judge a TIA as hung; and the report run the dashboard's button starts.
 * [TiaArchiveCompare internals](tia-archive-compare.md) - The window and runner that export two TIA archives through background TIA sessions and write the change report, with their event contract, commands, steps, bridge seam and cache.

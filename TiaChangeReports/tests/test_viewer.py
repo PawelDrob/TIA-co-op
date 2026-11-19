@@ -11,6 +11,7 @@ import time
 import unittest
 import uuid
 import winreg
+from unittest import mock
 
 from TiaChangeReports.__main__ import main as report
 from TiaChangeReports.tests.test_tia_look import CALLEE, CALLER, CALLER_RES, _write
@@ -221,13 +222,34 @@ class Browser(unittest.TestCase):
 
 
 class Register(unittest.TestCase):
-    """In a key of the test's own under HKEY_CURRENT_USER, deleted after it."""
+    """In a key of the test's own under HKEY_CURRENT_USER, deleted after it. A key opened to write, made or deleted
+    anywhere else fails the test before it is written: .xml's UserChoice, under Explorer's key, is one such."""
 
     def setUp(self):
         self.root = r'Software\TiaChangeReportsViewerTest-%s' % uuid.uuid4().hex
         self.classes = self.root + r'\Classes'
         self.choice = self.root + r'\UserChoice'
         self.addCleanup(register.delete_tree, 'Software', self.root.split('\\', 1)[1])
+        create, open_key, delete = winreg.CreateKeyEx, winreg.OpenKey, winreg.DeleteKey
+
+        def mine(path):
+            if not path.lower().startswith(self.root.lower() + '\\'):
+                self.fail('written outside the test key: ' + path)
+
+        def creating(root, path, *rest):
+            mine(path)
+            return create(root, path, *rest)
+
+        def opening(root, path, reserved=0, access=winreg.KEY_READ):
+            if access & (winreg.KEY_SET_VALUE | winreg.KEY_CREATE_SUB_KEY):
+                mine(path)
+            return open_key(root, path, reserved, access)
+
+        def deleting(root, path):
+            mine(path)
+            return delete(root, path)
+        for name, fake in (('CreateKeyEx', creating), ('OpenKey', opening), ('DeleteKey', deleting)):
+            self.enterContext(mock.patch.object(winreg, name, fake))
 
     def get(self, sub, name=''):
         return register.read_value(self.classes, sub, name)
@@ -237,7 +259,7 @@ class Register(unittest.TestCase):
         self.assertEqual(self.get('.s7dcl'), register.PROGID)
         self.assertEqual(self.get(register.PROGID + r'\shell\open\command'), '"py" "viewer" "%1"')
         self.assertEqual(self.get(r'.s7dcl\OpenWithProgids', register.PROGID), '')
-        self.assertEqual(len(lines), 1)
+        self.assertEqual(len(lines), 2)
         register.unregister(self.classes, notify=False)
         self.assertIsNone(self.get(register.PROGID))
         with self.assertRaises(OSError):
@@ -263,15 +285,57 @@ class Register(unittest.TestCase):
     def test_a_choice_in_open_with_is_named(self):
         register.write_value(self.choice, '', 'Other.Editor', 'ProgId')
         lines = register.register('cmd', self.classes, self.choice, notify=False)
-        self.assertIn('Windows opens .s7dcl files with Other.Editor', lines[1])
+        self.assertIn('Windows opens .s7dcl files with Other.Editor', lines[2])
 
     def test_the_state_reads_what_register_wrote_and_what_unregister_took_back(self):
-        self.assertEqual(register.state(self.classes, self.choice), {'command': None, 'default': False, 'chosen': None})
+        self.assertEqual(register.state(self.classes, self.choice), {'command': None, 'default': False, 'chosen': None, 'xml': False})
         register.write_value(self.choice, '', 'Other.Editor', 'ProgId')
         register.register('"py" "viewer" "%1"', self.classes, self.choice, notify=False)
-        self.assertEqual(register.state(self.classes, self.choice), {'command': '"py" "viewer" "%1"', 'default': True, 'chosen': 'Other.Editor'})
+        self.assertEqual(register.state(self.classes, self.choice), {'command': '"py" "viewer" "%1"', 'default': True, 'chosen': 'Other.Editor', 'xml': True})
         register.unregister(self.classes, notify=False)
-        self.assertEqual(register.state(self.classes, self.choice)['command'], None)
+        self.assertEqual(register.state(self.classes, self.choice), {'command': None, 'default': False, 'chosen': 'Other.Editor', 'xml': False})
+
+    def tree(self, sub):
+        """{key path under classes: {value name: value}} of sub and everything under it; {} when it is not there."""
+        found = {}
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.classes + '\\' + sub) as k:
+                n_keys, n_values, _ = winreg.QueryInfoKey(k)
+                found[sub] = dict(winreg.EnumValue(k, i)[:2] for i in range(n_values))
+                children = [winreg.EnumKey(k, i) for i in range(n_keys)]
+        except OSError:
+            return found
+        for child in children:
+            found.update(self.tree(sub + '\\' + child))
+        return found
+
+    def test_xml_gets_one_value_in_its_open_with_list_and_nothing_else(self):
+        register.write_value(self.classes, '.xml', 'xmlfile')
+        register.write_value(self.classes, r'.xml\OpenWithProgids', '', 'Other.Xml')
+        register.write_value(self.classes, r'.xml\ShellNew', 'x', 'NullFile')
+        before = self.tree('.xml')
+        lines = register.register('cmd', self.classes, self.choice, notify=False)
+        before[r'.xml\OpenWithProgids'][register.PROGID] = ''
+        self.assertEqual(self.tree('.xml'), before)
+        self.assertEqual(lines[1], '"Open with" lists the block viewer for .xml files. What a double-click on one opens '
+                                   'stays as it was.')
+
+    def test_xml_with_nothing_of_its_own_gets_only_that_value(self):
+        register.register('cmd', self.classes, self.choice, notify=False)
+        self.assertEqual(self.tree('.xml'), {'.xml': {}, r'.xml\OpenWithProgids': {register.PROGID: ''}})
+
+    def test_unregister_takes_back_that_value_and_leaves_the_others_and_the_key(self):
+        register.write_value(self.classes, '.xml', 'xmlfile')
+        register.write_value(self.classes, r'.xml\OpenWithProgids', '', 'Other.Xml')
+        before = self.tree('.xml')
+        register.register('cmd', self.classes, self.choice, notify=False)
+        lines = register.unregister(self.classes, notify=False)
+        self.assertEqual(self.tree('.xml'), before)
+        self.assertEqual(lines[1], '"Open with" no longer lists the block viewer for .xml files.')
+        register.delete_tree(self.classes, '.xml')
+        register.register('cmd', self.classes, self.choice, notify=False)
+        register.unregister(self.classes, notify=False)
+        self.assertEqual(self.tree('.xml'), {'.xml': {}, r'.xml\OpenWithProgids': {}})
 
     def test_the_command_runs_pythonw_of_this_tree_on_the_viewer(self):
         cmd = register.command(r'C:\repo\TiaChangeReports\viewer')

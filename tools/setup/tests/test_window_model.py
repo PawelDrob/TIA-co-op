@@ -12,7 +12,7 @@ from tools.setup.tests.test_setup import load_setup
 setup = load_setup()
 Finding = setup.Finding
 CLONE = r'C:\Work\clone'
-VIEWER = {'command': None, 'default': False, 'chosen': None, 'this': 'x', 'note': '', 'key': 'HKEY_CURRENT_USER\\K', 'progid': 'P'}
+VIEWER = {'command': None, 'default': False, 'chosen': None, 'xml': False, 'this': 'x', 'note': '', 'key': 'HKEY_CURRENT_USER\\K', 'progid': 'P'}
 
 
 def look(*findings, claude=r'C:\bin\claude.exe', **more):
@@ -128,7 +128,7 @@ class Pages(unittest.TestCase):
 
 class Menu(unittest.TestCase):
     def lk(self, *findings, **more):
-        return look(*findings, viewer=dict(VIEWER, command='x', default=True), dashboards=[(d, Status('stopped')) for d in dashboards()], **more)
+        return look(*findings, viewer=dict(VIEWER, command='x', default=True, xml=True), dashboards=[(d, Status('stopped')) for d in dashboards()], **more)
 
     def test_one_entry_a_page_with_what_it_holds_now(self):
         entries = model.menu_entries(self.lk(last_steps=setup.window_last_steps('claude')))
@@ -159,25 +159,45 @@ class Viewer(unittest.TestCase):
     def viewer(self, **state):
         return model.viewer_row(look(viewer={**VIEWER, 'this': self.THIS, **state}))
 
+    XML = ('HKEY_CURRENT_USER\\K\\.xml\\OpenWithProgids: the value P, which lists it in "Open with" for .xml files, and '
+           'nothing else of .xml')
+
     def test_not_registered_says_what_register_writes_and_where(self):
         r = self.viewer(key='HKEY_CURRENT_USER\\Software\\Test\\Classes', progid='The.Viewer')
         self.assertEqual(r.state, 'todo')
         self.assertEqual(r.commands, [self.THIS])
-        self.assertIn('HKEY_CURRENT_USER\\Software\\Test\\Classes\\The.Viewer: the program and its open command', r.details)
+        self.assertEqual(r.details, ['HKEY_CURRENT_USER\\Software\\Test\\Classes\\The.Viewer: the program and its open command',
+                                     'HKEY_CURRENT_USER\\Software\\Test\\Classes\\.s7dcl: the program a double-click opens',
+                                     'HKEY_CURRENT_USER\\Software\\Test\\Classes\\.xml\\OpenWithProgids: the value The.Viewer, '
+                                     'which lists it in "Open with" for .xml files, and nothing else of .xml (not there now)'])
         self.assertEqual([a.kind for a in r.actions], ['register'])
         self.assertTrue(r.optional)
 
+    def test_not_registered_with_the_xml_value_left_says_it_is_there(self):
+        self.assertEqual(self.viewer(xml=True).details[2], self.XML + ' (there now)')
+
     def test_registered_for_this_clone_can_be_undone(self):
-        r = self.viewer(command=self.THIS, default=True)
+        r = self.viewer(command=self.THIS, default=True, xml=True)
         self.assertEqual(r.state, 'ok')
+        self.assertEqual(r.text, 'Registered for this clone. "Open with" lists it for .xml files.')
+        self.assertEqual(r.details, [])
         self.assertEqual([a.kind for a in r.actions], ['unregister'])
+
+    def test_registered_for_this_clone_without_the_xml_value_is_to_do(self):
+        r = self.viewer(command=self.THIS, default=True)
+        self.assertEqual(r.state, 'todo')
+        self.assertEqual(r.text, 'Registered for this clone, but "Open with" does not list it for .xml files. Register adds it.')
+        self.assertEqual(r.details, [self.XML + ' (not there now)'])
+        self.assertEqual([a.kind for a in r.actions], ['register', 'unregister'])
 
     def test_registered_for_another_clone_is_named(self):
         other = self.THIS.replace('clone', 'other')
-        r = self.viewer(command=other, default=True)
-        self.assertEqual(r.state, 'warning')
-        self.assertEqual(r.details, [f'It opens with: {other}'])
-        self.assertEqual([a.kind for a in r.actions], ['register', 'unregister'])
+        for xml, there in ((True, 'there now'), (False, 'not there now')):
+            with self.subTest(xml=xml):
+                r = self.viewer(command=other, default=True, xml=xml)
+                self.assertEqual(r.state, 'warning')
+                self.assertEqual(r.details, [f'It opens with: {other}', f'{self.XML} ({there})'])
+                self.assertEqual([a.kind for a in r.actions], ['register', 'unregister'])
 
     def test_a_choice_in_open_with_is_said_under_the_command_not_before_it(self):
         r = self.viewer(chosen='Other.Editor', note='Windows opens .s7dcl files with Other.Editor, as chosen')
