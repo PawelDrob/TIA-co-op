@@ -167,47 +167,47 @@ function Get-CollisionError($Kind, $Entry, [string[]]$Names, [string]$Library = 
 }
 
 # One SimaticML file through Obj.Export(file, options). Export refuses to overwrite, and a failed export must not
-# delete the last good file: export next to it, then replace it (Move-ExportIntoPlace, Repo.ps1).
+# delete the last good file: export into the export's work folder, which replaces it after (Repo.ps1, the work folder of
+# an export; Move-ExportIntoPlace).
 function Export-ObjectFile($Obj, [string]$File, $Options) {
-    $step = [TiaBridgeTimes]::Enter('work_folder')
-    try { New-Item -ItemType Directory -Force -Path (Split-Path -Parent $File) | Out-Null }
-    finally { [TiaBridgeTimes]::Exit($step) }
-    $partial = New-ExportWorkPath $File
-    $step = [TiaBridgeTimes]::Enter('tia_export_xml')
-    try { $Obj.Export([System.IO.FileInfo]::new($partial), $Options) }
-    catch { Remove-Item -LiteralPath $partial -ErrorAction SilentlyContinue; throw }
-    finally { [TiaBridgeTimes]::Exit($step) }
-    Move-ExportIntoPlace $partial $File
+    $dir = [System.IO.Path]::GetDirectoryName($File)
+    $batch = Get-ExportBatchFor $dir
+    $o = $null
+    try {
+        $work = "$(Get-ExportWorkDir $batch $dir)\$([System.IO.Path]::GetFileName($File))"
+        $step = [TiaBridgeTimes]::Enter('tia_export_xml')
+        try { $Obj.Export([System.IO.FileInfo]::new($work), $Options) }
+        finally { [TiaBridgeTimes]::Exit($step) }
+        $o = Add-ExportBatchObject $batch @(, @($work, $File))
+    }
+    finally { if ($batch.own -and -not $o) { Complete-ExportBatch $batch } }
+    if ($batch.own) { $null = Complete-OwnExportBatch $batch }
 }
 
 # A SimaticML export that writes files beside the .xml (a multilingual graphic writes its images into
-# '<name> files', which the .xml names by relative path): exported into a folder of its own, then each file and
-# folder moved into Dir. Returns the files, those inside a moved folder too (the full_export mirror keeps them).
+# '<name> files', which the .xml names by relative path): what the export adds to the work folder is the object's, each
+# file and folder of it put in Dir. Returns the files, those inside a folder too (the full_export mirror keeps them).
 function Export-ObjectFolder($Obj, [string]$Dir, [string]$Name, $Options) {
-    $partial = New-ExportWorkPath (Join-Path $Dir $Name)
-    $step = [TiaBridgeTimes]::Enter('work_folder')
-    try { New-Item -ItemType Directory -Force -Path $partial | Out-Null }
-    finally { [TiaBridgeTimes]::Exit($step) }
+    $Dir = $Dir.TrimEnd('\')
+    $batch = Get-ExportBatchFor $Dir
+    $o = $null
     try {
+        $work = Get-ExportWorkDir $batch $Dir
+        $before = [System.Collections.Generic.HashSet[string]]::new([string[]][System.IO.Directory]::GetFileSystemEntries($work), [StringComparer]::OrdinalIgnoreCase)
         $step = [TiaBridgeTimes]::Enter('tia_export_xml')
-        try { $Obj.Export([System.IO.FileInfo]::new((Join-Path $partial "$Name.xml")), $Options) }
+        try { $Obj.Export([System.IO.FileInfo]::new("$work\$Name.xml"), $Options) }
         finally { [TiaBridgeTimes]::Exit($step) }
-        $step = [TiaBridgeTimes]::Enter('move')
-        try {
-            @(foreach ($f in @(Get-ChildItem -LiteralPath $partial)) {
-                $dest = Join-Path $Dir $f.Name
-                Move-ExportIntoPlace $f.FullName $dest
-                if ($f.PSIsContainer) { @(Get-ChildItem -LiteralPath $dest -File -Recurse) | ForEach-Object { $_.FullName } }
-                else { $dest }
-            })
-        }
-        finally { [TiaBridgeTimes]::Exit($step) }
+        $new = @([System.IO.Directory]::GetFileSystemEntries($work) | Where-Object { -not $before.Contains($_) } | Sort-Object)
+        $files = @(foreach ($p in $new) {
+            $dest = "$Dir\$([System.IO.Path]::GetFileName($p))"
+            if ([System.IO.Directory]::Exists($p)) { foreach ($f in [System.IO.Directory]::GetFiles($p, '*', 'AllDirectories')) { $dest + $f.Substring($p.Length) } }
+            else { $dest }
+        })
+        $o = Add-ExportBatchObject $batch @(foreach ($p in $new) { , @($p, "$Dir\$([System.IO.Path]::GetFileName($p))") })
     }
-    finally {
-        $step = [TiaBridgeTimes]::Enter('work_folder')
-        Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue
-        [TiaBridgeTimes]::Exit($step)
-    }
+    finally { if ($batch.own -and -not $o) { Complete-ExportBatch $batch } }
+    if ($batch.own) { $null = Complete-OwnExportBatch $batch }
+    $files
 }
 
 # One object of a kind into the repo -> the item of an export result (name, folder, ok, format, files, removed,
@@ -220,6 +220,10 @@ function Export-KindEntry($Kind, $Entry, $Options, [string]$Device = '', [string
         $item.error = Get-CollisionError $Kind $Entry $clash $Library $Device
         return $item
     }
+    # what the object adds to the open batch is its own (Repo.ps1, the work folder of an export): its files go in place
+    # when the batch completes (Complete-ExportItems), or with a failure not at all
+    $batch = $script:ExportBatch
+    $first = if ($batch) { $batch.objects.Count } else { 0 }
     try {
         $r = & $Kind.export $Entry (Get-KindDir $Kind $Entry.folder $Library $Device) $Options
         $item.ok = [bool]$r.ok; $item.format = $r.format
@@ -227,13 +231,52 @@ function Export-KindEntry($Kind, $Entry, $Options, [string]$Device = '', [string
         if ($r.removed) { $item.removed = @($r.removed | ForEach-Object { Get-RepoRelative $_ }) }
         if ($r.messages) { $item.messages = $r.messages }
         if ($r.note) { $item.note = $r.note }
+        if ($batch) {
+            if ($item.ok) { for ($i = $first; $i -lt $batch.objects.Count; $i++) { $batch.objects[$i].item = $item } }
+            else { Remove-ExportBatchObjects $batch $first }
+        }
     }
     catch {
+        if ($batch) { Remove-ExportBatchObjects $batch $first }
         Set-ItemError $item $_
         # the caller (export, full_export) stops at it; the next TIA call is refused until connect
         if (Test-ItemEndedTia $item) { $null = Set-TiaEnded (Get-ItemTiaEndedCause $item) }
     }
     $item
+}
+
+# Runs Body, which exports objects of a kind with Export-KindEntry, with one work folder for the files under Root (the
+# kind's folder; Repo.ps1, the work folder of an export), then puts the files in place, also when Body throws or stops.
+# An item whose files did not go in place fails with the error that names the destination; the other formats' files an
+# item made stale are in its removed. Body runs in a scope below this one, so it reads its caller's variables: the names
+# here are unlike theirs.
+function Invoke-ExportBatch([string]$BatchRoot, [scriptblock]$BatchBody) {
+    if ($script:ExportBatch) { throw 'An export batch is open already: exports do not nest.' }
+    $openBatch = New-ExportBatch $BatchRoot
+    $script:ExportBatch = $openBatch
+    try { & $BatchBody }
+    finally {
+        $script:ExportBatch = $null
+        Complete-ExportBatch $openBatch
+        Update-ExportItems $openBatch
+    }
+}
+
+# The items of a completed batch as its objects ended: a failed move fails the item, removals and notes go into it.
+function Update-ExportItems($Batch) {
+    foreach ($o in $Batch.objects) {
+        $item = $o.item
+        # an item of several objects (the versions of a faceplate type) failed at an earlier one
+        if (-not $item -or -not $item.ok) { continue }
+        if ($o.error) {
+            $item.ok = $false
+            foreach ($key in 'format', 'files', 'removed') { if ($item.Contains($key)) { $item.Remove($key) } }
+            $item.error = ConvertTo-BridgeError $o.error
+            continue
+        }
+        if ($o.removed.Count) { $item.removed = @(@($item.removed | Where-Object { $_ }) + @($o.removed | ForEach-Object { Get-RepoRelative $_ })) }
+        if ($o.notes.Count) { $item.note = (@($item.note | Where-Object { $_ }) + $o.notes) -join ' ' }
+    }
 }
 
 function New-Refusal([string]$Reason) { @{ ok = $false; refused = $Reason } }
@@ -312,18 +355,23 @@ function Invoke-ExportTool($a) {
             [void]$todo.Add($e)
         }
     }
-    $n = 0
-    foreach ($e in $todo) {
-        $item = Export-KindEntry $k $e $opt ([string]$a.device) ([string]$a.library) $collisions
-        [void]$items.Add($item)
-        $n++
-        Write-ObjectProgress $k.name $n $todo.Count $item -Device ([string]$a.device)
-        # what was exported before stays in the repo; only the export stops
-        if (Test-ItemEndedTia $item) {
-            return @{ ok = $false; kind = $k.name; items = @($items); tiaEnded = $true; stopped = "The export stopped at $($item.name)."
-                      unchanged = Get-ExportItemsUnchanged $items
-                      note = "TIA Portal ended at $($item.name). $(Set-TiaEnded (Get-ItemTiaEndedCause $item))" }
+    $stop = @{}
+    $null = Invoke-ExportBatch (Get-KindDir $k '' ([string]$a.library) ([string]$a.device)) {
+        $n = 0
+        foreach ($e in $todo) {
+            $item = Export-KindEntry $k $e $opt ([string]$a.device) ([string]$a.library) $collisions
+            [void]$items.Add($item)
+            $n++
+            Write-ObjectProgress $k.name $n $todo.Count $item -Device ([string]$a.device)
+            if (Test-ItemEndedTia $item) { $stop.at = $item; break }
         }
+    }
+    # what was exported before stays in the repo; only the export stops
+    $ended = $stop.at
+    if ($ended) {
+        return @{ ok = $false; kind = $k.name; items = @($items); tiaEnded = $true; stopped = "The export stopped at $($ended.name)."
+                  unchanged = Get-ExportItemsUnchanged $items
+                  note = "TIA Portal ended at $($ended.name). $(Set-TiaEnded (Get-ItemTiaEndedCause $ended))" }
     }
     $r = @{ ok = -not @($items | Where-Object { -not $_.ok }).Count; kind = $k.name; items = @($items); unchanged = Get-ExportItemsUnchanged $items }
     $note = if ($a.library) { Get-SharedFolderNote 'Library' ([string]$a.library) (Get-GlobalLibraryNames) }

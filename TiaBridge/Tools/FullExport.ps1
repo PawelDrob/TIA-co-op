@@ -387,70 +387,82 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
     # the other kinds of the folder from the plan too: what was listed for it holds for this call
     $collisions = Get-ExportCollisions $k $entries $Root '' $Device $(if ($dp) { $dp.entries } else { @{} })
     $none = New-Object psobject
-    $n = 0
-    foreach ($e in $entries) {
-        # the object's time, from here to its progress line and what follows it (Times.ps1)
-        $mark = Get-ObjectTimeMark
-        $item = $null; $kept = $null
-        try {
-            $o = if ($dp) { $dp.objects["$($k.name)|$($e.name)"] }
-            # an object sharing its file with another is never skipped; it cannot be reached either, as both failed last time
-            if ($o -and -not $o.export -and -not $collisions[(Get-ExportBase $k $e '' $Device)]) {
-                $step = [TiaBridgeTimes]::Enter('record')
-                try {
-                    $o.recorded = $o.old
-                    $Record.skipped++
-                    $kept = @((Get-EntryFiles $o.old).Keys)
-                    foreach ($f in $kept) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) }
-                    if ($k.name -eq 'block' -and (Get-StateValue $o.state 'IsKnowHowProtected') -eq 'True') { [void]$Record.knowHowProtected.Add($e.name) }
-                }
-                finally { [TiaBridgeTimes]::Exit($step) }
-                $n++
-                Write-ObjectProgress $k.name $n $entries.Count @{ name = $e.name; ok = $true } -Part $Part.name -Device $Device -Skipped
-                continue
-            }
-            if ($o) { $Record.why[$o.export] = 1 + [int]$Record.why[$o.export] }
-            $item = Export-KindEntry $k $e $none $Device '' $collisions
-            if (-not $item.ok -and -not $item.collision -and $Part.fallback -and (Test-TiaAlive)) {
-                $why = if ($item.error) { $item.error.message } else { @($item.messages.messages | ForEach-Object { $_.description }) -join ' | ' }
-                Enter-ExportRetry
-                try { $retry = Export-KindEntry $k $e (New-Object psobject -Property @{ format = 'xml' }) $Device }
-                finally { Exit-ExportRetry }
-                if ($retry.ok) { $item = $retry; $item.fellBack = "SimaticML: TIA refused the SD export: $why" }
-                # the SD attempt was asked about before the retry: a TIA that ended in the retry is told by the retry's item
-                elseif (Test-ItemEndedTia $retry) { $item = $retry }
-            }
-            if ($o) { $o.recorded = New-ExportRecordEntry $o $item }
-            $n++
-            Write-ObjectProgress $k.name $n $entries.Count $item -Part $Part.name -Device $Device
-            if ($item.ok) {
-                $Record.exported++
-                foreach ($f in $item.files) { if ($f) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) } }
-                foreach ($f in $item.removed) { if ($f) { [void]$Record.removed.Add($f) } }
-                if ($item.fellBack) { [void]$Record.fellBack.Add([ordered]@{ name = $item.name; folder = $item.folder; note = $item.fellBack }) }
-                if ($k.name -eq 'block') {
-                    $step = [TiaBridgeTimes]::Enter('tia_properties')
-                    try { $khp = $e.obj.IsKnowHowProtected }
+    # every object into one work folder; its files go in place when the part's objects are done, or it stopped (Invoke-ExportBatch)
+    $done = New-Object System.Collections.ArrayList
+    $null = Invoke-ExportBatch (Get-KindDir $k '' '' $Device) {
+        $n = 0
+        foreach ($e in $entries) {
+            # the object's time, from here to its progress line (Times.ps1); the moves of its files count in the part's
+            $mark = Get-ObjectTimeMark
+            $item = $null; $kept = $null
+            try {
+                $o = if ($dp) { $dp.objects["$($k.name)|$($e.name)"] }
+                # an object sharing its file with another is never skipped; it cannot be reached either, as both failed last time
+                if ($o -and -not $o.export -and -not $collisions[(Get-ExportBase $k $e '' $Device)]) {
+                    $step = [TiaBridgeTimes]::Enter('record')
+                    try {
+                        $o.recorded = $o.old
+                        $Record.skipped++
+                        $kept = @((Get-EntryFiles $o.old).Keys)
+                        foreach ($f in $kept) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) }
+                        if ($k.name -eq 'block' -and (Get-StateValue $o.state 'IsKnowHowProtected') -eq 'True') { [void]$Record.knowHowProtected.Add($e.name) }
+                    }
                     finally { [TiaBridgeTimes]::Exit($step) }
-                    if ($khp) { [void]$Record.knowHowProtected.Add($item.name) }
+                    $n++
+                    Write-ObjectProgress $k.name $n $entries.Count @{ name = $e.name; ok = $true } -Part $Part.name -Device $Device -Skipped
+                    continue
                 }
-            } else {
-                $dir = Get-KindDir $k $e.folder '' $Device
-                [void]$Record.kept.Add((Join-Path $dir (ConvertTo-SafeFileName $e.name)))
-                if (-not $e.name) { [void]$Record.kept.Add("$dir\") }
-                $why = Get-LeftOutReason $item
-                if ($why) { [void]$Record.notExported.Add([ordered]@{ name = $item.name; folder = $item.folder; reason = $why; message = $item.error.message }); continue }
-                $f = [ordered]@{ name = $item.name; folder = $item.folder }
-                if ($item.error) { $f.error = $item.error } elseif ($item.messages) { $f.messages = $item.messages }
-                [void]$Record.failed.Add($f)
+                if ($o) { $Record.why[$o.export] = 1 + [int]$Record.why[$o.export] }
+                $item = Export-KindEntry $k $e $none $Device '' $collisions
+                if (-not $item.ok -and -not $item.collision -and $Part.fallback -and (Test-TiaAlive)) {
+                    $why = if ($item.error) { $item.error.message } else { @($item.messages.messages | ForEach-Object { $_.description }) -join ' | ' }
+                    Enter-ExportRetry
+                    try { $retry = Export-KindEntry $k $e (New-Object psobject -Property @{ format = 'xml' }) $Device }
+                    finally { Exit-ExportRetry }
+                    if ($retry.ok) { $item = $retry; $item.fellBack = "SimaticML: TIA refused the SD export: $why" }
+                    # the SD attempt was asked about before the retry: a TIA that ended in the retry is told by the retry's item
+                    elseif (Test-ItemEndedTia $retry) { $item = $retry }
+                }
+                $n++
+                Write-ObjectProgress $k.name $n $entries.Count $item -Part $Part.name -Device $Device
+                # a call into TIA, so here and not after the batch: TIA may end at a later object
+                $khp = $false
+                if ($item.ok -and $k.name -eq 'block') {
+                    $step = [TiaBridgeTimes]::Enter('tia_properties')
+                    try { $khp = [bool]$e.obj.IsKnowHowProtected }
+                    finally { [TiaBridgeTimes]::Exit($step) }
+                }
+                [void]$done.Add(@{ entry = $e; object = $o; item = $item; khp = $khp })
                 # Set-ItemError asked TIA after the object's last call into TIA (the retry's, when that ended TIA): its answer stands
-                if (Test-ItemEndedTia $item) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
+                if (Test-ItemEndedTia $item) { break }
+            }
+            finally {
+                if ($null -ne $kept) { Add-ObjectTime $mark ([string]$e.name) ([string]$e.folder) $kept -Skipped }
+                else { Add-ObjectTime $mark ([string]$e.name) ([string]$e.folder) @($item.files) }
             }
         }
-        finally {
-            if ($null -ne $kept) { Add-ObjectTime $mark ([string]$e.name) ([string]$e.folder) $kept -Skipped }
-            else { Add-ObjectTime $mark ([string]$e.name) ([string]$e.folder) @($item.files) }
+    }
+    # the items as their files went in place: one whose move failed is failed here, and its files stay as they were
+    foreach ($d in $done) {
+        $e = $d.entry; $item = $d.item
+        if ($d.object) { $d.object.recorded = New-ExportRecordEntry $d.object $item }
+        if ($item.ok) {
+            $Record.exported++
+            foreach ($f in $item.files) { if ($f) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) } }
+            foreach ($f in $item.removed) { if ($f) { [void]$Record.removed.Add($f) } }
+            if ($item.fellBack) { [void]$Record.fellBack.Add([ordered]@{ name = $item.name; folder = $item.folder; note = $item.fellBack }) }
+            if ($d.khp) { [void]$Record.knowHowProtected.Add($item.name) }
+            continue
         }
+        $dir = Get-KindDir $k $e.folder '' $Device
+        [void]$Record.kept.Add((Join-Path $dir (ConvertTo-SafeFileName $e.name)))
+        if (-not $e.name) { [void]$Record.kept.Add("$dir\") }
+        $why = Get-LeftOutReason $item
+        if ($why) { [void]$Record.notExported.Add([ordered]@{ name = $item.name; folder = $item.folder; reason = $why; message = $item.error.message }); continue }
+        $f = [ordered]@{ name = $item.name; folder = $item.folder }
+        if ($item.error) { $f.error = $item.error } elseif ($item.messages) { $f.messages = $item.messages }
+        [void]$Record.failed.Add($f)
+        if (Test-ItemEndedTia $item) { $Record.stopped = $true; $Record.endedBy = Get-ItemTiaEndedCause $item; return }
     }
 }
 

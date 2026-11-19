@@ -54,19 +54,17 @@ function Export-PlcObject($Entry, [string]$Dir, $Options, [bool]$IsBlock) {
     }
     finally { [TiaBridgeTimes]::Exit($step) }
     $base = ConvertTo-SafeFileName $Entry.name
-    # every export goes into a fresh folder first: the previous files are replaced only by a successful export
-    # (a refused SD export, e.g. without SimaticSdEnabler, must not delete the last good one)
-    $partial = New-ExportWorkPath (Join-Path $Dir $base)
-    $step = [TiaBridgeTimes]::Enter('work_folder')
+    $Dir = $Dir.TrimEnd('\')
+    # into the export's work folder first (Repo.ps1, the work folder of an export): the previous files are replaced only
+    # by a successful export (a refused SD export, e.g. without SimaticSdEnabler, must not delete the last good one). What
+    # a failed or refused export left there reaches no destination: only an object that exported registers its moves.
+    $batch = Get-ExportBatchFor $Dir
+    $o = $null
     try {
-        New-Item -ItemType Directory -Force -Path $Dir | Out-Null
-        New-Item -ItemType Directory -Force -Path $partial | Out-Null
-    }
-    finally { [TiaBridgeTimes]::Exit($step) }
-    try {
+        $work = Get-ExportWorkDir $batch $Dir
         if ($format -eq 's7dcl') {
             $step = [TiaBridgeTimes]::Enter('tia_export_s7dcl')
-            try { $res = $obj.ExportAsDocuments([System.IO.DirectoryInfo]::new($partial), $base) }
+            try { $res = $obj.ExportAsDocuments([System.IO.DirectoryInfo]::new($work), $base) }
             finally { [TiaBridgeTimes]::Exit($step) }
             $step = [TiaBridgeTimes]::Enter('result')
             try { $tree = ConvertTo-ResultTree $res }
@@ -76,46 +74,31 @@ function Export-PlcObject($Entry, [string]$Dir, $Options, [bool]$IsBlock) {
         } else {
             $xmlOptions = Get-PlcExportOptions ([bool]$Options.full)
             $step = [TiaBridgeTimes]::Enter('tia_export_xml')
-            try { $obj.Export([System.IO.FileInfo]::new((Join-Path $partial "$base.xml")), $xmlOptions) }
+            try { $obj.Export([System.IO.FileInfo]::new("$work\$base.xml"), $xmlOptions) }
             finally { [TiaBridgeTimes]::Exit($step) }
             $tree = $null; $exts = @('.xml'); $ok = $true
         }
-        $paths = @(); $removed = @(); $notes = @()
+        $paths = @()
         if ($ok) {
-            $step = [TiaBridgeTimes]::Enter('move')
-            try {
-                foreach ($x in $exts) {
-                    $f = Join-Path $Dir "$base$x"
-                    $p = Join-Path $partial "$base$x"
-                    if (Test-Path -LiteralPath $p) { Move-ExportIntoPlace $p $f; $paths += $f }
-                }
-            }
-            finally { [TiaBridgeTimes]::Exit($step) }
+            $moves = @(foreach ($x in $exts) {
+                $p = "$work\$base$x"
+                if ([System.IO.File]::Exists($p)) { , @($p, "$Dir\$base$x") }
+            })
+            $paths = @($moves | ForEach-Object { $_[1] })
             # the block's export in the other format, or an .s7res the new export no longer writes, no longer matches
             # the project (seen on a real project: SimaticML of refused SD exports beside the later .s7dcl); removed only once the new
             # export is in place, and listed so the removal goes into the project repo's next commit
-            if ($paths -contains (Join-Path $Dir "$base$($exts[0])")) {
-                $step = [TiaBridgeTimes]::Enter('remove')
-                try {
-                    foreach ($x in @('.s7dcl', '.s7res', '.xml')) {
-                        $f = Join-Path $Dir "$base$x"
-                        if ($paths -contains $f -or -not (Test-Path -LiteralPath $f)) { continue }
-                        try { Remove-Item -LiteralPath $f -Force -ErrorAction Stop; $removed += $f }
-                        catch { $notes += "The old export $f could not be removed (another process holds it open?); remove it by hand: $($_.Exception.Message)" }
-                    }
-                }
-                finally { [TiaBridgeTimes]::Exit($step) }
-            }
+            $stale = if ($paths -contains "$Dir\$base$($exts[0])") { @('.s7dcl', '.s7res', '.xml' | ForEach-Object { "$Dir\$base$_" }) }
+            if ($moves.Count) { $o = Add-ExportBatchObject $batch $moves $stale }
         }
     }
-    finally {
-        $step = [TiaBridgeTimes]::Enter('work_folder')
-        Remove-Item -LiteralPath $partial -Recurse -Force -ErrorAction SilentlyContinue
-        [TiaBridgeTimes]::Exit($step)
-    }
+    finally { if ($batch.own -and -not $o) { Complete-ExportBatch $batch } }
     $r = @{ ok = $ok; format = $format; files = $paths }
-    if ($removed.Count) { $r.removed = $removed }
-    if ($notes.Count) { $r.note = $notes -join ' ' }
+    if ($batch.own -and $o) {
+        $null = Complete-OwnExportBatch $batch
+        if ($o.removed.Count) { $r.removed = $o.removed }
+        if ($o.notes.Count) { $r.note = $o.notes -join ' ' }
+    }
     if ($tree) { $r.messages = $tree }
     $r
 }

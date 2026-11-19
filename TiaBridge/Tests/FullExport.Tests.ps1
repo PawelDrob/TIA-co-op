@@ -89,7 +89,7 @@ Describe 'Export-ObjectFolder' {
 
         (@($files | ForEach-Object { $_.Substring($d.Length + 1) } | Sort-Object) -join '|') | Should Be 'Logo files\DefaultImageStream.png|Logo.xml'
         Test-Path (Join-Path $d 'Logo files\Old.png') | Should Be $false
-        Test-Path (Join-Path $d 'Logo.partial') | Should Be $false
+        @(Get-ChildItem -LiteralPath (Split-Path -Parent $d) -Filter '*.partial').Count | Should Be 0
         @(Get-MirrorRemovals $d $files @()).Count | Should Be 0
     }
 }

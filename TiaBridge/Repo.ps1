@@ -284,6 +284,111 @@ function Move-ExportIntoPlace([string]$Partial, [string]$Destination, [int]$Retr
     finally { [TiaBridgeTimes]::Exit($step) }
 }
 
+# ------------------------------------------------------------------ the work folder of an export
+
+# An export writes the files of all its objects into one work folder, then puts them in place together (ticket 338): an
+# export call for its kind folder, full_export for each kind part. The batch: root, the folder its files land under; work,
+# <root>.<8 hex>.partial (New-ExportWorkPath), which holds the folders below root as the repo does, made on first use;
+# objects, one per object that exported, in order: @{ moves = list of @(work path, destination); replaces = destinations
+# its export makes stale (the other format of a block), removed once its files are in place; item, the export item it
+# belongs to (Tools\Objects.ps1); removed; notes; error, the error record of a move that failed }.
+# Export-KindEntry opens none: the export tool and full_export set $script:ExportBatch around their objects. An export
+# function called outside them (the import's screen numbers, a library review) gets a batch of its own (Get-ExportBatchFor).
+$script:ExportBatch = $null
+
+function New-ExportBatch([string]$Root, [switch]$Own) {
+    $r = [System.IO.Path]::GetFullPath($Root).TrimEnd('\')
+    @{ root = $r; work = (New-ExportWorkPath $r); own = [bool]$Own; objects = (New-Object System.Collections.ArrayList)
+       dirs = (New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)) }
+}
+
+# The open batch when Dir lies in its root, else a new one of Dir's own, which the caller completes.
+function Get-ExportBatchFor([string]$Dir) {
+    $b = $script:ExportBatch
+    $full = [System.IO.Path]::GetFullPath($Dir).TrimEnd('\')
+    if ($b -and ($full.Equals($b.root, [StringComparison]::OrdinalIgnoreCase) -or $full.StartsWith("$($b.root)\", [StringComparison]::OrdinalIgnoreCase))) { return $b }
+    New-ExportBatch $full -Own
+}
+
+# The folder of the work folder that stands for Dir (a folder in the batch's root), made when missing.
+function Get-ExportWorkDir($Batch, [string]$Dir) {
+    $full = [System.IO.Path]::GetFullPath($Dir).TrimEnd('\')
+    $w = $Batch.work + $full.Substring($Batch.root.Length)
+    if (-not $Batch.dirs.Contains($w)) {
+        $step = [TiaBridgeTimes]::Enter('work_folder')
+        try { [void][System.IO.Directory]::CreateDirectory($w) }
+        finally { [TiaBridgeTimes]::Exit($step) }
+        [void]$Batch.dirs.Add($w)
+    }
+    $w
+}
+
+# An object's export done: its files (pairs of work path and destination) go in place when the batch completes, and then
+# Replaces are removed. Returns the batch's entry of the object.
+function Add-ExportBatchObject($Batch, [object[]]$Moves, [string[]]$Replaces = @()) {
+    $o = @{ moves = @($Moves | Where-Object { $_ }); replaces = @($Replaces | Where-Object { $_ }); item = $null; removed = @(); notes = @(); error = $null }
+    [void]$Batch.objects.Add($o)
+    $o
+}
+
+# Drops the objects of the batch from index From on, with their work files: an export that failed after they were added.
+function Remove-ExportBatchObjects($Batch, [int]$From) {
+    while ($Batch.objects.Count -gt $From) {
+        $o = $Batch.objects[$Batch.objects.Count - 1]
+        foreach ($m in $o.moves) { Remove-Item -LiteralPath $m[0] -Recurse -Force -ErrorAction SilentlyContinue }
+        $Batch.objects.RemoveAt($Batch.objects.Count - 1)
+    }
+}
+
+# Puts the files of the batch in place, object by object in the order they exported (Move-ExportIntoPlace: a locked
+# destination is retried, a git repo in a folder kept, a file that differs only in what TIA writes anew keeps its
+# bytes), then removes what each made stale, then the work folder. An object whose move fails gets the error and keeps
+# its replaces; the others go on. Called once, in a finally: also when the export stopped, so what was exported before
+# is in place and no work folder stays.
+function Complete-ExportBatch($Batch) {
+    try {
+        $made = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+        foreach ($o in $Batch.objects) {
+            $step = [TiaBridgeTimes]::Enter('move')
+            try {
+                foreach ($m in $o.moves) {
+                    $parent = [System.IO.Path]::GetDirectoryName($m[1])
+                    if ($made.Add($parent)) { [void][System.IO.Directory]::CreateDirectory($parent) }
+                    Move-ExportIntoPlace $m[0] $m[1]
+                }
+            }
+            catch { $o.error = $_ }
+            finally { [TiaBridgeTimes]::Exit($step) }
+            if ($o.error) { continue }
+            if (-not $o.replaces.Count) { continue }
+            $step = [TiaBridgeTimes]::Enter('remove')
+            try {
+                $moved = @($o.moves | ForEach-Object { $_[1] })
+                foreach ($f in $o.replaces) {
+                    if ($moved -contains $f -or -not [System.IO.File]::Exists($f)) { continue }
+                    try { Remove-Item -LiteralPath $f -Force -ErrorAction Stop; $o.removed += $f }
+                    catch { $o.notes += "The old export $f could not be removed (another process holds it open?); remove it by hand: $($_.Exception.Message)" }
+                }
+            }
+            finally { [TiaBridgeTimes]::Exit($step) }
+        }
+    }
+    finally {
+        $step = [TiaBridgeTimes]::Enter('work_folder')
+        if ([System.IO.Directory]::Exists($Batch.work)) { Remove-Item -LiteralPath $Batch.work -Recurse -Force -ErrorAction SilentlyContinue }
+        [TiaBridgeTimes]::Exit($step)
+    }
+}
+
+# A batch of one export function's own (Get-ExportBatchFor) completed: its one object's error thrown, else the object
+# (removed, notes); $null when the export registered none.
+function Complete-OwnExportBatch($Batch) {
+    Complete-ExportBatch $Batch
+    $o = @($Batch.objects)[0]
+    if ($o -and $o.error) { throw $o.error }
+    $o
+}
+
 # $null when git is on PATH, else what to do. The bridge keeps the PATH it started with.
 function Get-GitProblem {
     if (Get-Command git -CommandType Application -ErrorAction SilentlyContinue) { return $null }

@@ -73,7 +73,7 @@ Describe 'Export-PlcObject' {
         $bad | Add-Member ScriptMethod ExportAsDocuments { param($d, $n) throw 'SIMATIC SD export failed ... SimaticSdEnabler' }
         { Export-PlcObject @{ name = 'T'; obj = $bad } $dir (New-Object psobject) $false } | Should Throw 'SimaticSdEnabler'
         Get-Content (Join-Path $dir 'T.s7dcl') | Should Be 'old'
-        Test-Path (Join-Path $dir 'T.partial') | Should Be $false
+        @(Get-ChildItem -LiteralPath (Split-Path -Parent $dir) -Filter '*.partial').Count | Should Be 0
 
         $good = [pscustomobject]@{ IsKnowHowProtected = $false }
         $good | Add-Member ScriptMethod Export { param($f, $o) Set-Content $f.FullName 'new xml' }
@@ -155,7 +155,7 @@ Describe 'Export-PlcObject' {
         try { { Export-PlcObject @{ name = 'L'; obj = $good } $dir ([pscustomobject]@{ format = 'xml' }) $false } | Should Throw 'L.xml' }
         finally { $lock.Dispose() }
         [System.IO.File]::ReadAllText((Join-Path $dir 'L.xml')) | Should Be 'old'
-        Test-Path (Join-Path $dir 'L.partial') | Should Be $false
+        @(Get-ChildItem -LiteralPath (Split-Path -Parent $dir) -Filter '*.partial').Count | Should Be 0
     }
 }
 
@@ -188,7 +188,7 @@ Describe 'plc_tag_table export' {
         $bad | Add-Member ScriptMethod Export { param($f, $o) throw 'Export refused' }
         { & $export @{ name = 'Tags'; obj = $bad } $dir (New-Object psobject) } | Should Throw 'Export refused'
         [System.IO.File]::ReadAllText((Join-Path $dir 'Tags.xml')) | Should Be 'old'
-        Test-Path (Join-Path $dir 'Tags.xml.partial') | Should Be $false
+        @(Get-ChildItem -LiteralPath (Split-Path -Parent $dir) -Filter '*.partial').Count | Should Be 0
 
         $good = [pscustomobject]@{ Name = 'Tags' }
         $good | Add-Member ScriptMethod Export { param($f, $o) [System.IO.File]::WriteAllText($f.FullName, 'new') }
