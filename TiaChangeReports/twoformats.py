@@ -47,10 +47,8 @@ READER, ONE_FIELD, NOTE, DRAWING, DIFF, ONE_OBJECT = (
 # field: <path>', '.s7dcl field: <pragma>', 'SimaticML unread: <path>'.
 CAUSES = {
     'quoted names': (READER, 'a member name .s7dcl writes in quotes ("Db"."step", #"a") and SimaticML without'),
-    'pin case': (READER, 'a pin name in another case (IN, in): each reader keeps its file\'s, the diff compares them '
-                         'as given'),
     'pin order': (READER, "an element's unnamed operands in another order: the diff compares them by their place (a "
-                          "named pin by its name, in any order)"),
+                          "named pin by its name, in any order and case)"),
     'pin direction': (READER, "a coil's operand read as an output (=>) from .s7dcl and as an input (:=) from SimaticML"),
     'templates': (ONE_FIELD, 'a type template SimaticML writes and .s7dcl does not (value_type, ptr_type, Card, ...)'),
     'ENO': (READER, "a box's ENO: SimaticML writes DisabledENO, .s7dcl S7_GenerateENO := \"TRUE\" where it is false "
@@ -266,8 +264,6 @@ def _normal(sig, steps, other_templates):
     if 'quoted names' in steps:
         ps = [(n, d, _unquoted(v)) for n, d, v in ps]
         inst = _unquoted(inst)
-    if 'pin case' in steps:
-        ps = [(n.lower(), d, v) for n, d, v in ps]
     if 'pin direction' in steps:
         ps = [(n, '', v) for n, d, v in ps]
     if 'pin order' in steps:
@@ -277,7 +273,7 @@ def _normal(sig, steps, other_templates):
     return instr, inst, call, tuple(ps), templates, expr, no_eno
 
 
-STEPS = ('quoted names', 'pin case', 'pin direction', 'pin order', 'templates', 'ENO')
+STEPS = ('quoted names', 'pin direction', 'pin order', 'templates', 'ENO')
 
 
 def element_causes(x, y):

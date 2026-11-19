@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 from TiaChangeReports import twoformats
+from TiaChangeReports.s7dcl import Element
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'twoformats')
 TIMERS, UDT = 'plc/blocks/zzBenchmark/zzBenTimers', 'plc/types/zzE2e/zzE2eUdtA'
@@ -47,19 +48,16 @@ class RunRepo(unittest.TestCase):
         got = {(x['object'], tuple(x['network']) if x['network'] else None): x['causes']
                for x in twoformats.nothing_changed(self.repo, 'HEAD~2')}
         self.assertEqual({
-            (TIMERS, None): ['pin case'],
-            (TIMERS, (1, 1, '14 Counter with fed pins')): ['pin case'],
-            (TIMERS, (5, 5, '14a Counter at the end of an open branch')): ['pin case'],
+            (TIMERS, None): ['note: files'],
             (FB, None): ['ENO'],
             (FB, (1, 1, '')): ['ENO'],
             (IDB, None): ['DB retain', 'instance DB access', 'instance DB start values'],
             (UDT, None): ['declaration'],
         }, got)
 
-    def test_the_same_change_differs_where_pins_are_read_otherwise(self):
-        got = twoformats.same_change(self.repo, 'HEAD~2', 'HEAD~1')
-        self.assertEqual([(TIMERS, ['pin case'])], [(x['object'], x['causes']) for x in got])
-        self.assertTrue(got[0]['sd'] and got[0]['xml'], 'the facts each report alone holds')
+    def test_the_same_change_where_pins_are_written_in_another_case_and_order(self):
+        """B058's CTU: r, pv, cv in .s7dcl, PV, CV, R in SimaticML."""
+        self.assertEqual([], twoformats.same_change(self.repo, 'HEAD~2', 'HEAD~1'))
 
     def test_a_field_one_format_moved_alone(self):
         got = twoformats.same_change(self.repo, 'HEAD~1', 'HEAD')
@@ -70,7 +68,7 @@ class RunRepo(unittest.TestCase):
         result = twoformats.run(self.repo, None, None, ('nothing', 'same'))
         text = '\n'.join(twoformats.counts(result))
         self.assertIn('Nothing changed: 3 commits', text)
-        self.assertIn('The same change: 2 commits, 2 whose two reports differ', text)
+        self.assertIn('The same change: 2 commits, 1 whose two reports differ', text)
         self.assertRegex(text, r'DB retain\s+a field only one format writes')
         self.assertNotIn('unknown', text)
 
@@ -133,23 +131,23 @@ class UnknownWhereFactsDiffer(unittest.TestCase):
 
 
 class ElementCauses(unittest.TestCase):
-    """What makes two readings of one element unequal, from the CTU of zzBenTimers as each reader reads it (r, pv, cv
-    from .s7dcl, PV, CV, R from SimaticML), as compared: its named pins by name (Element.sig)."""
+    """What makes two readings of one element unequal, as compared (Element.sig)."""
 
     SD = ('CTU', '#instCtu', '', (('cv', '=>', '#statStep'), ('pv', ':=', '#inSpeed'), ('r', ':=', 'wire#')),
           (('value_type', 'Int'),), '', False)
-    XML = ('CTU', '#instCtu', '', (('CV', '=>', '#statStep'), ('PV', ':=', '#inSpeed'), ('R', ':=', 'wire#')),
-           (('value_type', 'Int'),), '', False)
 
-    def test_the_fewest_steps_each_needed(self):
-        self.assertEqual({'pin case'}, twoformats.element_causes(self.SD, self.XML))
+    def test_pins_in_another_case_and_order_are_no_reading(self):
+        """The CTU of zzBenTimers as each reader reads it: r, pv, cv from .s7dcl, PV, CV, R from SimaticML."""
+        xml = Element('e', 'CTU', '#instCtu', [('PV', ':=', '#inSpeed'), ('CV', '=>', '#statStep'),
+                                               ('R', ':=', 'wire#w1')], {'value_type': 'Int'}).sig()
+        self.assertEqual(set(), twoformats.element_causes(self.SD, xml))
 
     def test_unnamed_operands_in_another_order(self):
         x = ('Box', '', '', (('', '', '#a'), ('', '', '#b')), (), '', False)
         self.assertEqual({'pin order'}, twoformats.element_causes(x, x[:3] + ((('', '', '#b'), ('', '', '#a')),) + x[4:]))
 
     def test_another_operand_is_no_reading(self):
-        other = self.XML[:3] + ((('CV', '=>', '#statStep'), ('PV', ':=', '#inLevel'), ('R', ':=', 'wire#')),) + self.XML[4:]
+        other = self.SD[:3] + ((('cv', '=>', '#statStep'), ('pv', ':=', '#inLevel'), ('r', ':=', 'wire#')),) + self.SD[4:]
         self.assertEqual({'unknown: element CTU'}, twoformats.element_causes(self.SD, other))
 
     def test_quoted_member_names(self):

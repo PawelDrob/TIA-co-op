@@ -17,7 +17,7 @@ import itertools
 import re
 from collections import Counter
 
-from .s7dcl import _norm, norm_expression, wire_of
+from .s7dcl import _norm, norm_expression, pin_key, wire_of
 
 RAIL, SINK = 'powerrail', '#sink'
 PAIRS = 12          # NetDiff._reconnected tries any two of at most this many items, or exchanges, at once
@@ -28,7 +28,7 @@ class Graph:
         self.parent = {}
         self.edges = []          # (element, src, dst) with raw node keys; resolve with find()
         self.elements = {}
-        self.pins = []           # (element, pin name, raw node) for inputs fed by logic
+        self.pins = []           # (element, pin name as written, raw node) for inputs fed by logic
         self.rung_of = {}        # element id -> its rung
         self.rung_texts = []     # per rung: its start, elements and wires and end as text, wire names included
         self.place_of = {}       # element id -> (its rung's start, its rung's end, its number among the rung's elements)
@@ -128,13 +128,13 @@ def _reduce(edges, keep):
 
 
 def sp_forest(g):
-    """(tree of the rung flow, {(eid, pin): tree of the logic feeding that pin}).
+    """(tree of the rung flow, {(eid, pin as compared (pin_key)): tree of the logic feeding that pin}).
 
     Trees: ('L', eid) | ('S', [..]) | ('P', [..]) | ('E',) (bare wire). Each sink takes the edges that reach it and
     that no earlier sink took: first the end of the rungs, then the box pins in order."""
     all_edges = [(g.find(s), g.find(d), ('L', e.eid) if e else ('E',)) for e, s, d in g.edges]
     rail = g.find(RAIL)
-    pin_nodes = [(e.eid, pin, g.find(n)) for e, pin, n in g.pins]
+    pin_nodes = [(e.eid, pin_key(pin) if pin else pin, g.find(n)) for e, pin, n in g.pins]
     sinks = [(None, None, g.find(SINK))] + pin_nodes
     keep = {rail} | {t for _, _, t in sinks}
     taken = set()
@@ -1196,7 +1196,7 @@ class NetDiff:
             ins.setdefault(d, []).append(e.eid)
         pins = {}
         for e, pin, n in g.pins:
-            pins.setdefault(uf.find(n), []).append(('PIN', e.eid, pin))
+            pins.setdefault(uf.find(n), []).append(('PIN', e.eid, pin_key(pin) if pin else pin))
         ctx = {}
         for e, s_, d in ends:
             pred = set(ins.get(s_, [])) | ({'RAIL'} if s_ == rail else set())

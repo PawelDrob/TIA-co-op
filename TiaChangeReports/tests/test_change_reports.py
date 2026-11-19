@@ -1255,6 +1255,59 @@ class PinsInAnotherOrder(unittest.TestCase):
         self.assertEqual({'pv'}, changed_params(box, d.other[box.eid]))
 
 
+BOX_FED = BOX.replace('''        END_RUNG
+    END_NETWORK''', '''        END_RUNG
+        RUNG wire#powerrail
+            Contact( #q )
+        END_RUNG wire#w1
+    END_NETWORK''')
+BOX_OTHER_CASE = BOX_FED.replace('r := ', 'R := ').replace('pv := ', 'PV := ').replace('cv => ', 'CV => ')
+
+
+def _fed_by_a(text):
+    return text.replace('Contact( #q )\n        END_RUNG wire#w1', 'Contact( #a )\n        END_RUNG wire#w1')
+
+
+class PinsInAnotherCase(unittest.TestCase):
+    """SimaticML writes PV, CV, R where .s7dcl writes pv, cv, r, and each of them RET_VAL, Ret_Val or ret_val (the bed of
+    the two formats, zzBenTimers network 5): STEP 7 is not case-sensitive, a pin's name in another case is no change."""
+
+    def test_the_same_box(self):
+        (b,), (a,) = (parse_block(src(x, '', 'M')).networks for x in (BOX_FED, BOX_OTHER_CASE))
+        d = NetDiff(Graph(b.rungs), Graph(a.rungs))
+        self.assertFalse(d.changed)
+        self.assertEqual(statuses(d, d.a), Counter(same=4))
+
+    def test_the_network_is_not_listed(self):
+        """Its lines are compared with the pin names in one case too: no note."""
+        self.assertEqual([], compare_blocks(src(BOX_FED, '', 'M'), src(BOX_OTHER_CASE, '', 'M')).nets)
+
+    def test_the_logic_feeding_a_pin_is_paired_by_the_pin_in_any_case(self):
+        """The logic feeding a pin of a box is diffed with that of the same pin of its partner (NetDiff's pin trees)."""
+        one, other = _lad(BOX_FED, _fed_by_a(BOX_FED)), _lad(BOX_FED, _fed_by_a(BOX_OTHER_CASE))
+        def told(d):
+            return [d.status[e] for g in (d.b, d.a) for e in g.elements]
+        self.assertEqual(['same', 'same', 'same', 'changed'] * 2, told(one))
+        self.assertEqual(told(one), told(other))
+
+    def test_the_pin_trees_name_a_pin_in_one_case(self):
+        """The logic feeding a pin is diffed with that of its partner's pin of that name (diff.sp_forest)."""
+        from TiaChangeReports.diff import sp_forest
+        (b,), (a,) = (parse_block(src(x, '', 'M')).networks for x in (BOX_FED, BOX_OTHER_CASE))
+        self.assertEqual([['r'], ['r']], [[pin for _, pin in sp_forest(Graph(x.rungs))[1]] for x in (b, a)])
+
+    def test_a_pin_fed_otherwise_is_still_told(self):
+        d = _lad(BOX_FED, BOX_OTHER_CASE.replace('#speed', '#level'))
+        (box,) = (e for e in d.b.elements.values() if e.instr == 'CTU')
+        self.assertEqual(d.status[box.eid], 'changed')
+        self.assertEqual({'pv'}, changed_params(box, d.other[box.eid]))
+
+    def test_lines_of_a_pin_in_another_case(self):
+        from TiaChangeReports.s7dcl import lad_lines
+        self.assertEqual(lad_lines('B(\nRET_VAL => #b,\npv := Add(\nIN1 := #a\n)\n)'),
+                         lad_lines('B(\nRet_Val => #b,\nPV := Add(\nin1 := #a\n)\n)'))
+
+
 class MergedNodes(unittest.TestCase):
     def test_contact_deleted_between_two_wire_nodes_is_one_removed(self):
         d = _lad(MERGE, MERGED)

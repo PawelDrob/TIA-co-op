@@ -454,10 +454,10 @@ class Element:
     def sig(self):
         """The element as compared. Its named pins in any order: TIA's export writes the pins of one box in another
         order between two exports of a block nobody changed (SimaticML of zzLadMove's Deserialize, run row I004), so the
-        order is no part of the block; each pin is bound by its name (.s7dcl `pv := ...`, SimaticML a NameCon's Name).
-        An unnamed operand is bound by its place and keeps it."""
-        ps = [(n or '', d or '', _norm(v)) for n, d, v in self.params]
-        ps = tuple([p for p in ps if not p[0]] + sorted((p for p in ps if p[0]), key=lambda p: (pin_key(p[0]), p)))
+        order is no part of the block; each pin is bound by its name (.s7dcl `pv := ...`, SimaticML a NameCon's Name),
+        in any case (pin_key). An unnamed operand is bound by its place and keeps it."""
+        ps = [(pin_key(n) if n else '', d or '', _norm(v)) for n, d, v in self.params]
+        ps = tuple([p for p in ps if not p[0]] + sorted(p for p in ps if p[0]))
         return (self.instr, self.instance or '', self.call or '', ps, tuple(sorted(self.templates.items())),
                 norm_expression(self.expression), self.no_eno)
 
@@ -486,7 +486,9 @@ def wire_of(v):
 
 
 def pin_key(name):
-    """Where a named pin sorts among its box's pins as compared (Element.sig, lad_lines): STEP 7 is not case-sensitive."""
+    """A named pin's name as compared (Element.sig, lad_lines, the diff's pin trees and pin neighbours): STEP 7 is not
+    case-sensitive, and the two formats write one pin in another case (SimaticML PV, CV, R where .s7dcl writes pv, cv,
+    r; each of them RET_VAL, Ret_Val or ret_val)."""
     return name.lower()
 
 
@@ -738,11 +740,17 @@ def _pins_in_one_order(lines):
     return out
 
 
+def _pin_in_one_case(line):
+    """A line that names a box's pin with that name as compared (pin_key); another line as it stands."""
+    m = _NAMED_PIN.match(line)
+    return line if m is None else pin_key(m.group(1)) + line[m.end(1):]
+
+
 def lad_lines(body):
     """A LAD network's text as compared: wires numbered, without what the two export formats write differently (the
     indentation, the trailing comma an XML export writes after the last parameter, a space after an empty output, the
-    order of a box's named pins)."""
-    lines = [re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()]
+    order of a box's named pins and the case of their names)."""
+    lines = [_pin_in_one_case(re.sub(r'\s*,$', '', l.strip())) for l in body.splitlines()]
     lines = _pins_in_one_order([l for l in lines if l])
     return numbered('\n'.join(lines)).split('\n') if lines else []
 
