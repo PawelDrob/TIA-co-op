@@ -168,8 +168,8 @@ function ConvertTo-AttributeMap([string[]]$Names, $Values) {
 }
 
 # A plan starts with no knowledge of which kinds lack names (Read-TiaAttributeValues).
-function Reset-AttributeReads { $script:AttributeInfosFirst = @{} }
-Reset-AttributeReads
+function Reset-AttributeInfosFirst { $script:AttributeInfosFirst = @{} }
+Reset-AttributeInfosFirst
 
 # The values of an object compared for unequal: name -> text, the dates in round trip form ('o', with their Kind).
 function Read-ExportState($Kind, $Entry) {
@@ -178,9 +178,9 @@ function Read-ExportState($Kind, $Entry) {
     finally { [TiaBridgeTimes]::Exit($step) }
 }
 
-# Each value as before the one call: a name it did not answer (the object does not offer it) is read as a .NET property,
-# which gives nothing for a name the object does not have; when the one call failed, every name is read on its own, so a
-# value that does not read is named (unread) and the object is exported.
+# Each value from the one call (Read-TiaAttributeValues). A name it did not answer (the object does not offer it) is read
+# as a .NET property, which gives nothing for a name the object does not have. When the call failed, every name is read
+# on its own, so a value that does not read is named (unread) and the object is exported.
 function Read-ExportStateValues($Kind, $Entry) {
     $names = [string[]]$script:ExportStateAttributes[$Kind.name]
     $got = Read-TiaAttributeValues $Entry.obj $names $Kind.name
@@ -350,7 +350,7 @@ function Get-ExportPlan($Software, $Project, [bool]$Full) {
     $unusable = $read.error
     if (-not $unusable) { $unusable = Get-HeadDifference $read.record.head $head }
     $plan = @{ head = $head; old = $read.record; unusable = $unusable; all = $(if ($Full) { 'full: true' } else { $unusable }); devices = @{} }
-    Reset-AttributeReads
+    Reset-AttributeInfosFirst
     foreach ($s in @($Software | Where-Object { $_.kind -eq 'plc' })) {
         $device = [string]$s.device
         $d = @{ all = $null; entries = @{}; objects = (New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)) }

@@ -630,7 +630,7 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
     Mock Test-IsDataBlock { $Block.Name -like '*DB*' }
 
     # A block with a value for every name the record reads of a block: one call can answer them all. The IEC check and ENO are
-    # attributes only GetAttribute reads; a null value is left out, as before.
+    # attributes only GetAttribute reads; a null value is left out.
     function New-FullBlock {
         $b = New-PlcObject 'FC9' '' @{ CodeModifiedDate = [datetime]::new(2026, 10, 8, 13, 0, 0, [DateTimeKind]::Local); ParameterModified = [datetime]::new(2026, 10, 8, 14, 0, 0, [DateTimeKind]::Unspecified)
                                        StructureModified = [datetime]::new(2026, 10, 8, 15, 0, 0, [DateTimeKind]::Utc); CompileDate = [datetime]::new(2026, 10, 9, 0, 0, 0, [DateTimeKind]::Utc)
@@ -644,7 +644,7 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
     It 'gives the same state text as the reads one name at a time, in one call into TIA' {
         $single = New-FullBlock; Add-AttributeMethods $single -Single
         $one = New-FullBlock; Add-AttributeMethods $one
-        Reset-AttributeReads
+        Reset-AttributeInfosFirst
         $text = Get-Text $one
         $text | Should Be (Get-Text $single)
         $text | Should Match '(?m)^CodeModifiedDate=2026-10-08T13:00:00\.0000000[+-]\d\d:\d\d$'
@@ -655,7 +655,7 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
     }
 
     It 'a name the object lacks: TIA refuses the whole call, and the names it offers are read in one more' {
-        Reset-AttributeReads
+        Reset-AttributeInfosFirst
         $single = New-FullBlock; $single.attrs.Remove('SetENOAutomatically'); Add-AttributeMethods $single -Single
         $one = New-FullBlock; $one.attrs.Remove('SetENOAutomatically'); Add-AttributeMethods $one
         $text = Get-Text $one
@@ -671,8 +671,8 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
         "$($last.calls.GetAttributes) $($last.calls.GetAttributeInfos)" | Should Be '1 0'
     }
 
-    It 'a property TIA does not offer as an attribute is read as before' {
-        Reset-AttributeReads
+    It 'a property TIA does not offer as an attribute is read as a .NET property' {
+        Reset-AttributeInfosFirst
         $single = New-FullBlock; Add-AttributeMethods $single -Single
         $one = New-FullBlock; Add-AttributeMethods $one -Lacks 'Number'
         $text = Get-Text $one
@@ -702,6 +702,7 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
         $r = Invoke-FullExportTool $script:parts
         Get-Exported | Should Be 'FC1'
         @($r.details | Where-Object { $_.part -eq 'blocks' })[0].why['a value of it does not read'] | Should Be 1
+        # two plans, each: the one call, then the call of the names GetAttributeInfos lists; both refused
         $b.reads | Should Be 4
     }
 
@@ -713,7 +714,7 @@ Describe 'full_export reads what TIA says of an object in one call, and lists TI
     }
 
     Context 'TIA ends in the read' {
-        It 'stops the export at the first part, as before, and asks TIA nothing more of the object' {
+        It 'stops the export at the first part and asks TIA nothing more of the object' {
             Initialize-SkipTest 'ended-read'
             $f = Join-Path $script:repo '.tiabridge-export.json'
             $before = [System.IO.File]::ReadAllText($f)
