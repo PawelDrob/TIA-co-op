@@ -724,7 +724,8 @@ def _pin_line_key(line):
 
 def _pins_in_one_order(lines):
     """Each box's named pin lines in one order, as Element.sig compares them, their names already in one case
-    (_pin_in_one_case): the lines between a box's `(` and its `)` when all of them are named pins. A pin line that opens another box ends them: nothing is sorted across boxes."""
+    (_pin_in_one_case): the lines between a box's `(` and its `)` when all of them are named pins. A pin line that
+    opens another box ends them: nothing is sorted across boxes."""
     out, k = [], 0
     while k < len(lines):
         out.append(lines[k])
