@@ -1224,9 +1224,9 @@ BOX_OTHER_ORDER = BOX.replace('''                r := wire#w1,
 
 
 class PinsInAnotherOrder(unittest.TestCase):
-    """A box's pins are bound by name, in both formats (.s7dcl `pv := ...`, SimaticML a NameCon's Name), and TIA draws
-    them in the order of the instruction's interface, whatever the file's order. TIA writes them in another order
-    between two exports of one block (the CTU of zzBenTimers, the Deserialize of zzLadMove): no change."""
+    """TIA's export writes a box's pins in another order between two exports of a block nobody changed (the Deserialize
+    of zzLadMove, run row I004), and each pin is bound by its name (.s7dcl `pv := ...`, SimaticML a NameCon's Name): the
+    same pins in another order are no change."""
 
     def test_the_same_pins_in_another_order_are_the_same_box(self):
         (b,), (a,) = (parse_block(src(x, '', 'M')).networks for x in (BOX, BOX_OTHER_ORDER))
@@ -1237,6 +1237,16 @@ class PinsInAnotherOrder(unittest.TestCase):
     def test_the_network_is_not_listed(self):
         """Its lines are compared with the pins in one order too: not changed, nor in another order."""
         self.assertEqual([], compare_blocks(src(BOX, '', 'M'), src(BOX_OTHER_ORDER, '', 'M')).nets)
+
+    def test_lines_of_a_quoted_pin_in_another_order(self):
+        from TiaChangeReports.s7dcl import lad_lines
+        self.assertEqual(lad_lines('B(\n"iSq01/05" := #a,\nc => #b\n)'), lad_lines('B(\nc => #b,\n"iSq01/05" := #a\n)'))
+
+    def test_lines_of_a_box_inside_a_pin_keep_their_order(self):
+        """Only the pins of one box are sorted: a pin that opens another box ends them, nothing is sorted across it."""
+        from TiaChangeReports.s7dcl import lad_lines
+        self.assertNotEqual(lad_lines('Outer(\nin1 := #a,\npv := Add(\nin2 := #b\n)\n)'),
+                            lad_lines('Outer(\npv := Add(\nin1 := #a,\nin2 := #b\n)\n)'))
 
     def test_a_pin_fed_otherwise_is_still_told(self):
         d = _lad(BOX, BOX_OTHER_ORDER.replace('#speed', '#level'))

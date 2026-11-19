@@ -78,7 +78,7 @@ device's folder under it.
 | Text in another language | The report shows English, or the first available language for text without an English version. Changes to other translations are not shown; the block receives the note described below. |
 | Export fields the report does not read, such as an instruction's version, a block's memory reserve or its header author | Changes to these fields are not displayed; the block or network receives the note described below. |
 | The Setpoint setting of a library type's member | The export of a released type version omits this setting, so a change to it cannot be shown: against a version that writes it, the checkbox shows what that version writes and the block receives the note described below. With neither, the checkbox shows what TIA shows for a member without the setting (selected on a UDT or FB instance), which may differ from the setting in the project. For a block in the program, the setting appears in the Interface table. |
-| Export-only differences: export time, object numbers, language order, the order a box's pins are written in and automatically assigned block numbers | These differences do not represent project changes. |
+| Export-only differences: export time, object numbers, language order, the order a box's named pins are written in and automatically assigned block numbers | These differences do not represent project changes. |
 
 The window's **Not in the report** list names the blocks that were not compiled, are know-how protected or are F-system
 blocks. It also lists anything TIA failed to export or the report could not read.

@@ -452,11 +452,12 @@ class Element:
         return self.params[0][2] if self.params else ''
 
     def sig(self):
-        """The element as compared. A named pin is bound by its name in both formats (.s7dcl `pv := ...`, SimaticML a
-        NameCon's Name), and TIA draws a box's pins in the order of its interface, not the file's: named pins compare
-        in any order, which TIA's export varies. An unnamed operand is bound by its place and keeps it."""
+        """The element as compared. Its named pins in any order: TIA's export writes the pins of one box in another
+        order between two exports of a block nobody changed (SimaticML of zzLadMove's Deserialize, run row I004), so the
+        order is no part of the block; each pin is bound by its name (.s7dcl `pv := ...`, SimaticML a NameCon's Name).
+        An unnamed operand is bound by its place and keeps it."""
         ps = [(n or '', d or '', _norm(v)) for n, d, v in self.params]
-        ps = tuple([p for p in ps if not p[0]] + sorted((p for p in ps if p[0]), key=lambda p: (p[0].lower(), p)))
+        ps = tuple([p for p in ps if not p[0]] + sorted((p for p in ps if p[0]), key=lambda p: (pin_key(p[0]), p)))
         return (self.instr, self.instance or '', self.call or '', ps, tuple(sorted(self.templates.items())),
                 norm_expression(self.expression), self.no_eno)
 
@@ -482,6 +483,11 @@ def wire_of(v):
     """The wire feeding a parameter ('wire#w1', on a negated pin 'NOT wire#w1'), None when an operand or nothing does."""
     m = re.match(r'(?:NOT\s+)?wire#(.*)', v.strip(), re.I)
     return m.group(1).lower() if m else None
+
+
+def pin_key(name):
+    """Where a named pin sorts among its box's pins as compared (Element.sig, lad_lines): STEP 7 is not case-sensitive."""
+    return name.lower()
 
 
 def _norm(v):
@@ -701,20 +707,29 @@ def numbered(network):
     return re.sub(r'\bwire#(\w+)', lambda m: 'wire#%s' % wires.setdefault(m.group(1).lower(), len(wires)), network, flags=re.I)
 
 
-_NAMED_PIN = re.compile(r'(\w+)\s*(?::=|=>)')
+_NAMED_PIN = re.compile(r'("[^"]+"|[A-Za-z_]\w*)\s*(?::=|=>)')      # as _param_list reads a name
+
+
+def _pin_line_key(line):
+    return pin_key(_NAMED_PIN.match(line).group(1).strip('"')), line
 
 
 def _pins_in_one_order(lines):
-    """Each box's named pin lines in one order, as Element.sig compares them: TIA's export varies it."""
-    out, run = [], None
-    for line in lines + ['']:
-        if run is not None and _NAMED_PIN.match(line):
-            run.append(line)
+    """Each box's named pin lines in one order, as Element.sig compares them: the lines between a box's `(` and its `)`
+    when all of them are named pins. A pin line that opens another box ends them: nothing is sorted across boxes."""
+    out, k = [], 0
+    while k < len(lines):
+        out.append(lines[k])
+        k += 1
+        if not out[-1].endswith('('):
             continue
-        out += sorted(run or [], key=lambda x: (_NAMED_PIN.match(x).group(1).lower(), x))
-        run = [] if line.endswith('(') else None
-        out.append(line)
-    return out[:-1]
+        end = k
+        while end < len(lines) and _NAMED_PIN.match(lines[end]) and not lines[end].endswith('('):
+            end += 1
+        if end < len(lines) and lines[end].startswith(')'):
+            out += sorted(lines[k:end], key=_pin_line_key)
+            k = end
+    return out
 
 
 def lad_lines(body):
