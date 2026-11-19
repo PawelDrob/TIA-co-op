@@ -18,7 +18,7 @@
 #   comes back when TIA answers, as TIA handles it then
 # - TIA does not answer at the start and at the end: as at the start; nothing is left to do at the end
 # - the user brought it up during the export: left up; put down again: left down; either way the bridge does not touch
-#   it again, and the result says where it was first seen up
+#   it again, and the result says the user brought it up
 # - minimized before the call, or none or several windows that could be TIA's main window: left as it was
 
 if (-not ('TiaBridgeWindow' -as [type])) {
@@ -94,25 +94,23 @@ function Wait-WindowState([long]$Handle, [switch]$Back) {
 function Enter-ExportWindow([int]$Count) {
     $script:ExportWindow = $null
     if ($script:Bridge.background) { return }
-    # minimized: Windows reported it minimized for this export; touched: where the user was first seen to have it up
-    $s = @{ handle = [long]0; minimized = $false; touched = $null; note = $null }
+    # minimized: Windows reported it minimized for this export; touched: the user was seen to have it up since
+    $s = @{ handle = [long]0; minimized = $false; touched = $false; note = $null }
     $script:ExportWindow = $s
     $step = [TiaBridgeTimes]::Enter('window')
     try {
-        if ($script:Bridge.reportRun) { $s.note = 'Left as it was: a report run of the TIA dashboard does not minimize TIA''s window.' }
-        elseif ($script:Bridge.settings.minimizeTiaForExport -eq $false) { $s.note = 'Left as it was: minimizeTiaForExport is false in TiaBridge\settings.json.' }
-        elseif ($Count -ge 0 -and $Count -lt $script:ExportWindowFrom) {
-            $s.note = "Left as it was: $Count object(s) to export as .s7dcl; TIA's window is minimized from $script:ExportWindowFrom."
-        }
+        if ($script:Bridge.reportRun) { $s.note = 'TIA left as it was: report run of the TIA dashboard.' }
+        elseif ($script:Bridge.settings.minimizeTiaForExport -eq $false) { $s.note = 'TIA left as it was: minimizeTiaForExport is false.' }
+        elseif ($Count -ge 0 -and $Count -lt $script:ExportWindowFrom) { $s.note = "TIA left as it was: only $Count object(s) to export as .s7dcl." }
         else {
             $found = @(Get-TiaMainWindows ([int]$script:Bridge.processId))
             if ($found.Count -ne 1) {
-                $s.note = "Left as it was: TIA process $($script:Bridge.processId) has $($found.Count) windows that could be its main window (visible, without owner, with a minimize box), so the bridge cannot tell which."
+                $s.note = "TIA left as it was: $($found.Count) windows could be its main window."
             }
-            elseif (Test-WindowMinimized $found[0]) { $s.note = 'TIA''s window was minimized already: left so.' }
+            elseif (Test-WindowMinimized $found[0]) { $s.note = 'TIA was minimized already: left so.' }
             else {
                 $h = [long]$found[0]
-                $gone = 'Left as it was: TIA''s window is gone (TIA ended).'
+                $gone = 'TIA left as it was: its window is gone (TIA ended).'
                 $back = if (Test-WindowMaximized $h) { $script:SwShowMaximized } else { $script:SwRestore }
                 if (-not (Test-TiaWindow $h)) { $s.note = $gone }
                 else {
@@ -123,22 +121,22 @@ function Enter-ExportWindow([int]$Count) {
                     else {
                         # behind the minimize, so TIA handles both in that order whenever it answers: the window ends as it was
                         Send-WindowShow $h $back
-                        $s.note = "Left as it was: TIA did not minimize its window within $([int]($script:ExportWindowWaitMs / 1000)) s (busy, or not answering), so the bridge asked it at once to put the window back as it was; the export ran with the window showing."
+                        $s.note = 'TIA left as it was: it did not answer in time.'
                     }
                 }
             }
         }
     }
-    catch { $s.note = "Left as it was: $($_.Exception.Message)"; Write-BridgeLog "TIA's window: $($_.Exception.Message)" }
+    catch { $s.note = "TIA left as it was: $($_.Exception.Message)"; Write-BridgeLog "TIA's window: $($_.Exception.Message)" }
     finally { [TiaBridgeTimes]::Exit($step) }
 }
 
-# Where in the export it is (After: 'after part blocks', 'after block FB1'): notes the first place the window minimized for
-# it was seen up. From then on it is the user's: Exit-ExportWindow does not touch it.
-function Update-ExportWindowSeen([string]$After) {
+# After an object or a part of the export: notes whether the window minimized for it is up. From then on it is the
+# user's: Exit-ExportWindow does not touch it.
+function Update-ExportWindowSeen {
     $s = $script:ExportWindow
     if (-not $s -or -not $s.minimized -or $s.touched) { return }
-    try { if ((Test-TiaWindow $s.handle) -and -not (Test-WindowMinimized $s.handle)) { $s.touched = $After } }
+    try { if ((Test-TiaWindow $s.handle) -and -not (Test-WindowMinimized $s.handle)) { $s.touched = $true } }
     catch { Write-BridgeLog "TIA's window: $($_.Exception.Message)" }
 }
 
@@ -149,22 +147,21 @@ function Exit-ExportWindow {
     $script:ExportWindow = $null
     if (-not $State) { return $null }
     if (-not $State.minimized) { return $State.note }
-    $why = 'on one PC an .s7dcl export took about seven times as long with the window showing'
     $step = [TiaBridgeTimes]::Enter('window')
     try {
-        if (-not (Test-TiaWindow $State.handle)) { return "TIA's window was minimized for the export and is gone now (TIA ended): nothing to put back." }
-        if (-not $State.touched -and -not (Test-WindowMinimized $State.handle)) { $State.touched = 'at the end' }
+        if (-not (Test-TiaWindow $State.handle)) { return 'TIA ended during the export: nothing to restore.' }
+        if (-not (Test-WindowMinimized $State.handle)) { $State.touched = $true }
         if ($State.touched) {
-            $now = if (Test-WindowMinimized $State.handle) { 'minimized now, as the user left it' } else { 'up now' }
-            return "TIA's window was minimized for the export ($why) and brought back up during it (seen up $($State.touched)): from then on it was the user's, and the bridge did not touch it again. It is $now. The .s7dcl exports while it was up cost what they cost with the window showing."
+            if (Test-WindowMinimized $State.handle) { return 'TIA was minimized; the user brought it up during the export, and it is minimized again: left so.' }
+            return 'TIA was minimized; the user brought it up during the export: left up.'
         }
         Send-WindowShow $State.handle $script:SwRestore   # maximized again if it was, at its place
-        if (Wait-WindowState $State.handle -Back) { return "TIA's window was minimized for the export and restored after: $why." }
-        "TIA's window was minimized for the export ($why). The bridge asked TIA to restore it, and TIA had not within $([int]($script:ExportWindowWaitMs / 1000)) s (busy, or not answering): it comes back when TIA answers."
+        if (Wait-WindowState $State.handle -Back) { return 'TIA was minimized for the export and restored.' }
+        'TIA was minimized and is not answering: it comes back up when it answers.'
     }
     catch {
         Write-BridgeLog "TIA's window: $($_.Exception.Message)"
-        "TIA's window was minimized for the export and could not be put back ($($_.Exception.Message)): the user can bring it up from the taskbar."
+        "TIA was minimized and could not be restored ($($_.Exception.Message)): bring it up from the taskbar."
     }
     finally { [TiaBridgeTimes]::Exit($step) }
 }

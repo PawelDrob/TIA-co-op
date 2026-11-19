@@ -192,7 +192,7 @@ Describe 'full_export' {
         finally { $script:ExportWindowFrom = $from }
         ($script:win.during -join ',') | Should Be 'A True,B True,DB1 True'
         ($script:win.shows -join ',') | Should Be '6,9'
-        $r.window | Should Match '^TIA''s window was minimized for the export and restored after'
+        $r.window | Should Be 'TIA was minimized for the export and restored.'
         $r.times.once.steps.window.n | Should Be 2
     }
 
@@ -201,7 +201,7 @@ Describe 'full_export' {
         $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'dbs'); full = $true })
         ($script:win.during -join ',') | Should Be 'A False,B False,DB1 False'
         $script:win.shows.Count | Should Be 0
-        $r.window | Should Be 'Left as it was: 3 object(s) to export as .s7dcl; TIA''s window is minimized from 20.'
+        $r.window | Should Be 'TIA left as it was: only 3 object(s) to export as .s7dcl.'
     }
 
     It 'names the object after which the window minimized for the run was up again, and leaves it up' {
@@ -210,7 +210,7 @@ Describe 'full_export' {
         try { $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'hmi_screens'); full = $true }) }
         finally { $script:ExportWindowFrom = $from }
         ($script:win.shows -join ',') | Should Be '6'
-        $r.window | Should Match 'seen up after block B\): from then on it was the user''s, .* It is up now\.'
+        $r.window | Should Be 'TIA was minimized; the user brought it up during the export: left up.'
     }
 
     It 'puts TIA''s window back when the run fails' {
@@ -228,7 +228,7 @@ Describe 'full_export' {
             $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'block'; names = @('*') })
             ($script:win.shows -join ',') | Should Be '6,9'
             ($script:win.during -join ',') | Should Be 'A True,B True'
-            $r.window | Should Match 'restored after'
+            $r.window | Should Be 'TIA was minimized for the export and restored.'
             $script:win.shows.Clear()
             $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'block'; names = @('A') })
             $script:win.shows.Count | Should Be 0
@@ -246,7 +246,7 @@ Describe 'full_export' {
         finally { $script:ExportWindowFrom = $from }
         ($script:win.shows -join ',') | Should Be '6'
         $script:win.minimized | Should Be $true
-        $r.window | Should Match 'seen up after block A\): .* It is minimized now, as the user left it\.'
+        $r.window | Should Be 'TIA was minimized; the user brought it up during the export, and it is minimized again: left so.'
     }
 }
 

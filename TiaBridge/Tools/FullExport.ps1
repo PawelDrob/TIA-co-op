@@ -695,7 +695,7 @@ function Invoke-FullExportRun($a) {
         }
         $rec.ms = [int]$sw.ElapsedMilliseconds
         Exit-PartTimes $rec.ms
-        Update-ExportWindowSeen "after part $($p.name)$(if ($j.device) { "@$($j.device)" })"
+        Update-ExportWindowSeen
         $step = [TiaBridgeTimes]::Enter('progress')
         Write-BridgeLog "full_export $(Format-PartLine $rec)"
         $pp.state = $(if ($rec.listError -or $rec.stopped) { 'failed' } else { 'done' })
@@ -847,7 +847,7 @@ function Register-FullExportTool {
         'leftOut (what Openness cannot export, with the reason); the log has details, and times: where the time went, per part and step (tia_* are the calls into Openness), with the slowest objects of each part. Objects whose names give one file name are in failed: neither is exported, the files there stay and are not mirrored away; rename one in TIA. ' +
         'Devices whose names give one folder each get a folder with a mark (deviceFolders); a device holding two software items of one kind is refused and in failed: nothing of it is exported, its files stay. In a TIA with a window, boxes of the call with the icon Success or Information are acknowledged; every other box and every question stays with the user, who may have to close it; all notifications are listed with their icon (prompts). ' +
         "In a TIA with a window, a run with $script:ExportWindowFrom or more blocks, DBs and data types to export as .s7dcl minimizes TIA's main window once it has read what to export, and restores it after: on one PC an .s7dcl export took about seven times as long with the window showing. " +
-        'Before the call, tell the user that TIA''s window may go to the taskbar for the export and come back after, why, and that bringing it up during the export makes the rest slower; then tell them what window in the result says. Commit the repo afterwards.') -Schema @{
+        'Before the call, tell the user: "Full export minimizes TIA for performance." Pass on window in the result. Commit the repo afterwards.') -Schema @{
         type = 'object'
         properties = @{ parts = @{ type = 'array'; items = @{ type = 'string'; enum = @($script:FullExportParts | ForEach-Object { $_.name }) }
                                    description = 'only these parts; default all' }

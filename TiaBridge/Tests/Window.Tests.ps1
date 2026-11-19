@@ -43,7 +43,7 @@ function Invoke-WithoutWait([scriptblock]$Body) {
     try { & $Body } finally { $script:ExportWindowWaitMs = $wait }
 }
 
-$restored = 'TIA''s window was minimized for the export and restored after: on one PC an .s7dcl export took about seven times as long with the window showing.'
+$restored = 'TIA was minimized for the export and restored.'
 
 Describe 'the Windows calls' {
     It 'lists the windows of a process and finds none for a process without one' {
@@ -104,17 +104,17 @@ Describe 'TIA''s window after an export: TIA ended or did not answer' {
         $script:win.owner = 0
         $note = Exit-ExportWindow
         ($script:win.shows -join ',') | Should Be '6'
-        $note | Should Be 'TIA''s window was minimized for the export and is gone now (TIA ended): nothing to put back.'
+        $note | Should Be 'TIA ended during the export: nothing to restore.'
     }
 
     It 'TIA ended and Windows gave the handle to another program, whose window is minimized: it is not touched' {
         Initialize-WindowSession
         Enter-ExportWindow 100
         $script:win.owner = 999
-        Update-ExportWindowSeen 'after part blocks'
+        Update-ExportWindowSeen
         $note = Exit-ExportWindow
         ($script:win.shows -join ',') | Should Be '6'
-        $note | Should Match 'is gone now \(TIA ended\): nothing to put back'
+        $note | Should Be 'TIA ended during the export: nothing to restore.'
     }
 
     It 'TIA ended in the wait and Windows gave the handle to another program: no way back goes to it' {
@@ -123,7 +123,7 @@ Describe 'TIA''s window after an export: TIA ended or did not answer' {
         Mock Send-WindowShow { [void]$script:win.shows.Add($Command); if ($Command -eq 6) { $script:win.owner = 999 } }
         Invoke-WithoutWait { Enter-ExportWindow 100; $script:note = Exit-ExportWindow }
         ($script:win.shows -join ',') | Should Be '6'
-        $script:note | Should Be 'Left as it was: TIA''s window is gone (TIA ended).'
+        $script:note | Should Be 'TIA left as it was: its window is gone (TIA ended).'
     }
 
     It 'a handle that is no longer TIA''s when the bridge is about to minimize it: nothing is posted' {
@@ -131,7 +131,7 @@ Describe 'TIA''s window after an export: TIA ended or did not answer' {
         Mock Get-WindowProcessId { 999 }
         Enter-ExportWindow 100; $note = Exit-ExportWindow
         $script:win.shows.Count | Should Be 0
-        $note | Should Be 'Left as it was: TIA''s window is gone (TIA ended).'
+        $note | Should Be 'TIA left as it was: its window is gone (TIA ended).'
     }
 
     It 'TIA does not answer at the start: the way back is posted behind the minimize, and the window ends as it was (<state>)' -TestCases @(
@@ -140,9 +140,9 @@ Describe 'TIA''s window after an export: TIA ended or did not answer' {
         param($state, $back)
         Initialize-WindowSession -State $state
         $script:win.busy = $true
-        Invoke-WithoutWait { Enter-ExportWindow 100; Update-ExportWindowSeen 'after part blocks'; $script:note = Exit-ExportWindow }
+        Invoke-WithoutWait { Enter-ExportWindow 100; Update-ExportWindowSeen; $script:note = Exit-ExportWindow }
         ($script:win.shows -join ',') | Should Be "6,$back"
-        $script:note | Should Be 'Left as it was: TIA did not minimize its window within 0 s (busy, or not answering), so the bridge asked it at once to put the window back as it was; the export ran with the window showing.'
+        $script:note | Should Be 'TIA left as it was: it did not answer in time.'
         Invoke-FakeTiaAnswer
         $script:win.state | Should Be $state
     }
@@ -152,11 +152,11 @@ Describe 'TIA''s window after an export: TIA ended or did not answer' {
         $script:win.busy = $true
         Invoke-WithoutWait { Enter-ExportWindow 100 }
         Invoke-FakeTiaAnswer
-        Update-ExportWindowSeen 'after part blocks'
+        Update-ExportWindowSeen
         $note = Exit-ExportWindow
         $script:win.state | Should Be 'max'
         ($script:win.shows -join ',') | Should Be '6,3'
-        $note | Should Match '^Left as it was: TIA did not minimize its window'
+        $note | Should Be 'TIA left as it was: it did not answer in time.'
     }
 
     It 'TIA does not answer at the end: the restore is posted, the result says it comes when TIA answers, and it does' {
@@ -165,8 +165,7 @@ Describe 'TIA''s window after an export: TIA ended or did not answer' {
         $script:win.busy = $true
         $note = Invoke-WithoutWait { Exit-ExportWindow }
         $script:win.state | Should Be 'min'
-        $note | Should Be ('TIA''s window was minimized for the export (on one PC an .s7dcl export took about seven times as long with the window showing). ' +
-                           'The bridge asked TIA to restore it, and TIA had not within 0 s (busy, or not answering): it comes back when TIA answers.')
+        $note | Should Be 'TIA was minimized and is not answering: it comes back up when it answers.'
         Invoke-FakeTiaAnswer
         $script:win.state | Should Be 'max'
     }
@@ -176,50 +175,49 @@ Describe 'TIA''s window after an export: the user touched it' {
     It 'the user brought it up during the export: it is left up and is the user''s from then on' {
         Initialize-WindowSession
         Enter-ExportWindow 100
-        Update-ExportWindowSeen 'after block A'
+        Update-ExportWindowSeen
         Invoke-FakeShow 9
-        Update-ExportWindowSeen 'after block B'
-        Update-ExportWindowSeen 'after part blocks'
+        Update-ExportWindowSeen
+        Update-ExportWindowSeen
         $note = Exit-ExportWindow
         $script:win.state | Should Be 'normal'
         ($script:win.shows -join ',') | Should Be '6'
-        $note | Should Be ('TIA''s window was minimized for the export (on one PC an .s7dcl export took about seven times as long with the window showing) and brought back up during it ' +
-                           '(seen up after block B): from then on it was the user''s, and the bridge did not touch it again. It is up now. The .s7dcl exports while it was up cost what they cost with the window showing.')
+        $note | Should Be 'TIA was minimized; the user brought it up during the export: left up.'
     }
 
     It 'the user brought it up and put it down again: it stays down, the bridge does not restore it' {
         Initialize-WindowSession -State 'max'
         Enter-ExportWindow 100
         Invoke-FakeShow 9
-        Update-ExportWindowSeen 'after block A'
+        Update-ExportWindowSeen
         Invoke-FakeShow 6
-        Update-ExportWindowSeen 'after block B'
+        Update-ExportWindowSeen
         $note = Exit-ExportWindow
         $script:win.state | Should Be 'min'
         ($script:win.shows -join ',') | Should Be '6'
-        $note | Should Match '\(seen up after block A\): .* It is minimized now, as the user left it.'
+        $note | Should Be 'TIA was minimized; the user brought it up during the export, and it is minimized again: left so.'
     }
 
     It 'the user brought it up, put it down and up again: it stays up' {
         Initialize-WindowSession
         Enter-ExportWindow 100
-        Invoke-FakeShow 9; Update-ExportWindowSeen 'after block A'
-        Invoke-FakeShow 6; Update-ExportWindowSeen 'after block B'
-        Invoke-FakeShow 9; Update-ExportWindowSeen 'after block C'
+        Invoke-FakeShow 9; Update-ExportWindowSeen
+        Invoke-FakeShow 6; Update-ExportWindowSeen
+        Invoke-FakeShow 9; Update-ExportWindowSeen
         $note = Exit-ExportWindow
         $script:win.state | Should Be 'normal'
         ($script:win.shows -join ',') | Should Be '6'
-        $note | Should Match '\(seen up after block A\): .* It is up now\.'
+        $note | Should Be 'TIA was minimized; the user brought it up during the export: left up.'
     }
 
     It 'the user brought it up after the last look: it is left up, seen at the end' {
         Initialize-WindowSession
         Enter-ExportWindow 100
-        Update-ExportWindowSeen 'after block A'
+        Update-ExportWindowSeen
         Invoke-FakeShow 9
         $note = Exit-ExportWindow
         ($script:win.shows -join ',') | Should Be '6'
-        $note | Should Match '\(seen up at the end\): .* It is up now\.'
+        $note | Should Be 'TIA was minimized; the user brought it up during the export: left up.'
     }
 }
 
@@ -230,7 +228,7 @@ Describe 'TIA''s window after an export: left as it was' {
         $note = Exit-ExportWindow
         $script:win.state | Should Be 'min'
         $script:win.shows.Count | Should Be 0
-        $note | Should Be 'TIA''s window was minimized already: left so.'
+        $note | Should Be 'TIA was minimized already: left so.'
     }
 
     It 'does nothing in a background session, which has no window' {
@@ -243,11 +241,11 @@ Describe 'TIA''s window after an export: left as it was' {
     }
 
     It 'leaves the window as it is, and says why: <why>' -TestCases @(
-        @{ why = 'a report run'; count = 100; settings = @{}; reportRun = $true; windows = 1; says = 'a report run of the TIA dashboard' }
-        @{ why = 'the setting'; count = 100; settings = @{ minimizeTiaForExport = $false }; reportRun = $false; windows = 1; says = 'minimizeTiaForExport is false' }
-        @{ why = 'few .s7dcl exports'; count = 19; settings = @{}; reportRun = $false; windows = 1; says = '19 object\(s\) to export as \.s7dcl; TIA''s window is minimized from 20' }
-        @{ why = 'no main window'; count = 100; settings = @{}; reportRun = $false; windows = 0; says = 'has 0 windows that could be its main window' }
-        @{ why = 'two main windows'; count = 100; settings = @{}; reportRun = $false; windows = 2; says = 'has 2 windows that could be its main window' }
+        @{ why = 'a report run'; count = 100; settings = @{}; reportRun = $true; windows = 1; says = 'TIA left as it was: report run of the TIA dashboard.' }
+        @{ why = 'the setting'; count = 100; settings = @{ minimizeTiaForExport = $false }; reportRun = $false; windows = 1; says = 'TIA left as it was: minimizeTiaForExport is false.' }
+        @{ why = 'few .s7dcl exports'; count = 19; settings = @{}; reportRun = $false; windows = 1; says = 'TIA left as it was: only 19 object(s) to export as .s7dcl.' }
+        @{ why = 'no main window'; count = 100; settings = @{}; reportRun = $false; windows = 0; says = 'TIA left as it was: 0 windows could be its main window.' }
+        @{ why = 'two main windows'; count = 100; settings = @{}; reportRun = $false; windows = 2; says = 'TIA left as it was: 2 windows could be its main window.' }
     ) {
         param($why, $count, $settings, $reportRun, $windows, $says)
         Initialize-WindowSession $settings
@@ -257,17 +255,17 @@ Describe 'TIA''s window after an export: left as it was' {
         Enter-ExportWindow $count; $note = Exit-ExportWindow
         $script:win.shows.Count | Should Be 0
         $script:win.state | Should Be 'normal'
-        $note | Should Match "^Left as it was: .*$says"
+        $note | Should Be $says
     }
 
     It 'never stops the export: a window call that fails is said in the note' {
         Initialize-WindowSession
         Mock Get-TiaMainWindows { throw 'access denied' }
         { Enter-ExportWindow 100 } | Should Not Throw
-        Exit-ExportWindow | Should Be 'Left as it was: access denied'
+        Exit-ExportWindow | Should Be 'TIA left as it was: access denied'
         Initialize-WindowSession
         Enter-ExportWindow 100
         Mock Get-WindowProcessId { throw 'handle not valid' }
-        Exit-ExportWindow | Should Match 'could not be put back \(handle not valid\): the user can bring it up from the taskbar'
+        Exit-ExportWindow | Should Be 'TIA was minimized and could not be restored (handle not valid): bring it up from the taskbar.'
     }
 }

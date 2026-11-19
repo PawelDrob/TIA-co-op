@@ -307,7 +307,7 @@ function Write-ObjectProgress([string]$Kind, [int]$N, [int]$Of, $Item, [string]$
         if ($Skipped) { $p.skipped = $true }
         Write-BridgeProgress $p
         # TIA's window minimized for the export: whether the user has brought it up (Window.ps1)
-        Update-ExportWindowSeen "after $Kind $($Item.name)"
+        Update-ExportWindowSeen
     }
     finally { [TiaBridgeTimes]::Exit($step) }
 }
@@ -1028,7 +1028,7 @@ function Register-ObjectTools {
         'format: commit them with the export. Use xml for a type whose LAD/FBD has operands indexed in several dimensions (a[i, j]; the SD import keeps only the last index, ' +
         'the export''s note says so). options.released exports the default released version into <name>.released for comparison. faceplate_type: version metadata only, plus <type>.type.json (name, library folder, versions) for the HMI preview. ' +
         "In a TIA with a window, an export of $script:ExportWindowFrom or more block, db, type or library_type objects, format not xml, minimizes TIA's main window for the export and restores it after: on one PC an .s7dcl export took about seven times as long with the window showing. " +
-        'Before such an export, tell the user that TIA''s window will go to the taskbar for it and come back after, why, and that bringing it up during the export makes the rest slower; then tell them what window in the result says.') -Schema @{
+        'Before such an export, tell the user: "Export minimizes TIA for performance." Pass on window in the result.') -Schema @{
         type = 'object'; required = @('kind', 'names')
         properties = @{
             kind = @{ type = 'string'; enum = $kinds }

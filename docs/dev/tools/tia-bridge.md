@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T17:25:45-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:10:18-05:00 }
 ---
 
 # TiaBridge internals
@@ -208,7 +208,7 @@ One per project, under `projectsRoot`, made by `connect`:
 - **An export of many `.s7dcl` documents minimizes TIA's window** (`Window.ps1`), as an `ExportAsDocuments` call cost about seven times as much with it showing on one PC ([Export time with a window](../../agent/openness-v20.md)). `full_export` decides after the plan, from the blocks, DBs and data types it exports (`Get-S7dclExportCount`; without a plan, or for library types alone, it cannot tell, and minimizes; with no PLC it counts none). `export` decides from the objects it matched, of the kinds in `$script:ExportWindowKinds` (`block`, `db`, `type`, `library_type`) not as `xml`. From `$script:ExportWindowFrom` (20) of them, in a connect session, unless it is a report run or `minimizeTiaForExport` is false. Every other case leaves the window as it is, and the result's `window` says why (`full_export` always says; `export` only from 20).
   - The window is the one top-level window of the bound TIA process (`$script:Bridge.processId`) that is visible, has no owner and has a minimize box; none or several: left alone. One minimized already: left so, nothing put back.
   - It is minimized and restored by `ShowWindowAsync` (`SW_MINIMIZE`, `SW_RESTORE`), posted, so a TIA that does not answer never holds the bridge, and TIA handles them in the order posted, after the call too. The bridge waits up to 3 s for Windows to report it minimized; when it is not, the way back (`SW_RESTORE`, or `SW_SHOWMAXIMIZED` for a maximized window) is posted at once behind the minimize, so the window ends as it was whenever TIA answers, and the export runs with it showing. `SW_RESTORE` brings a window that was maximized back maximized, at its place. Before each change, the handle is checked to still belong to the bound TIA process (`Test-TiaWindow`): Windows gives a closed window's handle to others.
-  - It is put back in a `finally` (`Exit-ExportWindow`), after a failed export too, unless the user touched it: once seen up after an object or a part (`Update-ExportWindowSeen`, from `Write-ObjectProgress` and after each part of `full_export`) or at the end, it is the user's, up or put down again, and the result says where it was first seen up. A restore not done within 3 s is said to come when TIA answers. A window gone (TIA ended) is not put back. The head of `Window.ps1` lists every way a call leaves the window, and `Tests\Window.Tests.ps1` has a test for each.
+  - It is put back in a `finally` (`Exit-ExportWindow`), after a failed export too, unless the user touched it: once seen up after an object or a part (`Update-ExportWindowSeen`, from `Write-ObjectProgress` and after each part of `full_export`) or at the end, it is the user's, up or put down again, and the result says the user brought it up. A restore not done within 3 s is said to come when TIA answers. A window gone (TIA ended) is not put back. The head of `Window.ps1` lists every way a call leaves the window, and `Tests\Window.Tests.ps1` has a test for each.
 
 ## The reviewed change
 
