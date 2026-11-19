@@ -33,6 +33,15 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
     ENO, namespace) are compared as they are.
   - HMI objects, library types, system blocks, technology objects, watch and force tables and the project's settings
     are exported every time.
+  - In a TIA with a window the export does not block that window, so you can edit in TIA while it runs. It lists the
+    blocks, DBs, data types and tag tables of each PLC once, at its start, and goes by that list:
+    - an object deleted since: its export fails, and its files stay;
+    - an object added since: it is not exported;
+    - an object renamed since: it is exported under its old file name;
+    - an object edited since: its files may hold the edit or not.
+
+    The next export puts each right: it exports that PLC whole again, or the edited object. This was read from the
+    bridge's code, not tried in TIA.
   - Its log (`logs\<time>_full_export.json`, under `times`) says where the time went: per part and step, the calls into
     Openness (`tia_*`) apart from the bridge's own work, and the slowest objects of each part with the size of their
     files. The answer to the agent says only where the times are.
