@@ -62,7 +62,7 @@ def block_of(path):
 def _xml_db(src):
     """The SimaticML of a DB read as a global DB's: its members with their retain, and the start values it sets. The
     reader leaves both out of an instance DB and a DB of a UDT, which the .s7dcl does not repeat either."""
-    return parse_interface(ET.fromstring(src.xml.lstrip('﻿').encode('utf-8')), LANG, db=True)
+    return parse_interface(ET.fromstring(src.xml.lstrip('\ufeff').encode('utf-8')), LANG, db=True)
 
 
 def own_retain(blk, src, base):
@@ -133,12 +133,13 @@ def _type_html(name, itf, root, table):
             % (head, kind, table))
 
 
-def block_html(blk, src, rel, root=''):
+def block_html(blk, src, rel, root):
     """The block drawn: header, properties, interface, every network. The report's Collapse all and Expand all when
     something folds. An instance DB or a DB of a UDT with the members of its FB or UDT (from root), and a line saying
     from which file, or that they could not be read."""
     name, base = iface.db_type(blk)
-    itf = iface.html(blk, blk, whole=True, db_retain=base is not None and own_retain(blk, src, base))
+    db = None if name is None else base is not None and own_retain(blk, src, base)     # None: no DB of a type
+    itf = iface.html(blk, blk, whole=True, db=db)
     parts = ['<div class="bh"><b>%s</b>%s<span class="paths">%s</span>%s</div>'
              % (escape(heading(blk)), version_html(src.version, src.version), escape(rel),
                 FOLD_ALL if blk.networks or folds(itf) else ''),

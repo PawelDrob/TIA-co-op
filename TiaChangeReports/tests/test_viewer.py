@@ -438,6 +438,7 @@ PUMP_DB = '''{
 }
 DATA_BLOCK PumpDb : Pump
     start := TRUE;
+    gone := FALSE;
     speed := 9;
     cmd.down := 2;
     drive.time := 6;
@@ -476,6 +477,7 @@ PUMP_DB_XML = '''<?xml version="1.0" encoding="utf-8"?>
     <Member Name="other" Datatype="&quot;Valve&quot;" Remanence="NonRetain" />
     <Member Name="count" Datatype="DInt" Remanence="Retain" />
     <Member Name="kept" Datatype="Int" Remanence="Retain" />
+    <Member Name="gone" Datatype="Bool" Remanence="NonRetain"><StartValue>false</StartValue></Member>
   </Section>
 </Sections></Interface>
       <Name>PumpDb</Name>
@@ -516,7 +518,9 @@ class InstanceDb(unittest.TestCase):
         cells, order = self.cells(html)
         self.assertEqual([x for x in order if x[0] == 1], [
             (1, '', 'start'), (1, '', 'speed'), (1, '', 'running'), (1, '', 'pos'), (1, '', 'stat'), (1, '▼', 'cmd'),
-            (1, '▼', 'drive'), (1, '▼', 'other'), (1, '', 'count'), (1, '', 'kept')])     # no Temp, no Constant
+            (1, '▼', 'drive'), (1, '▼', 'other'), (1, '', 'count'), (1, '', 'kept'),     # no Temp, no Constant
+            (1, '', 'gone')])                                           # a start value of a member the FB lacks
+        self.assertIn('<td>false</td>', cells['gone'])                 # no type, its Bool read one way
         self.assertEqual(re.findall(r'data-d="0"><span class="tw">▼</span>(\w+)', html),
                          ['Input', 'Output', 'InOut', 'Static'])
         self.assertIn('<td>9</td>', cells['speed'])                                    # the DB's own: black
@@ -564,9 +568,35 @@ class InstanceDb(unittest.TestCase):
         self.assertEqual(self.cells(html)[1], [(1, '', 'speed')])         # only what the DB says, below the line
         self.assertLess(html.index('could not be read'), html.index('<table class="itf"'))
 
+    def test_a_db_whose_fb_is_not_in_the_project_gives_one_table_from_both_formats(self):
+        xml = PUMP_DB_XML.split('<Interface>')[0].replace('>Pump<', '>Gone<') + (
+            '<Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">'
+            '<Section Name="Input"><Member Name="on" Datatype="Bool" Remanence="NonRetain">'
+            '<StartValue>true</StartValue></Member>'
+            '<Member Name="speed" Datatype="Int" Remanence="NonRetain"><StartValue>1</StartValue></Member>'
+            '</Section></Sections></Interface><Name>LostDb</Name><Number>5</Number>'
+            '<ProgrammingLanguage>DB</ProgrammingLanguage></AttributeList></SW.Blocks.InstanceDB></Document>')
+        _write(self.dir, {'blocks/LostDb.s7dcl': 'DATA_BLOCK LostDb : Gone\n    on := TRUE;\n    speed := 1;\n'
+                                                 'END_DATA_BLOCK\n', 'blocks/LostDb.xml': xml})
+        tables = [re.search(r'<div class="of none">.*?</table>', self.page('blocks/LostDb.' + x), re.S).group(0)
+                  for x in ('s7dcl', 'xml')]
+        self.assertEqual(tables[0], tables[1])
+        self.assertIn('<td>true</td>', tables[0])                  # a row of no type: its Bool read one way
+
+    def test_an_fbs_page_and_a_global_dbs_keep_the_files_spelling(self):
+        _write(self.dir, {'blocks/Flags.s7dcl': 'FUNCTION_BLOCK "Flags"\n    VAR\n        on : Bool := TRUE;\n'
+                                                '    END_VAR\n    VAR CONSTANT\n        C1 : Bool := TRUE;\n'
+                                                '    END_VAR\nEND_FUNCTION_BLOCK\n',
+                          'blocks/Global.s7dcl': 'DATA_BLOCK "Global"\n    VAR\n        on : Bool;\n    END_VAR\n'
+                                                 '    on := TRUE;\nEND_DATA_BLOCK\n'})
+        for name, count in (('Flags', 2), ('Global', 1)):
+            html = self.page('blocks/%s.s7dcl' % name)
+            self.assertEqual(len(re.findall(r'<td>TRUE</td>', html)), count, name)
+            self.assertNotIn('<td>true</td>', html)
+
     def test_a_name_that_finds_an_fc_is_no_type_of_a_db(self):
-        _write(self.dir, {'blocks/Fc1.s7dcl': 'FUNCTION "Fc1" : Void\n    VAR_INPUT\n        a : Int := 3;\n    END_VAR\n'
-                                              'END_FUNCTION\n',
+        _write(self.dir, {'blocks/Fc1.s7dcl': 'FUNCTION "Fc1" : Void\n    VAR_INPUT\n        a : Int := 3;\n'
+                                              '    END_VAR\nEND_FUNCTION\n',
                           'blocks/FcDb.s7dcl': 'DATA_BLOCK FcDb : Fc1\n    speed := 1;\nEND_DATA_BLOCK\n'})
         html = self.page('blocks/FcDb.s7dcl')
         self.assertIn('Instance of Fc1: its members could not be read, the project holds no FB or UDT of that name.',
@@ -604,8 +634,8 @@ class InstanceDb(unittest.TestCase):
                                     'DATA_BLOCK ProbeDb : Probe\n    up := TRUE;\n    down := 7;\nEND_DATA_BLOCK\n',
             'blocks/ProbeDb.xml': PUMP_DB_XML.split('<Interface>')[0].replace('Pump', 'Probe').replace('>FB<', '>UDT<')
             + '<Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">'
-              '<Section Name="Static"><Member Name="up" Datatype="Bool" Remanence="Retain"><StartValue>true</StartValue>'
-              '</Member>'
+              '<Section Name="Static"><Member Name="up" Datatype="Bool" Remanence="Retain">'
+              '<StartValue>true</StartValue></Member>'
               '<Member Name="down" Datatype="Int" Remanence="Retain"><StartValue>7</StartValue></Member></Section>'
               '</Sections></Interface><Name>ProbeDb</Name><Number>4</Number>'
               '<ProgrammingLanguage>DB</ProgrammingLanguage></AttributeList></SW.Blocks.InstanceDB></Document>'})
@@ -619,8 +649,8 @@ class InstanceDb(unittest.TestCase):
         from TiaChangeReports import iface
         blk, _, _, _ = view.block_of(os.path.join(self.dir, 'blocks', 'PumpDb.s7dcl'))
         self.assertEqual([r.path for r in iface.block_rows(blk, blk)],
-                         [('start',), ('speed',), ('cmd',), ('cmd', 'up'), ('cmd', 'down'), ('drive',), ('drive', 'open'),
-                          ('drive', 'time'), ('drive', 'seal'), ('drive', 'tmp')])
+                         [('start',), ('gone',), ('speed',), ('cmd',), ('cmd', 'up'), ('cmd', 'down'), ('drive',),
+                          ('drive', 'open'), ('drive', 'time'), ('drive', 'seal'), ('drive', 'tmp')])
 
 
 if __name__ == '__main__':

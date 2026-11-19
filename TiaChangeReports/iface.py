@@ -204,12 +204,13 @@ def _elements(node, types):
         _elements(m, types)
 
 
-def _tree(itf, types=None, base=None, unfold=False, db_retain=False):
+def _tree(itf, types=None, base=None, unfold=False, db=None):
     """The member tree with the DB start values in it (a copy; the parsed interface stays as it is); unfold, every
-    member of a UDT type opened (_unfold), and every member of a DB's own type listed (_instance)."""
+    member of a UDT type opened (_unfold); db (not None: a DB of an FB or UDT, the retain it sets itself), every
+    member of its type listed (_instance) and its Bool values spelled one way (_bools)."""
     root = copy.deepcopy(itf.root)
-    if unfold and base is not None:
-        _instance(root, base, types, db_retain)
+    if unfold and base is not None and db is not None:
+        _instance(root, base, types, db)
     _elements(root, types)
     for key, (value, comment) in itf.start.items():
         node = root
@@ -229,16 +230,18 @@ def _tree(itf, types=None, base=None, unfold=False, db_retain=False):
         _fill(m, types, unfold)
         if unfold:
             _unfold(m, types, opened, base is not None)
-    if unfold:
+    if unfold and db is not None:
         _bools(root)
     return root
 
 
 def _bools(node):
-    """The viewer's: a Bool value as TIA's editor writes it, true or false, however the file spells it (the .s7dcl
-    TRUE, SimaticML true), so that both formats of one block give one table."""
+    """The viewer's, on a DB of an FB or UDT: a Bool value written true or false, however the file spells it (the
+    .s7dcl TRUE, SimaticML true), so that both formats of one DB give one table; also on a row of no type (its FB not
+    found, or a member the FB no longer has), where only a Bool's value reads so. Other pages keep the file's
+    spelling."""
     for m in node.children.values():
-        if (m.type or '').strip().lower() == 'bool':
+        if (m.type or '').strip().lower() in ('bool', ''):
             for f in ('value', 'dflt'):
                 v = getattr(m, f, None)
                 if v and v.lower() in ('true', 'false'):
@@ -507,13 +510,13 @@ def _moves(fb, fa, to_a):
     return out
 
 
-def rows(bitf, aitf, types=(None, None), bases=(None, None), unfold=False, db_retain=False):
+def rows(bitf, aitf, types=(None, None), bases=(None, None), unfold=False, db=None):
     """types: (before, after) name -> Interface of a UDT (compare.Callees); bases: the interface of a DB's own
     type (a DB of a UDT, an instance DB); both for the members that only DB start values name. unfold: every member
-    of a UDT type opened onto the UDT's members, and every member of a DB's own type listed, db_retain the retain of
-    those the DB decides itself (the viewer; the report opens only what start values name)."""
-    tb = _tree(bitf, types[0], bases[0], unfold, db_retain) if bitf else None
-    ta = _tree(aitf, types[1], bases[1], unfold, db_retain) if aitf else None
+    of a UDT type opened onto the UDT's members, and with db (a DB of an FB or UDT, the retain it sets itself) every
+    member of its type listed (the viewer; the report opens only what start values name)."""
+    tb = _tree(bitf, types[0], bases[0], unfold, db) if bitf else None
+    ta = _tree(aitf, types[1], bases[1], unfold, db) if aitf else None
     if tb is not None and ta is not None:
         _complete(tb, ta, types, bases)
     fb = _flat(tb) if tb is not None else []
@@ -590,10 +593,10 @@ def _returns(blk):
     return out
 
 
-def block_rows(bblock, ablock, unfold=False, db_retain=False):
+def block_rows(bblock, ablock, unfold=False, db=None):
     bs = (bblock, ablock)
     return rows(*(_returns(b) if b else None for b in bs), types=tuple(getattr(b, 'callees', None) for b in bs),
-                bases=tuple(db_type(b)[1] if unfold else _base(b) for b in bs), unfold=unfold, db_retain=db_retain)
+                bases=tuple(db_type(b)[1] if unfold else _base(b) for b in bs), unfold=unfold, db=db)
 
 
 def props_rows(bprops, aprops):
@@ -802,12 +805,12 @@ def declaration_html(before, after):
             % _both(escape(before), escape(after)))
 
 
-def html(bblock, ablock, whole=False, db_retain=False):
+def html(bblock, ablock, whole=False, db=None):
     """The interface as TIA's editor shows it: the changed members with their parents, the unchanged ones folded;
     whole, every member open, every member of a UDT type opened onto the UDT's members, from its file, and a DB of an
-    FB or UDT with every member of it (db_retain: the retain the DB sets itself); an arrow only where something opens
-    (the viewer's one block, compared with itself)."""
-    rs = block_rows(bblock, ablock, unfold=whole, db_retain=db_retain)
+    FB or UDT (db not None: the retain the DB sets itself) with every member of it; an arrow only where something
+    opens (the viewer's one block, compared with itself)."""
+    rs = block_rows(bblock, ablock, unfold=whole, db=db)
     blk = ablock or bblock
     kind = blk.kind if blk else ''
     vhead, has_retain, has_attrs = _columns(kind)
