@@ -9064,8 +9064,8 @@ END_FUNCTION_BLOCK
 
 
 class BlockCallPinRenamedInCase(unittest.TestCase):
-    """A user renames a pin of a block in case only: both formats write the call's pin as the block declares it, so the
-    call shows the change (Pawel, 2026-11-19: "the name on pin should be marked as changed in the caller")."""
+    """A user may rename a pin of a block in case only, and the call shows it: both formats write the call's pin as the
+    block declares it."""
 
     PATH = NegatedPins.PATH
     d, net, op = NegatedPins.d, NegatedPins.net, staticmethod(NegatedPins.op)

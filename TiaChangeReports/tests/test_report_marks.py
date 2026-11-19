@@ -102,9 +102,8 @@ def where(lay, el):
 
 
 class PinRenamedInCase(unittest.TestCase):
-    """A block call's pin a user renamed in case only is marked at the call, on its name (Pawel, 2026-11-19: "the name on
-    pin should be marked as changed in the caller"); an instruction's pin the two formats write in another case is no
-    change."""
+    """A user may rename a pin of a block in case only, and the call shows it: the pin is marked at the call, on its
+    name. An instruction's pin the two formats write in another case is no change."""
 
     def marks(self, before, after, instr):
         p, lb, la = pair(before, after)

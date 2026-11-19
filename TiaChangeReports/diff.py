@@ -181,17 +181,21 @@ def more_differs(x, y):
     return any(x.more[k] != y.more[k] for k in x.more if k in y.more)
 
 
+def compared_params(e):
+    """{key: (pin name as compared, direction, operand)} of an element's parameters, what makes one differ: a named pin
+    under its pin_key, its name as Element.pin_as_compared (a block call's pin renamed in case differs), '#k' for the
+    k-th unnamed one. Wire names do not count."""
+    return {(pin_key(n) if n else '#%d' % k): (e.pin_as_compared(n), d or '', _norm(v))
+            for k, (n, d, v) in enumerate(e.params)}
+
+
 def changed_params(x, y):
-    """What differs between two paired elements: pin names (pin_key; a block call's pin renamed in case differs, as
-    Element.pin_as_compared), '#k' for the k-th unnamed parameter (the
-    operand of a contact or coil), 'templates' when their templates differ (the relation of a Switch case: that
+    """What differs between two paired elements: their parameters by key (compared_params: pin names in lower case,
+    '#k' for the k-th unnamed parameter, the operand of a contact or coil), 'templates' when their templates differ (the relation of a Switch case: that
     case's pin, 'case1'), 'expression' (Calculate), 'eno' (ENO generated or not), '#call' (the called block: a pin
     cannot be named so), '#instr' (another instruction: the relation of a compare, the kind of a contact or coil).
     Wire names do not count."""
-    def keyed(e):
-        return {(pin_key(n) if n else '#%d' % k): (e.pin_as_compared(n), d or '', _norm(v))
-                for k, (n, d, v) in enumerate(e.params)}
-    kx, ky = keyed(x), keyed(y)
+    kx, ky = compared_params(x), compared_params(y)
     out = {k for k in list(kx) + list(ky) if kx.get(k) != ky.get(k)}
     for t in set(x.templates) | set(y.templates):
         if x.templates.get(t) != y.templates.get(t):

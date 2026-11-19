@@ -38,8 +38,8 @@ import re
 from html import escape
 
 from . import instructions
-from .diff import Graph, RAIL, SINK, changed_params
-from .s7dcl import CMP, Rung, _norm, _segments, pin_key, type_name, wire_of
+from .diff import Graph, RAIL, SINK, changed_params, compared_params
+from .s7dcl import CMP, Rung, _segments, type_name, wire_of
 
 FONT = 11
 LINE = 13
@@ -286,9 +286,7 @@ def _pin_names(el):
 def _renamed_pins(el, other):
     """{pin: its operand alike}: the pins of a block call the other version names in another case (Element.
     pin_as_compared). The name is a change, marked on the pin; its operand only where that changed too."""
-    def pins(e):
-        return {pin_key(n): (e.pin_as_compared(n), d or '', _norm(v)) for n, d, v in e.params if n}
-    a, b = pins(el), pins(other)
+    a, b = compared_params(el), compared_params(other)
     return {k: a[k][1:] == b[k][1:] for k in a.keys() & b.keys() if a[k][0] != b[k][0]}
 
 
