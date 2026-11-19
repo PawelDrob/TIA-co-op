@@ -4,7 +4,7 @@ title: Testing
 description: What each test suite covers and what it fakes, what the commit hook runs across tools, and what only a real TIA can show.
 tags: [dev, testing]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-18T11:16:36-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T09:22:24-05:00 }
 ---
 
 # Testing
@@ -40,6 +40,8 @@ No suite the hook runs needs TIA, a window or a person, so anyone can run them a
 ## By hand
 
 **The Archive Compare window check** opens real windows, so it stays out of the hook. [Its README](../../TiaArchiveCompare/window/README.md) says how to run it.
+
+**The setup window check** (`tools\setup\tests\check_window.py`) opens the window, so it stays out of the hook. It runs on a desktop of its own and may run on a PC in use: a fresh clone in a temp folder with a temp home, the first and second double-click on `Setup.wsf`, every button pressed, pictures of every page, and a watch for console windows. [The window's README](../../tools/setup/window/README.md) has the command.
 
 **The check of the dashboards' icons** (`tools\dashboard\tests\tray_check.py`) shows real icons and moves the mouse, so it runs on a PC nobody is using. With `--hidden` it runs only its part on a desktop of its own, which shows nothing and may run on a PC in use: each dashboard where no taskbar is, and its end on Ctrl+C under `python.exe`. Its head says what each run covers.
 

@@ -6,7 +6,8 @@ A fresh clone of this tree (with its changes not yet committed) in a temp folder
 local app data, fake claude on the PATH: the first double-click (wscript.exe Setup.wsf) makes the .venv with uv sync and
 opens page 1; the window pictures every page, presses every button that changes something (the viewer under a test key,
 the dashboards on free ports: the development dashboard's port held by another program, the TIA dashboard started for
-real from the temp clone) and finishes. The second double-click must open the settings. All the while it watches the
+real from the temp clone) and finishes. The second double-click must open the settings; a third, with no claude on the
+PATH, pictures what a PC without Claude Code sees. All the while it watches the
 hidden desktop for console windows: the first run's uv sync may have one, the second run none. Pictures and done.txt of
 each run go to <folder>\\first and <folder>\\second. It starts no TIA, writes nothing of the real user's, and ends the
 dashboard it started by its Windows process number.
@@ -208,6 +209,12 @@ def main(argv=None):
             report.append(f'.venv made: {(clone / ".venv" / "Scripts" / "pythonw.exe").exists()}')
             consoles = run(desktop, clone, env, out / 'second', options, report)
             report.append('no console on the second double-click' if not consoles else 'FAILED: a console on the second double-click')
+            # claude's installer puts it beside uv's, which the .venv no longer needs
+            away = (str(temp / 'fakes'), str(Path(shutil.which('uv')).parent))
+            without_claude = dict(env, PATH=os.pathsep.join(p for p in env['PATH'].split(os.pathsep) if p not in away))
+            if shutil.which('claude', path=without_claude['PATH']):
+                raise SystemExit(f'claude is still on the PATH of the run without it: {without_claude["PATH"]}')
+            run(desktop, clone, without_claude, out / 'without-claude', [*options, '--page', '1'], report)
         finally:
             holder.kill()
             pid = dash.listener(tia).split('process ')[-1].rstrip(')')

@@ -4,10 +4,8 @@ The window a person double-clicks `Setup.wsf` for (for users: [Setup](../../../d
 tkinter and ttk from the clone's `.venv`, as the [Archive Compare window](../../../TiaArchiveCompare/window/README.md): no
 new dependency and no build step.
 
-It has no rule of its own about what is set up. Every check and change is a step of `tools\setup\setup.py`: a step
-returns findings, and a finding of kind `change` says what it would change and where, and makes it only when its `make()`
-is called. `setup.ps1` calls it at once and prints the same lines as before; the window calls it when its button is
-pressed. The block viewer goes through `TiaChangeReports\viewer\register.py`, the dashboards through their `/api/about`.
+It has no rule of its own about what is set up: every check and change is a step of `tools\setup\setup.py`, which
+`setup.ps1` runs too ([First setup internals](../../../docs/dev/tools/setup.md)).
 
 - Start: `Setup.wsf` at the clone's top runs `.venv\Scripts\pythonw.exe -X utf8 -m tools.setup.window` in the clone, after
   `uv sync` when there is no `.venv` yet; its arguments go to the window. From a terminal, in the clone:

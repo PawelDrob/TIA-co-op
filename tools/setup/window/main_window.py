@@ -308,6 +308,5 @@ class SetupWindow(tk.Tk):
     def _render_worktree(self, look):
         self.heading.configure(text='A worktree')
         self.where.configure(text=self.clone)
-        self.intro.configure(text=self.setup.worktree_refusal(look.worktree_of)[0].upper() + self.setup.worktree_refusal(look.worktree_of)[1:]
-                             + ' Double-click Setup in the main tree for its settings.')
+        self.intro.configure(text=model.sentence(self.setup.worktree_refusal(look.worktree_of)) + ' Double-click Setup in the main tree for its settings.')
         ttk.Button(self.bottom, text='Close', command=self.destroy).pack(side='right')

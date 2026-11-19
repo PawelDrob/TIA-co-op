@@ -30,7 +30,7 @@ from pathlib import Path
 import board
 import live
 import tray
-from review_page import page_round, stem_of
+from review_page import PORT, page_round, stem_of
 
 SCRATCH = board.default_scratch()
 ROOT = SCRATCH / 'reviews'
@@ -438,7 +438,7 @@ def doc_page(rel):
 def main():
     global SCRATCH, ROOT, ANSWERS
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--port', type=int, default=8770)
+    ap.add_argument('--port', type=int, default=PORT)
     ap.add_argument('--root', type=Path, default=SCRATCH, help='the .scratch folder to read')
     a = ap.parse_args()
     SCRATCH = a.root.resolve()

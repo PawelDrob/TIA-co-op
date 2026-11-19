@@ -124,11 +124,15 @@ class Commands(unittest.TestCase):
     def test_each_says_at_its_about_page_what_the_window_looks_for(self):
         sys.path.insert(0, str(REPO / 'tools' / 'dashboard'))
         self.addCleanup(sys.path.remove, str(REPO / 'tools' / 'dashboard'))
+        import importlib
         import live
+        import review_page
         import review_server
         from TiaAgentStatus import dashboard
+        status_main = importlib.import_module('TiaAgentStatus.__main__')
         development, tia = dash.dashboards()
         self.assertEqual((live.ABOUT, review_server.APP, dashboard.APP), (dash.ABOUT, development.app, tia.app))
+        self.assertEqual((review_page.PORT, status_main.DASHBOARD_PORT), (development.port, tia.port))
         self.assertIn(review_server.TITLE, development.headings)
         self.assertIn(dashboard.TITLE, tia.headings)
 

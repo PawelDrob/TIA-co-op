@@ -49,7 +49,7 @@ powershell -NoProfile -File TiaBridge\Tests\parse.ps1
 
 **Scripts stay ASCII.** Windows PowerShell 5.1 reads a file with no BOM as ANSI, so `parse.ps1` refuses anything else.
 
-**The archive compare window's check runs by hand,** so the hook leaves it out: it opens windows on the desktop, some of them visible, takes the keyboard focus and overwrites the clipboard. [Its README](TiaArchiveCompare/window/README.md) has the command. On a PC in use, run it only on a hidden desktop: make one with the Windows call `CreateDesktop` and start the check with that desktop's name in `lpDesktop` of `STARTUPINFO`. A hidden desktop shares the clipboard, so keep nothing you need on it.
+**The archive compare window's check runs by hand,** so the hook leaves it out: it opens windows on the desktop, some of them visible, takes the keyboard focus and overwrites the clipboard. [Its README](TiaArchiveCompare/window/README.md) has the command. On a PC in use, run it only on a hidden desktop: make one with the Windows call `CreateDesktop` and start the check with that desktop's name in `lpDesktop` of `STARTUPINFO`. A hidden desktop shares the clipboard, so keep nothing you need on it. The setup window's check runs by hand too, as it opens the window; it makes a desktop of its own, so it may run on a PC in use: `<py> tools\setup\tests\check_window.py --out <folder>` ([its README](tools/setup/window/README.md)).
 
 ## The download of TIA Archive Compare
 

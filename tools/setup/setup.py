@@ -54,10 +54,11 @@ class Finding:
     """One thing a step found. kind: ok, done, warning, missing, note (a line under the one before it), question, or
     change: a change not made yet, its text saying what it changes and where; make() makes it, from what is there then,
     and gives the findings of that. A step looks only, and changes nothing until make() is called: setup calls it at
-    once, the window when the person says so."""
+    once, the window when the person says so. shown: what the window shows in place of text, where the line printed
+    here speaks of the command or only names its topic; '' to show text."""
 
-    def __init__(self, kind, text, topic, make=None, person_step=None):
-        self.kind, self.text, self.topic, self.make, self.person_step = kind, text, topic, make, person_step
+    def __init__(self, kind, text, topic, make=None, person_step=None, shown=''):
+        self.kind, self.text, self.topic, self.make, self.person_step, self.shown = kind, text, topic, make, person_step, shown
 
     def __repr__(self):
         return f'Finding({self.kind!r}, {self.text!r}, {self.topic!r})'
@@ -237,13 +238,13 @@ def uv_path():
 
 def uv_step():
     if uv_path():
-        return [Finding('ok', 'uv', TOPIC_UV)]
+        return [Finding('ok', 'uv', TOPIC_UV, shown='Found.')]
     return [Finding('missing', 'uv, which makes the Python environment of this repo: install it (https://docs.astral.sh/uv/)', TOPIC_UV)]
 
 
 def git_step():
     if shutil.which('git'):
-        return [Finding('ok', 'git', TOPIC_GIT)]
+        return [Finding('ok', 'git', TOPIC_GIT, shown='On the PATH.')]
     return [Finding('missing', 'git: install it (https://git-scm.com/downloads/win), then run this again in a new terminal', TOPIC_GIT)]
 
 
@@ -301,7 +302,7 @@ def server_step(claude, write=False):
     if not user:
         return server_change(claude, 'user', 'for your Windows user', write, 'MCP server tia registered, user scope')
     if is_this_clone(user):
-        return [Finding('ok', 'MCP server tia', TOPIC_SERVER)]
+        return [Finding('ok', 'MCP server tia', TOPIC_SERVER, shown='Registered for your Windows user: it starts the bridge of this clone.')]
     other = script_of(user) or 'another command'
     elsewhere = f'in other folders tia stays {other}. To make this clone the one for all: claude mcp remove --scope user tia, then run this again'
     projects = state.get('projects') or {}
@@ -333,7 +334,7 @@ def plugin_step(claude, write=False):
     """Looking asks claude plugin list; the change does not ask again, and installing an installed plugin is no harm."""
     if not write:
         if plugin_installed(claude):
-            return [Finding('ok', f'plugin {PLUGIN}', TOPIC_PLUGIN)]
+            return [Finding('ok', f'plugin {PLUGIN}', TOPIC_PLUGIN, shown=f'{PLUGIN}, installed for your Windows user.')]
         commands = ' and '.join(subprocess.list2cmdline(['claude', *command]) for _, command in PLUGIN_COMMANDS)
         return [Finding('change', f'plugin {PLUGIN}: installs it for your Windows user: {commands}', TOPIC_PLUGIN, lambda: plugin_step(claude, write=True))]
     for what, command in PLUGIN_COMMANDS:
@@ -488,9 +489,10 @@ def projects_root_step(answer=None, write=False):
     except ValueError as e:
         return [Finding('missing', f'projectsRoot: {e}', TOPIC_ROOT)]
     if not root:
-        return [Finding('question', (f'{BRIDGE_SETTINGS} holds {no_folder} as projectsRoot, which names no folder. ' if no_folder else '')
-                        + f'Where should the project repos live? The default is {default_projects_root()}. '
-                        'Ask the user, then run this again with --projects-root "<path>", the default too.', TOPIC_ROOT)]
+        question = ((f'{BRIDGE_SETTINGS} holds {no_folder} as projectsRoot, which names no folder. ' if no_folder else '')
+                    + f'Where should the project repos live? The default is {default_projects_root()}.')
+        return [Finding('question', question + ' Ask the user, then run this again with --projects-root "<path>", the default too.', TOPIC_ROOT,
+                        shown='Not set yet. ' + question)]
     changed = not (stored and same_path(stored, root))
     if not changed:
         root = normal_root(stored)
@@ -513,7 +515,7 @@ def projects_root_step(answer=None, write=False):
     except OSError as e:
         return [Finding('missing', f'projectsRoot: writing failed: {e}', TOPIC_ROOT)]
     if not changed:
-        found = [Finding('ok', f'projectsRoot {stored}. To change it: --projects-root "<path>"', TOPIC_ROOT)]
+        found = [Finding('ok', f'projectsRoot {stored}. To change it: --projects-root "<path>"', TOPIC_ROOT, shown=stored)]
     elif stored:
         found = [Finding('done', f'projectsRoot changed from {stored} to {root}. No repo moved: those in the old folder stay there. A bridge already running keeps the old value until it restarts. Another clone on the old folder loses these rules, as they are per user: run setup in it to bring them back', TOPIC_ROOT)]
     else:
@@ -557,7 +559,7 @@ def claude_step():
     """Claude Code itself: on the PATH or not. Without it setup prints no line, as it is no failure, and says so in the list for a person."""
     claude = shutil.which('claude')
     if claude:
-        return [Finding('ok', 'Claude Code', TOPIC_CLAUDE)]
+        return [Finding('ok', 'Claude Code', TOPIC_CLAUDE, shown='On the PATH.')]
     return [Finding('warning', 'Claude Code: not on the PATH, so no MCP server tia and no plugin are registered. It is what this repo was tested with, '
                     'not a requirement: install it (https://code.claude.com/docs) to work with agents here', TOPIC_CLAUDE)]
 

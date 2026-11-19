@@ -44,11 +44,10 @@ class Pages(unittest.TestCase):
         self.assertIn('.claude.json', server.text)
         self.assertEqual([(a.label, a.kind, a.finding) for a in server.actions], [('Register', 'make', change)])
 
-    def test_the_question_of_the_projects_folder_is_not_set_yet_and_leaves_out_the_command(self):
-        rows = model.page_rows(look(Finding('question', 'Where should the project repos live? The default is X. Ask the user, then run this again', 'projectsRoot')), 'bridge')
+    def test_a_finding_shows_what_setup_gives_the_window_in_place_of_its_line(self):
+        rows = model.page_rows(look(Finding('question', 'Where? Ask the user, then run this again', 'projectsRoot', shown='Not set yet. Where?')), 'bridge')
         folder = row(rows, 'projectsRoot')
-        self.assertEqual(folder.state, 'todo')
-        self.assertEqual(folder.text, 'Not set yet. Where should the project repos live? The default is X.')
+        self.assertEqual((folder.state, folder.text), ('todo', 'Not set yet. Where?'))
 
     def test_without_claude_code_its_rows_say_so_and_lead_to_the_first_page(self):
         lk = look(claude='')
@@ -72,21 +71,23 @@ class Pages(unittest.TestCase):
         self.assertEqual(model.without_topic('MCP server tia, for this folder', 'MCP server tia'), 'for this folder')
         self.assertEqual(model.without_topic('git', 'git'), 'git')
 
-    def test_a_thing_that_is_there_says_what_that_means_not_only_its_name(self):
-        rows = model.page_rows(look(Finding('ok', 'MCP server tia', 'MCP server tia'), Finding('ok', 'plugin some@market', 'plugin'),
-                                    Finding('ok', 'projectsRoot C:\\Repos. To change it: --projects-root "<path>"', 'projectsRoot')), 'bridge')
-        self.assertIn('starts the bridge of this clone', row(rows, 'MCP server tia').text)
-        self.assertEqual(row(rows, 'plugin').text, 'some@market, installed for your Windows user.')
-        self.assertEqual(row(rows, 'projectsRoot').text, 'C:\\Repos')
+    def test_setups_own_findings_name_more_than_their_topic_in_the_window(self):
+        """Each finding setup prints as only its topic, or with the command's way to change it, gives the window its words."""
+        findings = [*setup.git_step(), *setup.uv_step(), *setup.claude_step()]
+        bare = [f for f in findings if f.kind == 'ok' and f.text == f.topic and not f.shown]
+        self.assertEqual(bare, [])
+
+    def test_a_change_reads_as_a_sentence_without_its_topic(self):
+        change = Finding('change', 'status line: adds the TIA row', 'status line', make=lambda: [])
+        self.assertEqual(row(model.page_rows(look(change), 'bridge'), 'status line').text, 'Not done. Adds the TIA row')
 
     def test_the_tracked_settings_that_setup_says_nothing_of_are_right(self):
         self.assertEqual(row(model.page_rows(look(), 'bridge'), 'tracked settings').state, 'ok')
 
     def test_the_first_page_says_what_each_thing_is_for_even_when_it_is_there(self):
-        git = row(model.page_rows(look(Finding('ok', 'git', 'git')), 'pc'), 'git')
-        self.assertEqual(git.text, model.NEEDED_FOR['git'] + '\nOn the PATH.')
-        in_settings = row(dict(model.settings_groups(look(Finding('ok', 'git', 'git'))))['This PC'], 'git')
-        self.assertEqual(in_settings.text, 'On the PATH.')
+        found = Finding('ok', 'git', 'git', shown='On the PATH.')
+        self.assertEqual(row(model.page_rows(look(found), 'pc'), 'git').text, model.NEEDED_FOR['git'] + '\nOn the PATH.')
+        self.assertEqual(row(dict(model.settings_groups(look(found)))['This PC'], 'git').text, 'On the PATH.')
 
     def test_the_last_page_lists_what_a_person_does(self):
         rows = model.page_rows(look(person_steps=['Join the group.', 'Answer Yes.']), 'finish')
@@ -134,9 +135,15 @@ class Dashboards(unittest.TestCase):
         self.assertEqual([a.kind for a in r.actions], ['open'])
         self.assertIn('Of the clone C:\\other.', model.dashboard_row(self.development, Status('running', 'C:\\other'), CLONE).text)
 
-    def test_not_running_can_be_started(self):
+    def test_not_running_can_be_started_and_says_its_address(self):
         r = model.dashboard_row(self.development, Status('stopped'), CLONE)
         self.assertEqual((r.state, [a.kind for a in r.actions]), ('todo', ['start']))
+        self.assertIn('http://127.0.0.1:8770/', r.text)
+
+    def test_a_dashboard_that_is_not_running_is_nothing_open_of_the_setup(self):
+        lk = look(viewer={'command': 'x', 'default': True, 'chosen': None, 'this': 'x', 'note': ''},
+                  dashboards=[(d, Status('stopped')) for d in dashboards()])
+        self.assertEqual(model.open_items(lk), 0)
 
     def test_another_program_on_its_port_is_named_and_nothing_starts(self):
         r = model.dashboard_row(self.development, Status('other', text='Port 8770 is taken by x.exe (process 7)'), CLONE)
@@ -153,6 +160,11 @@ class Settings(unittest.TestCase):
         self.assertEqual(list(groups), ['This clone', 'Claude Code', 'Bridge', 'This PC', 'Block viewer', 'Dashboards'])
         self.assertEqual([(r.title, r.text) for r in groups['Bridge'][1:]], [('archivesKept', '3')])
         self.assertEqual(len(groups['Dashboards']), 2)
+
+    def test_the_restart_a_change_needs_is_said_there_too(self):
+        texts = [r.text for r in dict(model.settings_groups(look()))['Claude Code']]
+        self.assertIn(model.RESTART, texts)
+        self.assertNotIn(model.RESTART, [r.text for r in dict(model.settings_groups(look(claude='')))['Claude Code']])
 
     def test_a_skipped_step_shows_as_not_done_and_can_be_done_there(self):
         change = Finding('change', 'status line: adds the TIA row', 'status line', make=lambda: [])

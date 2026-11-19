@@ -39,6 +39,8 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 from TiaAgentStatus import state as st    # noqa: E402
 from TiaAgentStatus import statusline    # noqa: E402
+
+DASHBOARD_PORT = 8771     # the setup window looks for the dashboard here (tools\setup\window\dashboards.py)
 from TiaAgentStatus.procs import WinProcesses    # noqa: E402
 
 
@@ -65,7 +67,7 @@ def main(argv=None):
     w.add_argument('--once', action='store_true')
     d = sub.add_parser('dashboard')
     d.add_argument('--root')
-    d.add_argument('--port', type=int, default=8771)
+    d.add_argument('--port', type=int, default=DASHBOARD_PORT)
     d.add_argument('--every', type=positive_seconds, default=1.0)
     d.add_argument('--quiet-minutes', type=float, default=5.0)
     r = sub.add_parser('report-run')

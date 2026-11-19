@@ -138,22 +138,17 @@ def without_topic(text, topic):
     return text
 
 
-# A finding that is only its topic, as setup prints a thing that is there: what that means, in the window.
-OK_TEXTS = {'uv': 'Found.', 'git': 'On the PATH.', 'Claude Code': 'On the PATH.',
-            'MCP server tia': 'Registered for your Windows user: it starts the bridge of this clone.'}
 # A topic setup prints nothing for while it is right.
 QUIET_OK = {'tracked settings': 'Enables the plugin and UTF-8 for a Claude Code session here (.claude\\settings.json).'}
-COMMAND_HINT = '. To change it: --projects-root'     # the command's way; in the window the folder field is
+
+
+def sentence(text):
+    return text[:1].upper() + text[1:]
 
 
 def shown(finding, topic):
-    """A finding's text as a row shows it."""
-    text = finding.text.split(COMMAND_HINT)[0]
-    if text == topic:
-        return OK_TEXTS.get(topic, text)
-    if finding.kind == 'ok' and topic in ('plugin', 'projectsRoot') and text.startswith(topic + ' '):   # plugin <id>, projectsRoot <folder>
-        return text[len(topic) + 1:] + (', installed for your Windows user.' if topic == 'plugin' else '')
-    return without_topic(text, topic)
+    """A finding's text as a row shows it: what setup gives for the window, else its line without the topic."""
+    return finding.shown or without_topic(finding.text, topic)
 
 
 def topic_row(look, topic, explain=False):
@@ -172,10 +167,8 @@ def topic_row(look, topic, explain=False):
     state = next((s for s in ('missing', 'todo', 'warning', 'ok') if s in states), 'info')
     texts, actions = [], []
     for f in found:
-        if f.kind == 'question':
-            texts.append('Not set yet. ' + f.text.split(' Ask the user')[0])
-        elif f.kind == 'change':
-            texts.append('Not done. ' + without_topic(f.text, topic)[:1].upper() + without_topic(f.text, topic)[1:])
+        if f.kind == 'change':
+            texts.append('Not done. ' + sentence(shown(f, topic)))
             actions.append(Action(CHANGE_LABELS.get(topic, 'Do it'), 'make', f))
         else:
             texts.append(shown(f, topic))
@@ -211,7 +204,8 @@ def dashboard_row(dashboard, status, clone):
         return Row('ok', dashboard.title, dashboard.purpose + '\n' + text, [Action('Open', 'open', target=dashboard.key)], dashboard.key)
     if status.state == 'other':
         return Row('warning', dashboard.title, dashboard.purpose + '\n' + status.text, key=dashboard.key)
-    return Row('todo', dashboard.title, dashboard.purpose + '\nNot running.', [Action('Start', 'start', target=dashboard.key)], dashboard.key)
+    return Row('todo', dashboard.title, f'{dashboard.purpose}\nNot running. Started, it is at {dashboard.url}.',
+               [Action('Start', 'start', target=dashboard.key)], dashboard.key)
 
 
 def same_folder(a, b):
@@ -237,7 +231,10 @@ def page_note(look, page):
 def settings_groups(look):
     """The settings window: (heading, rows) for each group, read fresh."""
     groups = [(heading, [topic_row(look, t) for t in topics]) for heading, topics in SETTINGS_GROUPS]
-    bridge = groups[2][1]
+    by_heading = dict(groups)
+    if look.claude:
+        by_heading['Claude Code'].append(Row('info', 'After a change here', RESTART))
+    bridge = by_heading['Bridge']
     if look.bridge_settings_error:
         bridge.append(Row('missing', 'TiaBridge\\settings.json', look.bridge_settings_error))
     for name, value in look.bridge_settings.items():
@@ -249,8 +246,9 @@ def settings_groups(look):
 
 
 def open_items(look):
-    """How many things are not done or missing, for the settings' headline."""
-    return sum(r.state in ('todo', 'missing') for _, rows in settings_groups(look) for r in rows)
+    """How many things of the setup are not done or missing, for the settings' headline. A dashboard that is not running
+    is no part of the setup: it runs when a person wants it."""
+    return sum(r.state in ('todo', 'missing') for heading, rows in settings_groups(look) if heading != 'Dashboards' for r in rows)
 
 
 def outcome(findings):

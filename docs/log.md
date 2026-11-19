@@ -1,5 +1,9 @@
 # Log
 
+## 2026-11-19
+* **Creation**: [First setup internals](dev/tools/setup.md): how setup's steps look before they change, so the command and the setup window run the same checks and changes, and how the window tells a dashboard on its port.
+* **Update**: [Setup](user/setup.md): the setup window, `Setup.wsf` at the clone's top.
+
 ## 2026-11-18
 * **Creation**: [Block viewer internals](dev/tools/tia-block-viewer.md): how the block viewer draws one `.s7dcl` with the change report's code, opens it in the default browser, registers for a double-click, and its tests.
 
