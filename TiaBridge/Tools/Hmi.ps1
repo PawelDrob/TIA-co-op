@@ -368,12 +368,12 @@ Register-ObjectKind 'hmi_screen_global' @{
 # when they hold their defaults (two line ends, Sub), and imported over the script it leaves the full export identical, a
 # Function with a PreCode and a comment too. A screen whose button calls the script (FunctionListEntry Type VBScript)
 # exported the same after an edited script was imported over it. A syntax error imports without a word; the HMI compile
-# fails on it only in a script something calls [PROBE] (2026-11-12 and 2026-11-19, test project). Not deleted: that was
-# not tried, and screens call a script by name.
+# reported no error while nothing called the script and failed once that screen did [PROBE] (2026-11-12 and 2026-11-19,
+# test project). Not deleted: that was not tried, and screens call a script by name.
 Register-ObjectKind 'hmi_vbscript' @{
     scope = 'hmi'; dir = 'hmi\scripts'; defaultOverride = $true
     noDelete = 'Deleting a VB script was not tried on a real TIA, and screens call it by name. Delete it in TIA.'
-    description = 'VB scripts (a syntax error goes in, and the HMI compile finds it only in a script something calls); not deleted'
+    description = 'VB scripts (a syntax error goes in; the HMI compile found it only once a screen called the script); not deleted'
     items = { param($hmi) Get-GroupTree $hmi.VBScriptFolder 'VBScripts' 'Folders' }
     export = { param($e, $dir, $opt) Export-HmiObject $e $dir $opt }
     precheck = { param($file, $cache) $doc = Read-HmiDocumentObject $file 'Hmi.RuntimeScripting.VBScript' 'VB script'; if ($doc.refused) { $doc } }
