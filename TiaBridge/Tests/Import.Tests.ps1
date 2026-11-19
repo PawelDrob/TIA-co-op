@@ -1133,3 +1133,198 @@ Describe 'import of VB scripts' {
         $r.refused | Should Match '^Kind hmi_vbscript is not deleted by the bridge\. Deleting a VB script was not tried on a real TIA'
     }
 }
+
+# The settings parts full_export writes go back through import, a kind each, over the project's (or PLC's) own. Project texts
+# and alarm classes TIA imports only outside a transaction: no undo, so only in a session that holds an archive and with
+# no_undo true, the user's word.
+Describe 'import of the settings parts' {
+    foreach ($t in 'Siemens.Engineering.SW.Alarm.AlarmClassDataProvider', 'Siemens.Engineering.HW.Systemdiagnostics.Settings.SystemdiagnosticsSettingsDataProvider', 'Siemens.Engineering.SW.Supervision.SupervisionProvider') {
+        if (-not ($t -as [type])) {
+            $ns = $t.Substring(0, $t.LastIndexOf('.')); $cls = $t.Substring($t.LastIndexOf('.') + 1)
+            Add-Type -TypeDefinition "namespace $ns { public class $cls { } }"
+        }
+    }
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+    $repo = Join-Path $TestDrive 'Settings'
+
+    # a .dat as TIA exports it: one entry named as the .dat, UTF-8 with a byte order mark
+    function Write-Dat([string]$Path, [string]$Xml) {
+        $null = New-Item -ItemType Directory -Force (Split-Path -Parent $Path)
+        if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path }
+        $zip = [System.IO.Compression.ZipFile]::Open($Path, [System.IO.Compression.ZipArchiveMode]::Create)
+        try {
+            $bytes = (New-Object System.Text.UTF8Encoding $true).GetPreamble() + [System.Text.Encoding]::UTF8.GetBytes($Xml)
+            $s = $zip.CreateEntry([System.IO.Path]::GetFileName($Path)).Open()
+            try { $s.Write($bytes, 0, $bytes.Length) } finally { $s.Dispose() }
+        }
+        finally { $zip.Dispose() }
+    }
+    function Read-Dat([string]$Path) {
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+        try { $e = @($zip.Entries)[0]; $m = New-Object System.IO.MemoryStream; $s = $e.Open(); $s.CopyTo($m); $s.Dispose(); @{ name = $e.Name; bytes = $m.ToArray() } }
+        finally { $zip.Dispose() }
+    }
+    $alarmXml = "<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<AlarmServiceGlobalSettingsData SchemaVersion=`"2.0`"><AlarmClass Name=`"Acknowledgement`" /></AlarmServiceGlobalSettingsData>"
+    $diagXml = "<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<SysDiagGlobalSettingsData SchemaVersion=`"1.0`"><Category Name=`"Fault`" /></SysDiagGlobalSettingsData>"
+
+    # a project with reference language en-US and de-DE active; TIA's answers in $script:tiaState
+    function Get-KindRoot($Kind, [string]$Device) {
+        if ($Kind.scope -eq 'plc') { return [pscustomobject]@{ Name = 'PLC_1' } }
+        $culture = { param($n) [pscustomobject]@{ Culture = [pscustomobject]@{ Name = $n } } }
+        $p = [pscustomobject]@{ Name = 'P'; LanguageSettings = [pscustomobject]@{ ReferenceLanguage = (& $culture 'en-US'); ActiveLanguages = @((& $culture 'en-US'), (& $culture 'de-DE')) } }
+        Add-Member -InputObject $p ScriptMethod ImportProjectTexts { param($file, $update) $script:imported += @("texts $($file.Name) $update"); [pscustomobject]@{ State = $script:tiaState } }
+        $p
+    }
+    function Get-TiaService($Obj, [type]$Type) {
+        $s = [pscustomobject]@{ Type = $Type.Name }
+        Add-Member -InputObject $s ScriptMethod Import { param($file)
+            $d = Read-Dat $file.FullName
+            $script:imported += @("$($this.Type) $($d.name)"); $script:datBytes = $d.bytes
+            [pscustomobject]@{ State = $script:tiaState; Messages = @([pscustomobject]@{ State = $script:tiaState; Message = 'TIA says so' }) } }
+        Add-Member -InputObject $s ScriptMethod ImportSupervisionsFromXlsx { param($file, $opt) $script:imported += @("supervisions $($file.Name) $opt"); [pscustomobject]@{ State = $script:tiaState } }
+        $s
+    }
+    function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf, [switch]$OutsideTransaction) {
+        $script:outside = [bool]$OutsideTransaction
+        $out = @(& $Body)
+        $rb = [bool](-not $OutsideTransaction -and $RollbackIf -and (& $RollbackIf))
+        @{ output = $out; transaction = -not $OutsideTransaction; rolledBack = $rb; commitError = $null; note = $null }
+    }
+    function Invoke-SettingsImportTool([string]$Kind, [string[]]$Paths, [switch]$NoUndo) {
+        $script:imported = @(); $script:outside = $null
+        $a = @{ kind = $Kind; paths = $Paths }
+        if ($NoUndo) { $a.no_undo = $true }
+        Invoke-ImportTool ([pscustomobject]$a)
+    }
+    BeforeEach {
+        if (Test-Path $repo) { Remove-Item $repo -Recurse -Force }
+        Write-TextFile (Join-Path $repo 'project\texts\project-texts_en-US_de-DE.xlsx') 'xlsx'
+        Write-TextFile (Join-Path $repo 'project\texts\project-texts_en-US_fr-FR.xlsx') 'xlsx'
+        Write-Dat (Join-Path $repo 'project\alarmclasses\alarm-classes.dat') $alarmXml
+        Write-TextFile (Join-Path $repo 'project\alarmclasses\alarm-classes.xml') $alarmXml
+        Write-Dat (Join-Path $repo 'project\diagnostics\systemdiagnostics-settings.dat') $diagXml
+        Write-TextFile (Join-Path $repo 'project\diagnostics\systemdiagnostics-settings.xml') $diagXml
+        Write-TextFile (Join-Path $repo 'plc\supervisions\supervisions.xlsx') 'xlsx'
+        Write-TextFile (Join-Path $repo 'archives\tia-co-op-P-2026-11-19_101010.zap20') 'zap'
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-TestBridgeProject $repo
+        Register-Archive (Get-BridgeSession)
+        $script:tiaState = 'Success'
+    }
+
+    It 'refuses project texts and alarm classes in a session whose archive was skipped, with no_undo too, before TIA is asked' {
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-TestBridgeProject $repo
+        Register-Archive (Get-BridgeSession) -Skipped
+        foreach ($case in @(@('project_texts', 'project\texts\project-texts_en-US_de-DE.xlsx'), @('alarm_classes', 'project\alarmclasses\alarm-classes.xml'))) {
+            $r = Invoke-SettingsImportTool $case[0] @($case[1]) -NoUndo
+            $r.ok | Should Be $false
+            $r.refused | Should Match "^$($case[0]) imports outside a transaction \(TIA refuses it inside one"
+            $r.refused | Should Match 'this one has none: its archive was skipped\. Nothing imported\. Make one with archive\(reason\)'
+            @($script:imported).Count | Should Be 0
+        }
+    }
+
+    It 'refuses them without no_undo, naming the archive that is the way back and that it is not as just before' {
+        foreach ($case in @(@('project_texts', 'project\texts\project-texts_en-US_de-DE.xlsx'), @('alarm_classes', 'project\alarmclasses\alarm-classes.dat'))) {
+            $r = Invoke-SettingsImportTool $case[0] @($case[1])
+            $r.ok | Should Be $false
+            $r.refused | Should Match 'TIA has no undo of it'
+            $r.refused | Should Match 'The way back is archives\\tia-co-op-P-2026-11-19_101010\.zap20, made .*, which holds the project as it was then, not as just before this import'
+            $r.refused | Should Match 'pass no_undo: true only when they say to import it\.$'
+            @($script:imported).Count | Should Be 0
+        }
+    }
+
+    It 'imports project texts with no_undo outside a transaction, says so in noUndo, and counts a write on every PLC and HMI' {
+        $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_de-DE.xlsx') -NoUndo
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'texts project-texts_en-US_de-DE.xlsx True'
+        $script:outside | Should Be $true
+        $r.transaction | Should Be $false
+        $r.noUndo | Should Match '^Imported outside a transaction \(TIA refuses it inside one: "The operation is not permitted within a transaction\."\): TIA has no undo of it\. The way back is archives\\tia-co-op-P-2026-11-19_101010\.zap20'
+        $r.noUndo | Should Match 'Tell the user what was imported and that it has no undo\.$'
+        @((Get-BridgeSession).pending.Values | Sort-Object) -join ' ' | Should Be 'hmi@HMI_1:project_texts:project-texts_en-US_de-DE plc@PLC_1:project_texts:project-texts_en-US_de-DE'
+        $r.next | Should Match '^compile the hmi and plc scope \(a block title edited through them turned the block not consistent\), then save'
+    }
+
+    It 'refuses project texts of a language the project does not have active, and any file but .xlsx, before TIA is asked' {
+        $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_fr-FR.xlsx') -NoUndo
+        $r.ok | Should Be $false
+        $r.items[0].refused | Should Match "^The project has its own project texts, .*: 'project-texts_en-US_fr-FR' is not it \(the project's: 'project-texts_en-US_de-DE'"
+        Write-TextFile (Join-Path $repo 'project\texts\project-texts_en-US_de-DE.xml') '<x/>'
+        $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_de-DE.xml') -NoUndo
+        $r.items[0].refused | Should Be 'project_texts imports .xlsx files only, as full_export writes them.'
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'packs an edited alarm-classes.xml into a .dat as TIA exports it, and imports that' {
+        $edited = $alarmXml -replace 'Acknowledgement', 'Acknowledgement2'
+        Write-TextFile (Join-Path $repo 'project\alarmclasses\alarm-classes.xml') $edited
+        $r = Invoke-SettingsImportTool 'alarm_classes' @('project\alarmclasses\alarm-classes.xml') -NoUndo
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'AlarmClassDataProvider alarm-classes.dat'
+        $script:outside | Should Be $true
+        @($script:datBytes[0..2]) -join ',' | Should Be '239,187,191'
+        [System.Text.Encoding]::UTF8.GetString($script:datBytes, 3, $script:datBytes.Length - 3) | Should Be $edited
+        $r.noUndo | Should Match 'TIA has no undo of it'
+    }
+
+    It 'refuses a .dat whose .xml beside it differs, an XML of another root, and one not well-formed, before TIA is asked' {
+        Write-TextFile (Join-Path $repo 'project\alarmclasses\alarm-classes.xml') ($alarmXml -replace 'Acknowledgement', 'Other')
+        $r = Invoke-SettingsImportTool 'alarm_classes' @('project\alarmclasses\alarm-classes.dat') -NoUndo
+        $r.items[0].refused | Should Match 'alarm-classes\.xml differs from the XML in .*alarm-classes\.dat: an edit is made in the \.xml\. Import the \.xml'
+        Write-TextFile (Join-Path $repo 'project\alarmclasses\alarm-classes.xml') $diagXml
+        $r = Invoke-SettingsImportTool 'alarm_classes' @('project\alarmclasses\alarm-classes.xml') -NoUndo
+        $r.items[0].refused | Should Match 'holds SysDiagGlobalSettingsData, not the alarm classes \(AlarmServiceGlobalSettingsData\)'
+        Write-TextFile (Join-Path $repo 'project\alarmclasses\alarm-classes.xml') '<AlarmServiceGlobalSettingsData>'
+        $r = Invoke-SettingsImportTool 'alarm_classes' @('project\alarmclasses\alarm-classes.xml') -NoUndo
+        $r.items[0].refused | Should Match 'is no well-formed XML'
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'fails the item on an error TIA reports, and says that nothing rolled it back' {
+        $script:tiaState = 'ErrorRollback'
+        $r = Invoke-SettingsImportTool 'alarm_classes' @('project\alarmclasses\alarm-classes.dat') -NoUndo
+        $r.ok | Should Be $false
+        $r.items[0].ok | Should Be $false
+        $r.note | Should Be 'No transaction: the files before the failure stay imported.'
+        $r.noUndo | Should Match 'TIA has no undo of it'
+        @((Get-BridgeSession).failed.Keys) -join ' ' | Should Match 'alarm_classes:alarm-classes'
+    }
+
+    It 'imports system diagnostics settings in a transaction, with no no_undo' {
+        $r = Invoke-SettingsImportTool 'diagnostics_settings' @('project\diagnostics\systemdiagnostics-settings.dat')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'SystemdiagnosticsSettingsDataProvider systemdiagnostics-settings.dat'
+        $script:outside | Should Be $false
+        $r.transaction | Should Be $true
+        $r.ContainsKey('noUndo') | Should Be $false
+        @((Get-BridgeSession).pending.Values) -join ' ' | Should Be 'plc@PLC_1:diagnostics_settings:systemdiagnostics-settings'
+    }
+
+    It 'imports the supervisions of a PLC with Override in a transaction, and says what the first import did to a project' {
+        $r = Invoke-SettingsImportTool 'supervisions' @('plc\supervisions\supervisions.xlsx')
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'supervisions supervisions.xlsx Override'
+        $script:outside | Should Be $false
+        $r.prodiag | Should Match 'initialised the project''s ProDiag settings'
+        Write-TextFile (Join-Path $repo 'plc\supervisions\other.xlsx') 'xlsx'
+        $r = Invoke-SettingsImportTool 'supervisions' @('plc\supervisions\other.xlsx')
+        $r.items[0].refused | Should Match "'other' is not it"
+    }
+
+    It 'deletes none of them' {
+        foreach ($kind in 'project_texts', 'alarm_classes', 'diagnostics_settings', 'supervisions') {
+            $r = Invoke-DeleteTool ([pscustomobject]@{ kind = $kind; names = @('x') })
+            $r.ok | Should Be $false
+            $r.refused | Should Match "^Kind $kind is not deleted by the bridge\."
+        }
+    }
+
+    It 'names supervision settings and PLC alarm texts as not tried when a call names them' {
+        foreach ($part in 'supervision_settings', 'plc_alarm_texts') {
+            { Invoke-SettingsImportTool $part @('x.dat') } | Should Throw 'was not tried on a real TIA'
+        }
+    }
+}

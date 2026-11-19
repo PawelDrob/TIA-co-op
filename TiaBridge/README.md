@@ -7,9 +7,9 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
 ## What it does
 
 - Exports, imports and compiles PLC blocks, data types, DBs, tag tables, watch and force tables, technology objects, HMI
-  screens, slide-ins, the global elements and screen overview, text and graphic lists, VB scripts, and the project's
-  graphics, and saves the project. A technology object of an element or version not tried on a real TIA goes in with a
-  note that says so.
+  screens, slide-ins, the global elements and screen overview, text and graphic lists, VB scripts, the project's
+  graphics, project texts, alarm classes and system diagnostics settings, and a PLC's ProDiag supervisions, and saves the
+  project. A technology object of an element or version not tried on a real TIA goes in with a note that says so.
 - Keeps a git repo per project under the projects root, with the exports, the logs, your `standards\` and the project's
   notes. Session archives lie in its `archives\` folder, outside git, and only the newest are kept (`archivesKept`, default 10).
 - Archives the project before the first write, and names at each save what stays uncompiled or not consistent.
@@ -54,6 +54,10 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   cannot export, as on a screen, though on these that was not tried.
 - Imports a graphic with the image folder its export wrote beside it, and refuses one whose image is not there. Refuses a
   graphic list that names a graphic the project does not have: import the graphic first.
+- Imports project texts and alarm classes only when you say so, and only with an archive of this session: TIA imports
+  them only outside a transaction, so they have no undo, and that archive is the way back. Imports the alarm classes and
+  system diagnostics settings from the `.dat` or from the `.xml` beside it. Does not import supervision settings or PLC
+  alarm texts, as their import was not tried.
 - Imports a VB script with a syntax error as TIA does, without a word. The HMI compile found the error only once a screen
   called the script (other callers were not tried), so compile after the import and read its errors.
 

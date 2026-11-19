@@ -463,11 +463,13 @@ function Get-OnlineRefusal($TransactionError) {
 # Transaction (one undo step in TIA). The transaction rolls back when an exception escapes Body, when
 # RollbackIf holds after Body, or when TIA refuses the commit (it does after any Openness exception inside the
 # transaction). A write TIA is online for is refused before Body (Get-OnlineRefusal); one with -NoTransaction
-# (save, compile) is not. Returns @{ output; transaction; rolledBack; commitError; note }.
+# (save, compile) is not. -OutsideTransaction: a write TIA refuses inside a transaction (an import of project texts or
+# alarm classes), so it runs without one and has no undo, and is refused online as any other write.
+# Returns @{ output; transaction; rolledBack; commitError; note }.
 # Body runs in a child scope of the caller, so it reads the caller's variables; it reports through its output
 # or through collections it is handed (assignments inside Body stay local to it).
 # OnCopy: the compile of an export-only background session, which changes only its copy (never saved).
-function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf, [switch]$OnCopy) {
+function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTransaction, [scriptblock]$RollbackIf, [switch]$OnCopy, [switch]$OutsideTransaction) {
     # the dispatch refuses the write tools already (Get-BackgroundRefusal); this holds for a tool that slips through
     if ($script:Bridge.background -and -not $script:Bridge.background.write -and -not $OnCopy) { throw "Refused in a background session (export only): $Description." }
     $project = Get-TiaProject
@@ -476,7 +478,7 @@ function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTr
     $ea = $script:Bridge.portal.ExclusiveAccess($text)
     $tx = $null; $note = $null
     try {
-        if (-not $NoTransaction -and $script:Bridge.settings.useTransactions) {
+        if (-not ($NoTransaction -or $OutsideTransaction) -and $script:Bridge.settings.useTransactions) {
             Write-BridgeLog "$text`: transaction"
             try { $tx = $ea.Transaction($project, $text) }
             catch {

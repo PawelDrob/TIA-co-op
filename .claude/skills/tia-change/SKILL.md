@@ -1,6 +1,6 @@
 ---
 name: tia-change
-description: "Change a TIA Portal project through TiaBridge: PLC blocks, data types and DBs; HMI screens, tag tables and text lists; library types."
+description: "Change a TIA Portal project through TiaBridge: PLC blocks, data types and DBs; HMI screens, tag tables and text lists; library types; project texts and settings."
 ---
 
 The order a change of a TIA project takes. The guides, and the tools' descriptions and results, hold the rest; a guide is the single source of truth for the work it covers. Steps 3 to 8 repeat per finished change; the archive is once per session.
@@ -12,6 +12,7 @@ Git in a project repo goes by `git -C "C:/<projects root>/<repo>"`: the results 
 | PLC block, data type, DB | [plc.md](plc.md) |
 | HMI screens, templates, pop-ups, tag tables, text lists | [hmi.md](hmi.md) |
 | Library types | [library.md](library.md) |
+| Project texts, alarm classes, system diagnostics settings, ProDiag supervisions | [settings.md](settings.md) |
 
 ## Steps
 

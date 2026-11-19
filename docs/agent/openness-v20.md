@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T11:42:53-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:41:18-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -152,6 +152,32 @@ left them consistent (the FB's member comment was edited while the FB was not co
 FB, FC, DB and data type changed with each edit. The OB is written as SimaticML: after its edit that export failed, in both
 runs alike, so no file of it changed; no compile was tried. After each edit, saved and read in a new session, the default
 `full_export` left the same files as `full: true`.
+
+**Settings parts through import** `[PROBE]` (2026-11-12 by script and 2026-11-19 through TiaBridge, V20 Update 7, without a
+window, on copies of a test project with one language, en-US, and no PLC alarm texts). The files `full_export` writes go
+back over the project's own:
+
+| Part | Call | In a transaction | Tried |
+|---|---|---|---|
+| project texts (`.xlsx`) | `Project.ImportProjectTexts(FileInfo, true)`, result `State` `Info` | refused: *The operation is not permitted within a transaction.* | round trip identical; a block title edited in the sheet landed; the earlier export imported again put it back |
+| alarm classes (`.dat`) | `AlarmClassDataProvider.Import(FileInfo)`, `Success` | refused, the same | round trip identical but `CreationDate`; the earlier export imported again put an edit back. See the list below for an `.xml` packed into a `.dat` and the display name |
+| system diagnostics settings (`.dat`) | `SystemdiagnosticsSettingsDataProvider.Import(FileInfo)`, `Success` | allowed | round trip identical but `CreationDate`; a category's `Activation` edited in its XML landed |
+| ProDiag supervisions (`.xlsx`) | `SupervisionProvider.ImportSupervisionsFromXlsx(FileInfo, ImportOptions.Override)`, `Success` | allowed | round trip identical, of a sheet with headers only; no edit tried |
+
+- **A `.dat` is a zip of one XML file** whose entry has the `.dat`'s own name, written in UTF-8 with a byte order mark. An
+  edited XML packed the same way imported (2026-11-19).
+- **An alarm class's display name is a project text.** A `DisplayName` edited with `Culture="en-US"` landed as that text,
+  and the export then wrote an empty `<DisplayName />` beside it, which round trips. Edited without `Culture`, as the
+  export writes it, it went in as a second `DisplayName`, and the text stayed.
+- **The first supervisions import set up ProDiag.** On the project without ProDiag settings, importing its headers-only
+  sheet initialised them: their export, refused before, then worked, and the project texts gained 230 rows of ProDiag
+  categories (both dates).
+- **After these imports** a compile of the PLC and of the HMI had 0 errors (2026-11-19). Whether a part needs one was not
+  tried, apart from the block title above.
+- **Not tried:** an import of supervision settings and of PLC alarm text lists and texts; a new alarm class; project texts
+  of a second language through TiaBridge (the paragraph above tried them by script).
+
+How TiaBridge imports them: [TiaBridge internals](../dev/tools/tia-bridge.md#the-rules).
 
 **User folders** `[PROBE]` (V20 Update 7, 2026-11-02, on a copy: block, PLC data type and PLC tag table folders of a PLC;
 screen, template, pop-up and HMI tag folders of a Comfort panel):

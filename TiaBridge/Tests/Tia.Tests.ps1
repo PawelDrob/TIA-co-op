@@ -160,6 +160,22 @@ Describe 'Invoke-TiaWrite' {
         $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Offline' } })
         (Invoke-TiaWrite 'import' { 'done' }).output | Should Be 'done'
     }
+
+    # an import of project texts or alarm classes: TIA refuses it inside a transaction, so none is opened
+    It 'opens no transaction for a write outside one, and refuses it when a device reads online' {
+        Set-FakePortal { }
+        $script:Bridge.portal.ea | Add-Member ScriptMethod Transaction { param($p, $t) $script:txOpened = $true } -Force
+        $script:txOpened = $false
+        $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Offline' } })
+        $w = Invoke-TiaWrite 'import' -OutsideTransaction { 'done' }
+        $w.output | Should Be 'done'
+        $w.transaction | Should Be $false
+        $script:txOpened | Should Be $false
+        $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Online' } })
+        $script:bodyRan = $false
+        { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true } } | Should Throw 'TIA is online: go offline first. Online: PLC_1.'
+        $script:bodyRan | Should Be $false
+    }
 }
 
 Describe 'Get-DeviceStates (online state per device for connect and tia_status)' {
