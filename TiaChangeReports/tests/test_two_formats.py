@@ -47,8 +47,8 @@ class RunRepo(unittest.TestCase):
         got = {(x['object'], tuple(x['network']) if x['network'] else None): x['causes']
                for x in twoformats.nothing_changed(self.repo, 'HEAD~2')}
         self.assertEqual({
-            (TIMERS, None): ['pin case', 'pin order'],
-            (TIMERS, (1, 1, '14 Counter with fed pins')): ['pin case', 'pin order'],
+            (TIMERS, None): ['pin case'],
+            (TIMERS, (1, 1, '14 Counter with fed pins')): ['pin case'],
             (TIMERS, (5, 5, '14a Counter at the end of an open branch')): ['pin case'],
             (FB, None): ['ENO'],
             (FB, (1, 1, '')): ['ENO'],
@@ -58,7 +58,7 @@ class RunRepo(unittest.TestCase):
 
     def test_the_same_change_differs_where_pins_are_read_otherwise(self):
         got = twoformats.same_change(self.repo, 'HEAD~2', 'HEAD~1')
-        self.assertEqual([(TIMERS, ['pin case', 'pin order'])], [(x['object'], x['causes']) for x in got])
+        self.assertEqual([(TIMERS, ['pin case'])], [(x['object'], x['causes']) for x in got])
         self.assertTrue(got[0]['sd'] and got[0]['xml'], 'the facts each report alone holds')
 
     def test_a_field_one_format_moved_alone(self):
@@ -133,18 +133,23 @@ class UnknownWhereFactsDiffer(unittest.TestCase):
 
 
 class ElementCauses(unittest.TestCase):
-    """What makes two readings of one element unequal, from the CTU of zzBenTimers as each reader reads it."""
+    """What makes two readings of one element unequal, from the CTU of zzBenTimers as each reader reads it (r, pv, cv
+    from .s7dcl, PV, CV, R from SimaticML), as compared: its named pins by name (Element.sig)."""
 
-    SD = ('CTU', '#instCtu', '', (('r', ':=', 'wire#'), ('pv', ':=', '#inSpeed'), ('cv', '=>', '#statStep')),
+    SD = ('CTU', '#instCtu', '', (('cv', '=>', '#statStep'), ('pv', ':=', '#inSpeed'), ('r', ':=', 'wire#')),
           (('value_type', 'Int'),), '', False)
-    XML = ('CTU', '#instCtu', '', (('PV', ':=', '#inSpeed'), ('CV', '=>', '#statStep'), ('R', ':=', 'wire#')),
+    XML = ('CTU', '#instCtu', '', (('CV', '=>', '#statStep'), ('PV', ':=', '#inSpeed'), ('R', ':=', 'wire#')),
            (('value_type', 'Int'),), '', False)
 
     def test_the_fewest_steps_each_needed(self):
-        self.assertEqual({'pin case', 'pin order'}, twoformats.element_causes(self.SD, self.XML))
+        self.assertEqual({'pin case'}, twoformats.element_causes(self.SD, self.XML))
+
+    def test_unnamed_operands_in_another_order(self):
+        x = ('Box', '', '', (('', '', '#a'), ('', '', '#b')), (), '', False)
+        self.assertEqual({'pin order'}, twoformats.element_causes(x, x[:3] + ((('', '', '#b'), ('', '', '#a')),) + x[4:]))
 
     def test_another_operand_is_no_reading(self):
-        other = self.XML[:3] + ((('PV', ':=', '#inLevel'), ('CV', '=>', '#statStep'), ('R', ':=', 'wire#')),) + self.XML[4:]
+        other = self.XML[:3] + ((('CV', '=>', '#statStep'), ('PV', ':=', '#inLevel'), ('R', ':=', 'wire#')),) + self.XML[4:]
         self.assertEqual({'unknown: element CTU'}, twoformats.element_causes(self.SD, other))
 
     def test_quoted_member_names(self):

@@ -452,7 +452,11 @@ class Element:
         return self.params[0][2] if self.params else ''
 
     def sig(self):
-        ps = tuple((n or '', d or '', _norm(v)) for n, d, v in self.params)
+        """The element as compared. A named pin is bound by its name in both formats (.s7dcl `pv := ...`, SimaticML a
+        NameCon's Name), and TIA draws a box's pins in the order of its interface, not the file's: named pins compare
+        in any order, which TIA's export varies. An unnamed operand is bound by its place and keeps it."""
+        ps = [(n or '', d or '', _norm(v)) for n, d, v in self.params]
+        ps = tuple([p for p in ps if not p[0]] + sorted((p for p in ps if p[0]), key=lambda p: (p[0].lower(), p)))
         return (self.instr, self.instance or '', self.call or '', ps, tuple(sorted(self.templates.items())),
                 norm_expression(self.expression), self.no_eno)
 

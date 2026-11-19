@@ -1197,6 +1197,49 @@ def _lad(before, after):
     return p.lad
 
 
+BOX = '''FUNCTION_BLOCK "M"
+    VAR
+        a : Bool; q : Bool; speed : Int; step : Int; level : Int; instCtu : CTU_INT;
+    END_VAR
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            { S7_Templates := "value_type := Int" }
+            #instCtu.CTU(
+                r := wire#w1,
+                pv := #speed,
+                cv => #step
+            )
+            Coil( #q )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK
+'''
+BOX_OTHER_ORDER = BOX.replace('''                r := wire#w1,
+                pv := #speed,
+                cv => #step''', '''                cv => #step,
+                pv := #speed,
+                r := wire#w1''')
+
+
+class PinsInAnotherOrder(unittest.TestCase):
+    """A box's pins are bound by name, in both formats (.s7dcl `pv := ...`, SimaticML a NameCon's Name), and TIA draws
+    them in the order of the instruction's interface, whatever the file's order. TIA writes them in another order
+    between two exports of one block (the CTU of zzBenTimers, the Deserialize of zzLadMove): no change."""
+
+    def test_the_same_pins_in_another_order_are_the_same_box(self):
+        d = _lad(BOX, BOX_OTHER_ORDER)
+        self.assertFalse(d.changed)
+        self.assertEqual(statuses(d, d.a), Counter(same=3))
+
+    def test_a_pin_fed_otherwise_is_still_told(self):
+        d = _lad(BOX, BOX_OTHER_ORDER.replace('#speed', '#level'))
+        (box,) = (e for e in d.b.elements.values() if e.instr == 'CTU')
+        self.assertEqual(d.status[box.eid], 'changed')
+        self.assertEqual({'pv'}, changed_params(box, d.other[box.eid]))
+
+
 class MergedNodes(unittest.TestCase):
     def test_contact_deleted_between_two_wire_nodes_is_one_removed(self):
         d = _lad(MERGE, MERGED)

@@ -49,8 +49,8 @@ CAUSES = {
     'quoted names': (READER, 'a member name .s7dcl writes in quotes ("Db"."step", #"a") and SimaticML without'),
     'pin case': (READER, 'a pin name in another case (IN, in): each reader keeps its file\'s, the diff compares them '
                          'as given'),
-    'pin order': (READER, "a box's pins in another order: each reader keeps its file's, the diff compares them in "
-                          "order"),
+    'pin order': (READER, "an element's unnamed operands in another order: the diff compares them by their place (a "
+                          "named pin by its name, in any order)"),
     'pin direction': (READER, "a coil's operand read as an output (=>) from .s7dcl and as an input (:=) from SimaticML"),
     'templates': (ONE_FIELD, 'a type template SimaticML writes and .s7dcl does not (value_type, ptr_type, Card, ...)'),
     'ENO': (READER, "a box's ENO: SimaticML writes DisabledENO, .s7dcl S7_GenerateENO := \"TRUE\" where it is false "
