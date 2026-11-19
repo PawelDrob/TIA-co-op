@@ -256,10 +256,15 @@ NOT_FONT = 8
 def undrawn_settings(el, partner, drawn):
     """['name: value'] of the type settings TIA's look leaves out (not in drawn) that differ from the other version of the
     element: on the box only then, so that nothing differs from TIA's screen unless the two versions do. A setting only this
-    side holds is written; not one of a SimaticML export the other side lacks, as a .s7dcl does not write those."""
+    side holds is written; not one of a SimaticML export the other side lacks, as a .s7dcl does not write those. A type the
+    instruction fixes counts where neither export writes it (Instruction.fixed), as on the type line."""
     if partner is None:
         return []
-    mine, theirs = {**el.more, **el.templates}, {**partner.more, **partner.templates}
+
+    def settings(x):
+        spec = instructions.lookup(x.instr)
+        return {**(spec.fixed if spec else {}), **x.more, **x.templates}
+    mine, theirs = settings(el), settings(partner)
     out = []
     for k in sorted(mine):
         if k in drawn or re.match(r'CASE\d+$', k) or mine[k] == theirs.get(k) or (k not in theirs and k in el.more):

@@ -1987,6 +1987,14 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
                 self.assertEqual(el.templates[template], 'DB_ANY')
                 self.assertIn('%s := DB_ANY' % template, net.body)
 
+    def test_another_value_is_written_on_the_box_beside_the_fixed_one(self):
+        """TUSEND draws no type line: the box writes the setting on both sides where the two differ, none where alike."""
+        _, fixed = self.element('TUSEND', [('value_type', 'UDInt')])
+        _, other = self.element('TUSEND', [('value_type', 'UInt')])
+        self.assertEqual(render_lad.undrawn_settings(fixed, other, set()), ['value_type: UDInt'])
+        self.assertEqual(render_lad.undrawn_settings(other, fixed, set()), ['value_type: UInt'])
+        self.assertEqual(render_lad.undrawn_settings(fixed, self.element('TUSEND', [('value_type', 'UDInt')])[1], set()), [])
+
     def test_deco_reads_alike_from_both_formats(self):
         """zzLadWordLogic network 5: SimaticML writes value_type UInt and return_type Word, .s7dcl return_type alone."""
         x, xel = self.element('DECO', [('value_type', 'UInt'), ('return_type', 'Word')])
