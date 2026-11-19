@@ -365,7 +365,8 @@ def server_step(claude, write=False):
                         details=starts, shown=f'Registered for this folder; {holder} has it for your Windows user. To make this clone the one '
                                               'for all folders, run this, then press Refresh and Register:')]
     return [Finding('missing', f'MCP server tia: in this folder it is registered for {local_runs or "another command"}; left as it is. To move it here: claude mcp remove --scope local tia, then run this again', TOPIC_SERVER,
-                    shown=f'Registered in this folder for {holder_of(local_runs)}, which stays as it is. To move it here, run this, then press Refresh:',
+                    shown=f'Registered in this folder for {holder_of(local_runs)}, which a session here starts; it stays as it is. To start '
+                          'this clone here, run this, then press Refresh and Register:',
                     commands=['claude mcp remove --scope local tia'], details=[f'In this folder tia starts {local_runs or "another command"}.'])]
 
 
@@ -566,7 +567,7 @@ def projects_root_step(answer=None, write=False):
         root = normal_root(answer or stored) if answer or stored else None
     except ValueError as e:
         shown = (f'{e.text} is not a full path on a drive, such as C:\\TIA-Projects.' if isinstance(e, NotAFullPath)
-                 else 'A settings file cannot be read: fix it, then press Refresh.')
+                 else f'{short(BRIDGE_SETTINGS if str(BRIDGE_SETTINGS) in str(e) else user_file)} cannot be read: fix it, then press Refresh.')
         return [Finding('missing', f'projectsRoot: {e}', TOPIC_ROOT, shown=shown, details=[] if isinstance(e, NotAFullPath) else [str(e)])]
     if not root:
         question = ((f'{BRIDGE_SETTINGS} holds {no_folder} as projectsRoot, which names no folder. ' if no_folder else '')

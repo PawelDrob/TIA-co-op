@@ -103,6 +103,17 @@ class TheWindowsChanges(SetupCase):
         setup = self.setup_module()
         self.rows_read_as_written_for_the_window(setup, 'Repos')
 
+    def test_files_that_cannot_be_read_are_named_in_the_windows_words_too(self):
+        self.bridge_settings.write_text('{not json')
+        (self.config / '.claude.json').write_text('{not json')
+        setup = self.setup_module()
+        self.rows_read_as_written_for_the_window(setup, ANSWER)
+        rows = {r.key: r for r in self.page(setup, 'bridge', ANSWER)}
+        self.assertEqual(rows['projectsRoot'].text, 'TiaBridge\\settings.json cannot be read: fix it, then press Refresh.')
+        self.assertEqual(rows['bridge settings'].text, 'TiaBridge\\settings.json cannot be read: fix it, then press Refresh.')
+        self.assertIn('cannot be read', rows['bridge settings'].details[0])
+        self.assertTrue(rows['MCP server tia'].text.endswith('.claude.json cannot be read: fix it, then press Refresh.'))
+
     def test_a_missing_tia_or_group_says_how_to_get_it_in_its_own_row(self):
         (self.tia / 'PublicAPI' / 'V20' / 'Siemens.Engineering.dll').unlink()
         self.group = r'MACHINE\Users'

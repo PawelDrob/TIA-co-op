@@ -10,7 +10,9 @@ real from the temp clone) and finishes. The second double-click must open the me
 with no claude on the PATH (without-claude); the rows of the folder, the server and the viewer each with a change to
 make (three_rows); the folder as a second clone on it finds it (rules_there); the server registered for this folder
 only (this_folder_only); another folder stored while the first is typed, and this folder's server another command
-(another_folder_stored). All the while it watches the hidden desktop for console windows: the first run's uv sync may
+(another_folder_stored); the server of this folder this clone's or another command while your Windows user's is another
+clone's, with the viewer of another clone and a folder that is no full path (servers); Claude Code's state and the
+bridge's settings that cannot be read (unreadable). All the while it watches the hidden desktop for console windows: the first run's uv sync may
 have one, the second run none. Pictures and done.txt of each run go to a folder of its own under <folder>. It starts
 no TIA, writes nothing of the real user's, and ends the dashboard it started by its Windows process number.
 """
@@ -229,6 +231,17 @@ def another_folder_stored(temp, clone):
     return str(temp / 'home' / 'TIA-Projects')
 
 
+def servers(clone, user, here):
+    """Claude Code's state with the server tia of your Windows user and of this folder: this clone's, another clone's or
+    another command."""
+    script = {'this': str(clone / 'TiaBridge' / 'TiaBridge.ps1'), 'clone': str(clone.parent / 'other' / 'TiaBridge' / 'TiaBridge.ps1'),
+              'command': r'C:\Tools\tool.ps1'}
+
+    def tia(of):
+        return {'type': 'stdio', 'command': 'powershell.exe', 'args': ['-NoProfile', '-File', script[of]]}
+    return {'mcpServers': {'tia': tia(user)}, 'projects': {clone.as_posix(): {'mcpServers': {'tia': tia(here)}}}}
+
+
 def run(desktop, clone, env, out, options, report):
     """One double-click on the hidden desktop, as Explorer does it: wscript.exe on Setup.wsf, its arguments for the snap."""
     watcher = desktop.watch()
@@ -287,6 +300,14 @@ def main(argv=None):
             run(desktop, clone, env, out / 'this-folder-only', [*options, '--settings'], report)
             typed = another_folder_stored(temp, clone)
             run(desktop, clone, env, out / 'another-folder-stored', [*options, '--settings', '--snap-folder', typed], report)
+            for name, state in (('this-folder-another-for-you', servers(clone, 'clone', 'this')), ('another-here-and-for-you', servers(clone, 'clone', 'command'))):
+                (temp / 'home' / '.claude' / '.claude.json').write_text(json.dumps(state), encoding='utf-8')
+                if name == 'this-folder-another-for-you':     # with the viewer of another clone, and a folder that is no full path typed
+                    register.register(register.command(str(temp / 'other' / 'TiaChangeReports' / 'viewer')), key + r'\Classes', key + r'\UserChoice', notify=False)
+                run(desktop, clone, env, out / name, [*options, '--settings'] + (['--snap-folder', 'Repos'] if name == 'this-folder-another-for-you' else []), report)
+            (temp / 'home' / '.claude' / '.claude.json').write_text('{not json', encoding='utf-8')
+            (clone / 'TiaBridge' / 'settings.json').write_text('{not json', encoding='ascii')
+            run(desktop, clone, env, out / 'unreadable', [*options, '--settings'], report)
         finally:
             holder.kill()
             pid = dash.listener(tia).split('process ')[-1].rstrip(')')

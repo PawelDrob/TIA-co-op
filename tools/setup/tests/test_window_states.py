@@ -107,7 +107,8 @@ class Server(Rows):
                              ['claude mcp add --scope local tia'])]
         if local == 'this':
             return 'ok', [(f'Registered for this folder; {holder[user]} has it for your Windows user.', ['claude mcp remove --scope user tia'])]
-        return 'missing', [(f'Registered in this folder for {holder[local]}, which stays as it is.', [REMOVE_LOCAL])]
+        return 'missing', [(f'Registered in this folder for {holder[local]}, which a session here starts; it stays as it is. To start '
+                            'this clone here, run this, then press Refresh and Register:', [REMOVE_LOCAL])]
 
     def test_every_combination_reads_as_written_each_text_before_its_commands(self):
         setup = self.setup_module()

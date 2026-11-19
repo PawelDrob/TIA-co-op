@@ -226,7 +226,8 @@ def by_hand_rows(look):
 
 def bridge_settings_rows(look):
     """The bridge's other settings, as TiaBridge\\settings.json holds them; the folder has its own row."""
-    rows = [Row('missing', 'TiaBridge\\settings.json', look.bridge_settings_error)] if look.bridge_settings_error else []
+    rows = ([Row('missing', 'Settings of the bridge', 'TiaBridge\\settings.json cannot be read: fix it, then press Refresh.',
+                 key='bridge settings', details=[look.bridge_settings_error])] if look.bridge_settings_error else [])
     return rows + [Row('info', name, 'Value: ' + (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)),
                        about='A setting of the bridge, in TiaBridge\\settings.json.')
                    for name, value in look.bridge_settings.items() if name.lower() != 'projectsroot']
