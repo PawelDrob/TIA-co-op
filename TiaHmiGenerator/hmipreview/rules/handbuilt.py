@@ -17,7 +17,7 @@ hmi/[<device>/]handbuilt.json: [{screen, kind, x, y, w, h}], `screen` naming a s
 from ..findings import error
 from ..geometry import Box, items, linked_template
 from ..model import SLIDEIN
-from .slideinglobal import GLOBAL_ROOTS
+from .globalscreen import ROOTS as GLOBAL_ROOTS
 
 
 def _box(entry):

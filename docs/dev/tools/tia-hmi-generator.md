@@ -4,7 +4,7 @@ title: TiaHmiGenerator internals
 description: How WinCC Comfort screens are generated with hmixml, what the validator checks, how the preview server works, and how the screen object catalogue is built.
 tags: [dev, hmi, wincc-comfort]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T17:14:31-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:10:00-05:00 }
 ---
 
 # TiaHmiGenerator internals
@@ -29,7 +29,7 @@ Every object is copied from a full export or the catalogue's fixture. The genera
 
 ## Validating
 
-`hmipreview.validator.validate(repo, for_import=False, override=False, overlay=None, device=None)` returns findings of `severity`, `document`, `object`, `rule` and `message`. Three callers: `hmixml.finish`, the preview, and the bridge's import guard (`validate --json --import`). The rules read generated documents, as an export is in TIA already. Some read exports too: `document.not-full`, which tells that an export must be made again, `resolution.screen-size`, a warning on an export, and the `cycle` rules, which read only the cycle exports in `<hmi>\cycles`, as the bridge imports cycles from there.
+`hmipreview.validator.validate(repo, for_import=False, override=False, overlay=None, device=None)` returns findings of `severity`, `document`, `object`, `rule` and `message`. Three callers: `hmixml.finish`, the preview, and the bridge's import guard (`validate --json --import`). The rules read generated documents, as an export is in TIA already. Some read exports too: `document.not-full`, which tells that an export must be made again, `resolution.screen-size`, a warning on an export, the `cycle` rules, which read only the cycle exports in `<hmi>\cycles`, as the bridge imports cycles from there, and the `slidein` and `globalscreen` rules and, at import, `handbuilt.override`, which read the exports in `<hmi>\slideins` and `<hmi>\global` for the same reason.
 
 A new rule group is a new file in `hmipreview\rules\` defining `check(repo, ctx)`. Rule ids are `<group>.<rule>`, and each module's head says what each finds and how severe it is.
 
@@ -40,7 +40,7 @@ A new rule group is a new file in `hmipreview\rules\` defining `check(repo, ctx)
 | `resolution` | No known device, no device chosen, declared panel against hardware, screen size |
 | `links` | A target that neither exists nor is planned; open planned items, an error at import |
 | `geometry` | An object outside the screen; overlaps; an object hidden below another |
-| `handbuilt` | A generated document replacing hand-built objects; overlap with them |
+| `handbuilt` | A generated document replacing hand-built objects; overlap with them; at import, a slide-in or global screen export that holds them |
 | `staleness` | A TIA export newer than the generated document, an error at import unless override is passed |
 | `structure` | Grouped faceplates, duplicate names and screen numbers |
 | `dependent` | A property that does not follow its main one (`catalogue\dependent.json`), which can end TIA |
@@ -49,6 +49,8 @@ A new rule group is a new file in `hmipreview\rules\` defining `check(repo, ctx)
 | `text` | A text that does not fit its box in a language |
 | `tagtable` | A generated HMI tag table whose `Length` or `HmiDataType` does not fit its data type, which ended TIA |
 | `cycle` | A cycle export that is not full or lacks `StartAtStartingPoint` (warning, an error at import); another object in the cycles folder |
+| `slidein` | Another object in the slide-ins folder |
+| `globalscreen` | A screen item in the global elements (a text field there ended TIA, other items were not tried); another object in the global folder |
 
 **What makes an error** and what a warning: [decisions](../decisions.md#hmi).
 

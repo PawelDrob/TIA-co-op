@@ -119,7 +119,7 @@ function Test-HmiImportGuard([string]$Repo, [object[]]$Files, [bool]$OverrideSta
 
 # The importGuard of the screen kinds (hmi_screen, hmi_template, hmi_popup), of hmi_tag_table (an Int tag with Length 1
 # ended TIA on import: the validator's rules\tagtable.py), of hmi_cycle (rules\cycle.py) and of hmi_slidein and
-# hmi_screen_global (rules\slideinglobal.py, rules\handbuilt.py).
+# hmi_screen_global (rules\slidein.py, rules\globalscreen.py, rules\handbuilt.py).
 $script:HmiImportGuard = { param($repo, $files, $a) Test-HmiImportGuard $repo $files (Get-OptionalBool $a 'override' $false) }
 
 # The precheck of the HMI kinds: before the write, as the folder of a new object is made on the way into it. SimaticML
@@ -352,7 +352,7 @@ function Test-GraphicListFile($File, [hashtable]$Cache) {
 # identical; an added text field and a new Dimension landed and round tripped. The overview's Height landed; the global
 # elements' BackColor landed, and after an import their export no longer writes the empty layer 0 it wrote before (the
 # layer still counts 1). A text field in the global elements ended TIA ("The HmiScreenItemData object is not allowed in
-# screen Global screen."): the validator refuses a screen item there (rules\slideinglobal.py). Without Override TIA
+# screen Global screen."): the validator refuses a screen item there (rules\globalscreen.py). Without Override TIA
 # refused an existing slide-in and the overview [PROBE] (2026-11-12, test project). That an Override drops what their
 # exports cannot carry, as it is taken to on a screen, is [INFERRED], not tried: the validator refuses one listed in
 # handbuilt.json (rules\handbuilt.py), and the result says so. A new one and a delete were not tried.
@@ -399,7 +399,7 @@ Register-ObjectKind 'hmi_screen_global' @{
     importGuard = $script:HmiImportGuard
     defaultOverride = $true
     noDelete = 'The global elements and the screen overview are the device''s own; a delete was not tried on a real TIA.'
-    description = 'the global elements and the screen overview (ScreenGlobalElements, ScreenOverview); exported full and imported from hmi\[<device>\]global after the HMI validator passed, over the device''s own only; the global elements take attributes only; not deleted'
+    description = 'the global elements and the screen overview (ScreenGlobalElements, ScreenOverview); exported full and imported from hmi\[<device>\]global after the HMI validator passed, over the device''s own only; a screen item in the global elements is refused (a text field there ended TIA, others were not tried); not deleted'
     items = { param($hmi)
         foreach ($n in $script:HmiGlobalScreens.Keys) { $o = $hmi.$n; if ($null -ne $o) { @{ obj = $o; name = $n; folder = '' } } } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }

@@ -528,7 +528,7 @@ Describe 'import of an HMI object that is no SimaticML' {
 }
 
 # Slide-ins, the global elements and the screen overview go back from their export folders, hmi\[<device>\]slideins and
-# hmi\[<device>\]global, over the device's own only. The validator (rules\slideinglobal.py, rules\handbuilt.py) refuses
+# hmi\[<device>\]global, over the device's own only. The validator (rules\globalscreen.py, rules\handbuilt.py) refuses
 # global elements holding a screen item (a text field there ended TIA, 2026-11-12) and one listed as hand-built.
 Describe 'import of slide-ins and global screens (validator guard)' {
     if (-not ('Siemens.Engineering.ImportOptions' -as [type])) {
@@ -590,7 +590,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\ScreenGlobalElements.xml')
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
-        $r.items[0].refused | Should Match 'global\.screen-item'
+        $r.items[0].refused | Should Match 'globalscreen.screen-item'
         $r.items[0].findings[0].object | Should Be 'Text_1'
     }
 
@@ -635,7 +635,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('hmi\global\Top.xml')
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
-        $r.items[0].refused | Should Match 'global\.not-global'
+        $r.items[0].refused | Should Match 'globalscreen.not-global'
     }
 
     It 'does not delete <kind>' -TestCases @(@{ kind = 'hmi_slidein'; name = 'Top' }, @{ kind = 'hmi_screen_global'; name = 'ScreenOverview' }) {

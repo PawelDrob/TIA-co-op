@@ -22,5 +22,5 @@ A refused HMI import can throw `NonRecoverableException`, and TIA then closes, t
 
 ## What goes by hand
 
-- A screen, slide-in or global screen with an alarm view or a system diagnostics view: the export leaves those out, so a re-import deletes them. List it in `hmi\handbuilt.json` (a slide-in by its edge, `Top`; the global ones as `ScreenGlobalElements`, `ScreenOverview`), and change it in TIA.
+- A screen with an alarm view or a system diagnostics view: the export leaves those out, so a re-import deletes them. List it in `hmi\handbuilt.json`, and change it in TIA. A slide-in or global screen holding one goes in that list too (a slide-in by its edge, `Top`; the global ones as `ScreenGlobalElements`, `ScreenOverview`): an import over it is taken to delete them as well, though on these that was not tried.
 - Faceplate types: their contents do not go through Openness. Generate a staging screen into `zzStaging`; the user builds the type.
