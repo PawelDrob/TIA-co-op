@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 from . import instructions, s7dcl
 from .iface import setpoint_default
 from .names import object_name
-from .s7dcl import COIL_SIGNALS, RELATIONS, SCL_KEYWORDS, Block, Element, Interface, Member, Network, Rung, part_text, pin_key, wire_of
+from .s7dcl import RELATIONS, SCL_KEYWORDS, Block, Element, Interface, Member, Network, Rung, instr_kind, part_text, wire_of
 
 KINDS = {'SW.Blocks.OB': 'ORGANIZATION_BLOCK', 'SW.Blocks.FB': 'FUNCTION_BLOCK', 'SW.Blocks.FC': 'FUNCTION',
          'SW.Blocks.GlobalDB': 'DATA_BLOCK', 'SW.Blocks.InstanceDB': 'DATA_BLOCK', 'SW.Blocks.ArrayDB': 'DATA_BLOCK',
@@ -842,6 +842,10 @@ def _element(eid, e, net, name):
         return ('NOT ' + v).strip() if negated.pop(pin.lower(), None) else v
 
     def direction(pin):
+        """'=>' for an output: a wire starts at it, or a coil's operand (timer, counter), which the XML wires from the
+        operand as an input and .s7dcl writes as the output it is by the instruction (`timer => #t`)."""
+        if pin == 'operand' and instr_kind(instr) == 'coil':
+            return '=>'
         driven = net.driven.get((uid, pin))
         return '=>' if driven or (driven is None and (pin in RUNG_OUT or _output(pin))) else ':='
 
@@ -895,11 +899,8 @@ def _element(eid, e, net, name):
         rest.sort(key=lambda x: (x in flow, x if x in flow else ''))          # pins fed by logic after them
         params = [(instructions.sd_pin(instr, x), direction(x), value(x)) for x in rest]
     params += rung_negated()
-    el = Element(eid, instr, instance, params, templates, expression=_text(p, 'Equation') or None,
-                 no_eno=p.get('DisabledENO') == 'true', more=more)
-    if el.kind == 'coil':                     # its operand an output, as .s7dcl writes it: the XML wires it as an input
-        el.params = [(n, '=>' if d and pin_key(n) in COIL_SIGNALS else d, v) for n, d, v in el.params]
-    return el
+    return Element(eid, instr, instance, params, templates, expression=_text(p, 'Equation') or None,
+                   no_eno=p.get('DisabledENO') == 'true', more=more)
 
 
 # ---------------------------------------------------------------- interface

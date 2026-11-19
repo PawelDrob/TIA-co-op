@@ -472,17 +472,7 @@ class Element:
 
     @property
     def kind(self):
-        i = self.instr
-        if i in CMP:
-            return 'compare'
-        known = instructions.form(i)
-        if known:
-            return known
-        if i.endswith('Contact') or i == 'Not':
-            return 'contact'
-        if i.endswith('Coil') or i in ('Return', 'ReturnTrue', 'ReturnFalse'):
-            return 'coil'
-        return 'box'
+        return instr_kind(self.instr)
 
     def operand(self):
         """The inline operand of a contact / coil (first parameter value)."""
@@ -506,12 +496,22 @@ class Element:
         return (name or '') if self.instr == 'CALL' else pin_key(name)
 
 
+def instr_kind(i):
+    """What an instruction is drawn as: 'compare', 'contact', 'coil' or 'box'."""
+    if i in CMP:
+        return 'compare'
+    known = instructions.form(i)
+    if known:
+        return known
+    if i.endswith('Contact') or i == 'Not':
+        return 'contact'
+    if i.endswith('Coil') or i in ('Return', 'ReturnTrue', 'ReturnFalse'):
+        return 'coil'
+    return 'box'
+
+
 CMP = {'EQ_Contact': '==', 'NE_Contact': '<>', 'LT_Contact': '<', 'GT_Contact': '>',
        'LE_Contact': '<=', 'GE_Contact': '>='}
-
-# The pin that holds a coil's operand, by the .s7dcl's name: an output by its instruction (`timer => #t`) where the coil
-# names its pins, its operand above it in the drawing.
-COIL_SIGNALS = ('operand', 'timer', 'counter')
 
 # relation of a Switch case: the SimaticML export's operation -> the .s7dcl export's pragma value, as TIA shows it
 RELATIONS = {'EQ': '==', 'NE': '<>', 'LT': '<', 'GT': '>', 'LE': '<=', 'GE': '>='}

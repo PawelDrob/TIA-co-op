@@ -1886,11 +1886,11 @@ class CoilOperandDirection(unittest.TestCase):
     spelling; the operand, the second operand and the kind of coil are changes, read from either format."""
 
     @staticmethod
-    def xml(part, rung_in, second, signal_uid=21, second_uid=23):
+    def xml(part, rung_in, second, signal_uid=21):
         """The coil alone on the rail, read from SimaticML. Operands: 21 #start, 22 #stop, 23 #big."""
         n = NegatedPins('test_taken_away')
         text = n.net('<Part Name="%s" UId="25" />' % part, ['<Powerrail /><NameCon UId="25" Name="%s" />' % rung_in,
-                                                            n.op(second_uid, 25, second), n.op(signal_uid, 25, 'operand')], 'LAD')
+                                                            n.op(23, 25, second), n.op(signal_uid, 25, 'operand')], 'LAD')
         return parse_block(_xml_src(text)).networks[0]
 
     @staticmethod
@@ -1915,17 +1915,22 @@ class CoilOperandDirection(unittest.TestCase):
                 self.assertIn((signal, '=>', '#start'), self.coil(x).params)
 
     def test_another_operand_or_kind_differs_across_the_formats(self):
-        kinds = {'S_BitfieldCoil': 'R_BitfieldCoil', 'R_BitfieldCoil': 'S_BitfieldCoil', 'P_Coil': 'N_Coil',
-                 'N_Coil': 'P_Coil', 'TP_Coil': 'TON_Coil', 'SC_Coil': 'SP_Coil'}
-        for part, rung_in, second, instr, signal, sd_second in COILS:
+        for k, (part, rung_in, second, instr, signal, sd_second) in enumerate(COILS):
             x = self.xml(part, rung_in, second)
-            others = [self.sd(instr, signal, sd_second, signal_op='#stop'), self.sd(instr, signal, sd_second, second_op='#stop')]
-            if instr in kinds:
-                others.append(self.sd(kinds[instr], signal, sd_second))
-            for k, s in enumerate(others):
-                with self.subTest(instr, other=k):
+            another_kind = COILS[(k + 1) % len(COILS)][3]
+            others = [self.sd(instr, signal, sd_second, signal_op='#stop'), self.sd(instr, signal, sd_second, second_op='#stop'),
+                      self.sd(another_kind, signal, sd_second)]
+            for what, s in zip(('operand', 'second operand', 'kind'), others):
+                with self.subTest(instr, other=what):
                     self.assertNotEqual(self.coil(s).sig(), self.coil(x).sig())
                     self.assertTrue(NetDiff(Graph(x.rungs), Graph(s.rungs)).changed)
+
+    def test_another_operand_differs_in_simaticml_alone(self):
+        for part, rung_in, second, instr, _, _ in COILS:
+            with self.subTest(instr):
+                x, y = self.xml(part, rung_in, second), self.xml(part, rung_in, second, signal_uid=22)
+                self.assertNotEqual(self.coil(x).sig(), self.coil(y).sig())
+                self.assertTrue(NetDiff(Graph(x.rungs), Graph(y.rungs)).changed)
 
     def test_the_operand_of_a_flip_flop_or_an_edge_contact_stays_an_input(self):
         """.s7dcl writes `S_SR( operand := ...`, `P_Contact( operand := ...`: no coils."""
