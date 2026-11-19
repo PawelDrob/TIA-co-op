@@ -432,7 +432,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
                     try { $khp = [bool]$e.obj.IsKnowHowProtected }
                     finally { [TiaBridgeTimes]::Exit($step) }
                 }
-                [void]$done.Add(@{ entry = $e; object = $o; item = $item; khp = $khp })
+                [void]$done.Add(@{ entry = $e; object = $o; item = $item; knowHowProtected = $khp })
                 # Set-ItemError asked TIA after the object's last call into TIA (the retry's, when that ended TIA): its answer stands
                 if (Test-ItemEndedTia $item) { break }
             }
@@ -451,7 +451,7 @@ function Invoke-FullExportKindPart($Part, $Root, [string]$Device, $Record, $Plan
             foreach ($f in $item.files) { if ($f) { [void]$Record.written.Add((Join-Path $script:Bridge.repo $f)) } }
             foreach ($f in $item.removed) { if ($f) { [void]$Record.removed.Add($f) } }
             if ($item.fellBack) { [void]$Record.fellBack.Add([ordered]@{ name = $item.name; folder = $item.folder; note = $item.fellBack }) }
-            if ($d.khp) { [void]$Record.knowHowProtected.Add($item.name) }
+            if ($d.knowHowProtected) { [void]$Record.knowHowProtected.Add($item.name) }
             continue
         }
         $dir = Get-KindDir $k $e.folder '' $Device

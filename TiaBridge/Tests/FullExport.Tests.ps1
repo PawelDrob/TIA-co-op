@@ -1016,10 +1016,11 @@ Describe 'the times of a full_export' {
     $repo = Join-Path $TestDrive 'timed'
     Initialize-BridgeContext @{ maxResponseChars = 20000 }
     Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $repo
-    # a block TIA takes long over, with files of 1000 bytes
+    # a block TIA takes long over, with files of 1000 bytes; longer than the part's first object, whose first calls into
+    # the bridge's functions take tens of ms on a busy PC
     $slow = New-Block 'Slow'
     $slow | Add-Member -Force ScriptMethod ExportAsDocuments { param($d, $n)
-        Start-Sleep -Milliseconds 80
+        Start-Sleep -Milliseconds 300
         foreach ($x in '.s7dcl', '.s7res') { [System.IO.File]::WriteAllText((Join-Path $d.FullName "$n$x"), ('x' * 500)) }
         [pscustomobject]@{ State = 'Success'; Messages = @() } }
     $script:timedPlc = [pscustomobject]@{ BlockGroup = [pscustomobject]@{ Blocks = @((New-Block 'A'), (New-Block 'B' 'Failure'), $slow); Groups = @() }

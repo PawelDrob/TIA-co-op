@@ -170,18 +170,22 @@ function Get-CollisionError($Kind, $Entry, [string[]]$Names, [string]$Library = 
 # delete the last good file: export into the export's work folder, which replaces it after (Repo.ps1, the work folder of
 # an export; Move-ExportIntoPlace).
 function Export-ObjectFile($Obj, [string]$File, $Options) {
-    $dir = [System.IO.Path]::GetDirectoryName($File)
-    $batch = Get-ExportBatchFor $dir
-    $o = $null
-    try {
-        $work = "$(Get-ExportWorkDir $batch $dir)\$([System.IO.Path]::GetFileName($File))"
+    $null = Invoke-ObjectExport ([System.IO.Path]::GetDirectoryName($File)) { param($work)
+        $w = "$work\$([System.IO.Path]::GetFileName($File))"
+        # what a failed export of the object left (its retry comes here again): TIA would not write over it
+        [System.IO.File]::Delete($w)
         $step = [TiaBridgeTimes]::Enter('tia_export_xml')
-        try { $Obj.Export([System.IO.FileInfo]::new($work), $Options) }
+        try { $Obj.Export([System.IO.FileInfo]::new($w), $Options) }
         finally { [TiaBridgeTimes]::Exit($step) }
-        $o = Add-ExportBatchObject $batch @(, @($work, $File))
-    }
-    finally { if ($batch.own -and -not $o) { Complete-ExportBatch $batch } }
-    if ($batch.own) { $null = Complete-OwnExportBatch $batch }
+        @{ moves = @(@{ from = $w; to = $File }) } }
+}
+
+# A text file the bridge writes beside an export (the index of a faceplate type's versions), put in place with them.
+function Write-ExportTextFile([string]$File, [string]$Text) {
+    $null = Invoke-ObjectExport ([System.IO.Path]::GetDirectoryName($File)) { param($work)
+        $w = "$work\$([System.IO.Path]::GetFileName($File))"
+        Write-TextFile $w $Text
+        @{ moves = @(@{ from = $w; to = $File }) } }
 }
 
 # A SimaticML export that writes files beside the .xml (a multilingual graphic writes its images into
@@ -189,25 +193,20 @@ function Export-ObjectFile($Obj, [string]$File, $Options) {
 # file and folder of it put in Dir. Returns the files, those inside a folder too (the full_export mirror keeps them).
 function Export-ObjectFolder($Obj, [string]$Dir, [string]$Name, $Options) {
     $Dir = $Dir.TrimEnd('\')
-    $batch = Get-ExportBatchFor $Dir
-    $o = $null
-    try {
-        $work = Get-ExportWorkDir $batch $Dir
+    $r = Invoke-ObjectExport $Dir { param($work)
+        [System.IO.File]::Delete("$work\$Name.xml")
         $before = [System.Collections.Generic.HashSet[string]]::new([string[]][System.IO.Directory]::GetFileSystemEntries($work), [StringComparer]::OrdinalIgnoreCase)
         $step = [TiaBridgeTimes]::Enter('tia_export_xml')
         try { $Obj.Export([System.IO.FileInfo]::new("$work\$Name.xml"), $Options) }
         finally { [TiaBridgeTimes]::Exit($step) }
-        $new = @([System.IO.Directory]::GetFileSystemEntries($work) | Where-Object { -not $before.Contains($_) } | Sort-Object)
-        $files = @(foreach ($p in $new) {
-            $dest = "$Dir\$([System.IO.Path]::GetFileName($p))"
-            if ([System.IO.Directory]::Exists($p)) { foreach ($f in [System.IO.Directory]::GetFiles($p, '*', 'AllDirectories')) { $dest + $f.Substring($p.Length) } }
-            else { $dest }
+        $moves = @([System.IO.Directory]::GetFileSystemEntries($work) | Where-Object { -not $before.Contains($_) } | Sort-Object |
+            ForEach-Object { @{ from = $_; to = "$Dir\$([System.IO.Path]::GetFileName($_))" } })
+        $files = @(foreach ($m in $moves) {
+            if ([System.IO.Directory]::Exists($m.from)) { foreach ($f in [System.IO.Directory]::GetFiles($m.from, '*', 'AllDirectories')) { $m.to + $f.Substring($m.from.Length) } }
+            else { $m.to }
         })
-        $o = Add-ExportBatchObject $batch @(foreach ($p in $new) { , @($p, "$Dir\$([System.IO.Path]::GetFileName($p))") })
-    }
-    finally { if ($batch.own -and -not $o) { Complete-ExportBatch $batch } }
-    if ($batch.own) { $null = Complete-OwnExportBatch $batch }
-    $files
+        @{ moves = $moves; files = $files } }
+    $r.files
 }
 
 # One object of a kind into the repo -> the item of an export result (name, folder, ok, format, files, removed,
@@ -221,7 +220,7 @@ function Export-KindEntry($Kind, $Entry, $Options, [string]$Device = '', [string
         return $item
     }
     # what the object adds to the open batch is its own (Repo.ps1, the work folder of an export): its files go in place
-    # when the batch completes (Complete-ExportItems), or with a failure not at all
+    # when the batch completes (Invoke-ExportBatch), or with a failure not at all
     $batch = $script:ExportBatch
     $first = if ($batch) { $batch.objects.Count } else { 0 }
     try {

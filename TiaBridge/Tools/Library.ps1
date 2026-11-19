@@ -241,7 +241,7 @@ function Export-LibraryTypeVersions($Entry, [string]$Dir) {
     # from this index (TiaHmiGenerator\hmipreview\model.py, faceplate links).
     $index = Join-Path $Dir "$(ConvertTo-SafeFileName $Entry.name).type.json"
     $versions = @($Entry.obj.Versions | ForEach-Object { [string]$_.VersionNumber })
-    Write-TextFile $index (ConvertTo-Json -Depth 3 -InputObject ([ordered]@{ name = [string]$Entry.name; folder = [string]$Entry.folder; versions = $versions }))
+    Write-ExportTextFile $index (ConvertTo-Json -Depth 3 -InputObject ([ordered]@{ name = [string]$Entry.name; folder = [string]$Entry.folder; versions = $versions }))
     $files += $index
     @{ ok = $true; format = 'xml'; files = $files; note = 'Version metadata only (author, version, comment), not the type contents; <type>.type.json lists name, library folder and versions.' }
 }

@@ -4,7 +4,7 @@ foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bri
 . (Join-Path $here 'TestBridge.ps1')
 . (Join-Path $here 'Fixtures\ExportFiles.ps1')
 
-# The work folder of an export (Repo.ps1; ticket 338): every object of an export call or a full_export part is exported
+# The work folder of an export (Repo.ps1): every object of an export call or a full_export part is exported
 # into one folder, and the files go in place together. Each property the per-object folders had holds through it.
 
 if (-not ('Siemens.Engineering.ExportOptions' -as [type])) {
@@ -15,10 +15,11 @@ function Test-TiaAlive { Test-FakeTiaAlive }
 function Get-LibraryLink { $null }
 
 # A block. ExportAsDocuments writes <name>.s7dcl and .s7res with Sd and reports State (a refused one writes 'half' first);
-# Export writes Xml as SimaticML, or throws when XmlFail, and refuses a file that is there, as TIA does. Gone: TIA answers
-# no more after its export. Each folder TIA is given goes into $script:workDirs, and $script:probe runs at each export.
-function New-TestBlock([string]$Name, [string]$State = 'Success', [string]$Xml = "$Name xml", [switch]$XmlFail, [switch]$Gone) {
-    $b = [pscustomobject]@{ Name = $Name; IsKnowHowProtected = $false; state = $State; xml = $Xml; xmlFail = [bool]$XmlFail; gone = [bool]$Gone }
+# Export writes Xml as SimaticML, or throws when XmlFail, and refuses a file that is there, as TIA does; FailOnce: its first
+# Export writes 'half' and throws. KnowHow: know-how protected, so exported as SimaticML. Gone: TIA answers no more after
+# its export. Each folder TIA is given goes into $script:workDirs, and $script:probe runs at each export.
+function New-TestBlock([string]$Name, [string]$State = 'Success', [string]$Xml = "$Name xml", [switch]$XmlFail, [switch]$FailOnce, [switch]$KnowHow, [switch]$Gone) {
+    $b = [pscustomobject]@{ Name = $Name; IsKnowHowProtected = [bool]$KnowHow; state = $State; xml = $Xml; xmlFail = [bool]$XmlFail; failOnce = [bool]$FailOnce; gone = [bool]$Gone }
     $b | Add-Member ScriptMethod ExportAsDocuments { param($d, $n)
         $script:workDirs += @($d.FullName)
         if ($script:probe) { & $script:probe $this.Name }
@@ -32,6 +33,7 @@ function New-TestBlock([string]$Name, [string]$State = 'Success', [string]$Xml =
         if ($this.gone) { $script:tiaGone = $true; throw 'TIA said no' }
         if ($this.xmlFail) { throw "Export of $($this.Name) refused" }
         if ([System.IO.File]::Exists($f.FullName)) { throw "The file $($f.FullName) exists already." }
+        if ($this.failOnce) { $this.failOnce = $false; [System.IO.File]::WriteAllText($f.FullName, 'half'); throw "Export of $($this.Name) broke off" }
         [System.IO.File]::WriteAllText($f.FullName, $this.xml) }
     $b
 }
@@ -150,6 +152,36 @@ Describe 'a refused or failed export keeps the last good files' {
         ($r.items | ForEach-Object { "$($_.name) $($_.ok)" }) -join '|' | Should Be 'Good True|Half False'
         Read-Repo 'plc\two\Good_2.xml' | Should Be 'new'
         Read-Repo 'plc\two\Half_1.xml' | Should Be 'old'
+        Get-WorkLeft | Should BeNullOrEmpty
+    }
+
+    It 'a SimaticML export that failed half way leaves nothing its retry in the same work folder meets' {
+        New-TestRepo @((New-TestBlock 'A'), (New-TestBlock 'K' -KnowHow -FailOnce))
+        Write-Old $script:repo 'plc\blocks\K.xml'
+        $rec = Invoke-TestPart
+        $rec.failed.Count | Should Be 0
+        Read-Repo 'plc\blocks\K.xml' | Should Be 'K xml'
+        Get-WorkLeft | Should BeNullOrEmpty
+    }
+
+    It 'the versions of a faceplate type stay as they were when the first does not go in place' {
+        Register-ObjectKind 'versions' @{
+            scope = 'plc'; dir = 'plc\versions'; description = 'test kind: the versions of a type, as faceplate types export'
+            items = { param($root) @{ name = 'F'; folder = ''; obj = $script:faceplate } }
+            export = { param($e, $dir, $opt) Export-LibraryTypeVersions $e $dir }
+        }
+        $script:faceplate = [pscustomobject]@{ Versions = @(foreach ($v in '1.0.0', '2.0.0') {
+            $x = [pscustomobject]@{ VersionNumber = $v }
+            $x | Add-Member ScriptMethod Export { param($f, $o) [System.IO.File]::WriteAllText($f.FullName, "new $($this.VersionNumber)") }
+            $x }) }
+        New-TestRepo @()
+        foreach ($f in 'F_V1.0.0.xml', 'F_V2.0.0.xml', 'F.type.json') { Write-Old $script:repo "plc\versions\$f" }
+        $lock = [System.IO.File]::Open((Join-Path $script:repo 'plc\versions\F_V1.0.0.xml'), 'Open', 'Read', 'None')
+        try { $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'versions'; names = @('F') }) }
+        finally { $lock.Dispose() }
+        $r.items[0].ok | Should Be $false
+        $r.items[0].error.message | Should Match 'F_V1\.0\.0\.xml'
+        foreach ($f in 'F_V1.0.0.xml', 'F_V2.0.0.xml', 'F.type.json') { Read-Repo "plc\versions\$f" | Should Be 'old' }
         Get-WorkLeft | Should BeNullOrEmpty
     }
 }

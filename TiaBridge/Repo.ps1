@@ -286,12 +286,12 @@ function Move-ExportIntoPlace([string]$Partial, [string]$Destination, [int]$Retr
 
 # ------------------------------------------------------------------ the work folder of an export
 
-# An export writes the files of all its objects into one work folder, then puts them in place together (ticket 338): an
-# export call for its kind folder, full_export for each kind part. The batch: root, the folder its files land under; work,
+# An export writes the files of all its objects into one work folder, then puts them in place together: an export call
+# for its kind folder, full_export for each kind part. The batch: root, the folder its files land under; work,
 # <root>.<8 hex>.partial (New-ExportWorkPath), which holds the folders below root as the repo does, made on first use;
-# objects, one per object that exported, in order: @{ moves = list of @(work path, destination); replaces = destinations
-# its export makes stale (the other format of a block), removed once its files are in place; item, the export item it
-# belongs to (Tools\Objects.ps1); removed; notes; error, the error record of a move that failed }.
+# objects, one per object that exported, in order: @{ moves = list of @{ from = work path; to = destination }; replaces =
+# destinations its export makes stale (the other format of a block), removed once its files are in place; item, the
+# export item it belongs to (Tools\Objects.ps1); removed; notes; error, the error record of a move that failed }.
 # Export-KindEntry opens none: the export tool and full_export set $script:ExportBatch around their objects. An export
 # function called outside them (the import's screen numbers, a library review) gets a batch of its own (Get-ExportBatchFor).
 $script:ExportBatch = $null
@@ -323,8 +323,8 @@ function Get-ExportWorkDir($Batch, [string]$Dir) {
     $w
 }
 
-# An object's export done: its files (pairs of work path and destination) go in place when the batch completes, and then
-# Replaces are removed. Returns the batch's entry of the object.
+# An object's export done: its files go in place when the batch completes, and then Replaces are removed. Returns the
+# batch's entry of the object.
 function Add-ExportBatchObject($Batch, [object[]]$Moves, [string[]]$Replaces = @()) {
     $o = @{ moves = @($Moves | Where-Object { $_ }); replaces = @($Replaces | Where-Object { $_ }); item = $null; removed = @(); notes = @(); error = $null }
     [void]$Batch.objects.Add($o)
@@ -335,35 +335,59 @@ function Add-ExportBatchObject($Batch, [object[]]$Moves, [string[]]$Replaces = @
 function Remove-ExportBatchObjects($Batch, [int]$From) {
     while ($Batch.objects.Count -gt $From) {
         $o = $Batch.objects[$Batch.objects.Count - 1]
-        foreach ($m in $o.moves) { Remove-Item -LiteralPath $m[0] -Recurse -Force -ErrorAction SilentlyContinue }
+        foreach ($m in $o.moves) { Remove-Item -LiteralPath $m.from -Recurse -Force -ErrorAction SilentlyContinue }
         $Batch.objects.RemoveAt($Batch.objects.Count - 1)
     }
+}
+
+# One object's export, with the batch that takes the files of ExportDir: the open one, or one of its own, completed
+# before this returns, with the error of a move that failed thrown. ExportBody gets the folder of the work folder that
+# stands for ExportDir and returns a hashtable: moves (@{ from; to } each) and replaces (Add-ExportBatchObject), with what
+# its caller reads. A body that throws, or returns no moves, adds nothing: what it wrote reaches no destination. Returns
+# what the body returned, with object, the batch's entry, when it added one. The body runs in a scope below this one, so
+# it reads its caller's variables: the names here are unlike theirs.
+function Invoke-ObjectExport([string]$ExportDir, [scriptblock]$ExportBody) {
+    $exportBatch = Get-ExportBatchFor $ExportDir
+    $exportOut = $null
+    try {
+        $exportOut = & $ExportBody (Get-ExportWorkDir $exportBatch $ExportDir)
+        if ($exportOut -and @($exportOut.moves).Count) { $exportOut.object = Add-ExportBatchObject $exportBatch $exportOut.moves $exportOut.replaces }
+    }
+    finally { if ($exportBatch.own -and -not ($exportOut -and $exportOut.object)) { Complete-ExportBatch $exportBatch } }
+    if ($exportBatch.own -and $exportOut.object) {
+        Complete-ExportBatch $exportBatch
+        if ($exportOut.object.error) { throw $exportOut.object.error }
+    }
+    $exportOut
 }
 
 # Puts the files of the batch in place, object by object in the order they exported (Move-ExportIntoPlace: a locked
 # destination is retried, a git repo in a folder kept, a file that differs only in what TIA writes anew keeps its
 # bytes), then removes what each made stale, then the work folder. An object whose move fails gets the error and keeps
-# its replaces; the others go on. Called once, in a finally: also when the export stopped, so what was exported before
-# is in place and no work folder stays.
+# its replaces, and the later objects of its item (the versions of a faceplate type) stay out too; the others go on.
+# Called once, in a finally: also when the export stopped, so what was exported before is in place and no work folder
+# stays.
 function Complete-ExportBatch($Batch) {
     try {
         $made = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+        $failed = New-Object System.Collections.ArrayList
         foreach ($o in $Batch.objects) {
+            if ($o.item -and $failed.Contains($o.item)) { continue }
             $step = [TiaBridgeTimes]::Enter('move')
             try {
                 foreach ($m in $o.moves) {
-                    $parent = [System.IO.Path]::GetDirectoryName($m[1])
+                    $parent = [System.IO.Path]::GetDirectoryName($m.to)
                     if ($made.Add($parent)) { [void][System.IO.Directory]::CreateDirectory($parent) }
-                    Move-ExportIntoPlace $m[0] $m[1]
+                    Move-ExportIntoPlace $m.from $m.to
                 }
             }
             catch { $o.error = $_ }
             finally { [TiaBridgeTimes]::Exit($step) }
-            if ($o.error) { continue }
+            if ($o.error) { if ($o.item) { [void]$failed.Add($o.item) }; continue }
             if (-not $o.replaces.Count) { continue }
             $step = [TiaBridgeTimes]::Enter('remove')
             try {
-                $moved = @($o.moves | ForEach-Object { $_[1] })
+                $moved = @($o.moves | ForEach-Object { $_.to })
                 foreach ($f in $o.replaces) {
                     if ($moved -contains $f -or -not [System.IO.File]::Exists($f)) { continue }
                     try { Remove-Item -LiteralPath $f -Force -ErrorAction Stop; $o.removed += $f }
@@ -378,15 +402,6 @@ function Complete-ExportBatch($Batch) {
         if ([System.IO.Directory]::Exists($Batch.work)) { Remove-Item -LiteralPath $Batch.work -Recurse -Force -ErrorAction SilentlyContinue }
         [TiaBridgeTimes]::Exit($step)
     }
-}
-
-# A batch of one export function's own (Get-ExportBatchFor) completed: its one object's error thrown, else the object
-# (removed, notes); $null when the export registered none.
-function Complete-OwnExportBatch($Batch) {
-    Complete-ExportBatch $Batch
-    $o = @($Batch.objects)[0]
-    if ($o -and $o.error) { throw $o.error }
-    $o
 }
 
 # $null when git is on PATH, else what to do. The bridge keeps the PATH it started with.

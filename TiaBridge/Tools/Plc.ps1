@@ -57,11 +57,10 @@ function Export-PlcObject($Entry, [string]$Dir, $Options, [bool]$IsBlock) {
     $Dir = $Dir.TrimEnd('\')
     # into the export's work folder first (Repo.ps1, the work folder of an export): the previous files are replaced only
     # by a successful export (a refused SD export, e.g. without SimaticSdEnabler, must not delete the last good one). What
-    # a failed or refused export left there reaches no destination: only an object that exported registers its moves.
-    $batch = Get-ExportBatchFor $Dir
-    $o = $null
-    try {
-        $work = Get-ExportWorkDir $batch $Dir
+    # a failed or refused export left there reaches no destination: only an object that exported adds its moves.
+    $x = Invoke-ObjectExport $Dir { param($work)
+        # what a failed export of the block left (its SimaticML retry comes here again): TIA would not write over it
+        foreach ($ext in '.s7dcl', '.s7res', '.xml') { [System.IO.File]::Delete("$work\$base$ext") }
         if ($format -eq 's7dcl') {
             $step = [TiaBridgeTimes]::Enter('tia_export_s7dcl')
             try { $res = $obj.ExportAsDocuments([System.IO.DirectoryInfo]::new($work), $base) }
@@ -72,34 +71,25 @@ function Export-PlcObject($Entry, [string]$Dir, $Options, [bool]$IsBlock) {
             $exts = @('.s7dcl', '.s7res')
             $ok = $tree.state -eq 'Success'
         } else {
-            $xmlOptions = Get-PlcExportOptions ([bool]$Options.full)
             $step = [TiaBridgeTimes]::Enter('tia_export_xml')
-            try { $obj.Export([System.IO.FileInfo]::new("$work\$base.xml"), $xmlOptions) }
+            try { $obj.Export([System.IO.FileInfo]::new("$work\$base.xml"), (Get-PlcExportOptions ([bool]$Options.full))) }
             finally { [TiaBridgeTimes]::Exit($step) }
             $tree = $null; $exts = @('.xml'); $ok = $true
         }
-        $paths = @()
+        $out = @{ ok = $ok; tree = $tree; moves = @() }
         if ($ok) {
-            $moves = @(foreach ($x in $exts) {
-                $p = "$work\$base$x"
-                if ([System.IO.File]::Exists($p)) { , @($p, "$Dir\$base$x") }
-            })
-            $paths = @($moves | ForEach-Object { $_[1] })
+            $out.moves = @(foreach ($ext in $exts) { if ([System.IO.File]::Exists("$work\$base$ext")) { @{ from = "$work\$base$ext"; to = "$Dir\$base$ext" } } })
             # the block's export in the other format, or an .s7res the new export no longer writes, no longer matches
             # the project (seen on a real project: SimaticML of refused SD exports beside the later .s7dcl); removed only once the new
             # export is in place, and listed so the removal goes into the project repo's next commit
-            $stale = if ($paths -contains "$Dir\$base$($exts[0])") { @('.s7dcl', '.s7res', '.xml' | ForEach-Object { "$Dir\$base$_" }) }
-            if ($moves.Count) { $o = Add-ExportBatchObject $batch $moves $stale }
+            if ([System.IO.File]::Exists("$work\$base$($exts[0])")) { $out.replaces = @('.s7dcl', '.s7res', '.xml' | ForEach-Object { "$Dir\$base$_" }) }
         }
-    }
-    finally { if ($batch.own -and -not $o) { Complete-ExportBatch $batch } }
-    $r = @{ ok = $ok; format = $format; files = $paths }
-    if ($batch.own -and $o) {
-        $null = Complete-OwnExportBatch $batch
-        if ($o.removed.Count) { $r.removed = $o.removed }
-        if ($o.notes.Count) { $r.note = $o.notes -join ' ' }
-    }
-    if ($tree) { $r.messages = $tree }
+        $out }
+    $r = @{ ok = $x.ok; format = $format; files = @($x.moves | ForEach-Object { $_.to }) }
+    # known here only from a batch of the function's own, which is complete; the export's batch gives them to the item
+    if ($x.object.removed.Count) { $r.removed = $x.object.removed }
+    if ($x.object.notes.Count) { $r.note = $x.object.notes -join ' ' }
+    if ($x.tree) { $r.messages = $x.tree }
     $r
 }
 
