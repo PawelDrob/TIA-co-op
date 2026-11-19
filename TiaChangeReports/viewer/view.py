@@ -18,7 +18,7 @@ from TiaChangeReports.compare import BlockDiff, Callees
 from TiaChangeReports.page import CSS, FOLD_ALL, JS, _lad_pane, folds, version_html
 from TiaChangeReports.names import decl_type
 from TiaChangeReports.render_lad import Layout
-from TiaChangeReports.s7dcl import LANG, SET_IN_IDB, parse_block, scl_lines
+from TiaChangeReports.s7dcl import LANG, parse_block, scl_lines
 from TiaChangeReports.simaticml import parse_interface
 from TiaChangeReports.source import REPO_MARKS, FolderSnapshot, from_file, name_of
 
@@ -65,25 +65,13 @@ def _xml_db(src):
     return parse_interface(ET.fromstring(src.xml.lstrip('﻿').encode('utf-8')), LANG, db=True)
 
 
-def type_of(blk):
-    """(name, its interface or None) of the FB or UDT a DB is of; (None, None) for any other block. Read as a call's
-    interface (compare.Callees): by name in any case, the project's block before a library type."""
-    name = decl_type(blk.decl) if blk.kind == 'DATA_BLOCK' else ''
-    if not name:
-        return None, None
-    itf = blk.callees(name) if blk.callees else None
-    kind = getattr(getattr(itf, 'block', None), 'kind', '')
-    return name.strip('"'), itf if kind in ('FUNCTION_BLOCK', 'TYPE') else None
-
-
 def own_retain(blk, src, base):
-    """The retain a DB sets itself: on the members its FB leaves to the instance ("Set in IDB") and on every member of a
-    DB of a UDT. The .s7dcl writes it as S7_StandardRetain, a SimaticML export on each such member."""
+    """The retain a DB sets itself, on its members of iface.set_by_db. The .s7dcl writes it as S7_StandardRetain, a
+    SimaticML export on each such member."""
     if src.xml is None:
         return blk.props.get('S7_StandardRetain', '').upper() == 'TRUE'
     own = _xml_db(src).root.children
-    return any(own[k].retain is True for k, m in base.root.children.items()
-               if k in own and (m.section == 'UDT' or m.retain == SET_IN_IDB))
+    return any(own[k].retain is True for k, m in base.root.children.items() if k in own and iface.set_by_db(m))
 
 
 def lad_svg(net, blk):
@@ -134,8 +122,8 @@ def _type_html(name, itf, root, table):
     start values are its own, and the table; or that its members could not be read, above the start values the DB sets
     (table)."""
     if itf is None:
-        return ('<div class="of none">Instance of %s: its members could not be read, no file of %s in the project.'
-                '</div>%s' % (escape(name), escape(name), table))
+        return ('<div class="of none">Instance of %s: its members could not be read, the project holds no FB or UDT of '
+                'that name.</div>%s' % (escape(name), table))
     kind = 'UDT' if itf.block.kind == 'TYPE' else 'FB'
     path = os.path.relpath(itf.block.label, root).replace(os.sep, '/')
     head = 'Members of %s %s, from %s.' % (kind, escape(name), escape(path))
@@ -149,7 +137,7 @@ def block_html(blk, src, rel, root=''):
     """The block drawn: header, properties, interface, every network. The report's Collapse all and Expand all when
     something folds. An instance DB or a DB of a UDT with the members of its FB or UDT (from root), and a line saying
     from which file, or that they could not be read."""
-    name, base = type_of(blk)
+    name, base = iface.db_type(blk)
     itf = iface.html(blk, blk, whole=True, db_retain=base is not None and own_retain(blk, src, base))
     parts = ['<div class="bh"><b>%s</b>%s<span class="paths">%s</span>%s</div>'
              % (escape(heading(blk)), version_html(src.version, src.version), escape(rel),

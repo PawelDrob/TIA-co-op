@@ -229,21 +229,40 @@ def _tree(itf, types=None, base=None, unfold=False, db_retain=False):
         _fill(m, types, unfold)
         if unfold:
             _unfold(m, types, opened, base is not None)
+    if unfold:
+        _bools(root)
     return root
+
+
+def _bools(node):
+    """The viewer's: a Bool value as TIA's editor writes it, true or false, however the file spells it (the .s7dcl
+    TRUE, SimaticML true), so that both formats of one block give one table."""
+    for m in node.children.values():
+        if (m.type or '').strip().lower() == 'bool':
+            for f in ('value', 'dflt'):
+                v = getattr(m, f, None)
+                if v and v.lower() in ('true', 'false'):
+                    setattr(m, f, v.lower())
+        _bools(m)
 
 
 INSTANCE_SECTIONS = ('INPUT', 'OUTPUT', 'IN_OUT', 'STAT', 'UDT')     # what an instance holds of its FB, a DB of its UDT
 
 
+def set_by_db(m):
+    """Is the retain of this member of an FB or UDT the DB's own: one the FB leaves to the instance ("Set in IDB"), or
+    any member of a UDT (a DB of a UDT is retained as a whole)?"""
+    return m.section == 'UDT' or m.retain == SET_IN_IDB
+
+
 def _instance(root, base, types, db_retain):
     """The viewer's: an instance DB or a DB of a UDT holds every member of its FB's Input, Output, InOut and Static
     sections (every member of its UDT), in their order, as TIA's DB editor lists them: an Inner with the type,
-    comment, default and attributes of the FB's file. Retain: the FB's; where the FB leaves it to the instance ("Set in
-    IDB"), and on every member of a DB of a UDT, the DB's own (db_retain)."""
+    comment, default and attributes of the FB's file. Retain: the FB's, or the DB's own (db_retain) where set_by_db."""
     for k, m in base.root.children.items():
         if m.section in INSTANCE_SECTIONS and k not in root.children:
             kid = _new_inner(root, k, types, base)
-            kid.retain = db_retain if m.section == 'UDT' or m.retain == SET_IN_IDB else m.retain
+            kid.retain = db_retain if set_by_db(m) else m.retain
             root.children[k] = kid
 
 
@@ -545,6 +564,18 @@ def _base(blk):
     return cal(decl_type(blk.decl))
 
 
+def db_type(blk):
+    """The viewer's: (name, interface) of the FB or UDT a DB is of, the interface None when the project holds no FB or
+    UDT of that name (none, or another kind of block, an FC); (None, None) for a block that is no DB of a type. The
+    report takes whatever the name finds (_base)."""
+    name = decl_type(blk.decl) if blk is not None and blk.kind == 'DATA_BLOCK' else ''
+    if not name:
+        return None, None
+    itf = _base(blk)
+    kind = getattr(getattr(itf, 'block', None), 'kind', '')
+    return name.strip('"'), itf if kind in ('FUNCTION_BLOCK', 'TYPE') else None
+
+
 def _returns(blk):
     """A function's interface with its return value as TIA's Return section shows it: one member named as the
     block, of the return type (none for Void; before, a changed return type was no change)."""
@@ -562,7 +593,7 @@ def _returns(blk):
 def block_rows(bblock, ablock, unfold=False, db_retain=False):
     bs = (bblock, ablock)
     return rows(*(_returns(b) if b else None for b in bs), types=tuple(getattr(b, 'callees', None) for b in bs),
-                bases=tuple(_base(b) for b in bs), unfold=unfold, db_retain=db_retain)
+                bases=tuple(db_type(b)[1] if unfold else _base(b) for b in bs), unfold=unfold, db_retain=db_retain)
 
 
 def props_rows(bprops, aprops):

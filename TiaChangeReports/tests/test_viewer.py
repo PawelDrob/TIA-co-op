@@ -437,6 +437,7 @@ PUMP_DB = '''{
     S7_StandardRetain := "TRUE"
 }
 DATA_BLOCK PumpDb : Pump
+    start := TRUE;
     speed := 9;
     cmd.down := 2;
     drive.time := 6;
@@ -453,7 +454,7 @@ PUMP_DB_XML = '''<?xml version="1.0" encoding="utf-8"?>
       <InstanceOfType>FB</InstanceOfType>
       <Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
   <Section Name="Input">
-    <Member Name="start" Datatype="Bool" Remanence="NonRetain" />
+    <Member Name="start" Datatype="Bool" Remanence="NonRetain"><StartValue>true</StartValue></Member>
     <Member Name="speed" Datatype="Int" Remanence="NonRetain"><StartValue>9</StartValue></Member>
   </Section>
   <Section Name="Output"><Member Name="running" Datatype="Bool" Remanence="NonRetain" /></Section>
@@ -557,10 +558,21 @@ class InstanceDb(unittest.TestCase):
     def test_a_db_whose_fb_is_not_in_the_project_says_so(self):
         _write(self.dir, {'blocks/LostDb.s7dcl': 'DATA_BLOCK LostDb : Gone\n    speed := 1;\nEND_DATA_BLOCK\n'})
         html = self.page('blocks/LostDb.s7dcl')
-        self.assertIn('Instance of Gone: its members could not be read, no file of Gone', html)
+        self.assertIn('Instance of Gone: its members could not be read, the project holds no FB or UDT of that name.',
+                      html)
         self.assertNotIn('No members', html)
         self.assertEqual(self.cells(html)[1], [(1, '', 'speed')])         # only what the DB says, below the line
         self.assertLess(html.index('could not be read'), html.index('<table class="itf"'))
+
+    def test_a_name_that_finds_an_fc_is_no_type_of_a_db(self):
+        _write(self.dir, {'blocks/Fc1.s7dcl': 'FUNCTION "Fc1" : Void\n    VAR_INPUT\n        a : Int := 3;\n    END_VAR\n'
+                                              'END_FUNCTION\n',
+                          'blocks/FcDb.s7dcl': 'DATA_BLOCK FcDb : Fc1\n    speed := 1;\nEND_DATA_BLOCK\n'})
+        html = self.page('blocks/FcDb.s7dcl')
+        self.assertIn('Instance of Fc1: its members could not be read, the project holds no FB or UDT of that name.',
+                      html)
+        self.assertEqual(self.cells(html)[1], [(1, '', 'speed')])         # not the FC's input
+        self.assertEqual(re.findall(r'data-d="0"><span class="tw">▼</span>(\w+)', html), ['Static'])
 
     def test_a_db_of_a_udt_shows_the_udts_members(self):
         _write(self.dir, {'blocks/ProbeDb.s7dcl': '{\n    S7_StandardRetain := "TRUE"\n}\n'
@@ -569,7 +581,7 @@ class InstanceDb(unittest.TestCase):
         cells, order = self.cells(html)
         self.assertEqual(order, [(1, '', 'up'), (1, '', 'down')])
         self.assertEqual(re.findall(r'data-d="0"><span class="tw">▼</span>(\w+)', html), ['Static'])
-        self.assertIn('<td>TRUE</td>', cells['up'])
+        self.assertIn('<td>true</td>', cells['up'])                    # a Bool as TIA's editor writes it
         self.assertIn('<span class="dflt">5</span>', cells['down'])
         self.assertIn('Members of UDT Probe, from types/Probe.s7dcl.', html)
 
@@ -579,6 +591,7 @@ class InstanceDb(unittest.TestCase):
                   for x in ('s7dcl', 'xml')]
         self.assertEqual(tables[0], tables[1])
         self.assertIn('<td>9</td>', tables[1])
+        self.assertIn('<td>true</td>', tables[1])                   # TRUE in the .s7dcl, true in the SimaticML
         _write(self.dir, {'blocks/PumpDb.s7dcl': PUMP_DB.replace('"TRUE"', '"FALSE"'),
                           'blocks/PumpDb.xml': PUMP_DB_XML.replace('"kept" Datatype="Int" Remanence="Retain"',
                                                                    '"kept" Datatype="Int" Remanence="NonRetain"')})
@@ -588,10 +601,11 @@ class InstanceDb(unittest.TestCase):
     def test_a_db_of_a_udt_from_simaticml_gives_the_same_table(self):
         _write(self.dir, {
             'blocks/ProbeDb.s7dcl': '{\n    S7_StandardRetain := "TRUE"\n}\n'
-                                    'DATA_BLOCK ProbeDb : Probe\n    down := 7;\nEND_DATA_BLOCK\n',
+                                    'DATA_BLOCK ProbeDb : Probe\n    up := TRUE;\n    down := 7;\nEND_DATA_BLOCK\n',
             'blocks/ProbeDb.xml': PUMP_DB_XML.split('<Interface>')[0].replace('Pump', 'Probe').replace('>FB<', '>UDT<')
             + '<Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">'
-              '<Section Name="Static"><Member Name="up" Datatype="Bool" Remanence="Retain" />'
+              '<Section Name="Static"><Member Name="up" Datatype="Bool" Remanence="Retain"><StartValue>true</StartValue>'
+              '</Member>'
               '<Member Name="down" Datatype="Int" Remanence="Retain"><StartValue>7</StartValue></Member></Section>'
               '</Sections></Interface><Name>ProbeDb</Name><Number>4</Number>'
               '<ProgrammingLanguage>DB</ProgrammingLanguage></AttributeList></SW.Blocks.InstanceDB></Document>'})
@@ -605,7 +619,7 @@ class InstanceDb(unittest.TestCase):
         from TiaChangeReports import iface
         blk, _, _, _ = view.block_of(os.path.join(self.dir, 'blocks', 'PumpDb.s7dcl'))
         self.assertEqual([r.path for r in iface.block_rows(blk, blk)],
-                         [('speed',), ('cmd',), ('cmd', 'up'), ('cmd', 'down'), ('drive',), ('drive', 'open'),
+                         [('start',), ('speed',), ('cmd',), ('cmd', 'up'), ('cmd', 'down'), ('drive',), ('drive', 'open'),
                           ('drive', 'time'), ('drive', 'seal'), ('drive', 'tmp')])
 
 
