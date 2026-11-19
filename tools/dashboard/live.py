@@ -23,6 +23,7 @@ VENDOR_KINDS = {'.js': 'text/javascript; charset=utf-8', '.woff2': 'font/woff2'}
 ASSET_TAGS = '<link rel="stylesheet" href="/dashboard.css"><script src="/dashboard.js"></script>'    # in the head: the theme is set before anything is drawn
 HOST = re.compile(r'([a-z0-9.-]+)(?::(\d{1,5}))?')
 THIS_MACHINE = ('127.0.0.1', 'localhost')
+ABOUT = '/api/about'      # what a dashboard says of itself: the setup window tells it from another program on its port by that
 
 
 def head(title):
@@ -77,6 +78,10 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_text(self, code, body, kind):
         self.send_body(code, body.encode('utf-8'), kind)
+
+    def send_about(self, app):
+        """{app, clone}: which dashboard this is, and the clone whose code runs it."""
+        self.send_text(200, json.dumps({'app': app, 'clone': str(HERE.parents[1])}), 'application/json; charset=utf-8')
 
     def send_asset(self, path):
         """Serves the stylesheet, the script or a vendored file; False when path is none of them."""

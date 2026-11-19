@@ -100,6 +100,10 @@ class DashboardTest(unittest.TestCase):
             if folder.exists():
                 shutil.rmtree(folder)
 
+    def test_it_says_which_dashboard_it_is_and_of_which_clone(self):
+        about = json.loads(self.get('/api/about'))
+        self.assertEqual(about, {'app': review_server.APP, 'clone': str(TOOLS.parent.parent)})
+
     def test_start_page_gets_a_new_review_without_a_reload(self):
         ev = Events(self.port, 'start=1')
         self.addCleanup(ev.close)

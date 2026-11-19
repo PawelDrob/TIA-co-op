@@ -1059,6 +1059,12 @@ class Serving(Case):
         self.serve()
         self.assertEqual(self.get('/report/zz-line/2026-10-30_abc1234.html'), (200, '<html>the report</html>'))
 
+    def test_it_says_which_dashboard_it_is_and_of_which_clone(self):
+        self.serve()
+        code, body = self.get('/api/about')
+        clone = os.path.dirname(os.path.dirname(os.path.abspath(dashboard.__file__)))
+        self.assertEqual((code, json.loads(body)), (200, {'app': dashboard.APP, 'clone': clone}))
+
     def test_the_page_holds_what_skill_tia_dashboard_looks_for(self):
         """The skill tells a running dashboard by its header; a page without one sends an agent to start a second one. The
         header of older builds counts too: a dashboard runs on through an update of the clone."""

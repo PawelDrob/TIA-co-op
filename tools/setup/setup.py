@@ -3,6 +3,9 @@
     powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup/setup.ps1 [--projects-root <path>]
 
 Exit code 0 is done, 1 something is missing (a question may wait as well), 3 only the question about the projects root waits for an answer.
+
+Each step looks first and returns its findings; a change it would make is a finding of its own, made when its make() is
+called: here at once, in the setup window (tools\\setup\\window, Setup.wsf) when its button is pressed.
 """
 import argparse
 import json
@@ -28,6 +31,7 @@ GIT_CONTEXT = ('GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PAR
                'GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_GRAFT_FILE', 'GIT_INDEX_FILE', 'GIT_NO_REPLACE_OBJECTS',
                'GIT_REPLACE_REF_BASE', 'GIT_PREFIX', 'GIT_SHALLOW_FILE', 'GIT_COMMON_DIR')
 COMMAND_SECONDS = 300
+NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 OUTPUT_HEAD_LINES = 20
 OUTPUT_TAIL_LINES = 10
 DEPTH_LIMIT = 102  # of ConvertFrom-Json, as TiaArchiveCompare\runner\powershell_json.py has it
@@ -39,6 +43,26 @@ ARCHIVE_PATH_AROUND_NAMES = 39  # around the project's name, which it holds twic
 PROJECT_NAME_WANTED = 30
 
 
+# What a finding is about: the window groups and finds them by it.
+TOPIC_GIT, TOPIC_HOOK, TOPIC_CLAUDE, TOPIC_SERVER, TOPIC_PLUGIN, TOPIC_TRACKED, TOPIC_STATUS, TOPIC_ROOT, TOPIC_TIA, TOPIC_GROUP, TOPIC_UV = (
+    'git', 'commit hook', 'Claude Code', 'MCP server tia', 'plugin', 'tracked settings', 'status line', 'projectsRoot',
+    'TIA Portal', 'Openness group', 'uv')
+PREFIXES = {'ok': 'ok       ', 'done': 'done     ', 'warning': 'warning  ', 'missing': 'missing  ', 'note': '         '}
+
+
+class Finding:
+    """One thing a step found. kind: ok, done, warning, missing, note (a line under the one before it), question, or
+    change: a change not made yet, its text saying what it changes and where; make() makes it, from what is there then,
+    and gives the findings of that. A step looks only, and changes nothing until make() is called: setup calls it at
+    once, the window when the person says so."""
+
+    def __init__(self, kind, text, topic, make=None, person_step=None):
+        self.kind, self.text, self.topic, self.make, self.person_step = kind, text, topic, make, person_step
+
+    def __repr__(self):
+        return f'Finding({self.kind!r}, {self.text!r}, {self.topic!r})'
+
+
 class Report:
     """What the run found, one line each in the order it found it, and at the end what is left for a person."""
 
@@ -47,30 +71,29 @@ class Report:
         self.question = None
         self.person_steps = []
 
-    def ok(self, text):
-        print(f'ok       {text}')
-
-    def done(self, text):
-        print(f'done     {text}')
-
-    def warn(self, text):
-        print(f'warning  {text}')
-
-    def lack(self, text):
-        self.missing += 1
-        print(f'missing  {text}')
-
-    def lack_for_person(self, text, step):
-        self.lack(text)
-        self.person_steps.append(step)
+    def show(self, finding):
+        """Prints a finding; a change is made first, and its outcome printed."""
+        if finding.kind == 'change':
+            for made in finding.make():
+                self.show(made)
+            return
+        if finding.kind == 'question':
+            self.question = finding.text
+            return
+        if finding.kind == 'missing':
+            self.missing += 1
+        if finding.person_step:
+            self.person_steps.append(finding.person_step)
+        print(PREFIXES[finding.kind] + finding.text)
 
 
 def run(*command):
     """Exit code and output of a command; 127 when it could not run."""
     env = {k: v for k, v in os.environ.items() if k not in GIT_CONTEXT}
     try:
+        # no console of its own: from the window, which has none, a console program would open one
         done = subprocess.run(command, cwd=CLONE, env=env, capture_output=True, text=True, encoding='utf-8', errors='replace',
-                              stdin=subprocess.DEVNULL, timeout=COMMAND_SECONDS)
+                              stdin=subprocess.DEVNULL, timeout=COMMAND_SECONDS, creationflags=NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired) as e:
         return 127, str(e)
     return done.returncode, done.stdout + done.stderr
@@ -202,28 +225,44 @@ def write_json(path, data, ascii_only):
     os.replace(temp, path)
 
 
-def check_git(report):
+def uv_path():
+    """uv as a double-click finds it: on the PATH, else where its installer puts it, which a PATH read before the install
+    lacks. setup.ps1 and Setup.wsf look for it themselves, as they run before this Python does."""
+    found = shutil.which('uv')
+    if found:
+        return found
+    installed = Path(os.environ.get('USERPROFILE') or Path.home()) / '.local' / 'bin' / 'uv.exe'
+    return str(installed) if installed.exists() else None
+
+
+def uv_step():
+    if uv_path():
+        return [Finding('ok', 'uv', TOPIC_UV)]
+    return [Finding('missing', 'uv, which makes the Python environment of this repo: install it (https://docs.astral.sh/uv/)', TOPIC_UV)]
+
+
+def git_step():
     if shutil.which('git'):
-        report.ok('git')
-    else:
-        report.lack('git: install it (https://git-scm.com/downloads/win), then run this again in a new terminal')
+        return [Finding('ok', 'git', TOPIC_GIT)]
+    return [Finding('missing', 'git: install it (https://git-scm.com/downloads/win), then run this again in a new terminal', TOPIC_GIT)]
 
 
-def set_hook_path(report):
+def hook_step(write=False):
     if not shutil.which('git'):
-        return
+        return []
     code, value = run('git', 'config', '--local', '--get', 'core.hooksPath')
     value = value.strip()
     if value == HOOKS:
-        report.ok(f'commit hook: core.hooksPath is {HOOKS}')
-    elif code == 0:
-        report.lack(f'commit hook: core.hooksPath is {value}, so the checks in {HOOKS} do not run on a commit; left as it is. They run after: git config core.hooksPath {HOOKS}')
-    else:
-        code, output = run('git', 'config', '--local', 'core.hooksPath', HOOKS)
-        if code:
-            report.lack(f'commit hook: without core.hooksPath a commit skips the checks, and setting it failed:{output_lines(output)}')
-        else:
-            report.done(f'commit hook: core.hooksPath set to {HOOKS}')
+        return [Finding('ok', f'commit hook: core.hooksPath is {HOOKS}', TOPIC_HOOK)]
+    if code == 0:
+        return [Finding('missing', f'commit hook: core.hooksPath is {value}, so the checks in {HOOKS} do not run on a commit; left as it is. They run after: git config core.hooksPath {HOOKS}', TOPIC_HOOK)]
+    if not write:
+        return [Finding('change', f'commit hook: sets core.hooksPath to {HOOKS} in the git settings of {CLONE} (git config core.hooksPath {HOOKS}), so a commit runs the checks in {HOOKS}',
+                        TOPIC_HOOK, lambda: hook_step(write=True))]
+    code, output = run('git', 'config', '--local', 'core.hooksPath', HOOKS)
+    if code:
+        return [Finding('missing', f'commit hook: without core.hooksPath a commit skips the checks, and setting it failed:{output_lines(output)}', TOPIC_HOOK)]
+    return [Finding('done', f'commit hook: core.hooksPath set to {HOOKS}', TOPIC_HOOK)]
 
 
 def script_of(server):
@@ -236,40 +275,44 @@ def is_this_clone(server):
     return bool(script) and same_path(script, BRIDGE_SCRIPT)
 
 
-def add_server(report, claude, scope, done_text):
+def add_server(claude, scope, done_text):
     code, output = run(claude, 'mcp', 'add', '--scope', scope, 'tia', '--', *BRIDGE_COMMAND)
     if code:
-        report.lack(f'MCP server tia: claude mcp add failed:{output_lines(output)}')
-    else:
-        report.done(done_text)
+        return [Finding('missing', f'MCP server tia: claude mcp add failed:{output_lines(output)}', TOPIC_SERVER)]
+    return [Finding('done', done_text, TOPIC_SERVER)]
 
 
-def register_bridge(report, claude):
+def server_change(claude, scope, plan, write, done_text):
+    if write:
+        return add_server(claude, scope, done_text)
+    command = subprocess.list2cmdline(['claude', 'mcp', 'add', '--scope', scope, 'tia', '--', *BRIDGE_COMMAND])
+    return [Finding('change', f'MCP server tia: registers it {plan}: {command}. Claude Code keeps it in {claude_state_file()}', TOPIC_SERVER,
+                    lambda: server_step(claude, write=True))]
+
+
+def server_step(claude, write=False):
     """User scope for the first clone. A second clone takes the name for its own folder: the first keeps its server, and no question stops the setup.
     With a stand-in server, `claude mcp list` started only the local definition in that folder and only the user one elsewhere; a real session has not been tried."""
     try:
         state = read_json(claude_state_file())
     except ValueError as e:
-        report.lack(f'MCP server tia: {e}')
-        return
+        return [Finding('missing', f'MCP server tia: {e}', TOPIC_SERVER)]
     user = (state.get('mcpServers') or {}).get('tia')
     if not user:
-        add_server(report, claude, 'user', 'MCP server tia registered, user scope')
-        return
+        return server_change(claude, 'user', 'for your Windows user', write, 'MCP server tia registered, user scope')
     if is_this_clone(user):
-        report.ok('MCP server tia')
-        return
+        return [Finding('ok', 'MCP server tia', TOPIC_SERVER)]
     other = script_of(user) or 'another command'
     elsewhere = f'in other folders tia stays {other}. To make this clone the one for all: claude mcp remove --scope user tia, then run this again'
     projects = state.get('projects') or {}
     here = next((p for key, p in projects.items() if same_path(key, CLONE)), {})
     local = (here.get('mcpServers') or {}).get('tia')
     if not local:
-        add_server(report, claude, 'local', f'MCP server tia registered for this folder; {elsewhere}')
-    elif is_this_clone(local):
-        report.ok(f'MCP server tia, for this folder; {elsewhere}')
-    else:
-        report.lack(f'MCP server tia: in this folder it is registered for {script_of(local) or "another command"}; left as it is. To move it here: claude mcp remove --scope local tia, then run this again')
+        return server_change(claude, 'local', f'for this folder only, as {other} has it for your Windows user', write,
+                             f'MCP server tia registered for this folder; {elsewhere}')
+    if is_this_clone(local):
+        return [Finding('ok', f'MCP server tia, for this folder; {elsewhere}', TOPIC_SERVER)]
+    return [Finding('missing', f'MCP server tia: in this folder it is registered for {script_of(local) or "another command"}; left as it is. To move it here: claude mcp remove --scope local tia, then run this again', TOPIC_SERVER)]
 
 
 def plugin_installed(claude):
@@ -283,30 +326,36 @@ def plugin_installed(claude):
         return False
 
 
-def install_plugin(report, claude):
-    if plugin_installed(claude):
-        report.ok(f'plugin {PLUGIN}')
-        return
-    for what, command in (('adding its marketplace', ('plugin', 'marketplace', 'add', MARKETPLACE)), ('installing it', ('plugin', 'install', PLUGIN, '--scope', 'user'))):
+PLUGIN_COMMANDS = (('adding its marketplace', ('plugin', 'marketplace', 'add', MARKETPLACE)), ('installing it', ('plugin', 'install', PLUGIN, '--scope', 'user')))
+
+
+def plugin_step(claude, write=False):
+    """Looking asks claude plugin list; the change does not ask again, and installing an installed plugin is no harm."""
+    if not write:
+        if plugin_installed(claude):
+            return [Finding('ok', f'plugin {PLUGIN}', TOPIC_PLUGIN)]
+        commands = ' and '.join(subprocess.list2cmdline(['claude', *command]) for _, command in PLUGIN_COMMANDS)
+        return [Finding('change', f'plugin {PLUGIN}: installs it for your Windows user: {commands}', TOPIC_PLUGIN, lambda: plugin_step(claude, write=True))]
+    for what, command in PLUGIN_COMMANDS:
         code, output = run(claude, *command)
         if code:
-            report.lack(f'plugin {PLUGIN}: {what} failed:{output_lines(output)}')
-            return
-    report.done(f'plugin {PLUGIN} installed, user scope')
+            return [Finding('missing', f'plugin {PLUGIN}: {what} failed:{output_lines(output)}', TOPIC_PLUGIN)]
+    return [Finding('done', f'plugin {PLUGIN} installed, user scope', TOPIC_PLUGIN)]
 
 
-def check_tracked_settings(report):
+def tracked_settings_step():
     """A plugin command of project scope rewrites this tracked file, and has been seen to empty it."""
     try:
         settings = read_json(TRACKED_SETTINGS)
     except ValueError as e:
-        report.lack(f'.claude/settings.json: {e}')
-        return
+        return [Finding('missing', f'.claude/settings.json: {e}', TOPIC_TRACKED)]
+    found = []
     if not (settings.get('enabledPlugins') or {}).get(PLUGIN):
-        report.lack(f'.claude/settings.json does not enable {PLUGIN}, so a Claude Code session here goes without it. To bring it back: git restore .claude/settings.json')
+        found.append(Finding('missing', f'.claude/settings.json does not enable {PLUGIN}, so a Claude Code session here goes without it. To bring it back: git restore .claude/settings.json', TOPIC_TRACKED))
     if not str((settings.get('env') or {}).get('LANG', '')).upper().replace('-', '').endswith('UTF8'):
-        report.lack('.claude/settings.json sets no LANG of UTF-8 for a Claude Code session here, and without one the grep of Git Bash aborts '
-                    'on -i with fixed strings. To bring it back: git restore .claude/settings.json')
+        found.append(Finding('missing', '.claude/settings.json sets no LANG of UTF-8 for a Claude Code session here, and without one the grep of Git Bash aborts '
+                             'on -i with fixed strings. To bring it back: git restore .claude/settings.json', TOPIC_TRACKED))
+    return found
 
 
 def is_full_path(text):
@@ -385,40 +434,44 @@ def clone_of(status_line):
     return clone if same_path(python_clone, clone) else None
 
 
-def set_status_line(report):
+def status_line_step(write=False):
     user_file = user_settings_file()
     try:
         user = read_json(user_file)
     except ValueError as e:
-        report.lack(f'status line: {e}')
-        return
+        return [Finding('missing', f'status line: {e}', TOPIC_STATUS)]
     clone = clone_of(user.get('statusLine'))
     if clone and same_path(clone, CLONE):
-        report.ok(f'status line: the TIA row, in {user_file}')
-        return
+        return [Finding('ok', f'status line: the TIA row, in {user_file}', TOPIC_STATUS)]
     if clone:
-        report.ok(f"status line: the TIA row of {clone}, left as it is. To make it this clone's: remove statusLine from {user_file}, then run this again")
-        return
+        return [Finding('ok', f"status line: the TIA row of {clone}, left as it is. To make it this clone's: remove statusLine from {user_file}, then run this again", TOPIC_STATUS)]
     if 'statusLine' in user:
-        report.ok(f'status line: your own, left as it is. For the TIA row in it too, it can run {status_command(CLONE)}, '
-                  f'which prints the row or nothing: "Status line" in {CLONE / "TiaAgentStatus" / "README.md"}')
-        return
+        return [Finding('ok', f'status line: your own, left as it is. For the TIA row in it too, it can run {status_command(CLONE)}, '
+                        f'which prints the row or nothing: "Status line" in {CLONE / "TiaAgentStatus" / "README.md"}', TOPIC_STATUS)]
+    if not write:
+        return [Finding('change', f'status line: adds the TIA row to Claude Code, as statusLine in {user_file}: {status_command(CLONE)}', TOPIC_STATUS,
+                        lambda: status_line_step(write=True))]
     user['statusLine'] = {'type': 'command', 'command': status_command(CLONE), 'refreshInterval': 5}
     try:
         write_json(user_file, user, ascii_only=False)
     except OSError as e:
-        report.lack(f'status line: writing failed: {e}')
-        return
-    report.done(f'status line: the TIA row, in {user_file}')
+        return [Finding('missing', f'status line: writing failed: {e}', TOPIC_STATUS)]
+    return [Finding('done', f'status line: the TIA row, in {user_file}', TOPIC_STATUS)]
 
 
-def warn_on_long_path(report, root):
+def default_projects_root():
+    return str(Path.home() / 'TIA-Projects')
+
+
+def long_path_warning(root):
+    """The warning on a folder that leaves little room for a project's name in an archive path, '' for one that does not."""
     room = (ARCHIVE_LIMIT - len(root.rstrip('\\')) - ARCHIVE_PATH_AROUND_NAMES) // 2
     if room < PROJECT_NAME_WANTED:
-        report.warn(f'projectsRoot is long: TIA refuses an archive path over {ARCHIVE_LIMIT} characters, and this folder leaves room for a project name of {max(room, 0)} characters')
+        return f'projectsRoot is long: TIA refuses an archive path over {ARCHIVE_LIMIT} characters, and this folder leaves room for a project name of {max(room, 0)} characters'
+    return ''
 
 
-def settle_projects_root(report, answer):
+def projects_root_step(answer=None, write=False):
     """Stores the answer and keeps the allow rules on the folder. Reads all first: a file that cannot be read stops it with nothing written."""
     user_file = user_settings_file()
     try:
@@ -433,19 +486,23 @@ def settle_projects_root(report, answer):
             stored = None
         root = normal_root(answer or stored) if answer or stored else None
     except ValueError as e:
-        report.lack(f'projectsRoot: {e}')
-        return
+        return [Finding('missing', f'projectsRoot: {e}', TOPIC_ROOT)]
     if not root:
-        report.question = ((f'{BRIDGE_SETTINGS} holds {no_folder} as projectsRoot, which names no folder. ' if no_folder else '')
-                           + f'Where should the project repos live? The default is {Path.home() / "TIA-Projects"}. '
-                           'Ask the user, then run this again with --projects-root "<path>", the default too.')
-        return
+        return [Finding('question', (f'{BRIDGE_SETTINGS} holds {no_folder} as projectsRoot, which names no folder. ' if no_folder else '')
+                        + f'Where should the project repos live? The default is {default_projects_root()}. '
+                        'Ask the user, then run this again with --projects-root "<path>", the default too.', TOPIC_ROOT)]
     changed = not (stored and same_path(stored, root))
     if not changed:
         root = normal_root(stored)
     old_rules = allow_rules(normal_root(stored)) if changed and is_full_path(stored) else []
     kept = [r for r in allow if r not in old_rules]
     updated = kept + [r for r in allow_rules(root) if r not in kept]
+    if (changed or updated != allow) and not write:
+        plan = ([f'projectsRoot: sets it to {root} in {BRIDGE_SETTINGS}' + (f', in place of {stored}' if stored else f', in place of {no_folder}' if no_folder else '') + '.']
+                if changed else [f'projectsRoot {stored} stays.'])
+        plan.append(f'Claude Code allow rules for read, edit and git in that folder, in {user_file}:')
+        plan += [f'    adds {r}' for r in updated if r not in allow] + [f'    takes away {r}' for r in allow if r not in updated]
+        return [Finding('change', '\n'.join(plan), TOPIC_ROOT, lambda: projects_root_step(answer, write=True))]
     try:
         if changed:
             bridge[spelled(bridge, 'projectsRoot')] = root      # never a second spelling: the bridge refuses two
@@ -454,58 +511,84 @@ def settle_projects_root(report, answer):
             user['permissions']['allow'] = updated
             write_json(user_file, user, ascii_only=False)
     except OSError as e:
-        report.lack(f'projectsRoot: writing failed: {e}')
-        return
+        return [Finding('missing', f'projectsRoot: writing failed: {e}', TOPIC_ROOT)]
     if not changed:
-        report.ok(f'projectsRoot {stored}. To change it: --projects-root "<path>"')
+        found = [Finding('ok', f'projectsRoot {stored}. To change it: --projects-root "<path>"', TOPIC_ROOT)]
     elif stored:
-        report.done(f'projectsRoot changed from {stored} to {root}. No repo moved: those in the old folder stay there. A bridge already running keeps the old value until it restarts. Another clone on the old folder loses these rules, as they are per user: run setup in it to bring them back')
+        found = [Finding('done', f'projectsRoot changed from {stored} to {root}. No repo moved: those in the old folder stay there. A bridge already running keeps the old value until it restarts. Another clone on the old folder loses these rules, as they are per user: run setup in it to bring them back', TOPIC_ROOT)]
     else:
-        report.done(f'projectsRoot {root}, in {BRIDGE_SETTINGS}' + (f', in place of {no_folder}, which named no folder' if no_folder else ''))
-    print(f'         Setup makes no folder there: the bridge makes {root}\\_bridge\\sessions each time it starts; with Claude Code, in every new session and at claude mcp get tia.')
+        found = [Finding('done', f'projectsRoot {root}, in {BRIDGE_SETTINGS}' + (f', in place of {no_folder}, which named no folder' if no_folder else ''), TOPIC_ROOT)]
+    found.append(Finding('note', f'Setup makes no folder there: the bridge makes {root}\\_bridge\\sessions each time it starts; with Claude Code, in every new session and at claude mcp get tia.', TOPIC_ROOT))
     git_form = f'git -C "{forward_slashes(root)}/<repo>"'
-    (report.ok if updated == allow else report.done)(f'Claude Code allow rules for read, edit and git in that folder, in {user_file}. Git goes by {git_form}: with a backslash or a cd first it asks')
-    warn_on_long_path(report, root)
+    found.append(Finding('ok' if updated == allow else 'done', f'Claude Code allow rules for read, edit and git in that folder, in {user_file}. Git goes by {git_form}: with a backslash or a cd first it asks', TOPIC_ROOT))
+    warning = long_path_warning(root)
+    return found + ([Finding('warning', warning, TOPIC_ROOT)] if warning else [])
 
 
-def check_tia(report):
+def tia_step():
     """As the bridge finds it: tiaRoot of its settings, the Openness API of V20 under it (Import-Openness, TiaBridge\\Tia.ps1)."""
     try:
         bridge = read_bridge_settings()
     except ValueError:
-        return  # settle_projects_root names the file
+        return []  # projects_root_step names the file
     name = spelled(bridge, 'tiaRoot')
     tia_root = bridge.get(name, DEFAULT_TIA_ROOT)
     if not (tia_root and isinstance(tia_root, str)):    # the bridge takes it over its default
-        report.lack_for_person(f'TIA Portal V20 with TIA Openness: {BRIDGE_SETTINGS} holds {json.dumps(tia_root)} as tiaRoot, which names no folder',
-                               f'Set tiaRoot in {BRIDGE_SETTINGS} to the folder of TIA Portal V20, or take it out for the default, {DEFAULT_TIA_ROOT}.')
-        return
+        return [Finding('missing', f'TIA Portal V20 with TIA Openness: {BRIDGE_SETTINGS} holds {json.dumps(tia_root)} as tiaRoot, which names no folder', TOPIC_TIA,
+                        person_step=f'Set tiaRoot in {BRIDGE_SETTINGS} to the folder of TIA Portal V20, or take it out for the default, {DEFAULT_TIA_ROOT}.')]
     if (Path(tia_root) / 'PublicAPI' / 'V20' / 'Siemens.Engineering.dll').exists():
-        report.ok(f'TIA Portal V20 with TIA Openness, {tia_root}')
-    else:
-        report.lack_for_person(f'TIA Portal V20 with TIA Openness: not found in {tia_root}',
-                               f'Install TIA Portal V20 with the TIA Openness option. If V20 is in another folder, set tiaRoot in {BRIDGE_SETTINGS}.')
+        return [Finding('ok', f'TIA Portal V20 with TIA Openness, {tia_root}', TOPIC_TIA)]
+    return [Finding('missing', f'TIA Portal V20 with TIA Openness: not found in {tia_root}', TOPIC_TIA,
+                    person_step=f'Install TIA Portal V20 with the TIA Openness option. If V20 is in another folder, set tiaRoot in {BRIDGE_SETTINGS}.')]
 
 
-def check_openness_group(report):
+def openness_step():
     """The groups of this logon, as the bridge's Test-OpennessGroup sees them: a user added since then counts only after logging on again."""
     # By its folder: in Git Bash the first whoami on the PATH is Git's own, which ignores these arguments.
     whoami = shutil.which('whoami', path=os.path.join(os.environ['SystemRoot'], 'System32'))
     code, output = run(whoami, '/groups', '/fo', 'csv', '/nh') if whoami else (127, '')
     if code == 0 and re.search(r'^"(?:[^"\\]*\\)?' + OPENNESS_GROUP + '"', output, re.IGNORECASE | re.MULTILINE):
-        report.ok(f"the Windows group '{OPENNESS_GROUP}'")
-    else:
-        report.lack_for_person(f"the Windows group '{OPENNESS_GROUP}': TIA refuses Openness to a user outside it",
-                               f"Join the Windows group '{OPENNESS_GROUP}' (an administrator or IT adds you), then log off and on.")
+        return [Finding('ok', f"the Windows group '{OPENNESS_GROUP}'", TOPIC_GROUP)]
+    return [Finding('missing', f"the Windows group '{OPENNESS_GROUP}': TIA refuses Openness to a user outside it", TOPIC_GROUP,
+                    person_step=f"Join the Windows group '{OPENNESS_GROUP}' (an administrator or IT adds you), then log off and on.")]
+
+
+def claude_step():
+    """Claude Code itself: on the PATH or not. Without it setup prints no line, as it is no failure, and says so in the list for a person."""
+    claude = shutil.which('claude')
+    if claude:
+        return [Finding('ok', 'Claude Code', TOPIC_CLAUDE)]
+    return [Finding('warning', 'Claude Code: not on the PATH, so no MCP server tia and no plugin are registered. It is what this repo was tested with, '
+                    'not a requirement: install it (https://code.claude.com/docs) to work with agents here', TOPIC_CLAUDE)]
 
 
 def main_tree_if_worktree():
-    """The main working tree when this is a linked worktree of it, else None. Git absent or no repo: None, set_hook_path names those."""
+    """The main working tree when this is a linked worktree of it, else None. Git absent or no repo: None, hook_step names those."""
     code, output = run('git', 'rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir')
     lines = output.split('\n')[:2]
     if code or len(lines) != 2 or same_path(lines[0], lines[1]):
         return None
     return str(Path(lines[1]).parent)
+
+
+def worktree_refusal(main_tree):
+    return f'this is a worktree of {main_tree}. A worktree needs only uv sync; the server and the settings belong to the main tree, so run setup there.'
+
+
+def steps(claude, answer=None):
+    """Setup's steps in the order it runs them, each a call that looks when it is made, so a change made before it counts.
+    Without claude, its three steps are left out."""
+    with_claude = [claude_step, lambda: server_step(claude), lambda: plugin_step(claude)] if claude else []
+    return [git_step, hook_step, *with_claude, tracked_settings_step, status_line_step, lambda: projects_root_step(answer), tia_step, openness_step]
+
+
+def last_steps(claude):
+    """What a person does once, after what the steps named for a person."""
+    agent_step = (f'If a session in {CLONE} ran this setup, end it and run claude --continue there: it comes back with that conversation and its task, now with the server, so tell it to go on. '
+                  f'Otherwise start a new session in {CLONE}. Accept its trust prompt and approve the plugin if it asks: a session started before this run has neither the server nor the plugin. There, tia_status shows that the bridge starts.' if claude else
+                  f'claude is not on the PATH, so this run did not register the MCP server tia or the plugin {PLUGIN}. To add them, install Claude Code (https://code.claude.com/docs), then run this again in a new terminal. '
+                  f'Tested with Claude Code only: no other agent has been tried. To try one, give it this command to start the bridge: {subprocess.list2cmdline(BRIDGE_COMMAND)}')
+    return [agent_step, 'At the first connect, TIA asks whether to allow access: answer Yes.']
 
 
 def main(argv=None):
@@ -514,27 +597,15 @@ def main(argv=None):
     args = parser.parse_args(argv)
     main_tree = main_tree_if_worktree()
     if main_tree:
-        print(f'refused  this is a worktree of {main_tree}. A worktree needs only uv sync; the server and the settings belong to the main tree, so run setup there.')
+        print(f'refused  {worktree_refusal(main_tree)}')
         return 1
     report = Report()
-    check_git(report)
-    set_hook_path(report)
     claude = shutil.which('claude')
-    if claude:
-        report.ok('Claude Code')
-        register_bridge(report, claude)
-        install_plugin(report, claude)
-    check_tracked_settings(report)
-    set_status_line(report)
-    settle_projects_root(report, args.projects_root)
-    check_tia(report)
-    check_openness_group(report)
+    for step in steps(claude, args.projects_root):
+        for finding in step():
+            report.show(finding)
     print('\nA person does these, once:')
-    agent_step = (f'If a session in {CLONE} ran this setup, end it and run claude --continue there: it comes back with that conversation and its task, now with the server, so tell it to go on. '
-                  f'Otherwise start a new session in {CLONE}. Accept its trust prompt and approve the plugin if it asks: a session started before this run has neither the server nor the plugin. There, tia_status shows that the bridge starts.' if claude else
-                  f'claude is not on the PATH, so this run did not register the MCP server tia or the plugin {PLUGIN}. To add them, install Claude Code (https://code.claude.com/docs), then run this again in a new terminal. '
-                  f'Tested with Claude Code only: no other agent has been tried. To try one, give it this command to start the bridge: {subprocess.list2cmdline(BRIDGE_COMMAND)}')
-    for step in report.person_steps + [agent_step, 'At the first connect, TIA asks whether to allow access: answer Yes.']:
+    for step in report.person_steps + last_steps(claude):
         print(f'- {step}')
     if report.question:
         print(f'\nQuestion: {report.question}')

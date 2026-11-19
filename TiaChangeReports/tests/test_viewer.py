@@ -265,6 +265,14 @@ class Register(unittest.TestCase):
         lines = register.register('cmd', self.classes, self.choice, notify=False)
         self.assertIn('Windows opens .s7dcl files with Other.Editor', lines[1])
 
+    def test_the_state_reads_what_register_wrote_and_what_unregister_took_back(self):
+        self.assertEqual(register.state(self.classes, self.choice), {'command': None, 'default': False, 'chosen': None})
+        register.write_value(self.choice, '', 'Other.Editor', 'ProgId')
+        register.register('"py" "viewer" "%1"', self.classes, self.choice, notify=False)
+        self.assertEqual(register.state(self.classes, self.choice), {'command': '"py" "viewer" "%1"', 'default': True, 'chosen': 'Other.Editor'})
+        register.unregister(self.classes, notify=False)
+        self.assertEqual(register.state(self.classes, self.choice)['command'], None)
+
     def test_the_command_runs_pythonw_of_this_tree_on_the_viewer(self):
         cmd = register.command(r'C:\repo\TiaChangeReports\viewer')
         self.assertEqual(cmd, r'"C:\repo\.venv\Scripts\pythonw.exe" -X utf8 "C:\repo\TiaChangeReports\viewer" "%1"')

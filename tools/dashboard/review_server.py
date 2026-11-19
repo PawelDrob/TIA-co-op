@@ -36,6 +36,7 @@ SCRATCH = board.default_scratch()
 ROOT = SCRATCH / 'reviews'
 ANSWERS = ROOT / 'answers'
 TITLE = 'Development dashboard'
+APP = 'development-dashboard'     # at live.ABOUT
 FORM_SCRIPT = Path(__file__).with_name('review_form.js')
 
 _lock = threading.Lock()
@@ -233,6 +234,8 @@ class Handler(live.Handler):
             return self.send_text(200, index(), 'text/html; charset=utf-8')
         if path == '/events':
             return self._events(urllib.parse.parse_qs(url.query))
+        if path == live.ABOUT:
+            return self.send_about(APP)
         if path == '/review_form.js':
             return self.send_body(200, FORM_SCRIPT.read_bytes(), live.ASSETS['/dashboard.js'])
         if self.send_asset(path):

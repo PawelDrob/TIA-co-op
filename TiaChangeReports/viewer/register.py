@@ -4,6 +4,8 @@ back. Nothing else registers: a person runs `--register` and `--unregister`. Sta
   register(...)   the program id PROGID with its open command (command()), .s7dcl's default set to it (the program there
                   last kept, to put back), PROGID among .s7dcl's OpenWithProgids. Returns the lines to print
   unregister(...) all of that taken back: PROGID removed, .s7dcl's default back to that program, the key gone when empty
+  state(...)      what is registered now, read only: the open command, whether .s7dcl's default is PROGID, a choice in
+                  "Open with" that names another program
 
 classes: the key under HKEY_CURRENT_USER both work in, a test's own key in a test. choice: where Windows keeps a
 choice the person made in "Open with" (UserChoice), which beats a default and which no program may write: register
@@ -86,11 +88,28 @@ def register(cmd=None, classes=CLASSES, choice=CHOICE, notify=True):
     if notify:
         _notify()
     lines = ['%s files open in the block viewer: %s' % (EXT, cmd)]
-    chosen = read_value(choice, '', 'ProgId')
-    if chosen and chosen != PROGID:
-        lines.append('Windows opens %s files with %s, as chosen in "Open with": right-click one, Open with, Choose another '
-                     'app, %s, Always.' % (EXT, chosen, APP_NAME))
+    chosen = other_choice(choice)
+    if chosen:
+        lines.append(choice_note(chosen))
     return lines
+
+
+def other_choice(choice=CHOICE):
+    """The program a choice in "Open with" names, when it is not the viewer; None without one."""
+    chosen = read_value(choice, '', 'ProgId')
+    return chosen if chosen and chosen != PROGID else None
+
+
+def choice_note(chosen):
+    return ('Windows opens %s files with %s, as chosen in "Open with": right-click one, Open with, Choose another '
+            'app, %s, Always.' % (EXT, chosen, APP_NAME))
+
+
+def state(classes=CLASSES, choice=CHOICE):
+    """What is registered, changing nothing: {'command': PROGID's open command or None, 'default': whether .s7dcl's
+    default is PROGID, 'chosen': other_choice()}. The command is this tree's when it equals command()."""
+    return {'command': read_value(classes, PROGID + r'\shell\open\command'), 'default': read_value(classes, EXT) == PROGID,
+            'chosen': other_choice(choice)}
 
 
 def unregister(classes=CLASSES, notify=True):

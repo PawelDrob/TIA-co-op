@@ -35,6 +35,7 @@ import live    # noqa: E402
 import tray    # noqa: E402
 
 TITLE = 'TIA-co-op dashboard'
+APP = 'tia-dashboard'     # at live.ABOUT
 TIA_EXE = 'siemens.automation.portal.exe'
 SEP = ' · '
 TIA_ASKS = 'TIA asks: '
@@ -926,6 +927,8 @@ def make_server(d, port):
                 return self.send_text(200, page(d), 'text/html; charset=utf-8')
             if url.path == '/events' and url.query == 'start=1':
                 return self.stream(lambda: d.latest)
+            if url.path == live.ABOUT:
+                return self.send_about(APP)
             if self.send_asset(url.path):
                 return None
             if len(parts) == 4 and parts[1] == 'report':
