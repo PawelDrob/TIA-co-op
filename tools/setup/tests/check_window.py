@@ -6,13 +6,12 @@ A fresh clone of this tree (with its changes not yet committed) in a temp folder
 local app data, fake claude on the PATH: the first double-click (wscript.exe Setup.wsf) makes the .venv with uv sync and
 opens page 1; the window pictures every page, presses every button that changes something (the viewer under a test key,
 the dashboards on free ports: the development dashboard's port held by another program, the TIA dashboard started for
-real from the temp clone) and finishes. The second double-click must open the menu; a third, with no claude on the
-PATH, pictures what a PC without Claude Code sees; a fourth, the rows of the folder, the server and the viewer
-each with a change to make (three_rows), a fifth the folder as a second clone on it finds it (rules_there), and a
-sixth the server registered for this folder only (this_folder_only). All
-the while it watches the hidden desktop for console windows: the first run's uv sync may have one, the second run none. Pictures and done.txt of
-each run go to <folder>\\first and <folder>\\second. It starts no TIA, writes nothing of the real user's, and ends the
-dashboard it started by its Windows process number.
+real from the temp clone) and finishes. The second double-click must open the menu. The ones after picture states:
+with no claude on the PATH (without-claude); the rows of the folder, the server and the viewer each with a change to
+make (three_rows); the folder as a second clone on it finds it (rules_there); the server registered for this folder
+only (this_folder_only). All the while it watches the hidden desktop for console windows: the first run's uv sync may
+have one, the second run none. Pictures and done.txt of each run go to a folder of its own under <folder>. It starts
+no TIA, writes nothing of the real user's, and ends the dashboard it started by its Windows process number.
 """
 import argparse
 import ctypes
