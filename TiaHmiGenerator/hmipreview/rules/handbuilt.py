@@ -7,15 +7,17 @@ hmi/[<device>/]handbuilt.json: [{screen, kind, x, y, w, h}], `screen` naming a s
                        for_import also a slide-in or global screen that TiaBridge imports from its export folder: an
                        entry names a slide-in by its edge (SlideinType: Top, Left, Bottom, Right), the global elements
                        ScreenGlobalElements and the overview ScreenOverview, as their exports are named. That they drop
-                       such objects on an Override is [INFERRED] from the screens.
+                       such objects on an Override is [INFERRED] from the screens, not tried. An entry carries no kind
+                       of document: one naming Top applies to the slide-in Top and to a screen Top alike, which can
+                       only refuse more.
   handbuilt.overlap    error: an object of a generated document over (positive area) a hand-built rectangle of
                        the same document or of the template the document links. The hand-built control is drawn
                        on top and the object disappears under it.
 """
 from ..findings import error
 from ..geometry import Box, items, linked_template
-
-FIXED_SCREENS = {'Hmi.Screen.ScreenGlobalElements': 'ScreenGlobalElements', 'Hmi.Screen.ScreenOverview': 'ScreenOverview'}
+from ..model import SLIDEIN
+from .slideinglobal import GLOBAL_ROOTS
 
 
 def _box(entry):
@@ -27,10 +29,10 @@ def _box(entry):
 
 def _fixed_screen(doc):
     """(what, name) of a slide-in or global screen document, as an import over it names it."""
-    if doc.kind == 'slidein':
+    if doc.kind == SLIDEIN:
         return 'Slide-in', doc.attr('SlideinType') or doc.name
     tag = doc.obj.tag if doc.obj is not None else None
-    return 'Global screen', FIXED_SCREENS.get(tag, doc.name)
+    return 'Global screen', GLOBAL_ROOTS.get(tag, doc.name)
 
 
 def check(repo, ctx):
@@ -44,7 +46,8 @@ def check(repo, ctx):
             if own:
                 yield error(doc.path, None, 'handbuilt.override',
                             "%s %s holds hand-built objects (%s); TiaBridge imports it with Override, and its export "
-                            "cannot carry them, so they would be lost, as on a screen. Change it in TIA."
+                            "cannot carry them, so they are taken to be lost, as on a screen (not tried on these). "
+                            "Change it in TIA."
                             % (what, name, ', '.join(sorted({str(e.get('kind')) for e in own}))))
     for doc in repo.generated:
         if doc.kind not in ('screen', 'template', 'popup'):

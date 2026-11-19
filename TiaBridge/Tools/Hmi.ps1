@@ -353,11 +353,15 @@ function Test-GraphicListFile($File, [hashtable]$Cache) {
 # elements' BackColor landed, and after an import their export no longer writes the empty layer 0 it wrote before (the
 # layer still counts 1). A text field in the global elements ended TIA ("The HmiScreenItemData object is not allowed in
 # screen Global screen."): the validator refuses a screen item there (rules\slideinglobal.py). Without Override TIA
-# refuses an existing one [PROBE] (2026-11-12, test project). What their exports cannot carry an Override drops, as on a
-# screen [INFERRED]: the validator refuses one listed in handbuilt.json (rules\handbuilt.py), and the result says so. A new
-# one and a delete were not tried.
+# refused an existing slide-in and the overview [PROBE] (2026-11-12, test project). That an Override drops what their
+# exports cannot carry, as it is taken to on a screen, is [INFERRED], not tried: the validator refuses one listed in
+# handbuilt.json (rules\handbuilt.py), and the result says so. A new one and a delete were not tried.
 # overrideLoses of the result, when one went in.
-$script:HmiFixedScreenNote = 'An Override drops what Openness cannot export (alarm views and the like, wincc-comfort-openness.md 7.1), as on a screen: list such objects in hmi\[<device>\]handbuilt.json, and the validator refuses the import.'
+$script:HmiFixedScreenNote = 'An Override is taken to drop what Openness cannot export (alarm views and the like, wincc-comfort-openness.md 7.1), as on a screen; on these it was not tried. List such objects in hmi\[<device>\]handbuilt.json, and the validator refuses the import.'
+$script:HmiFixedScreenAfterImport = { param($result, $items) if (@($items | Where-Object { $_.ok }).Count) { $result.overrideLoses = $script:HmiFixedScreenNote } }
+# The global screens by name, as list and whoseFile name them, with the HmiTarget import of each; the document's object
+# is Hmi.Screen.<name>.
+$script:HmiGlobalScreens = [ordered]@{ ScreenGlobalElements = 'ImportScreenGlobalElements'; ScreenOverview = 'ImportScreenOverview' }
 
 # The precheck of a slide-in or global screen: over the device's own only (Entries), as a new one was not tried.
 function Test-HmiFixedScreen($File, [object[]]$Entries, [string]$What) {
@@ -380,7 +384,7 @@ Register-ObjectKind 'hmi_slidein' @{
     import = { param($hmi, $folder, $file, $override)
         $list = $hmi.ScreenSlideinFolder.ScreenSlideins.Import([System.IO.FileInfo]::new($file.file), (Get-ImportOptions $override))
         @{ ok = $true; imported = @($list | ForEach-Object { [string]$_.SlideinType }) } }
-    afterImport = { param($result, $items) if (@($items | Where-Object { $_.ok }).Count) { $result.overrideLoses = $script:HmiFixedScreenNote } }
+    afterImport = $script:HmiFixedScreenAfterImport
     # the slide-in is the edge the document declares, whatever the file is called
     whoseFile = { param($file, $entries)
         $doc = Read-HmiDocumentObject $file 'Hmi.Screen.ScreenSlidein' 'slide-in'
@@ -397,16 +401,16 @@ Register-ObjectKind 'hmi_screen_global' @{
     noDelete = 'The global elements and the screen overview are the device''s own; a delete was not tried on a real TIA.'
     description = 'the global elements and the screen overview (ScreenGlobalElements, ScreenOverview); exported full and imported from hmi\[<device>\]global after the HMI validator passed, over the device''s own only; the global elements take attributes only; not deleted'
     items = { param($hmi)
-        foreach ($n in 'ScreenGlobalElements', 'ScreenOverview') { $o = $hmi.$n; if ($null -ne $o) { @{ obj = $o; name = $n; folder = '' } } } }
+        foreach ($n in $script:HmiGlobalScreens.Keys) { $o = $hmi.$n; if ($null -ne $o) { @{ obj = $o; name = $n; folder = '' } } } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
     precheck = { param($file, $cache, $entries) Test-HmiFixedScreen $file $entries 'global screen' }
-    # HmiTarget.ImportScreenGlobalElements and ImportScreenOverview, by the object the document holds
     import = { param($hmi, $folder, $file, $override)
-        $null = $hmi."Import$($file.objectName)"([System.IO.FileInfo]::new($file.file), (Get-ImportOptions $override))
+        $method = $script:HmiGlobalScreens[[string]$file.objectName]
+        $null = $hmi.$method([System.IO.FileInfo]::new($file.file), (Get-ImportOptions $override))
         @{ ok = $true } }
-    afterImport = { param($result, $items) if (@($items | Where-Object { $_.ok }).Count) { $result.overrideLoses = $script:HmiFixedScreenNote } }
+    afterImport = $script:HmiFixedScreenAfterImport
     whoseFile = { param($file, $entries)
-        $doc = Read-HmiDocumentObject $file @('Hmi.Screen.ScreenGlobalElements', 'Hmi.Screen.ScreenOverview') 'global elements or screen overview'
+        $doc = Read-HmiDocumentObject $file @($script:HmiGlobalScreens.Keys | ForEach-Object { "Hmi.Screen.$_" }) 'global elements or screen overview'
         if ($doc.refused) { return $doc }
         @{ name = $doc.node.Name.Substring('Hmi.Screen.'.Length) } }
 }
