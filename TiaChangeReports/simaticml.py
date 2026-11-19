@@ -842,8 +842,9 @@ def _element(eid, e, net, name):
         return ('NOT ' + v).strip() if negated.pop(pin.lower(), None) else v
 
     def direction(pin):
-        """'=>' for an output: a wire starts at it, or a coil's operand (timer, counter), which the XML wires from the
-        operand as an input and .s7dcl writes as the output it is by the instruction (`timer => #t`)."""
+        """'=>' for an output, ':=' for any other pin. An output is a coil's operand (timer, counter), which the XML wires
+        from the operand as an input and .s7dcl writes as the output it is by the instruction (`timer => #t`); a pin a
+        wire starts at; a pin no wire tells the direction of whose name is an output's (RUNG_OUT, _output)."""
         if pin == 'operand' and instr_kind(instr) == 'coil':
             return '=>'
         driven = net.driven.get((uid, pin))

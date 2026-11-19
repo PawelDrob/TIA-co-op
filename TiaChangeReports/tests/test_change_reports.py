@@ -1887,7 +1887,8 @@ class CoilOperandDirection(unittest.TestCase):
 
     @staticmethod
     def xml(part, rung_in, second, signal_uid=21):
-        """The coil alone on the rail, read from SimaticML. Operands: 21 #start, 22 #stop, 23 #big."""
+        """The coil alone on the rail, read from SimaticML: its operand the Access signal_uid (21 #start, 22 #stop), its
+        second pin 23 #big."""
         n = NegatedPins('test_taken_away')
         text = n.net('<Part Name="%s" UId="25" />' % part, ['<Powerrail /><NameCon UId="25" Name="%s" />' % rung_in,
                                                             n.op(23, 25, second), n.op(signal_uid, 25, 'operand')], 'LAD')
