@@ -83,10 +83,13 @@ function Import-SettingsDat($Service, $File, [string]$What) {
     finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
+# Each kind's object is always there, so an import without override is refused before TIA sees it (Get-ImportRefusal).
+$script:SettingsOverrideWhy = 'The project always has its own, and an import without Override was not tried: leave override out, or pass true.'
+
 $script:NotInTransaction = 'TIA refuses it inside one: "The operation is not permitted within a transaction."'
 
 Register-ObjectKind 'project_texts' @{
-    scope = 'project'; dir = 'project\texts'; defaultOverride = $true; usedBy = @('plc', 'hmi'); extensions = @('.xlsx')
+    scope = 'project'; dir = 'project\texts'; importDir = 'project\texts'; defaultOverride = $true; overrideWhy = $script:SettingsOverrideWhy; usedBy = @('plc', 'hmi'); extensions = @('.xlsx')
     noUndo = $script:NotInTransaction
     compileWhy = 'a block title edited through them turned the block not consistent'
     noDelete = 'Project texts are the texts of the project''s objects, not objects of their own.'
@@ -101,7 +104,7 @@ Register-ObjectKind 'project_texts' @{
 }
 
 Register-ObjectKind 'alarm_classes' @{
-    scope = 'project'; dir = 'project\alarmclasses'; defaultOverride = $true; usedBy = @('plc', 'hmi'); extensions = @('.dat', '.xml')
+    scope = 'project'; dir = 'project\alarmclasses'; importDir = 'project\alarmclasses'; defaultOverride = $true; overrideWhy = $script:SettingsOverrideWhy; usedBy = @('plc', 'hmi'); extensions = @('.dat', '.xml')
     noUndo = $script:NotInTransaction
     compileWhy = 'whether these need one was not tried'
     noDelete = 'The alarm classes are one settings file of the project; change them by importing it.'
@@ -112,7 +115,7 @@ Register-ObjectKind 'alarm_classes' @{
 }
 
 Register-ObjectKind 'diagnostics_settings' @{
-    scope = 'project'; dir = 'project\diagnostics'; defaultOverride = $true; usedBy = @('plc'); extensions = @('.dat', '.xml')
+    scope = 'project'; dir = 'project\diagnostics'; importDir = 'project\diagnostics'; defaultOverride = $true; overrideWhy = $script:SettingsOverrideWhy; usedBy = @('plc'); extensions = @('.dat', '.xml')
     compileWhy = 'whether these need one was not tried'
     noDelete = 'The system diagnostics settings are one settings file of the project; change them by importing it.'
     description = 'system diagnostics settings: systemdiagnostics-settings.dat, or the .xml full_export writes beside it (packed into a .dat for TIA), in project\diagnostics; not deleted'
@@ -140,7 +143,7 @@ function Test-ProDiagSettings {
 }
 
 Register-ObjectKind 'supervisions' @{
-    scope = 'plc'; dir = 'plc\supervisions'; defaultOverride = $true; extensions = @('.xlsx')
+    scope = 'plc'; dir = 'plc\supervisions'; importDir = 'plc\supervisions'; defaultOverride = $true; overrideWhy = $script:SettingsOverrideWhy; extensions = @('.xlsx')
     compileWhy = 'whether these need one was not tried'
     noDelete = 'The ProDiag supervisions of a PLC are one sheet; change them by importing it.'
     description = 'ProDiag supervisions of a PLC: supervisions.xlsx, as full_export writes it in plc\supervisions, over the PLC''s own; not deleted'
@@ -153,8 +156,8 @@ Register-ObjectKind 'supervisions' @{
         if ($cache.proDiag -ne 'yes') { @{ proDiagSettingsBefore = $cache.proDiag } } }
     import = { param($plc, $folder, $file, $override)
         $svc = Get-RequiredService $plc ([Siemens.Engineering.SW.Supervision.SupervisionProvider])
-        $opt = if ($override) { [Siemens.Engineering.ImportOptions]::Override } else { [Siemens.Engineering.ImportOptions]::None }
-        Invoke-SettingsImport { $svc.ImportSupervisionsFromXlsx([System.IO.FileInfo]::new($file.file), $opt) } 'ProDiag supervisions' }
+        # always Override: the PLC always has its supervisions, so override false is refused before (Get-ImportRefusal)
+        Invoke-SettingsImport { $svc.ImportSupervisionsFromXlsx([System.IO.FileInfo]::new($file.file), [Siemens.Engineering.ImportOptions]::Override) } 'ProDiag supervisions' }
     afterImport = { param($result, $items)
         $before = @($items | Where-Object { $_.ok -and $_.proDiagSettingsBefore } | ForEach-Object { $_.proDiagSettingsBefore })
         if (-not $before.Count) { return }

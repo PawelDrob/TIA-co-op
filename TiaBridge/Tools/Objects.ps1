@@ -7,10 +7,11 @@
 # delete is refused), systemKnowHow ($true: TIA reports some of its objects as know-how protected although nobody
 # protected them, so the guard that refuses an import over a know-how protected block does not apply to the kind), sharesNamesWith (the kinds whose names are one list in TIA with its own: a new
 # object of such a name is refused), compileWhy (why the compile that next names is due), importDir (the one folder it
-# imports from, where the HMI validator looks), usedBy (of a project kind: the scopes whose devices use its objects, so an
+# imports from; for an HMI kind, where the HMI validator looks), usedBy (of a project kind: the scopes whose devices use its objects, so an
 # import counts as a write on each of them, recorded as <kind>:<name>), extensions (the file extensions it imports, in
 # place of the PLC document check), noUndo (why TIA refuses its import inside a transaction: then it runs without one, only
-# in a session holding an archive and with no_undo true, the user's word; Get-NoUndoRefusal), and scriptblocks
+# while the archive this session made is there and every device reads offline, and with no_undo true, the user's word;
+# Get-NoUndoRefusal, Get-OnlineRefusal), and scriptblocks
 # items(root) -> @{ obj; name; folder }, info(entry), export(entry, dir, options), import(root, folder, file, override), precheck, whoseFile, afterImport. A kind without
 # export or import does not support it.
 # Kinds with a folder tree also give tree(root) -> top folder and groups, the name of its subfolder collection
@@ -458,6 +459,7 @@ function Invoke-ImportTool($a) {
     if ($k.exportOnly) { return New-Refusal "Kind $($k.name) is export only; the bridge does not import it." }
     if (-not $k.import) { return New-Refusal "Kind $($k.name) cannot be imported. $script:LibraryKindNote" }
     if ($k.noUndo -and ($why = Get-NoUndoRefusal $k $session ($a.no_undo -eq $true))) { return New-Refusal $why }
+    $noUndoArchive = if ($k.noUndo) { Get-SessionArchive $session }
     $importDir = Get-KindRelDir $k ([string]$a.device) ([string]$k.importDir)
     $files = @(Resolve-ImportFiles -Repo $script:Bridge.repo -KindDir $importDir -Paths @($a.paths | Where-Object { $_ }))
     if (-not $files.Count) { return New-Refusal 'paths is empty.' }
@@ -503,7 +505,7 @@ function Invoke-ImportTool($a) {
         if ($g -and @($g.findings).Count) { $item.findings = @($g.findings) }
         if ($f.missing) { $item.refused = "File not found: $($f.file)" }
         elseif ($k.importDir -and -not $f.file.StartsWith($importRoot, [StringComparison]::OrdinalIgnoreCase)) {
-            $item.refused = "$($k.name) files are imported from $importDir only, where the HMI validator checks them."
+            $item.refused = "$($k.name) files are imported from $importDir only, $(if ($k.scope -eq 'hmi') { 'where the HMI validator checks them' } else { 'where full_export writes them' })."
         }
         elseif ($g -and $g.refused) { $item.refused = $g.refused }
         elseif ($whose.refused) { $item.refused = $whose.refused }
@@ -609,7 +611,7 @@ function Invoke-ImportTool($a) {
     }
     if ($w.note) { $r.transactionNote = $w.note }
     if ($w.commitError) { $r.commitError = $w.commitError }
-    if ($k.noUndo -and $reachedTia) { $r.noUndo = Get-NoUndoNote $k ([bool]@($items | Where-Object { $_.ok }).Count) }
+    if ($k.noUndo -and $reachedTia) { $r.noUndo = Get-NoUndoNote $k @($items) $noUndoArchive }
     # the object is in TIA, so no failed item and no rollback; not ok, as what refers to the name asked for is broken
     $other = @($items | Where-Object { $_.importedAs -and -not $_.rolledBack })
     if ($other.Count) {
@@ -621,40 +623,58 @@ function Invoke-ImportTool($a) {
     $r
 }
 
-# The newest archive in the repo's archives\ by the time in its name (Get-ArchiveStamp), or $null: in a session that holds
-# an archive, the one it made or a later one.
-function Get-NewestArchive {
-    $dir = Join-Path $script:Bridge.repo 'archives'
-    Get-ChildItem -LiteralPath $dir -Filter *.zap20 -File -ErrorAction SilentlyContinue | Where-Object { Get-ArchiveStamp $_.Name } |
-        Sort-Object { Get-ArchiveStamp $_.Name } -Descending | Select-Object -First 1
+# The archive this session made last (Register-Archive: its file), as @{ path; at }, the time from its name; $null when
+# the session made none or its file is gone. Another session's archive is no way back from this session's writes.
+function Get-SessionArchive($Session) {
+    $f = [string]$Session.archiveFile
+    if (-not $f -or -not (Test-Path -LiteralPath $f -PathType Leaf)) { return $null }
+    $stamp = Get-ArchiveStamp ([System.IO.Path]::GetFileName($f))
+    $at = if ($stamp) { [datetime]::ParseExact($stamp, 'yyyyMMddHHmmss', [System.Globalization.CultureInfo]::InvariantCulture).ToString('yyyy-MM-dd HH:mm:ss') } else { 'a time its name does not give' }
+    @{ path = Get-RepoRelative $f; at = $at }
 }
 
-# The way back from an import with no undo, in words: the newest archive, and that it holds the project as it was made.
-function Get-NoUndoWayBack {
-    $a = Get-NewestArchive
-    $which = if ($a) { "archives\$($a.Name), made $($a.LastWriteTime.ToString('yyyy-MM-dd HH:mm'))" } else { 'the archive of this session in archives\' }
-    "The way back is $which, which holds the project as it was then, not as just before this import: what was written since is not in it. " +
-        'Importing the earlier export of the part again put alarm classes and project texts back when tried, an import with no undo too.'
+# The way back from an import with no undo, in words: the session's archive, and that it holds the project as it was made.
+function Get-NoUndoWayBack($Archive) {
+    "The way back is $($Archive.path), the archive this session made at $($Archive.at), which holds the project as it was then, not as just before this import: what was written since is not in it. " +
+        'Importing the part''s earlier export again put alarm classes and project texts back when tried; that import has no undo either.'
+}
+
+# What a kind with no undo does, said first in its refusals.
+function Get-NoUndoWhat($Kind) {
+    "$($Kind.name) imports outside a transaction ($($Kind.noUndo)), so TIA has no undo of it. A call stops at the first file that fails, and the files before it stay in; whether TIA keeps part of the file that failed was not tried."
 }
 
 # Why an import of a kind with no undo (noUndo) may not run, or $null. TIA imports it only outside a transaction, so nothing
-# rolls it back: only in a session that holds an archive (a skipped one is none), and only with no_undo true, the user's word.
+# rolls it back: only while the archive this session made is there (a skipped one is none), and only with no_undo true,
+# the user's word.
 function Get-NoUndoRefusal($Kind, $Session, [bool]$NoUndo) {
-    $what = "$($Kind.name) imports outside a transaction ($($Kind.noUndo)), so TIA has no undo of it and a failure half way leaves what went in."
+    $what = Get-NoUndoWhat $Kind
     if (-not $Session.archived) {
-        return "$what The bridge imports it only in a session that holds an archive, and this one has none: its archive was skipped. Nothing imported. Make one with archive(reason) (TIA archives a saved project only), then ask the user."
+        return "$what The bridge imports it only in a session that made an archive, and this one has none: its archive was skipped. Nothing imported. Make one with archive(reason) (TIA archives a saved project only), then ask the user."
+    }
+    $archive = Get-SessionArchive $Session
+    if (-not $archive) {
+        $gone = if ($Session.archiveFile) { "$(Get-RepoRelative ([string]$Session.archiveFile)) is not there any more" } else { 'its file is not known' }
+        return "$what The bridge imports it only while the archive this session made is there, and ${gone}, and an archive of another session is no way back from this session's writes. Nothing imported. Make one with archive(reason) (TIA archives a saved project only), then ask the user."
     }
     if (-not $NoUndo) {
-        return "$what $(Get-NoUndoWayBack) Nothing imported. Tell the user this and pass no_undo: true only when they say to import it."
+        return "$what $(Get-NoUndoWayBack $archive) Nothing imported. Tell the user this and pass no_undo: true only when they say to import it."
     }
     $null
 }
 
-# The result's noUndo: what went in with no undo, the way back, and that the user hears it. Imported: an item went in;
-# else TIA failed, and what it took before failing stays.
-function Get-NoUndoNote($Kind, [bool]$Imported) {
-    if ($Imported) { return "Imported outside a transaction ($($Kind.noUndo)): TIA has no undo of it. $(Get-NoUndoWayBack) Tell the user what was imported and that it has no undo." }
-    "Run outside a transaction ($($Kind.noUndo)) and failed: what TIA took of it before failing stays, with no undo. $(Get-NoUndoWayBack) Tell the user it failed and that what went in has no undo."
+# The result's noUndo, for the user: what went in with no undo, which file failed and what of the call stays, the way back.
+# Items: the call's items; Archive: Get-SessionArchive, read before the import.
+function Get-NoUndoNote($Kind, [object[]]$Items, $Archive) {
+    $in = @($Items | Where-Object { $_.ok } | ForEach-Object { $_.path })
+    $failed = @($Items | Where-Object { -not $_.ok -and -not $_.notAttempted -and -not $_.rolledBack } | ForEach-Object { $_.path })
+    $left = @($Items | Where-Object { $_.notAttempted } | ForEach-Object { $_.path })
+    $text = "Run outside a transaction ($($Kind.noUndo)): TIA has no undo of it."
+    if ($in.Count) { $text += " Imported, and it stays: $($in -join ', ')." }
+    if ($failed.Count) { $text += " Failed: $($failed -join ', '); whether TIA kept part of it was not tried." }
+    if ($left.Count) { $text += " Not imported, as the call stopped there: $($left -join ', ')." }
+    $text += " $(Get-NoUndoWayBack $Archive) Tell the user $(if ($failed.Count) { 'which file failed, ' })what was imported and that it has no undo."
+    $text
 }
 
 # The names of a batch whose import failed, that were not in the project before and are not now. Listed again, as without
@@ -1020,14 +1040,15 @@ function Register-ObjectTools {
         'graphic: a project graphic, from its .xml with the image folder the export writes beside it (<name> files\), which the document names by relative path: a document naming an image that is not there, or no image, is refused before TIA sees it. ' +
         'It counts as a write on every HMI device, and next names the compile of the HMI. hmi_graphiclist: an entry links a graphic by name (<LinkList><Picture><Name>); one naming a graphic the project does not have is refused before TIA sees it (TIA takes it, and the HMI compile then fails): import the graphic first. A name in another case links that graphic, and the export writes its own spelling. A screen links a graphic list from a graphic I/O field as <PictureList>. ' +
         'hmi_vbscript: a script with a syntax error goes in without a word; the HMI compile reported no error for it while nothing called the script, and failed once a screen did (other callers not tried). A screen event calls a script as a function list entry of Type VBScript naming it; a screen whose button called it so stayed as it was through an import over the script. ' +
-        'project_texts, alarm_classes, diagnostics_settings and supervisions: the settings parts full_export writes, from its files, each over the project''s own (supervisions: the PLC''s). A file of another name, or an XML not of its kind, is refused before TIA sees it. ' +
+        'project_texts, alarm_classes, diagnostics_settings and supervisions: the settings parts full_export writes, from its folders only (project\texts, project\alarmclasses, project\diagnostics, plc\[<device>\]supervisions), each over the project''s own (supervisions: the PLC''s). A file of another name, or an XML not of its kind, is refused before TIA sees it, and so is override false: the object is always there, and an import without Override was not tried. ' +
         'alarm_classes and diagnostics_settings take the .dat, or the .xml full_export writes beside it, which the bridge packs into a .dat as TIA exports it; a .dat whose .xml beside it differs is refused, as the edit is in the .xml. ' +
         'An alarm class''s display name is a project text: a DisplayName edited with Culture="en-US" landed (one language tried), one without it went in as a second DisplayName and the text stayed. A diagnostics category''s Activation edited in the .xml landed, and a block title edited in the project texts. ' +
-        'project_texts and alarm_classes TIA imports only outside a transaction ("The operation is not permitted within a transaction."): they have no undo, and a failure half way leaves what went in. Refused unless this session holds an archive (a skipped one is none: archive(reason) makes one) and no_undo is true, ' +
-        'which only the user''s yes allows, once told what has no undo and that the way back is that archive, which holds the project as it was when made; the refusal says both. The result''s noUndo says it again: pass it on to the user. diagnostics_settings and supervisions run in a transaction. ' +
+        'project_texts and alarm_classes TIA imports only outside a transaction ("The operation is not permitted within a transaction."): they have no undo. A call stops at the first file that fails and the files before it stay in; whether TIA keeps part of the file that failed was not tried. ' +
+        'Refused unless every device reads offline (a state that reads unknown, or cannot be read, refuses them), unless the archive this session made is still in archives\ (a skipped one is none: archive(reason) makes one), and unless no_undo is true, ' +
+        'which only the user''s yes allows, once told what has no undo and that the way back is that archive, which holds the project as it was when made; the refusal names it and its time. The result''s noUndo says what went in, which file failed and what was not imported, and the way back: pass it on to the user. diagnostics_settings and supervisions run in a transaction. ' +
         "$script:SupervisionsFirstImport The result's prodiag says when this import did it: pass it on to the user. Supervision settings (project\supervision) and PLC alarm texts (plc\alarms) are no kind: their import was not tried. " +
         'An existing object is replaced where it is; a new one goes to ' +
-        'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables, cycles, slide-ins and global screens. ' +
+        'target_folder, else the TIA folder its repo path mirrors. Paths may be absolute and lie outside the repo, except for HMI screens, templates, pop-ups, tag tables, cycles, slide-ins and global screens, and the settings parts. ' +
         'override defaults to true, except hmi_template, hmi_screen_global and hmi_tag_table (an existing one is refused). ' +
         'HMI screens/templates/pop-ups/tag tables are imported from hmi\generated\<kind> only (tag tables: hmi\generated\tags; hmi\<device>\generated\<kind> in a project with several HMI devices) and checked first by python -m hmipreview validate --import [--device]: refused on its errors for the imported documents ' +
         '(findings listed per item), on open planned items, and for screens/templates/pop-ups on a TIA export newer than the generated document unless override is passed as true (the screen default does not count; an existing tag table is refused anyway). ' +
@@ -1035,7 +1056,7 @@ function Register-ObjectTools {
         'hmi_slidein and hmi_screen_global: from their export folders hmi\[<device>\]slideins and hmi\[<device>\]global only, over the device''s own only (a new one was not tried): a slide-in by the edge its SlideinType names, the global elements and the screen overview by their objects, ScreenGlobalElements and ScreenOverview. The same validator checks them first with its own rules, not the screen rules: refused are global elements holding a screen item (globalscreen.screen-item: a text field there ended TIA, other items were not tried), a document of another object (slidein.not-slidein, globalscreen.not-global), and one named in hmi\[<device>\]handbuilt.json (handbuilt.override). An import over one is taken to drop what Openness cannot export, as on a screen (not tried on these): the alarm window and alarm indicator the global elements can hold, a control the export leaves out on a slide-in. Before importing one, ask the user whether it holds any, and list it in hmi\[<device>\]handbuilt.json if so. hmi_screen_global goes in only with override true, which only the user''s yes to this import allows: without it an existing one is refused, naming why. The result''s overrideLoses says it again: pass it on to the user, who alone can see in TIA whether those objects are still there. A slide-in''s full export went back identically, and an added text field and a changed Dimension landed; the overview''s Height landed; the global elements'' BackColor landed, and after an import their export no longer writes the empty layer 0 it wrote before. ' +
         'Refused: .s7dcl of an OB; HMI screens/templates/pop-ups whose faceplate type versions are not in the project library; ' +
         "an HMI screen whose number another screen of the device has, in TIA or earlier in the call, new or over another screen (it ended TIA; the refusal names that screen; numbering rules: $(Get-GuidePath 'openness-v20.md') section 2), " +
-        'or whose number is no whole number; any write before the session archive; project_texts and alarm_classes without an archive of this session or without no_undo true; ' +
+        'or whose number is no whole number; any write before the session archive; project_texts and alarm_classes without the archive this session made, while a device does not read offline, or without no_undo true; ' +
         'an F-block (the file or the object it replaces) or the document of an F-compliant PLC data type without safety: true (a data type by its document only: with the mark taken out, nothing refuses it); override of a know-how protected block (not of a technology object, see technology_object); override of hmi_tag_table (it crashed TIA: delete the table first, then import). ' +
         'Import HMI documents only after the user''s yes to their preview. Skill tia-change, hmi.md, holds that stop and the order of HMI imports. Never re-import a screen that holds an alarm view or diagnostics view ' +
         '(the export drops them), nor global elements that hold an alarm window or alarm indicator, nor a slide-in that holds a control the export leaves out (taken to drop them too, not tried). A call is all or nothing: one refused or failed file and nothing of the call is imported, except that a failure of project_texts or alarm_classes, which run without a transaction, leaves the files before it ' +
@@ -1046,7 +1067,7 @@ function Register-ObjectTools {
             paths = @{ type = 'array'; items = @{ type = 'string' }; description = 'files, relative to the project repo or absolute' }
             target_folder = @{ type = 'string'; description = 'TIA folder path with / for new objects; created if missing' }
             override = @{ type = 'boolean'; description = 'replace existing objects (TIA Override). HMI screens/templates/pop-ups: passed as true it also imports a generated document older than its TIA export (overwrites the TIA edits); the default does not. hmi_template and hmi_screen_global: needed to import over an existing one; only on the user''s yes' }
-            no_undo = @{ type = 'boolean'; description = 'project_texts and alarm_classes, which TIA imports only outside a transaction, with no undo: needed to import them; only on the user''s yes, told that' }
+            no_undo = @{ type = 'boolean'; description = 'project_texts and alarm_classes, which TIA imports only outside a transaction, with no undo: needed to import them; only on the user''s yes, told that and which archive is the way back' }
             safety = $script:SafetyArgument
             device = $device } }
 

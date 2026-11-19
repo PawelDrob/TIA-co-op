@@ -56,7 +56,7 @@ function Invoke-ProjectArchive([string]$Reason) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     $name = ConvertTo-ArchiveName -Project $script:Bridge.projectName -Reason $Reason -Dir $dir
     $project.Archive([System.IO.DirectoryInfo]::new($dir), $name, [Siemens.Engineering.ProjectArchivationMode]::Compressed)
-    Register-Archive (Get-BridgeSession)
+    Register-Archive (Get-BridgeSession) -File (Join-Path $dir $name)
     $removed = @(Remove-OldArchives -Dir $dir -Keep ([int]$script:Bridge.settings.archivesKept))
     @{ ok = $true; file = "archives\$name"; reason = $Reason; unsavedChanges = [bool]$project.IsModified
        removed = @($removed | ForEach-Object { Split-Path $_ -Leaf }) }

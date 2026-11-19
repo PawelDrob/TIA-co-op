@@ -444,19 +444,32 @@ function Set-CommittedFact([string]$Key, $Value) {
 # A write TIA is online for is refused, as nothing would roll it back (2026-11-05: "The operation is not permitted in
 # online mode", and the bridge wrote without a transaction). TransactionError: why TIA refused the transaction, known
 # by its words or by a device that reads online (another TIA language); $null for a write that asks for none
-# (useTransactions off), refused by a device that reads online. The refusal text, or $null.
-function Get-OnlineRefusal($TransactionError) {
-    $online = @()
-    try { $online = @(Get-DeviceStates @(Get-TiaSoftwareList) | Where-Object { $_.online -eq 'online' } | ForEach-Object { $_.device }) }
+# (useTransactions off), refused by a device that reads online. OfflineOnly: a write with no undo (-OutsideTransaction),
+# which has no refusal of TIA's own behind this one: also refused unless every device reads offline, so a state that reads
+# unknown, connecting or the like, or that cannot be read at all, refuses it. The refusal text, or $null.
+function Get-OnlineRefusal($TransactionError, [switch]$OfflineOnly) {
+    $online = @(); $notOffline = @(); $unread = $null
+    try {
+        $states = @(Get-DeviceStates @(Get-TiaSoftwareList))
+        $online = @($states | Where-Object { $_.online -eq 'online' } | ForEach-Object { $_.device })
+        $notOffline = @($states | Where-Object { $_.online -notin 'online', 'offline' } | ForEach-Object { "$($_.device) reads $($_.online)" })
+    }
     catch {
         if (Test-TiaEndedError $_) { throw }
         Write-BridgeLog "Online states not read: $($_.Exception.Message)"
+        $unread = $_.Exception.Message
     }
     $said = [bool]($TransactionError -and ((@($TransactionError.message) + @($TransactionError.details)) -match 'online mode'))
-    if (-not ($said -or $online.Count)) { return $null }
-    $why = $(if ($TransactionError) { " TIA refused the transaction ($($TransactionError.message))." } else { '' })
-    $who = $(if ($online.Count) { " Online: $($online -join ', ')." } else { '' })
-    "TIA is online: go offline first.$why$who Nothing was written. Ask the user to go offline in TIA, then call this again."
+    if ($said -or $online.Count) {
+        $why = $(if ($TransactionError) { " TIA refused the transaction ($($TransactionError.message))." } else { '' })
+        $who = $(if ($online.Count) { " Online: $($online -join ', ')." } else { '' })
+        return "TIA is online: go offline first.$why$who Nothing was written. Ask the user to go offline in TIA, then call this again."
+    }
+    if ($OfflineOnly -and ($unread -or $notOffline.Count)) {
+        $what = if ($unread) { "the devices' online states could not be read ($unread)" } else { "not every device reads offline: $($notOffline -join ', ')" }
+        return "This write has no undo, as TIA runs it without a transaction, so the bridge runs it only while every device reads offline, and $what. Nothing was written. Tell the user; it stays refused until each device reads offline."
+    }
+    $null
 }
 
 # Every write runs under ExclusiveAccess (TIA shows the text and blocks its UI) and, if possible, in one
@@ -464,7 +477,7 @@ function Get-OnlineRefusal($TransactionError) {
 # RollbackIf holds after Body, or when TIA refuses the commit (it does after any Openness exception inside the
 # transaction). A write TIA is online for is refused before Body (Get-OnlineRefusal); one with -NoTransaction
 # (save, compile) is not. -OutsideTransaction: a write TIA refuses inside a transaction (an import of project texts or
-# alarm classes), so it runs without one and has no undo, and is refused online as any other write.
+# alarm classes), so it runs without one and has no undo: refused unless every device reads offline (Get-OnlineRefusal).
 # Returns @{ output; transaction; rolledBack; commitError; note }.
 # Body runs in a child scope of the caller, so it reads the caller's variables; it reports through its output
 # or through collections it is handed (assignments inside Body stay local to it).
@@ -490,7 +503,7 @@ function Invoke-TiaWrite([string]$Description, [scriptblock]$Body, [switch]$NoTr
             }
         }
         elseif (-not $NoTransaction) {
-            $refusal = Get-OnlineRefusal $null
+            $refusal = Get-OnlineRefusal $null -OfflineOnly:$OutsideTransaction
             if ($refusal) { throw $refusal }
         }
         Write-BridgeLog "$text`: body"

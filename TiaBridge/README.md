@@ -54,11 +54,13 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   cannot export, as on a screen, though on these that was not tried.
 - Imports a graphic with the image folder its export wrote beside it, and refuses one whose image is not there. Refuses a
   graphic list that names a graphic the project does not have: import the graphic first.
-- Imports project texts and alarm classes only when you say so, and only with an archive of this session: TIA imports
-  them only outside a transaction, so they have no undo, and that archive is the way back. Imports the alarm classes and
+- Imports project texts and alarm classes only when you say so, only while the archive this session made is there, and
+  only while every device reads offline: TIA imports them only outside a transaction, so they have no undo, and that
+  archive is the way back. Imports the alarm classes and
   system diagnostics settings from the `.dat` or from the `.xml` beside it.
-- Imports a PLC's ProDiag supervisions. Into a project without ProDiag settings that also sets them up and adds rows of
-  ProDiag categories to the project texts: the agent is told to say so before, and the result says so when it happened.
+- Imports a PLC's ProDiag supervisions. On the one project tried, without ProDiag settings, importing its sheet (headers
+  only) also set them up and added rows of ProDiag categories to the project texts: the agent is told to say so before,
+  and the result says when an import set them up.
 - Imports a VB script with a syntax error as TIA does, without a word. The HMI compile found the error only once a screen
   called the script (other callers were not tried), so compile after the import and read its errors.
 

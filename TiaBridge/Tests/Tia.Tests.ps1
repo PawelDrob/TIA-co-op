@@ -176,6 +176,25 @@ Describe 'Invoke-TiaWrite' {
         { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true } } | Should Throw 'TIA is online: go offline first. Online: PLC_1.'
         $script:bodyRan | Should Be $false
     }
+
+    # it has no refusal of TIA's own behind the bridge's, as a transaction has: a state not read as offline refuses it
+    It 'refuses a write outside a transaction unless every device reads offline, naming what it could not read' {
+        Set-FakePortal { }
+        $script:bodyRan = $false
+        $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Offline' } }, @{ device = 'HMI_1'; kind = 'hmi'; deviceItem = $null })
+        $m = try { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true }; '' } catch { $_.Exception.Message }
+        $m | Should Be 'This write has no undo, as TIA runs it without a transaction, so the bridge runs it only while every device reads offline, and not every device reads offline: HMI_1 reads unknown. Nothing was written. Tell the user; it stays refused until each device reads offline.'
+        $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Connecting' } })
+        { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true } } | Should Throw 'not every device reads offline: PLC_1 reads connecting.'
+        function Get-TiaSoftwareList { throw 'the device list could not be read' }
+        { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true } } | Should Throw "and the devices' online states could not be read (the device list could not be read). Nothing was written."
+        $script:bodyRan | Should Be $false
+        # a write in a transaction keeps TIA's own refusal behind the bridge's: an unknown state does not refuse it
+        $script:fakeSoftware = @(@{ device = 'HMI_1'; kind = 'hmi'; deviceItem = $null })
+        Remove-Item Function:\Get-TiaSoftwareList -ErrorAction SilentlyContinue
+        $script:Bridge.settings.useTransactions = $false
+        (Invoke-TiaWrite 'import' { 'done' }).output | Should Be 'done'
+    }
 }
 
 Describe 'Get-DeviceStates (online state per device for connect and tia_status)' {

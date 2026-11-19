@@ -30,6 +30,8 @@ Describe 'archive tool' {
         $r.file | Should Match '^archives\\tia-co-op-P-\d{4}-\d{2}-\d{2}_\d{6}-before_refactor\.zap20$'
         Test-Path (Join-Path $repo $r.file) | Should Be $true
         Test-WriteAllowed (Get-BridgeSession) | Should BeNullOrEmpty
+        # the way back an import with no undo names: this archive, not the newest file in archives\
+        (Get-BridgeSession).archiveFile | Should Be (Join-Path $repo $r.file)
     }
 
     It 'names the session archive tia-co-op-<project>-<date>_<time> without a reason' {

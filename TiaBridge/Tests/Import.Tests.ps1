@@ -1171,8 +1171,10 @@ Describe 'import of the settings parts' {
     function Get-KindRoot($Kind, [string]$Device) {
         if ($Kind.scope -eq 'plc') { return [pscustomobject]@{ Name = 'PLC_1' } }
         $culture = { param($n) [pscustomobject]@{ Culture = [pscustomobject]@{ Name = $n } } }
-        $p = [pscustomobject]@{ Name = 'P'; LanguageSettings = [pscustomobject]@{ ReferenceLanguage = (& $culture 'en-US'); ActiveLanguages = @((& $culture 'en-US'), (& $culture 'de-DE')) } }
-        Add-Member -InputObject $p ScriptMethod ImportProjectTexts { param($file, $update) $script:imported += @("texts $($file.Name) $update"); [pscustomobject]@{ State = $script:tiaState } }
+        $p = [pscustomobject]@{ Name = 'P'; LanguageSettings = [pscustomobject]@{ ReferenceLanguage = (& $culture 'en-US'); ActiveLanguages = @((& $culture 'en-US'), (& $culture 'de-DE'), (& $culture 'fr-FR')) } }
+        Add-Member -InputObject $p ScriptMethod ImportProjectTexts { param($file, $update)
+            if ($script:failTexts -contains $file.Name) { throw [System.InvalidOperationException]::new('TIA did not take it') }
+            $script:imported += @("texts $($file.Name) $update"); [pscustomobject]@{ State = $script:tiaState } }
         $p
     }
     function Get-TiaService($Obj, [type]$Type) {
@@ -1200,6 +1202,7 @@ Describe 'import of the settings parts' {
         if (Test-Path $repo) { Remove-Item $repo -Recurse -Force }
         Write-TextFile (Join-Path $repo 'project\texts\project-texts_en-US_de-DE.xlsx') 'xlsx'
         Write-TextFile (Join-Path $repo 'project\texts\project-texts_en-US_fr-FR.xlsx') 'xlsx'
+        Write-TextFile (Join-Path $repo 'project\texts\project-texts_en-US_it-IT.xlsx') 'xlsx'
         Write-Dat (Join-Path $repo 'project\alarmclasses\alarm-classes.dat') $alarmXml
         Write-TextFile (Join-Path $repo 'project\alarmclasses\alarm-classes.xml') $alarmXml
         Write-Dat (Join-Path $repo 'project\diagnostics\systemdiagnostics-settings.dat') $diagXml
@@ -1208,8 +1211,8 @@ Describe 'import of the settings parts' {
         Write-TextFile (Join-Path $repo 'archives\tia-co-op-P-2026-11-19_101010.zap20') 'zap'
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
         Set-TestBridgeProject $repo
-        Register-Archive (Get-BridgeSession)
-        $script:tiaState = 'Success'
+        Register-Archive (Get-BridgeSession) -File (Join-Path $repo 'archives\tia-co-op-P-2026-11-19_101010.zap20')
+        $script:tiaState = 'Success'; $script:failTexts = @()
     }
 
     It 'refuses project texts and alarm classes in a session whose archive was skipped, with no_undo too, before TIA is asked' {
@@ -1221,6 +1224,7 @@ Describe 'import of the settings parts' {
             $r.ok | Should Be $false
             $r.refused | Should Match "^$($case[0]) imports outside a transaction \(TIA refuses it inside one"
             $r.refused | Should Match 'this one has none: its archive was skipped\. Nothing imported\. Make one with archive\(reason\)'
+            $r.refused | Should Match 'A call stops at the first file that fails, and the files before it stay in; whether TIA keeps part of the file that failed was not tried\.'
             @($script:imported).Count | Should Be 0
         }
     }
@@ -1230,7 +1234,7 @@ Describe 'import of the settings parts' {
             $r = Invoke-SettingsImportTool $case[0] @($case[1])
             $r.ok | Should Be $false
             $r.refused | Should Match 'TIA has no undo of it'
-            $r.refused | Should Match 'The way back is archives\\tia-co-op-P-2026-11-19_101010\.zap20, made .*, which holds the project as it was then, not as just before this import'
+            $r.refused | Should Match 'The way back is archives\\tia-co-op-P-2026-11-19_101010\.zap20, the archive this session made at 2026-11-19 10:10:10, which holds the project as it was then, not as just before this import'
             $r.refused | Should Match 'pass no_undo: true only when they say to import it\.$'
             @($script:imported).Count | Should Be 0
         }
@@ -1242,16 +1246,16 @@ Describe 'import of the settings parts' {
         $script:imported -join ',' | Should Be 'texts project-texts_en-US_de-DE.xlsx True'
         $script:outside | Should Be $true
         $r.transaction | Should Be $false
-        $r.noUndo | Should Match '^Imported outside a transaction \(TIA refuses it inside one: "The operation is not permitted within a transaction\."\): TIA has no undo of it\. The way back is archives\\tia-co-op-P-2026-11-19_101010\.zap20'
+        $r.noUndo | Should Match ('^Run outside a transaction \(TIA refuses it inside one: "The operation is not permitted within a transaction\."\): TIA has no undo of it\. Imported, and it stays: project\\texts\\project-texts_en-US_de-DE\.xlsx\. ' + 'The way back is archives\\tia-co-op-P-2026-11-19_101010\.zap20, the archive this session made at 2026-11-19 10:10:10, which holds the project as it was then, not as just before this import')
         $r.noUndo | Should Match 'Tell the user what was imported and that it has no undo\.$'
         @((Get-BridgeSession).pending.Values | Sort-Object) -join ' ' | Should Be 'hmi@HMI_1:project_texts:project-texts_en-US_de-DE plc@PLC_1:project_texts:project-texts_en-US_de-DE'
         $r.next | Should Match '^compile the hmi and plc scope \(a block title edited through them turned the block not consistent\), then save'
     }
 
     It 'refuses project texts of a language the project does not have active, and any file but .xlsx, before TIA is asked' {
-        $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_fr-FR.xlsx') -NoUndo
+        $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_it-IT.xlsx') -NoUndo
         $r.ok | Should Be $false
-        $r.items[0].refused | Should Match "^The project has its own project texts, .*: 'project-texts_en-US_fr-FR' is not it \(the project's: 'project-texts_en-US_de-DE'"
+        $r.items[0].refused | Should Match "^The project has its own project texts, .*: 'project-texts_en-US_it-IT' is not it \(the project's: 'project-texts_en-US_de-DE', 'project-texts_en-US_fr-FR'"
         Write-TextFile (Join-Path $repo 'project\texts\project-texts_en-US_de-DE.xml') '<x/>'
         $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_de-DE.xml') -NoUndo
         $r.items[0].refused | Should Be 'project_texts imports .xlsx files only, as full_export writes them.'
@@ -1289,8 +1293,66 @@ Describe 'import of the settings parts' {
         $r.ok | Should Be $false
         $r.items[0].ok | Should Be $false
         $r.note | Should Be 'No transaction: the files before the failure stay imported.'
-        $r.noUndo | Should Match '^Run outside a transaction \(TIA refuses it inside one.*\) and failed: what TIA took of it before failing stays, with no undo\. The way back is archives'
+        $r.noUndo | Should Match '^Run outside a transaction \(TIA refuses it inside one.*\): TIA has no undo of it\. Failed: project\\alarmclasses\\alarm-classes\.dat; whether TIA kept part of it was not tried\. The way back is archives'
+        $r.noUndo | Should Match 'Tell the user which file failed, what was imported and that it has no undo\.$'
+        $r.noUndo | Should Not Match 'Imported, and it stays'
         @((Get-BridgeSession).failed.Keys) -join ' ' | Should Match 'alarm_classes:alarm-classes'
+    }
+
+    It 'tells the user, of a batch that fails half way, what went in, which file failed and what was not imported' {
+        $script:failTexts = @('project-texts_en-US_fr-FR.xlsx')
+        Write-TextFile (Join-Path $repo 'project\texts\project-texts_en-US_en-US.xlsx') 'xlsx'
+        function Get-ProjectTextLanguages($Project) { @{ ref = [pscustomobject]@{ Name = 'en-US' }; targets = @('de-DE', 'fr-FR', 'en-US' | ForEach-Object { [pscustomobject]@{ Name = $_ } }) } }
+        $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_de-DE.xlsx', 'project\texts\project-texts_en-US_fr-FR.xlsx', 'project\texts\project-texts_en-US_en-US.xlsx') -NoUndo
+        $r.ok | Should Be $false
+        $script:imported -join ',' | Should Be 'texts project-texts_en-US_de-DE.xlsx True'
+        $r.noUndo | Should Match 'Imported, and it stays: project\\texts\\project-texts_en-US_de-DE\.xlsx\. Failed: project\\texts\\project-texts_en-US_fr-FR\.xlsx; whether TIA kept part of it was not tried\. Not imported, as the call stopped there: project\\texts\\project-texts_en-US_en-US\.xlsx\. The way back'
+        $r.noUndo | Should Match 'Tell the user which file failed, what was imported and that it has no undo\.$'
+    }
+
+    It 'refuses them when the archive this session made is gone, though an older archive of another session is there, and names no time but the archive''s own' {
+        Write-TextFile (Join-Path $repo 'archives\tia-co-op-P-2026-10-01_090000.zap20') 'older'
+        Remove-Item -LiteralPath (Join-Path $repo 'archives\tia-co-op-P-2026-11-19_101010.zap20')
+        $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_de-DE.xlsx') -NoUndo
+        $r.ok | Should Be $false
+        $r.refused | Should Match 'The bridge imports it only while the archive this session made is there, and archives\\tia-co-op-P-2026-11-19_101010\.zap20 is not there any more, and an archive of another session is no way back from this session''s writes\. Nothing imported\. Make one with archive\(reason\)'
+        $r.refused | Should Not Match '2026-10-01'
+        @($script:imported).Count | Should Be 0
+        # an archive made later in the session is the way back, with the time of its name
+        Write-TextFile (Join-Path $repo 'archives\tia-co-op-P-2026-11-19_120000-before_texts.zap20') 'zap'
+        Register-Archive (Get-BridgeSession) -File (Join-Path $repo 'archives\tia-co-op-P-2026-11-19_120000-before_texts.zap20')
+        $r = Invoke-SettingsImportTool 'project_texts' @('project\texts\project-texts_en-US_de-DE.xlsx')
+        $r.refused | Should Match 'The way back is archives\\tia-co-op-P-2026-11-19_120000-before_texts\.zap20, the archive this session made at 2026-11-19 12:00:00,'
+    }
+
+    It 'refuses them in a session whose archive file is not known' {
+        Initialize-BridgeContext @{ maxResponseChars = 20000 }
+        Set-TestBridgeProject $repo
+        Register-Archive (Get-BridgeSession)
+        $r = Invoke-SettingsImportTool 'alarm_classes' @('project\alarmclasses\alarm-classes.dat') -NoUndo
+        $r.refused | Should Match 'and its file is not known, and an archive of another session is no way back'
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'imports each kind from its own folder only, also a file of the same name elsewhere, before TIA is asked' {
+        $other = Join-Path $TestDrive 'OtherProject'
+        Write-TextFile (Join-Path $other 'project\texts\project-texts_en-US_de-DE.xlsx') 'xlsx'
+        Write-TextFile (Join-Path $repo 'texts\project-texts_en-US_de-DE.xlsx') 'xlsx'
+        Write-TextFile (Join-Path $other 'supervisions.xlsx') 'xlsx'
+        foreach ($case in @(@('project_texts', (Join-Path $other 'project\texts\project-texts_en-US_de-DE.xlsx'), 'project\\texts'),
+                            @('project_texts', 'texts\project-texts_en-US_de-DE.xlsx', 'project\\texts'),
+                            @('supervisions', (Join-Path $other 'supervisions.xlsx'), 'plc\\supervisions'))) {
+            $r = Invoke-SettingsImportTool $case[0] @($case[1]) -NoUndo
+            $r.ok | Should Be $false
+            $r.items[0].refused | Should Match "^$($case[0]) files are imported from $($case[2]) only, where full_export writes them\.$"
+        }
+        @($script:imported).Count | Should Be 0
+    }
+
+    It 'refuses an import without override of these, as the object is always there and that was not tried' {
+        $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'supervisions'; paths = @('plc\supervisions\supervisions.xlsx'); override = $false })
+        $r.ok | Should Be $false
+        $r.items[0].refused | Should Be "supervisions 'supervisions' exists and override is false; nothing imported. The project always has its own, and an import without Override was not tried: leave override out, or pass true."
     }
 
     It 'imports system diagnostics settings in a transaction, with no no_undo' {

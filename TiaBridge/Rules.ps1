@@ -5,6 +5,7 @@
 function New-SessionState {
     @{
         archived = $false; archiveSkipped = $false
+        archiveFile = ''       # the archive this session made last: the way back an import with no undo names
         pending = @{}          # written, not compiled since
         failed = @{}           # write failed, not written successfully since
         compileErrors = @{}    # '<scope>@<device>' -> @{ errors; messages } of the last compile with errors, $false when clean
@@ -168,8 +169,11 @@ function Format-FirstNames([object[]]$Names, [int]$First = 10) {
     "$(@($all | Select-Object -First $First) -join ', ') and $($all.Count - $First) more, $($all.Count) in all"
 }
 
-function Register-Archive($State, [switch]$Skipped) {
-    if ($Skipped) { $State.archiveSkipped = $true } else { $State.archived = $true }
+# File: the path of the archive made (not on a skip).
+function Register-Archive($State, [switch]$Skipped, [string]$File = '') {
+    if ($Skipped) { $State.archiveSkipped = $true; return }
+    $State.archived = $true
+    if ($File) { $State.archiveFile = $File }
 }
 
 # $null when writes are allowed, else the reason.
