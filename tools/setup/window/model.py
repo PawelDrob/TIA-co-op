@@ -85,6 +85,7 @@ class Row:
     commands: list = field(default_factory=list)    # one a line, as written: the window shows them in a fixed-width font
     details: list = field(default_factory=list)     # what changes, one thing a line, one click away
     note: str = ''       # a line under the commands, about them
+    blocks: list = field(default_factory=list)      # [(text, commands)] in reading order, when a row has more than one finding
 
 
 @dataclass
@@ -155,16 +156,17 @@ def topic_row(look, topic):
         return Row('info', title, 'Not checked: ' + reason, key=topic, about=about, optional=optional)
     states = [KINDS.get(f.kind, 'info') for f in found]
     state = next((s for s in ('missing', 'todo', 'warning', 'ok') if s in states), 'info')
-    texts, actions, commands, details = [], [], [], []
+    texts, actions, commands, details, blocks = [], [], [], [], []
     for f in found:
         texts.append(shown(f, topic) if f.shown or f.kind != 'change' else 'Not done. ' + shown(f, topic))
+        blocks.append((texts[-1], f.commands))       # a text and the commands it leads to stay together
         commands += f.commands
         details += f.details
         if f.kind == 'change':
             actions.append(Action(CHANGE_LABELS.get(topic, 'Do it'), 'make', f))
     if topic == 'projectsRoot':
         actions = [Action('Change…', 'page', target='bridge')] + actions
-    return Row(state, title, '\n'.join(texts), actions, topic, about, optional, commands, details)
+    return Row(state, title, '\n'.join(texts), actions, topic, about, optional, commands, details, blocks=blocks)
 
 
 def viewer_row(look):

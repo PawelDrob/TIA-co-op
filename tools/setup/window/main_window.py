@@ -280,10 +280,12 @@ class SetupWindow(tk.Tk):
         ttk.Label(title, text=row.title, style='Title.TLabel').pack(side='left')
         if row.optional:
             ttk.Label(title, text='optional', style='About.TLabel').pack(side='left', padx=6)
-        for text, style in ((row.about, 'About.TLabel'), (row.text, 'Card.TLabel')):
+        if row.about:
+            ttk.Label(column, text=row.about, style='About.TLabel', wraplength=self.px(TEXT_WIDTH), justify='left').pack(anchor='w')
+        for text, commands in row.blocks or [(row.text, row.commands)]:     # each text with the commands it leads to
             if text:
-                ttk.Label(column, text=text, style=style, wraplength=self.px(TEXT_WIDTH), justify='left').pack(anchor='w')
-        self._lines(column, row.commands)
+                ttk.Label(column, text=text, style='Card.TLabel', wraplength=self.px(TEXT_WIDTH), justify='left').pack(anchor='w')
+            self._lines(column, commands)
         if row.note:
             ttk.Label(column, text=row.note, style='Card.TLabel', wraplength=self.px(TEXT_WIDTH), justify='left').pack(anchor='w', pady=(2, 0))
         if row.details:

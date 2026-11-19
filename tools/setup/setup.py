@@ -332,17 +332,26 @@ def server_step(claude, write=False):
         return [Finding('missing', f'MCP server tia: {e}', TOPIC_SERVER, shown=f'{short(claude_state_file())} cannot be read: fix it, then press Refresh.',
                         details=[str(e)])]
     user = (state.get('mcpServers') or {}).get('tia')
+    projects = state.get('projects') or {}
+    here = next((p for key, p in projects.items() if same_path(key, CLONE)), {})
+    local = (here.get('mcpServers') or {}).get('tia')
+    local_runs = script_of(local) if local else ''
+    # an entry of this folder comes first in a session here: with one of something else, the user's of this clone does not start here
+    before_yours = [Finding('warning', f'MCP server tia: in this folder it is registered for {local_runs or "another command"}, which a session here starts in place of '
+                                       'the one of your Windows user. To start this clone here too: claude mcp remove --scope local tia, then run this again', TOPIC_SERVER,
+                            shown=f'In this folder, though, {holder_of(local_runs)} is registered, and a session here starts that one. To start this clone '
+                                  'here too, run this, then press Refresh:',
+                            commands=['claude mcp remove --scope local tia'], details=[f'In this folder tia starts {local_runs or "another command"}.'])
+                    ] if local and not is_this_clone(local) and not (user and not is_this_clone(user)) else []
     if not user:
-        return server_change(claude, 'user', 'for your Windows user', write, 'MCP server tia registered, user scope')
+        made = server_change(claude, 'user', 'for your Windows user', write, 'MCP server tia registered, user scope')
+        return made if write else made + before_yours
     if is_this_clone(user):
-        return [Finding('ok', 'MCP server tia', TOPIC_SERVER, shown='Registered for your Windows user: it starts the bridge of this clone.')]
+        return [Finding('ok', 'MCP server tia', TOPIC_SERVER, shown='Registered for your Windows user: it starts the bridge of this clone.')] + before_yours
     other = script_of(user) or 'another command'
     elsewhere = f'in other folders tia stays {other}. To make this clone the one for all: claude mcp remove --scope user tia, then run this again'
     holder = holder_of(script_of(user))
     starts = [f'For your Windows user, in other folders, tia starts {other}.']
-    projects = state.get('projects') or {}
-    here = next((p for key, p in projects.items() if same_path(key, CLONE)), {})
-    local = (here.get('mcpServers') or {}).get('tia')
     if not local:
         return server_change(claude, 'local', f'for this folder only, as {holder} has it for your Windows user', write,
                              f'MCP server tia registered for this folder; {elsewhere}', starts)
@@ -351,8 +360,8 @@ def server_step(claude, write=False):
                         details=starts, shown=f'Registered for this folder; {holder} has it for your Windows user. To make this clone the one '
                                               'for all folders, run this, then press Refresh and Register:')]
     return [Finding('missing', f'MCP server tia: in this folder it is registered for {script_of(local) or "another command"}; left as it is. To move it here: claude mcp remove --scope local tia, then run this again', TOPIC_SERVER,
-                    shown='Registered in this folder for another command, which stays as it is. To move it here, run this, then press Refresh:',
-                    commands=['claude mcp remove --scope local tia'], details=[f'In this folder tia starts {script_of(local) or "another command"}.'])]
+                    shown=f'Registered in this folder for {holder_of(local_runs)}, which stays as it is. To move it here, run this, then press Refresh:',
+                    commands=['claude mcp remove --scope local tia'], details=[f'In this folder tia starts {local_runs or "another command"}.'])]
 
 
 def plugin_installed(claude):
@@ -567,11 +576,12 @@ def projects_root_step(answer=None, write=False):
     updated = kept + [r for r in allow_rules(root) if r not in kept]
     if (changed or updated != allow) and not write:
         added, removed = [r for r in updated if r not in allow], [r for r in allow if r not in updated]
-        rules = ', '.join(([f'{counted(len(added), "allow rule")} to add'] if added else [])
-                          + ([f'{counted(len(removed), "allow rule")} of the old folder to take away'] if removed else []))
-        shown = 'Not saved. Save writes:\n' + (f'Folder: {root}' + (f' (now {stored})' if stored else '') + f'\nSaved in: {short(BRIDGE_SETTINGS)}\n'
+        shown = 'Not saved. Save writes:\n' + (f'Folder: {root}' + (f' (in place of {stored})' if stored else '') + f'\nSaved in: {short(BRIDGE_SETTINGS)}\n'
                                                if changed else f'Folder: {stored} (stays)\n')
-        shown += f'Claude Code may read, edit and use git there: {rules}, in {short(user_file)}.'
+        shown += (f'Claude Code may read, edit and use git there: {counted(len(added), "allow rule")} to add, in {short(user_file)}.' if added else
+                  f'Claude Code may read, edit and use git there already: its allow rules are in {short(user_file)}.')
+        if removed:
+            shown += f'\nAllow rules on the old folder, {stored}: {len(removed)} to take away.'
         details = ([f'{BRIDGE_SETTINGS}: projectsRoot = {root}'] if changed else []) + [f'{user_file}, permissions.allow:']
         details += [f'+ {r}' for r in added] + [f'- {r}' for r in removed]
         return [Finding('change', shown, TOPIC_ROOT, lambda: projects_root_step(answer, write=True), shown=shown, details=details)]

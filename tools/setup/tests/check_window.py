@@ -8,8 +8,8 @@ opens page 1; the window pictures every page, presses every button that changes 
 the dashboards on free ports: the development dashboard's port held by another program, the TIA dashboard started for
 real from the temp clone) and finishes. The second double-click must open the menu; a third, with no claude on the
 PATH, pictures what a PC without Claude Code sees; a fourth, the rows of the folder, the server and the viewer
-each with a change to make (three_rows). All the while it watches the
-hidden desktop for console windows: the first run's uv sync may have one, the second run none. Pictures and done.txt of
+each with a change to make (three_rows), and a fifth, the folder as a second clone on it finds it (rules_there). All
+the while it watches the hidden desktop for console windows: the first run's uv sync may have one, the second run none. Pictures and done.txt of
 each run go to <folder>\\first and <folder>\\second. It starts no TIA, writes nothing of the real user's, and ends the
 dashboard it started by its Windows process number.
 """
@@ -34,6 +34,7 @@ REPO = HERE.parents[2]
 sys.path.insert(0, str(REPO))
 
 from TiaChangeReports.viewer import register  # noqa: E402
+from tools.setup import setup as first_setup  # noqa: E402
 from tools.setup.window import dashboards as dash  # noqa: E402
 
 WINDOW_SECONDS = 300
@@ -185,6 +186,18 @@ def three_rows(temp, key):
     register.write_value(key + r'\UserChoice', '', 'Other.Editor', 'ProgId')
 
 
+def rules_there(temp, clone):
+    """As a second clone on the same projects folder finds it: no folder stored in this clone, its allow rules all there."""
+    config = temp / 'home' / '.claude'
+    bridge_file = clone / 'TiaBridge' / 'settings.json'
+    bridge = json.loads(bridge_file.read_text(encoding='utf-8'))
+    folder = bridge.pop('projectsRoot')
+    bridge_file.write_text(json.dumps(bridge), encoding='ascii')
+    user = json.loads((config / 'settings.json').read_text(encoding='utf-8'))
+    user['permissions']['allow'] = first_setup.allow_rules(folder) + [r for r in user['permissions']['allow'] if r not in first_setup.allow_rules(folder)]
+    (config / 'settings.json').write_text(json.dumps(user, indent=2), encoding='utf-8')
+
+
 def run(desktop, clone, env, out, options, report):
     """One double-click on the hidden desktop, as Explorer does it: wscript.exe on Setup.wsf, its arguments for the snap."""
     watcher = desktop.watch()
@@ -237,6 +250,8 @@ def main(argv=None):
             run(desktop, clone, without_claude, out / 'without-claude', [*options, '--page', '1'], report)
             three_rows(temp, key)
             run(desktop, clone, env, out / 'three-rows', [*options, '--settings'], report)
+            rules_there(temp, clone)
+            run(desktop, clone, env, out / 'rules-there', [*options, '--settings'], report)
         finally:
             holder.kill()
             pid = dash.listener(tia).split('process ')[-1].rstrip(')')
