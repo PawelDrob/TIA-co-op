@@ -1352,7 +1352,7 @@ Describe 'import of the settings parts' {
     It 'refuses an import without override of these, as the object is always there and that was not tried' {
         $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'supervisions'; paths = @('plc\supervisions\supervisions.xlsx'); override = $false })
         $r.ok | Should Be $false
-        $r.items[0].refused | Should Be "supervisions 'supervisions' exists and override is false; nothing imported. The PLC always has its own, and an import without Override was not tried: leave override out, or pass true."
+        $r.items[0].refused | Should Be "supervisions 'supervisions' exists and override is false; nothing imported. The bridge takes the PLC's supervisions as there, and an import without Override was not tried: leave override out, or pass true."
         $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'diagnostics_settings'; paths = @('project\diagnostics\systemdiagnostics-settings.dat'); override = $false })
         $r.items[0].refused | Should Be "diagnostics_settings 'systemdiagnostics-settings' exists and override is false; nothing imported. The project always has its own, and the import call TIA offers for it takes no Override: leave override out, or pass true."
     }

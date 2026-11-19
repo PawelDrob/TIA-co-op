@@ -2,7 +2,7 @@
 # project texts, alarm classes, system diagnostics settings and a PLC's ProDiag supervisions. Loaded after FullExport.ps1,
 # whose export functions they call.
 
-# These four parts go back through import, a kind each, over the project's own: each is one object that is always
+# These four parts go back through import, a kind each, over the project's own: each kind lists one object as always
 # there, so a file of another name is refused before TIA sees it. Project texts and alarm classes TIA imports only outside
 # a transaction (noUndo); system diagnostics settings and supervisions inside one. Tried on a real TIA V20: an unchanged
 # round trip of each, and an edit of each but the supervisions (docs\agent\openness-v20.md, Settings parts through import). Supervision
@@ -85,7 +85,7 @@ function Import-SettingsDat($Service, $File, [string]$What) {
 
 # Each kind's object is always there, so an import without override is refused before TIA sees it (Get-ImportRefusal).
 $script:SettingsOverrideWhy = 'The project always has its own, and the import call TIA offers for it takes no Override: leave override out, or pass true.'
-$script:SupervisionsOverrideWhy = 'The PLC always has its own, and an import without Override was not tried: leave override out, or pass true.'
+$script:SupervisionsOverrideWhy = 'The bridge takes the PLC''s supervisions as there, and an import without Override was not tried: leave override out, or pass true.'
 
 $script:NotInTransaction = 'TIA refuses it inside one: "The operation is not permitted within a transaction."'
 
@@ -157,7 +157,8 @@ Register-ObjectKind 'supervisions' @{
         if ($cache.proDiag -ne 'yes') { @{ proDiagSettingsBefore = $cache.proDiag } } }
     import = { param($plc, $folder, $file, $override)
         $svc = Get-RequiredService $plc ([Siemens.Engineering.SW.Supervision.SupervisionProvider])
-        # always Override: the PLC always has its supervisions, so override false is refused before (Get-ImportRefusal)
+        # always Override: the kind lists the PLC's supervisions as there, so override false is refused before (Get-ImportRefusal);
+        # a PLC that offers no SupervisionProvider fails here (Get-RequiredService: not offered)
         Invoke-SettingsImport { $svc.ImportSupervisionsFromXlsx([System.IO.FileInfo]::new($file.file), [Siemens.Engineering.ImportOptions]::Override) } 'ProDiag supervisions' }
     afterImport = { param($result, $items)
         $before = @($items | Where-Object { $_.ok -and $_.proDiagSettingsBefore } | ForEach-Object { $_.proDiagSettingsBefore })
