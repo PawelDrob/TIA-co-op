@@ -1270,7 +1270,8 @@ def _fed_by_a(text):
 
 class PinsInAnotherCase(unittest.TestCase):
     """SimaticML writes PV, CV, R where .s7dcl writes pv, cv, r, and each of them RET_VAL, Ret_Val or ret_val (the bed of
-    the two formats, zzBenTimers network 5): STEP 7 is not case-sensitive, a pin's name in another case is no change."""
+    the two formats, zzBenTimers network 5): an instruction's pin in another case is no change. A block call's pin
+    renamed in case is (BlockCallPinRenamedInCase)."""
 
     def test_the_same_box(self):
         (b,), (a,) = (parse_block(src(x, '', 'M')).networks for x in (BOX_FED, BOX_OTHER_CASE))
@@ -9041,6 +9042,53 @@ class ChainedGates(unittest.TestCase):
                                    self.op(23, 26, 'in2'), self.flow(26, 'out', 27, 'in'), self.op(24, 27, 'operand')]))
         self.assertRegex(text, r'RUNG #start\s+NOT A\( in2 := #stop \) NOT\s+END_RUNG wire#w1')
         self.assertRegex(text, r'O\(\s+in2 := #big,\s+in1 := wire#w1,\s+\)\s+Coil\( #latch \)')
+
+
+CALLS_FC = """FUNCTION_BLOCK "M"
+    VAR
+        a : Bool;
+        q : Bool;
+    END_VAR
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            "Helper"(
+                go := #a,
+                done => #q
+            )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK
+"""
+
+
+class BlockCallPinRenamedInCase(unittest.TestCase):
+    """A user renames a pin of a block in case only: both formats write the call's pin as the block declares it, so the
+    call shows the change (Pawel, 2026-11-19: "the name on pin should be marked as changed in the caller")."""
+
+    PATH = NegatedPins.PATH
+    d, net, op = NegatedPins.d, NegatedPins.net, staticmethod(NegatedPins.op)
+
+    def test_from_s7dcl(self):
+        d = _lad(CALLS_FC, CALLS_FC.replace('go := #a', 'Go := #a'))
+        (call,) = (e for e in d.b.elements.values() if e.instr == 'CALL')
+        self.assertEqual('changed', d.status[call.eid])
+        self.assertEqual({'go'}, changed_params(call, d.other[call.eid]))
+
+    def xml(self, go):
+        info = ('<CallInfo Name="Helper" BlockType="FC"><Parameter Name="%s" Section="Input" Type="Bool" />'
+                '<Parameter Name="done" Section="Output" Type="Bool" /></CallInfo>' % go)
+        return self.net('<Call UId="25">%s</Call>' % info,
+                        [self.op(22, 25, go), self.op(24, 25, 'done')], 'LAD')
+
+    def test_from_simaticml(self):
+        d = self.d(self.xml('go'), self.xml('Go'))
+        (p,) = d.nets
+        self.assertEqual(('changed', 'changed'), (d.state, p.state))
+        (call,) = (e for e in p.lad.b.elements.values() if e.instr == 'CALL')
+        self.assertEqual('changed', p.lad.status[call.eid])
+        self.assertEqual({'go'}, changed_params(call, p.lad.other[call.eid]))
 
 
 class WiredPinsOffTheList(unittest.TestCase):

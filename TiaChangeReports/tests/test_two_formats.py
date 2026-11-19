@@ -155,6 +155,11 @@ class ElementCauses(unittest.TestCase):
         y = ('Contact', '', '', (('', '', '"zzInvBenF".a'),), (), '', False)
         self.assertEqual({'quoted names'}, twoformats.element_causes(x, y))
 
+    def test_a_block_calls_pin_in_another_case(self):
+        """A pin of a block call compares as written: the bed names it, as a user may rename it in case."""
+        x = ('CALL', '', 'Helper', (('go', ':=', '#a'),), (), '', False)
+        self.assertEqual({'pin case'}, twoformats.element_causes(x, x[:3] + ((('Go', ':=', '#a'),),) + x[4:]))
+
     def test_eno_alone(self):
         """The Move of zzBenBoxes network 1: no S7_GenerateENO in .s7dcl, DisabledENO="true" in SimaticML."""
         x = ('Move', '', '', (('in', ':=', '#outValue'), ('out1', '=>', '"zzInvBen".val[4]')), (), '', False)

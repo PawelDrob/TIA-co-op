@@ -101,6 +101,38 @@ def where(lay, el):
     return next((x, y) for e, x, y in lay._placed() if e is el)
 
 
+class PinRenamedInCase(unittest.TestCase):
+    """A block call's pin a user renamed in case only is marked at the call, on its name (Pawel, 2026-11-19: "the name on
+    pin should be marked as changed in the caller"); an instruction's pin the two formats write in another case is no
+    change."""
+
+    def marks(self, before, after, instr):
+        p, lb, la = pair(before, after)
+        out = []
+        for lay, side in ((lb, 'removed'), (la, 'added')):
+            el = element(lay, instr)
+            out.append((p.lad.status[el.eid], sorted(m[2] for m in lay.marks(p.lad.status, p.lad.other, side)
+                                                     if m[0] == el.eid)))
+        return out
+
+    def test_its_name_alone(self):
+        self.assertEqual([('changed', ['box'])] * 2, self.marks(CALL, CALL.replace('cmd := #c', 'Cmd := #c'), 'CALL'))
+
+    def test_its_name_and_its_operand(self):
+        self.assertEqual([('changed', ['box', 'under'])] * 2,
+                         self.marks(CALL, CALL.replace('cmd := #c', 'Cmd := #d'), 'CALL'))
+
+    def test_an_output(self):
+        self.assertEqual([('changed', ['box'])] * 2, self.marks(CALL, CALL.replace('state => #c', 'State => #c'), 'CALL'))
+
+    def test_an_instructions_pin_is_no_change(self):
+        before = NET.replace('Contact( #x )', 'Contact( #x )\n            MIN(\n                in1 := #a,\n'
+                             '                in2 := #b,\n                out => #a\n            )')
+        after = before.replace('in1 := #a,\n                in2 := #b,\n                out',
+                               'IN1 := #a,\n                IN2 := #b,\n                OUT')
+        self.assertEqual([('same', [])] * 2, self.marks(before, after, 'MIN'))
+
+
 class EveryChangeHasItsMark(unittest.TestCase):
     """A mark must not depend on what else changed (a contact's relation stayed unmarked next to its operand)."""
 

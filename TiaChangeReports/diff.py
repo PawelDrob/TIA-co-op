@@ -182,13 +182,15 @@ def more_differs(x, y):
 
 
 def changed_params(x, y):
-    """What differs between two paired elements: pin names (lower case), '#k' for the k-th unnamed parameter (the
+    """What differs between two paired elements: pin names (pin_key; a block call's pin renamed in case differs, as
+    Element.pin_as_compared), '#k' for the k-th unnamed parameter (the
     operand of a contact or coil), 'templates' when their templates differ (the relation of a Switch case: that
     case's pin, 'case1'), 'expression' (Calculate), 'eno' (ENO generated or not), '#call' (the called block: a pin
     cannot be named so), '#instr' (another instruction: the relation of a compare, the kind of a contact or coil).
     Wire names do not count."""
     def keyed(e):
-        return {(pin_key(n) if n else '#%d' % k): (d or '', _norm(v)) for k, (n, d, v) in enumerate(e.params)}
+        return {(pin_key(n) if n else '#%d' % k): (e.pin_as_compared(n), d or '', _norm(v))
+                for k, (n, d, v) in enumerate(e.params)}
     kx, ky = keyed(x), keyed(y)
     out = {k for k in list(kx) + list(ky) if kx.get(k) != ky.get(k)}
     for t in set(x.templates) | set(y.templates):

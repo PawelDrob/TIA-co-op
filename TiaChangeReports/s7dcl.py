@@ -455,11 +455,18 @@ class Element:
         """The element as compared. Its named pins in any order: TIA's export writes the pins of one box in another
         order between two exports of a block nobody changed (SimaticML of zzLadMove's Deserialize, run row I004), so the
         order is no part of the block; each pin is bound by its name (.s7dcl `pv := ...`, SimaticML a NameCon's Name),
-        in any case (pin_key). An unnamed operand is bound by its place and keeps it."""
-        ps = [(pin_key(n), d or '', _norm(v)) for n, d, v in self.params]
+        as compared (pin_as_compared). An unnamed operand is bound by its place and keeps it."""
+        ps = [(self.pin_as_compared(n), d or '', _norm(v)) for n, d, v in self.params]
         ps = tuple([p for p in ps if not p[0]] + sorted(p for p in ps if p[0]))
         return (self.instr, self.instance or '', self.call or '', ps, tuple(sorted(self.templates.items())),
                 norm_expression(self.expression), self.no_eno)
+
+    def pin_as_compared(self, name):
+        """A pin's name as the element is compared, '' for an unnamed one: an instruction's in one case (pin_key), as the
+        two formats write its pins otherwise (SimaticML PV, CV, R where .s7dcl writes pv, cv, r; each of them RET_VAL,
+        Ret_Val or ret_val); a block call's as written, as both write it as the block declares it and a user may rename
+        it in case, which the call then shows."""
+        return (name or '') if self.instr == 'CALL' else pin_key(name)
 
 
 CMP = {'EQ_Contact': '==', 'NE_Contact': '<>', 'LT_Contact': '<', 'GT_Contact': '>',
@@ -486,9 +493,9 @@ def wire_of(v):
 
 
 def pin_key(name):
-    """A pin's name as compared, '' for an unnamed one (Element.sig, lad_lines, the diff's pin trees and pin neighbours,
-    the pairing of networks by what they hold): STEP 7 is not case-sensitive, and the two formats write one pin in
-    another case (SimaticML PV, CV, R where .s7dcl writes pv, cv, r; each of them RET_VAL, Ret_Val or ret_val)."""
+    """Which pin a name is, '' for an unnamed one: STEP 7 is not case-sensitive. Pins pair so wherever the diff pairs
+    them; an element compares its pins' names as Element.pin_as_compared, an instruction's so, a block call's as
+    written."""
     return (name or '').lower()
 
 
@@ -742,14 +749,14 @@ def _pins_in_one_order(lines):
 
 
 def _pins_in_one_case(lines):
-    """The lines with each pin's name as compared (pin_key): a line shaped as a named pin (`name := ...`) between a
-    box's `(` and its `)`, out of a pragma block, whose lines are shaped so too (`S7_GenerateENO := "TRUE"`)."""
+    """The lines with each box's pin names in one case (pin_key): a line shaped as a named pin (`name := ...`) between a
+    box's `(` and its `)`, out of a pragma block, whose lines are shaped so too (`S7_GenerateENO := "TRUE"`). A block
+    call's pins too: the lines tell what no drawing shows, and the drawing shows a block call's pin renamed in case
+    (Element.pin_as_compared)."""
     out, depth, pragma = [], 0, False
     for line in lines:
         m = _NAMED_PIN.match(line)
-        if pragma:
-            pragma = not line.endswith('}')
-        elif line.startswith('{'):
+        if pragma or line.startswith('{'):
             pragma = not line.endswith('}')
         elif depth and m:
             line = pin_key(m.group(1)) + line[m.end(1):]

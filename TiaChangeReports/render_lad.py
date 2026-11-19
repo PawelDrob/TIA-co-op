@@ -39,7 +39,7 @@ from html import escape
 
 from . import instructions
 from .diff import Graph, RAIL, SINK, changed_params
-from .s7dcl import CMP, Rung, _segments, type_name, wire_of
+from .s7dcl import CMP, Rung, _norm, _segments, pin_key, type_name, wire_of
 
 FONT = 11
 LINE = 13
@@ -281,6 +281,15 @@ def _symbol(el):
 
 def _pin_names(el):
     return {n.lower() for n, _, _ in el.params if n}
+
+
+def _renamed_pins(el, other):
+    """{pin: its operand alike}: the pins of a block call the other version names in another case (Element.
+    pin_as_compared). The name is a change, marked on the pin; its operand only where that changed too."""
+    def pins(e):
+        return {pin_key(n): (e.pin_as_compared(n), d or '', _norm(v)) for n, d, v in e.params if n}
+    a, b = pins(el), pins(other)
+    return {k: a[k][1:] == b[k][1:] for k in a.keys() & b.keys() if a[k][0] != b[k][0]}
 
 
 def _negated_pins(el):
@@ -603,22 +612,23 @@ class View:
             bx = x + self.lw
             mine, theirs = _pin_names(self.el), _pin_names(other) if other else set()
             alone = mine - theirs if other else set()
+            renamed = _renamed_pins(self.el, other) if other else {}
             for key in sorted(keys):
                 side, r = self.pinrow.get(key, (None, 0))
                 if side == 'L':
                     py = y + self.rowy[r]
                     n, L = self.lefts[r]
-                    if L:
+                    if L and not renamed.get(key):
                         out.append(('under',) + _text_box(L, bx - 10, py + 4, 'end'))
-                    if not L or r in self.relrows or key in alone:   # no variable; a case's relation is in the pin
+                    if not L or r in self.relrows or key in alone or key in renamed:   # a case's relation is in the pin
                         out.append(('box', bx + .5, py - 6, tw(self._label(r, n)) + 7, 13))
                 elif side == 'R':
                     py = y + self.rowy_r[r]
                     n, L = self.rights[r]
                     ex = bx + self.bw
-                    if L:
+                    if L and not renamed.get(key):
                         out.append(('under',) + _text_box(L, ex + 10, py + 4, 'start'))
-                    if not L or key in alone:
+                    if not L or key in alone or key in renamed:
                         out.append(('box', ex - tw(n or '') - 7.5, py - 6, tw(n or '') + 7, 13))
                 elif key == self.underkey:                    # the edge memory under the box
                     n = len(self.under) - 1
