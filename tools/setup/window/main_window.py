@@ -117,6 +117,10 @@ class SetupWindow(tk.Tk):
             return dash.open_page(board)
         if action.kind == 'make':
             job, label = (lambda: model.outcome(action.finding.make())), 'Changing…'
+        elif action.kind == 'register' and action.target == 'xml':
+            job, label = (lambda: viewer.register_xml(*self.context.viewer_keys[:1])), 'Registering…'
+        elif action.kind == 'unregister' and action.target == 'xml':
+            job, label = (lambda: viewer.unregister_xml(*self.context.viewer_keys[:1])), 'Unregistering…'
         elif action.kind == 'register':
             job, label = (lambda: viewer.register(*self.context.viewer_keys)), 'Registering…'
         elif action.kind == 'unregister':

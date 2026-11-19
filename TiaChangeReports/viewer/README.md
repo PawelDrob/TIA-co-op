@@ -23,17 +23,17 @@ Opens one PLC block export in your default browser, drawn as the [change report]
   other exports of the project the file is in (the folder that holds `plc`, `hmi` and `library`, else the git repo,
   else the file's own folder).
 - Shows the file's text, and its `.s7res`, on the Source switch (or the keys D and S).
-- Opens the SimaticML `.xml` of a block, named on the command line or chosen in "Open with", as the report reads it:
-  experimental.
+- Opens the SimaticML `.xml` of a block when you name it, or from "Open with" once listed there (below), as the report
+  reads it: experimental.
 - A file it cannot draw opens on its text, with the reason above it. An `.xml` file that is not a block's SimaticML
   opens that way too, the reason saying what the reader found in that file.
 
 ## What it does not
 
 - Edit anything, or show a project tree, search across blocks or HMI objects.
-- Register itself: double-click opens `.s7dcl` files in it only after you run the register command below.
-- Open `.xml` files on a double-click. The register command only lists it in "Open with" for `.xml` files; what a
-  double-click on one opens stays as it was.
+- Register itself: double-click opens `.s7dcl` files in it, and "Open with" lists it for `.xml` files, only after you
+  run the commands below, each on its own.
+- Open `.xml` files on a double-click: what a double-click on one opens stays as it was.
 
 ## How to use
 
@@ -46,27 +46,40 @@ From the clone's folder, after [first setup](../../docs/user/setup.md):
 The page opens in your default browser. `--html <out.html>` writes the page instead of opening it. `--help` lists the
 rest.
 
-**Double-click.** To open `.s7dcl` files in the viewer by a double-click, and to list it in "Open with" for `.xml`
-files, for your Windows user only:
+**Double-click.** To open `.s7dcl` files in the viewer by a double-click, for your Windows user only:
 
 ```
 .venv\Scripts\python.exe -X utf8 TiaChangeReports\viewer --register
 ```
 
-Then a block's `.xml` opens in the viewer by a right-click on it, Open with, Block viewer. For `.xml`, the register
-command writes one value, `TiaChangeReports.BlockViewer` under
-`HKEY_CURRENT_USER\Software\Classes\.xml\OpenWithProgids`, and makes that key when it is not there. The program a
-double-click opens an `.xml` file with, and a choice you made for it in "Open with", stay.
-
-To take that back, which restores the program `.s7dcl` files opened with before, and removes that one value of `.xml`
-and the key the register command made for it when nothing else is in it:
+To take that back, which restores the program `.s7dcl` files opened with before:
 
 ```
 .venv\Scripts\python.exe -X utf8 TiaChangeReports\viewer --unregister
 ```
 
-Run both in the clone you keep: the registered command holds that clone's path, for `.s7dcl` and `.xml` alike. If you
-once chose another program for `.s7dcl` files in "Open with", Windows keeps that choice, and `--register` says so.
-Then right-click a `.s7dcl` file, choose Open with, Choose another app, Block viewer, and Always.
+Run both in the clone you keep: the registered command holds that clone's path. If you once chose another program for
+`.s7dcl` files in "Open with", Windows keeps that choice, and `--register` says so. Then right-click a `.s7dcl` file,
+choose Open with, Choose another app, Block viewer, and Always.
 
 A double-click starts no console, only the page in your default browser.
+
+**Open with for `.xml`.** To list the viewer in "Open with" for `.xml` files, for your Windows user only:
+
+```
+.venv\Scripts\python.exe -X utf8 TiaChangeReports\viewer --register-xml
+```
+
+Then right-click a block's `.xml`, choose Open with, Block viewer. This writes the program id
+`TiaChangeReports.BlockViewer.Xml` with its open command, and of `.xml` one value: that id under
+`HKEY_CURRENT_USER\Software\Classes\.xml\OpenWithProgids`, making that key when it is not there. The program a
+double-click opens an `.xml` file with, and a choice you made for it in "Open with", stay. It is apart from the
+double-click on `.s7dcl`: either is there without the other, and neither command changes what the other wrote.
+
+To take that back, which removes the program id, that one value, and the key when it made it and nothing else is in it:
+
+```
+.venv\Scripts\python.exe -X utf8 TiaChangeReports\viewer --unregister-xml
+```
+
+Run both in the clone you keep, too: the program id's command holds that clone's path.

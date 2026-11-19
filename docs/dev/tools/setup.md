@@ -4,7 +4,7 @@ title: First setup internals
 description: How first setup's steps look before they change, so that the command and the setup window run the same checks and changes; what the window keeps; how it tells a dashboard on a port from another program.
 tags: [dev, setup, dashboard]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T10:23:17-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:53:19-05:00 }
 sources:
   - id: setup
     resource: ../../../tools/setup/
@@ -34,8 +34,9 @@ step changes nothing until `make()` is called.
 
 The window adds no rule of its own about what is set up. What is registered is read fresh on each read and on Refresh;
 the window keeps only which clones finished the first run, in `%LOCALAPPDATA%\TIA-co-op\setup-window.json`. The block
-viewer's registration goes through `TiaChangeReports\viewer\register.py` (`state()`, `register()`, `unregister()`), the
-commands `--register` and `--unregister` run.
+viewer's registration goes through `TiaChangeReports\viewer\register.py`: `state()`, `register()`, `unregister()`, which
+the commands `--register` and `--unregister` run, and on a row of its own `xml_state()`, `register_xml()`,
+`unregister_xml()`, which `--register-xml` and `--unregister-xml` run.
 
 ## Dashboards on their ports
 

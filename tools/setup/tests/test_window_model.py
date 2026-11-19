@@ -1,4 +1,5 @@
 """The setup window's model, without a window: what each page and the menu show for what setup's steps find."""
+import itertools
 import json
 import os
 import tempfile
@@ -12,7 +13,9 @@ from tools.setup.tests.test_setup import load_setup
 setup = load_setup()
 Finding = setup.Finding
 CLONE = r'C:\Work\clone'
-VIEWER = {'command': None, 'default': False, 'chosen': None, 'xml': False, 'this': 'x', 'note': '', 'key': 'HKEY_CURRENT_USER\\K', 'progid': 'P'}
+XML = {'command': None, 'listed': False, 'this': 'x', 'key': 'HKEY_CURRENT_USER\\K', 'progid': 'P.Xml'}
+VIEWER = {'command': None, 'default': False, 'chosen': None, 'this': 'x', 'note': '', 'key': 'HKEY_CURRENT_USER\\K', 'progid': 'P',
+          'xml': XML}
 
 
 def look(*findings, claude=r'C:\bin\claude.exe', **more):
@@ -128,7 +131,7 @@ class Pages(unittest.TestCase):
 
 class Menu(unittest.TestCase):
     def lk(self, *findings, **more):
-        return look(*findings, viewer=dict(VIEWER, command='x', default=True, xml=True), dashboards=[(d, Status('stopped')) for d in dashboards()], **more)
+        return look(*findings, viewer=dict(VIEWER, command='x', default=True, xml=dict(XML, command='x', listed=True)), dashboards=[(d, Status('stopped')) for d in dashboards()], **more)
 
     def test_one_entry_a_page_with_what_it_holds_now(self):
         entries = model.menu_entries(self.lk(last_steps=setup.window_last_steps('claude')))
@@ -159,50 +162,79 @@ class Viewer(unittest.TestCase):
     def viewer(self, **state):
         return model.viewer_row(look(viewer={**VIEWER, 'this': self.THIS, **state}))
 
-    XML = ('HKEY_CURRENT_USER\\K\\.xml\\OpenWithProgids: the value P, which lists it in "Open with" for .xml files; '
-           'what opens .xml files stays')
-
     def test_not_registered_says_what_register_writes_and_where(self):
         r = self.viewer(key='HKEY_CURRENT_USER\\Software\\Test\\Classes', progid='The.Viewer')
         self.assertEqual(r.state, 'todo')
         self.assertEqual(r.commands, [self.THIS])
-        self.assertEqual(r.details, ['HKEY_CURRENT_USER\\Software\\Test\\Classes\\The.Viewer: the program and its open command',
-                                     'HKEY_CURRENT_USER\\Software\\Test\\Classes\\.s7dcl: the program a double-click opens',
-                                     'HKEY_CURRENT_USER\\Software\\Test\\Classes\\.xml\\OpenWithProgids: the value The.Viewer, '
-                                     'which lists it in "Open with" for .xml files; what opens .xml files stays (not there now)'])
+        self.assertIn('HKEY_CURRENT_USER\\Software\\Test\\Classes\\The.Viewer: the program and its open command', r.details)
         self.assertEqual([a.kind for a in r.actions], ['register'])
         self.assertTrue(r.optional)
 
-    def test_not_registered_with_the_xml_value_left_says_it_is_there(self):
-        self.assertEqual(self.viewer(xml=True).details[2], self.XML + ' (there now)')
-
     def test_registered_for_this_clone_can_be_undone(self):
-        r = self.viewer(command=self.THIS, default=True, xml=True)
-        self.assertEqual(r.state, 'ok')
-        self.assertEqual(r.text, 'Registered for this clone. "Open with" lists it for .xml files.')
-        self.assertEqual(r.details, [self.XML + ' (there now)'])
-        self.assertEqual([a.kind for a in r.actions], ['unregister'])
-
-    def test_registered_for_this_clone_without_the_xml_value_is_to_do(self):
         r = self.viewer(command=self.THIS, default=True)
-        self.assertEqual(r.state, 'todo')
-        self.assertEqual(r.text, 'Registered for this clone, but "Open with" does not list it for .xml files. Register adds it.')
-        self.assertEqual(r.details, [self.XML + ' (not there now)'])
-        self.assertEqual([a.kind for a in r.actions], ['register', 'unregister'])
+        self.assertEqual(r.state, 'ok')
+        self.assertEqual([a.kind for a in r.actions], ['unregister'])
 
     def test_registered_for_another_clone_is_named(self):
         other = self.THIS.replace('clone', 'other')
-        for xml, there in ((True, 'there now'), (False, 'not there now')):
-            with self.subTest(xml=xml):
-                r = self.viewer(command=other, default=True, xml=xml)
-                self.assertEqual(r.state, 'warning')
-                self.assertEqual(r.details, [f'It opens with: {other}', f'{self.XML} ({there})'])
-                self.assertEqual([a.kind for a in r.actions], ['register', 'unregister'])
+        r = self.viewer(command=other, default=True)
+        self.assertEqual(r.state, 'warning')
+        self.assertEqual(r.details, [f'It opens with: {other}'])
+        self.assertEqual([a.kind for a in r.actions], ['register', 'unregister'])
 
     def test_a_choice_in_open_with_is_said_under_the_command_not_before_it(self):
         r = self.viewer(chosen='Other.Editor', note='Windows opens .s7dcl files with Other.Editor, as chosen')
         self.assertTrue(r.text.endswith('to open with:'))
         self.assertEqual((r.commands, r.note), ([self.THIS], 'Windows opens .s7dcl files with Other.Editor, as chosen'))
+
+
+class ViewerXml(unittest.TestCase):
+    """The .xml entry's row of its own; the .s7dcl row is the same whatever this one's state."""
+    THIS = Viewer.THIS
+    WRITES = ['HKEY_CURRENT_USER\\K\\P.Xml: the program and its open command',
+              'HKEY_CURRENT_USER\\K\\.xml\\OpenWithProgids: the value P.Xml, which lists it in "Open with" for .xml files; what '
+              'opens .xml files stays']
+
+    def row(self, **xml):
+        return model.viewer_xml_row(look(viewer={**VIEWER, 'this': self.THIS, 'xml': {**XML, 'this': self.THIS, **xml}}))
+
+    def test_not_listed_says_what_register_writes_and_where(self):
+        for case, xml in (('nothing', {}), ('the id alone', {'command': self.THIS}), ('the value alone', {'listed': True})):
+            with self.subTest(case):
+                r = self.row(**xml)
+                self.assertEqual((r.state, r.title, r.text), ('todo', 'Block viewer in "Open with" (.xml)',
+                                                             'Not listed. Register lists it for your Windows user only, to open with:'))
+                self.assertEqual((r.commands, r.details, r.key, r.optional), ([self.THIS], self.WRITES, 'viewer-xml', True))
+                self.assertEqual([(a.label, a.kind, a.target) for a in r.actions], [('Register', 'register', 'xml')])
+
+    def test_listed_for_this_clone_can_be_undone(self):
+        r = self.row(command=self.THIS, listed=True)
+        self.assertEqual((r.state, r.text, r.details), ('ok', 'Listed for this clone.', self.WRITES))
+        self.assertEqual([(a.kind, a.target) for a in r.actions], [('unregister', 'xml')])
+
+    def test_listed_for_another_clone_is_named(self):
+        other = self.THIS.replace('clone', 'other')
+        r = self.row(command=other, listed=True)
+        self.assertEqual((r.state, r.text), ('warning', 'Listed for another clone. Register this clone to take it over.'))
+        self.assertEqual(r.details, [f'It opens with: {other}', *self.WRITES])
+        self.assertEqual([(a.label, a.kind, a.target) for a in r.actions],
+                         [('Register this clone', 'register', 'xml'), ('Unregister', 'unregister', 'xml')])
+
+    def test_an_unreadable_registry_is_said_on_both_rows(self):
+        lk = look(viewer={'error': 'The registry could not be read: x'})
+        self.assertEqual([(r.state, r.text) for r in model.page_rows(lk, 'viewer')], [('missing', 'The registry could not be read: x')] * 2)
+
+    def test_the_page_holds_both_rows_and_each_reads_alone(self):
+        s7dcl = {'none': {}, 'this': {'command': self.THIS, 'default': True}, 'other': {'command': 'o', 'default': True}}
+        xml = {'none': {}, 'this': {'command': self.THIS, 'listed': True}, 'other': {'command': 'o', 'listed': True}}
+        for a, b in itertools.product(s7dcl, xml):
+            with self.subTest(s7dcl=a, xml=b):
+                rows = model.page_rows(look(viewer={**VIEWER, 'this': self.THIS, **s7dcl[a], 'xml': {**XML, 'this': self.THIS, **xml[b]}}),
+                                       'viewer')
+                self.assertEqual([r.key for r in rows], ['viewer', 'viewer-xml'])
+                alone_s7dcl = model.viewer_row(look(viewer={**VIEWER, 'this': self.THIS, **s7dcl[a]}))
+                alone_xml = self.row(**xml[b])
+                self.assertEqual(rows, [alone_s7dcl, alone_xml])
 
 
 class Dashboards(unittest.TestCase):

@@ -5,9 +5,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-import uuid
 from pathlib import Path
 
+from TiaChangeReports.tests import registry_guard
 from TiaChangeReports.viewer import register
 from tools.setup.window import __main__ as window_main
 from tools.setup.window import viewer
@@ -65,9 +65,8 @@ class SnapOnlyInATestsEnvironment(unittest.TestCase):
 
 class Viewer(unittest.TestCase):
     def setUp(self):
-        root = r'Software\TiaCoopSetupWindowTest-%s' % uuid.uuid4().hex
+        root = registry_guard.own_key(self, 'TiaCoopSetupWindowTest')
         self.keys = (root + r'\Classes', root + r'\UserChoice')
-        self.addCleanup(register.delete_tree, 'Software', root.split('\\', 1)[1])
 
     def test_register_writes_what_the_command_writes_and_unregister_takes_it_back(self):
         self.assertEqual(viewer.state(*self.keys)['command'], None)
@@ -81,6 +80,19 @@ class Viewer(unittest.TestCase):
         failed, text = viewer.unregister(self.keys[0])
         self.assertFalse(failed, text)
         self.assertEqual(viewer.state(*self.keys)['command'], None)
+
+    def test_register_xml_writes_what_the_command_writes_and_unregister_xml_takes_it_back(self):
+        self.assertEqual(viewer.state(*self.keys)['xml']['command'], None)
+        failed, text = viewer.register_xml(self.keys[0])
+        self.assertFalse(failed, text)
+        xml = viewer.state(*self.keys)['xml']
+        self.assertEqual((xml['command'], xml['listed'], xml['progid']), (register.command(), True, register.XML_PROGID))
+        self.assertEqual(xml['command'], xml['this'])
+        self.assertIn('"Open with" lists the block viewer for .xml files', text)
+        self.assertEqual(viewer.state(*self.keys)['command'], None)          # nothing of .s7dcl
+        failed, text = viewer.unregister_xml(self.keys[0])
+        self.assertFalse(failed, text)
+        self.assertEqual(viewer.state(*self.keys)['xml']['listed'], False)
 
     def test_a_choice_in_open_with_comes_with_its_note(self):
         register.write_value(self.keys[1], '', 'Other.Editor', 'ProgId')

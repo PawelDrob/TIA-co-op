@@ -1,8 +1,9 @@
 """The block viewer (TiaChangeReports/viewer): one block drawn as the report draws it, its source, a file it cannot draw,
-the opening of its page and the registration for a double-click. No test opens a browser or writes the registry
-outside its own key."""
+the opening of its page and the registration for a double-click and for Open with on .xml. No test opens a browser or
+writes the registry outside its own key (registry_guard)."""
 import contextlib
 import io
+import itertools
 import os
 import re
 import shutil
@@ -14,6 +15,7 @@ import winreg
 from unittest import mock
 
 from TiaChangeReports.__main__ import main as report
+from TiaChangeReports.tests import registry_guard
 from TiaChangeReports.tests.test_tia_look import CALLEE, CALLER, CALLER_RES, _write
 from TiaChangeReports.viewer import browser, register, view
 from TiaChangeReports.viewer.__main__ import main
@@ -222,43 +224,37 @@ class Browser(unittest.TestCase):
 
 
 class Register(unittest.TestCase):
-    """In a key of the test's own under HKEY_CURRENT_USER, deleted after it. A key opened to write, made or deleted
-    anywhere else fails the test before it is written: .xml's UserChoice, under Explorer's key, is one such."""
+    """In a key of the test's own under HKEY_CURRENT_USER (registry_guard), deleted after it; a write anywhere else
+    fails the test before it is written."""
 
     def setUp(self):
-        self.root = r'Software\TiaChangeReportsViewerTest-%s' % uuid.uuid4().hex
+        self.root = registry_guard.own_key(self, 'TiaChangeReportsViewerTest')
         self.classes = self.root + r'\Classes'
         self.choice = self.root + r'\UserChoice'
-        self.addCleanup(register.delete_tree, 'Software', self.root.split('\\', 1)[1])
-        def mine(path):
-            if not path.lower().startswith(self.root.lower() + '\\'):
-                self.fail('written outside the test key: ' + path)
-
-        def writing(real):                  # CreateKey(Ex), DeleteKey(Ex): always a write
-            def call(root, path, *rest, **named):
-                mine(path)
-                return real(root, path, *rest, **named)
-            return call
-
-        def opening(real):                  # OpenKey(Ex): a write when the access asks for one
-            def call(root, path, reserved=0, access=winreg.KEY_READ):
-                if access & (winreg.KEY_SET_VALUE | winreg.KEY_CREATE_SUB_KEY):
-                    mine(path)
-                return real(root, path, reserved, access)
-            return call
-        for name in ('CreateKey', 'CreateKeyEx', 'DeleteKey', 'DeleteKeyEx', 'OpenKey', 'OpenKeyEx'):
-            guard = opening if name.startswith('Open') else writing
-            self.enterContext(mock.patch.object(winreg, name, guard(getattr(winreg, name))))
 
     def get(self, sub, name=''):
         return register.read_value(self.classes, sub, name)
+
+    def tree(self, sub):
+        """{key path under classes: {value name: value}} of sub and everything under it; {} when it is not there."""
+        found = {}
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.classes + '\\' + sub) as k:
+                n_keys, n_values, _ = winreg.QueryInfoKey(k)
+                found[sub] = dict(winreg.EnumValue(k, i)[:2] for i in range(n_values))
+                children = [winreg.EnumKey(k, i) for i in range(n_keys)]
+        except OSError:
+            return found
+        for child in children:
+            found.update(self.tree(sub + '\\' + child))
+        return found
 
     def test_register_and_take_it_back(self):
         lines = register.register('"py" "viewer" "%1"', self.classes, self.choice, notify=False)
         self.assertEqual(self.get('.s7dcl'), register.PROGID)
         self.assertEqual(self.get(register.PROGID + r'\shell\open\command'), '"py" "viewer" "%1"')
         self.assertEqual(self.get(r'.s7dcl\OpenWithProgids', register.PROGID), '')
-        self.assertEqual(len(lines), 2)
+        self.assertEqual(len(lines), 1)
         register.unregister(self.classes, notify=False)
         self.assertIsNone(self.get(register.PROGID))
         with self.assertRaises(OSError):
@@ -284,79 +280,99 @@ class Register(unittest.TestCase):
     def test_a_choice_in_open_with_is_named(self):
         register.write_value(self.choice, '', 'Other.Editor', 'ProgId')
         lines = register.register('cmd', self.classes, self.choice, notify=False)
-        self.assertIn('Windows opens .s7dcl files with Other.Editor', lines[2])
+        self.assertIn('Windows opens .s7dcl files with Other.Editor', lines[1])
 
     def test_the_state_reads_what_register_wrote_and_what_unregister_took_back(self):
-        self.assertEqual(register.state(self.classes, self.choice), {'command': None, 'default': False, 'chosen': None, 'xml': False})
+        self.assertEqual(register.state(self.classes, self.choice), {'command': None, 'default': False, 'chosen': None})
         register.write_value(self.choice, '', 'Other.Editor', 'ProgId')
         register.register('"py" "viewer" "%1"', self.classes, self.choice, notify=False)
-        self.assertEqual(register.state(self.classes, self.choice), {'command': '"py" "viewer" "%1"', 'default': True, 'chosen': 'Other.Editor', 'xml': True})
+        self.assertEqual(register.state(self.classes, self.choice), {'command': '"py" "viewer" "%1"', 'default': True, 'chosen': 'Other.Editor'})
         register.unregister(self.classes, notify=False)
-        self.assertEqual(register.state(self.classes, self.choice), {'command': None, 'default': False, 'chosen': 'Other.Editor', 'xml': False})
-
-    def tree(self, sub):
-        """{key path under classes: {value name: value}} of sub and everything under it; {} when it is not there."""
-        found = {}
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.classes + '\\' + sub) as k:
-                n_keys, n_values, _ = winreg.QueryInfoKey(k)
-                found[sub] = dict(winreg.EnumValue(k, i)[:2] for i in range(n_values))
-                children = [winreg.EnumKey(k, i) for i in range(n_keys)]
-        except OSError:
-            return found
-        for child in children:
-            found.update(self.tree(sub + '\\' + child))
-        return found
-
-    def test_xml_gets_one_value_in_its_open_with_list_and_nothing_else(self):
-        register.write_value(self.classes, '.xml', 'xmlfile')
-        register.write_value(self.classes, r'.xml\OpenWithProgids', '', 'Other.Xml')
-        register.write_value(self.classes, r'.xml\ShellNew', 'x', 'NullFile')
-        before = self.tree('.xml')
-        lines = register.register('cmd', self.classes, self.choice, notify=False)
-        before[r'.xml\OpenWithProgids'][register.PROGID] = ''
-        self.assertEqual(self.tree('.xml'), before)
-        self.assertEqual(lines[1], '"Open with" lists the block viewer for .xml files. What a double-click on one opens '
-                                   'stays as it was.')
-
-    def test_xml_with_nothing_of_its_own_gets_only_that_value(self):
-        register.register('cmd', self.classes, self.choice, notify=False)
-        self.assertEqual(self.tree('.xml'), {'.xml': {}, r'.xml\OpenWithProgids': {register.PROGID: ''}})
-
-    def test_unregister_takes_back_that_value_and_leaves_the_others_and_the_key(self):
-        register.write_value(self.classes, '.xml', 'xmlfile')
-        register.write_value(self.classes, r'.xml\OpenWithProgids', '', 'Other.Xml')
-        before = self.tree('.xml')
-        register.register('cmd', self.classes, self.choice, notify=False)
-        lines = register.unregister(self.classes, notify=False)
-        self.assertEqual(self.tree('.xml'), before)
-        self.assertEqual(lines[1], '"Open with" no longer lists the block viewer for .xml files.')
-
-    def test_unregister_takes_back_the_keys_of_xml_register_made_and_only_those(self):
-        cases = {'no .xml': {},
-                 '.xml with its own default': {'.xml': {'': 'xmlfile'}},
-                 'an empty list': {'.xml': {}, r'.xml\OpenWithProgids': {}}}
-        for case, before in cases.items():
-            with self.subTest(case):
-                register.delete_tree(self.classes, '.xml')
-                for sub, values in before.items():
-                    register.write_value(self.classes, sub, values.get('', ''))
-                    if '' not in values:
-                        register.delete_value(self.classes, sub, '')
-                register.register('cmd', self.classes, self.choice, notify=False)
-                register.register('cmd', self.classes, self.choice, notify=False)     # again: what it made stays known
-                register.unregister(self.classes, notify=False)
-                self.assertEqual(self.tree('.xml'), before)
-
-    def test_a_key_register_made_that_another_program_wrote_in_since_stays(self):
-        register.register('cmd', self.classes, self.choice, notify=False)
-        register.write_value(self.classes, r'.xml\OpenWithProgids', '', 'Other.Xml')
-        register.unregister(self.classes, notify=False)
-        self.assertEqual(self.tree('.xml'), {'.xml': {}, r'.xml\OpenWithProgids': {'Other.Xml': ''}})
+        self.assertEqual(register.state(self.classes, self.choice)['command'], None)
 
     def test_the_command_runs_pythonw_of_this_tree_on_the_viewer(self):
         cmd = register.command(r'C:\repo\TiaChangeReports\viewer')
         self.assertEqual(cmd, r'"C:\repo\.venv\Scripts\pythonw.exe" -X utf8 "C:\repo\TiaChangeReports\viewer" "%1"')
+
+    # --- the .xml entry: its own program id, one value under .xml, and nothing of .s7dcl ---
+
+    def with_s7dcl(self, registered):
+        if registered:
+            register.register('s7dcl cmd', self.classes, self.choice, notify=False)
+        return self.tree(register.PROGID), self.tree('.s7dcl')
+
+    def test_register_xml_writes_its_id_and_one_value_of_xml_and_nothing_of_s7dcl(self):
+        for registered in (False, True):
+            with self.subTest(s7dcl=registered):
+                register.delete_tree('Software', self.classes.split('\\', 1)[1])
+                s7dcl = self.with_s7dcl(registered)
+                register.write_value(self.classes, '.xml', 'xmlfile')
+                register.write_value(self.classes, r'.xml\OpenWithProgids', '', 'Other.Xml')
+                register.write_value(self.classes, r'.xml\ShellNew', 'x', 'NullFile')
+                before = self.tree('.xml')
+                lines = register.register_xml('xml cmd', self.classes, notify=False)
+                before[r'.xml\OpenWithProgids'][register.XML_PROGID] = ''
+                self.assertEqual(self.tree('.xml'), before)
+                self.assertEqual(self.get(register.XML_PROGID + r'\shell\open\command'), 'xml cmd')
+                self.assertEqual(self.get(register.XML_PROGID + r'\shell\open', 'FriendlyAppName'), 'Block viewer')
+                self.assertEqual((self.tree(register.PROGID), self.tree('.s7dcl')), s7dcl)
+                self.assertEqual(register.xml_state(self.classes), {'command': 'xml cmd', 'listed': True})
+                self.assertEqual(lines, ['"Open with" lists the block viewer for .xml files: xml cmd',
+                                         'What a double-click on an .xml file opens stays as it was.'])
+
+    def test_unregister_xml_leaves_xml_as_it_was_and_s7dcl_as_it_is(self):
+        cases = {'no .xml': {},
+                 '.xml with its own default': {'.xml': {'': 'xmlfile'}},
+                 'an empty list': {'.xml': {}, r'.xml\OpenWithProgids': {}},
+                 'a list with another program': {'.xml': {}, r'.xml\OpenWithProgids': {'Other.Xml': ''}}}
+        for (case, before), registered in itertools.product(cases.items(), (False, True)):
+            with self.subTest(case, s7dcl=registered):
+                register.delete_tree('Software', self.classes.split('\\', 1)[1])
+                s7dcl = self.with_s7dcl(registered)
+                for sub, values in before.items():
+                    register.write_value(self.classes, sub, values.get('', ''))
+                    if '' not in values:
+                        register.delete_value(self.classes, sub, '')
+                    for name, value in values.items():
+                        register.write_value(self.classes, sub, value, name)
+                register.register_xml('xml cmd', self.classes, notify=False)
+                register.register_xml('other cmd', self.classes, notify=False)     # again: what it made stays known
+                lines = register.unregister_xml(self.classes, notify=False)
+                self.assertEqual(self.tree('.xml'), before)
+                self.assertEqual(self.tree(register.XML_PROGID), {})
+                self.assertEqual((self.tree(register.PROGID), self.tree('.s7dcl')), s7dcl)
+                self.assertEqual(register.xml_state(self.classes), {'command': None, 'listed': False})
+                self.assertEqual(lines, ['"Open with" no longer lists the block viewer for .xml files.'])
+
+    def test_a_key_register_xml_made_that_another_program_wrote_in_since_stays(self):
+        register.register_xml('cmd', self.classes, notify=False)
+        register.write_value(self.classes, r'.xml\OpenWithProgids', '', 'Other.Xml')
+        register.unregister_xml(self.classes, notify=False)
+        self.assertEqual(self.tree('.xml'), {'.xml': {}, r'.xml\OpenWithProgids': {'Other.Xml': ''}})
+
+    def test_each_option_runs_its_own_and_takes_no_file(self):
+        """The four functions stand in for themselves: the real ones would write the real key."""
+        names = ('register', 'unregister', 'register_xml', 'unregister_xml')
+        for name in names:
+            with self.subTest(name), contextlib.ExitStack() as stack:
+                ran = []
+                for each in names:
+                    stack.enter_context(mock.patch.object(register, each, lambda *a, each=each, **k: ran.append(each) or [each]))
+                out = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                option = '--' + name.replace('_', '-')
+                self.assertEqual(main([option]), 0)
+                self.assertEqual((ran, out.getvalue().strip()), ([name], name))
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    main([option, 'x.s7dcl'])
+
+    def test_register_and_unregister_leave_the_xml_entry_as_it_is(self):
+        register.register_xml('xml cmd', self.classes, notify=False)
+        entry = self.tree('.xml'), self.tree(register.XML_PROGID)
+        register.register('s7dcl cmd', self.classes, self.choice, notify=False)
+        self.assertEqual((self.tree('.xml'), self.tree(register.XML_PROGID)), entry)
+        register.unregister(self.classes, notify=False)
+        self.assertEqual((self.tree('.xml'), self.tree(register.XML_PROGID)), entry)
+        self.assertEqual(register.xml_state(self.classes), {'command': 'xml cmd', 'listed': True})
 
 
 # An FB with members of UDT types: Hw holds the UDT Probe and a struct; Gone is in no file of the project.

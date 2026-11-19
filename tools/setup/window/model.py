@@ -18,7 +18,7 @@ PAGES = (
     ('installed', 'Installed', 'Tools used by this repository'),
     ('repository', 'Repository settings', 'Settings of this clone'),
     ('bridge', 'Bridge', 'What Claude Code needs to work on your TIA projects'),
-    ('viewer', 'Block viewer', 'Exported blocks opened with a double-click'),
+    ('viewer', 'Block viewer', 'Exported blocks opened with a double-click or "Open with"'),
     ('dashboards', 'Dashboards', 'Local pages in your browser'),
     ('by-hand', 'By hand', 'What only you can do'),
 )
@@ -49,8 +49,9 @@ ABOUT = {
     'MCP server tia': 'Lets Claude Code start the bridge, TiaBridge, as its server tia.',
     'plugin': 'The engineering skills the work on this repository uses: tickets, reviews, audits.',
     'status line': "A row in Claude Code's status line: what the bridge and its TIA are doing.",
-    'viewer': 'A double-click on an exported block (.s7dcl) shows it as the change report draws it, and "Open with" offers '
-              "it for a block's .xml.",
+    'viewer': 'A double-click on an exported block (.s7dcl) shows it as the change report draws it.',
+    'viewer-xml': ("A right-click on a block's SimaticML export (.xml), Open with, Block viewer, shows it as the change report "
+                   'draws it. What a double-click on an .xml file opens stays.'),
 }
 OPTIONAL = {'Claude Code', 'commit hook', 'plugin', 'status line', 'viewer', 'development', 'tia'}
 
@@ -66,8 +67,8 @@ NO_CLAUDE = 'Needs Claude Code, which this PC does not have yet: the page Instal
 
 @dataclass
 class Action:
-    """A button of a row. kind: make (a setup step's change, in finding), register, unregister, start, open (a dashboard,
-    target its key), page (a page, target its key)."""
+    """A button of a row. kind: make (a setup step's change, in finding), register, unregister (target xml: the .xml
+    entry's), start, open (a dashboard, target its key), page (a page, target its key)."""
     label: str
     kind: str
     finding: object = None
@@ -176,26 +177,38 @@ def viewer_row(look):
     if v.get('error'):
         return Row('missing', title, v['error'], key='viewer', about=about, optional=True)
     note = v.get('note', '')     # a choice in "Open with", under the command
-    # What Register writes for .xml, and whether it is there: the value names the program id, so it opens with the
-    # command above, this clone's or another's.
-    xml = (f'{v.get("key", "")}\\.xml\\OpenWithProgids: the value {v.get("progid", "")}, which lists it in "Open with" '
-           f'for .xml files; what opens .xml files stays ({"there now" if v.get("xml") else "not there now"})')
-    unregister = Action('Unregister', 'unregister')
     if v.get('command') and v.get('default'):
         if v['command'] == v['this']:
-            if v.get('xml'):
-                return Row('ok', title, 'Registered for this clone. "Open with" lists it for .xml files.',
-                           [unregister], 'viewer', about, True, details=[xml], note=note)
-            return Row('todo', title, 'Registered for this clone, but "Open with" does not list it for .xml files. '
-                       'Register adds it.', [Action('Register', 'register'), unregister], 'viewer', about, True,
-                       details=[xml], note=note)
+            return Row('ok', title, 'Registered for this clone.', [Action('Unregister', 'unregister')], 'viewer', about, True, note=note)
         return Row('warning', title, 'Registered for another clone. Register this clone to take it over.',
-                   [Action('Register this clone', 'register'), unregister], 'viewer', about, True,
-                   details=[f'It opens with: {v["command"]}', xml], note=note)
+                   [Action('Register this clone', 'register'), Action('Unregister', 'unregister')], 'viewer', about, True,
+                   details=[f'It opens with: {v["command"]}'], note=note)
     return Row('todo', title, 'Not registered. Register sets it up for your Windows user only, to open with:',
                [Action('Register', 'register')], 'viewer', about, True, commands=[v.get('this', '')],
                details=[f'{v.get("key", "")}\\{v.get("progid", "")}: the program and its open command',
-                        f'{v.get("key", "")}\\.s7dcl: the program a double-click opens', xml], note=note)
+                        f'{v.get("key", "")}\\.s7dcl: the program a double-click opens'], note=note)
+
+
+def viewer_xml_row(look):
+    """The .xml entry under "Open with", a row of its own: its program id with the command, and its one value under
+    .xml. There only with both; either alone is not there, and Register mends it. Its buttons act on it alone."""
+    title, about = 'Block viewer in "Open with" (.xml)', ABOUT['viewer-xml']
+    if look.viewer.get('error'):
+        return Row('missing', title, look.viewer['error'], key='viewer-xml', about=about, optional=True)
+    x = look.viewer.get('xml', {})
+    writes = [f'{x.get("key", "")}\\{x.get("progid", "")}: the program and its open command',
+              f'{x.get("key", "")}\\.xml\\OpenWithProgids: the value {x.get("progid", "")}, which lists it in "Open with" for '
+              '.xml files; what opens .xml files stays']
+    unregister = Action('Unregister', 'unregister', target='xml')
+    if x.get('command') and x.get('listed'):
+        if x['command'] == x.get('this'):
+            return Row('ok', title, 'Listed for this clone.', [unregister], 'viewer-xml', about, True, details=writes)
+        return Row('warning', title, 'Listed for another clone. Register this clone to take it over.',
+                   [Action('Register this clone', 'register', target='xml'), unregister], 'viewer-xml', about, True,
+                   details=[f'It opens with: {x["command"]}', *writes])
+    return Row('todo', title, 'Not listed. Register lists it for your Windows user only, to open with:',
+               [Action('Register', 'register', target='xml')], 'viewer-xml', about, True, commands=[x.get('this', '')],
+               details=writes)
 
 
 def dashboard_row(dashboard, status, clone):
@@ -221,7 +234,7 @@ def page_rows(look, page):
                 rows.append(Row('info', 'After a change here', RESTART, key='restart', commands=['claude --continue']))
         return rows
     if page == 'viewer':
-        return [viewer_row(look)]
+        return [viewer_row(look), viewer_xml_row(look)]
     if page == 'dashboards':
         return [dashboard_row(d, s, look.clone) for d, s in look.dashboards]
     return by_hand_rows(look)

@@ -5,9 +5,9 @@ import importlib.util
 import itertools
 import json
 import os
-import uuid
 from unittest import mock
 
+from TiaChangeReports.tests import registry_guard
 from TiaChangeReports.viewer import register
 from tools.setup.tests.test_setup import SetupCase
 from tools.setup.window import model, viewer
@@ -147,54 +147,75 @@ class Server(Rows):
 
 
 class Viewer(Rows):
-    """The viewer: not registered, this clone's, another clone's, each of the two with the value for .xml or without
-    (registered before Register wrote it); with "Open with" naming another program or not."""
+    """The viewer's two rows, each in every state of the other: the double-click on .s7dcl not registered, this clone's,
+    another clone's, with "Open with" for .s7dcl naming another program or not; the .xml entry not there, its program id
+    alone, its value alone, this clone's, another clone's. Under a key of the test's own (registry_guard)."""
 
     def setUp(self):
         super().setUp()
-        root = r'Software\TiaCoopSetupStates-%s' % uuid.uuid4().hex
+        root = registry_guard.own_key(self, 'TiaCoopSetupStates')
         self.keys = (root + r'\Classes', root + r'\UserChoice')
-        self.addCleanup(register.delete_tree, 'Software', root.split('\\', 1)[1])
+        self.other = register.command(r'C:\Work\other\TiaChangeReports\viewer')
 
-    def test_every_combination_reads_as_written_the_note_under_the_command(self):
-        other = register.command(r'C:\Work\other\TiaChangeReports\viewer')
+    def make(self, s7dcl, xml, chosen):
+        classes = self.keys[0]
+        for key in self.keys:
+            register.delete_tree(*key.rsplit('\\', 1))
+        if s7dcl != 'none':
+            register.register(None if s7dcl == 'this' else self.other, *self.keys, notify=False)
+        if xml != 'none':
+            register.register_xml(self.other if xml == 'other' else None, classes, notify=False)
+        if xml == 'id alone':
+            register.delete_value(classes, register.XML_LIST, register.XML_PROGID)
+        if xml == 'value alone':
+            register.delete_tree(classes, register.XML_PROGID)
+        if chosen:
+            register.write_value(self.keys[1], '', 'Other.Editor', 'ProgId')
+
+    def rows(self):
+        return model.page_rows(model.Look(clone=str(self.clone), viewer=viewer.state(*self.keys)), 'viewer')
+
+    def test_every_combination_of_both_rows_reads_as_written(self):
+        key = 'HKEY_CURRENT_USER\\' + self.keys[0]
         note = ('Windows opens .s7dcl files with Other.Editor, as chosen in "Open with": right-click one, Open with, Choose another app, '
                 'Block viewer, Always.')
-        key = 'HKEY_CURRENT_USER\\' + self.keys[0]
-        xml = (f'{key}\\.xml\\OpenWithProgids: the value TiaChangeReports.BlockViewer, which lists it in "Open with" for .xml files; '
-               'what opens .xml files stays')
-        for registered, listed, chosen in itertools.product(('none', 'this', 'other'), (True, False), (False, True)):
-            with self.subTest(registered=registered, xml=listed, chosen=chosen):
-                register.delete_tree('Software', self.keys[0].split('\\', 1)[1].rsplit('\\', 1)[0])
-                if registered != 'none':
-                    register.register(None if registered == 'this' else other, *self.keys, notify=False)
-                if listed:      # for 'none', a value left by another program's hand or an older unregister
-                    register.write_value(self.keys[0], register.XML_LIST, '', register.PROGID)
-                else:           # registered before Register wrote the .xml value
-                    register.delete_value(self.keys[0], register.XML_LIST, register.PROGID)
-                if chosen:
-                    register.write_value(self.keys[1], '', 'Other.Editor', 'ProgId')
-                row = model.viewer_row(model.Look(clone=str(self.clone), viewer=viewer.state(*self.keys)))
-                there = xml + (' (there now)' if listed else ' (not there now)')
-                expected = {
-                    'none': ('todo', 'Not registered. Register sets it up for your Windows user only, to open with:',
-                             [register.command()], [f'{key}\\TiaChangeReports.BlockViewer: the program and its open command',
-                                                    f'{key}\\.s7dcl: the program a double-click opens', there]),
-                    'this': ('ok', 'Registered for this clone. "Open with" lists it for .xml files.', [], [there]) if listed else
-                            ('todo', 'Registered for this clone, but "Open with" does not list it for .xml files. Register adds it.',
-                             [], [there]),
-                    'other': ('warning', 'Registered for another clone. Register this clone to take it over.', [],
-                              [f'It opens with: {other}', there])}[registered]
-                self.assertEqual((row.state, row.text, row.commands, row.details), expected)
-                self.assertEqual(row.note, note if chosen else '')
+        writes = [f'{key}\\TiaChangeReports.BlockViewer.Xml: the program and its open command',
+                  f'{key}\\.xml\\OpenWithProgids: the value TiaChangeReports.BlockViewer.Xml, which lists it in "Open with" for .xml files; '
+                  'what opens .xml files stays']
+        s7dcl_rows = {
+            'none': ('todo', 'Not registered. Register sets it up for your Windows user only, to open with:', [register.command()],
+                     [f'{key}\\TiaChangeReports.BlockViewer: the program and its open command', f'{key}\\.s7dcl: the program a double-click opens'],
+                     ['Register']),
+            'this': ('ok', 'Registered for this clone.', [], [], ['Unregister']),
+            'other': ('warning', 'Registered for another clone. Register this clone to take it over.', [], [f'It opens with: {self.other}'],
+                      ['Register this clone', 'Unregister'])}
+        not_listed = ('todo', 'Not listed. Register lists it for your Windows user only, to open with:', [register.command()], writes,
+                      ['Register'])
+        xml_rows = {
+            'none': not_listed, 'id alone': not_listed, 'value alone': not_listed,
+            'this': ('ok', 'Listed for this clone.', [], writes, ['Unregister']),
+            'other': ('warning', 'Listed for another clone. Register this clone to take it over.', [], [f'It opens with: {self.other}', *writes],
+                      ['Register this clone', 'Unregister'])}
+        for s7dcl, xml, chosen in itertools.product(s7dcl_rows, xml_rows, (False, True)):
+            with self.subTest(s7dcl=s7dcl, xml=xml, chosen=chosen):
+                self.make(s7dcl, xml, chosen)
+                first, second = self.rows()
+                self.assertEqual((first.title, second.title), ('Block viewer (.s7dcl)', 'Block viewer in "Open with" (.xml)'))
+                self.assertEqual((first.state, first.text, first.commands, first.details, [a.label for a in first.actions]), s7dcl_rows[s7dcl])
+                self.assertEqual(first.note, note if chosen else '')
+                self.assertEqual((second.state, second.text, second.commands, second.details, [a.label for a in second.actions]), xml_rows[xml])
+                self.assertEqual(second.note, '')
 
-    def test_register_this_clone_over_another_lists_it_for_xml_and_unregister_takes_only_that_back(self):
-        register.write_value(self.keys[0], register.XML_LIST, '', 'Other.Xml')
-        register.register(register.command(r'C:\Work\other\TiaChangeReports\viewer'), *self.keys, notify=False)
-        register.delete_value(self.keys[0], register.XML_LIST, register.PROGID)       # registered before the .xml value
-        self.assertEqual(viewer.register(*self.keys)[0], False)
-        row = model.viewer_row(model.Look(clone=str(self.clone), viewer=viewer.state(*self.keys)))
-        self.assertEqual((row.state, row.text), ('ok', 'Registered for this clone. "Open with" lists it for .xml files.'))
-        self.assertEqual(viewer.unregister(self.keys[0])[0], False)
-        self.assertEqual(viewer.state(*self.keys)['xml'], False)
-        self.assertEqual(register.read_value(self.keys[0], register.XML_LIST, 'Other.Xml'), '')
+    def test_a_button_of_one_row_leaves_the_other_row_as_it_was(self):
+        presses = {'register': (0, lambda: viewer.register(*self.keys)), 'unregister': (0, lambda: viewer.unregister(self.keys[0])),
+                   'register xml': (1, lambda: viewer.register_xml(self.keys[0])),
+                   'unregister xml': (1, lambda: viewer.unregister_xml(self.keys[0]))}
+        for s7dcl, xml, (name, (pressed, press)) in itertools.product(('none', 'this', 'other'), ('none', 'id alone', 'value alone', 'this', 'other'),
+                                                                      presses.items()):
+            with self.subTest(s7dcl=s7dcl, xml=xml, pressed=name):
+                self.make(s7dcl, xml, False)
+                before = self.rows()[1 - pressed]
+                failed, text = press()
+                self.assertFalse(failed, text)
+                self.assertEqual(self.rows()[1 - pressed], before)
+                self.assertEqual(self.rows()[pressed].state, 'ok' if name.startswith('register') else 'todo')

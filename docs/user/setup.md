@@ -4,7 +4,7 @@ title: Setup
 description: How to set up this repository on a Windows PC, with the setup window a person double-clicks or one command for agents, and what the window shows after the first run.
 tags: [setup, tia-portal]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:18:27-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:52:54-05:00 }
 sources:
   - id: setup
     resource: ../../tools/setup/
@@ -98,7 +98,7 @@ what changes** lists each change in full, such as every allow rule with its whol
 | Installed | uv, git, Claude Code, TIA Portal V20 with TIA Openness, the Windows group **Siemens TIA Openness**. Nothing missing stops the pages |
 | Repository settings | The commit checks, and the Claude Code settings of this repository |
 | Bridge | The folder of your project repos (the stored one, or `%USERPROFILE%\TIA-Projects` to start with; type it or pick it with Browse), the server `tia`, the plugin, the status line, the bridge's other settings |
-| Block viewer | Register: a double-click on an `.s7dcl` file opens it in the viewer of this clone, and "Open with" lists the viewer for `.xml` files, for your Windows user only; what a double-click on an `.xml` file opens stays. Unregister takes it back. These are the viewer's `--register` and `--unregister` |
+| Block viewer | Two rows, each on its own, for your Windows user only. Block viewer (.s7dcl): Register, and a double-click on an `.s7dcl` file opens it in the viewer of this clone; Unregister takes it back. These are the viewer's `--register` and `--unregister`. Block viewer in "Open with" (.xml): Register, and a right-click on an `.xml` file, Open with, offers Block viewer, while what a double-click on one opens stays; Unregister takes it back. These are `--register-xml` and `--unregister-xml` |
 | Dashboards | The [development dashboard](development-dashboard.md) and the [TIA dashboard](../../TiaAgentStatus/README.md): Start (no console window) or, while one runs, Open. Nothing starts with Windows; its icon's menu in the notification area stops it |
 | By hand | What only you can do |
 

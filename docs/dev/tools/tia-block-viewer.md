@@ -1,10 +1,10 @@
 ---
 type: Guide
 title: Block viewer internals
-description: How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click and for Open with on .xml, and what its tests cover.
+description: How the block viewer draws one .s7dcl with the change report's code, opens it in the default browser with no console, registers for a double-click and, on its own, for Open with on .xml, and what its tests cover.
 tags: [dev, change-reports, plc]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:31:57-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T18:52:54-05:00 }
 ---
 
 # Block viewer internals
@@ -50,15 +50,23 @@ The title bar, the comment field and the text table are written in `view.py`: th
 - The program id `TiaChangeReports.BlockViewer`, with its open command.
 - `.s7dcl`'s default set to that id, keeping the id that was there last on the program id's key, to restore.
 - That id among `.s7dcl\OpenWithProgids`.
-- That id among `.xml\OpenWithProgids`, the key made when it is not there (the topmost key it made of `.xml` kept on the program id's key): Explorer lists it in Open with for `.xml` files, under its `FriendlyAppName` (Block viewer), and `.xml`'s default and its `UserChoice` stay. The shell lists such an id from the registry at once, with no sign-out: `SHAssocEnumHandlers` in a new process gives it with no `SHChangeNotify`.
 
-`--unregister` takes all of it back and removes `.s7dcl`'s key when nothing else is in it; of `.xml` it removes that value, and a key it made when nothing else is in it; a key of `.xml` that was there before, and the other programs' values, stay. A choice made in Open with (`FileExts\.s7dcl\UserChoice`) beats the default and is hashed by Windows so that no program writes it: register names it and leaves it. Both tell Explorer through `SHChangeNotify`.
+`--unregister` takes all of it back and removes `.s7dcl`'s key when nothing else is in it. A choice made in Open with (`FileExts\.s7dcl\UserChoice`) beats the default and is hashed by Windows so that no program writes it: register names it and leaves it. Both tell Explorer through `SHChangeNotify`.
+
+## Open with for .xml
+
+`register_xml()` (`--register-xml`), on its own, with a program id of its own so that neither registration changes the other:
+
+- The program id `TiaChangeReports.BlockViewer.Xml`, with the same open command and `FriendlyAppName` Block viewer, the name Open with shows.
+- That id among `.xml\OpenWithProgids`, no other value of `.xml`: its default and its `UserChoice` stay. When `.xml` or that key is not there it makes it, and keeps which on the program id's key (`TiaChangeReports.XmlKeyMade`).
+
+`unregister_xml()` (`--unregister-xml`) takes the program id and the value back, and a key it made when nothing else is in it; a key of `.xml` that was there before, and other programs' values, stay. An id that is only in a type's `OpenWithProgids` is listed by the shell under its `FriendlyAppName` at once, with no sign-out: `SHAssocEnumHandlers` gives it from a new process.
 
 ## Tests
 
 In the report's suite, so a change to the drawing runs them:
 
-- `test_viewer.py`: the drawing against the report, a UDT member's members from the UDT's file (and the report's table without them), an instance DB's and a DB of a UDT's members from both formats, the source and the files it cannot draw, the opening with a stand-in for `os.startfile`, and the registration in a key of the test's own under `HKEY_CURRENT_USER`, removed after; a key opened to write anywhere else fails the test before it is written.
+- `test_viewer.py`: the drawing against the report, a UDT member's members from the UDT's file (and the report's table without them), an instance DB's and a DB of a UDT's members from both formats, the source and the files it cannot draw, the opening with a stand-in for `os.startfile`, and the registration in a key of the test's own under `HKEY_CURRENT_USER`, removed after. That key comes from `registry_guard.py`, which every test calling the registration uses, the setup window's too: a key opened to write, made or deleted outside it fails the test before it is written.
 - `test_interface_fold.py`: the interface fold of the viewer and of the report, one section or member at a time and all at once by Collapse all, Expand all, C and E, in headless Edge or Chrome, skipped without one.
 
 No test opens a window or the default browser.
