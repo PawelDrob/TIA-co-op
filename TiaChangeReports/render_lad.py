@@ -618,7 +618,9 @@ class View:
                     n, L = self.lefts[r]
                     if L and not renamed.get(key):
                         out.append(('under',) + _text_box(L, bx - 10, py + 4, 'end'))
-                    if not L or r in self.relrows or key in alone or key in renamed:   # a case's relation is in the pin
+                    # the pin's name: no variable, a case's relation is in the pin, a pin only this version has, or
+                    # one renamed in case
+                    if not L or r in self.relrows or key in alone or key in renamed:
                         out.append(('box', bx + .5, py - 6, tw(self._label(r, n)) + 7, 13))
                 elif side == 'R':
                     py = y + self.rowy_r[r]

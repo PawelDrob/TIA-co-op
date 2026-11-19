@@ -147,7 +147,8 @@ class ElementCauses(unittest.TestCase):
         self.assertEqual({'pin order'}, twoformats.element_causes(x, x[:3] + ((('', '', '#b'), ('', '', '#a')),) + x[4:]))
 
     def test_another_operand_is_no_reading(self):
-        other = self.SD[:3] + ((('cv', '=>', '#statStep'), ('pv', ':=', '#inLevel'), ('r', ':=', 'wire#')),) + self.SD[4:]
+        pins = (('cv', '=>', '#statStep'), ('pv', ':=', '#inLevel'), ('r', ':=', 'wire#'))
+        other = self.SD[:3] + (pins,) + self.SD[4:]
         self.assertEqual({'unknown: element CTU'}, twoformats.element_causes(self.SD, other))
 
     def test_quoted_member_names(self):

@@ -462,10 +462,10 @@ class Element:
                 norm_expression(self.expression), self.no_eno)
 
     def pin_as_compared(self, name):
-        """A pin's name as the element is compared, '' for an unnamed one: an instruction's in one case (pin_key), as the
-        two formats write its pins otherwise (SimaticML PV, CV, R where .s7dcl writes pv, cv, r; each of them RET_VAL,
-        Ret_Val or ret_val); a block call's as written, as both write it as the block declares it and a user may rename
-        it in case, which the call then shows."""
+        """A pin's name as the element is compared, '' for an unnamed one: an instruction's in one case (pin_key), as
+        the two formats write its pins otherwise (SimaticML PV, CV, R where .s7dcl writes pv, cv, r; each of them
+        RET_VAL, Ret_Val or ret_val); a block call's as written, as both write it as the block declares it and a user
+        may rename it in case, which the call then shows."""
         return (name or '') if self.instr == 'CALL' else pin_key(name)
 
 
@@ -730,9 +730,9 @@ def _pin_line_key(line):
 
 
 def _pins_in_one_order(lines):
-    """Each box's named pin lines in one order, as Element.sig compares them, their names already in one case
-    (_pins_in_one_case): the lines between a box's `(` and its `)` when all of them are named pins. A pin line that
-    opens another box ends them: nothing is sorted across boxes."""
+    """Each box's named pin lines in one order, as Element.sig takes a box's named pins in any order, their names
+    already in one case (_pins_in_one_case): the lines between a box's `(` and its `)` when all of them are named pins.
+    A pin line that opens another box ends them: nothing is sorted across boxes."""
     out, k = [], 0
     while k < len(lines):
         out.append(lines[k])

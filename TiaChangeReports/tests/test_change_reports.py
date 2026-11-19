@@ -1269,8 +1269,8 @@ def _fed_by_a(text):
 
 
 class PinsInAnotherCase(unittest.TestCase):
-    """SimaticML writes PV, CV, R where .s7dcl writes pv, cv, r, and each of them RET_VAL, Ret_Val or ret_val (the bed of
-    the two formats, zzBenTimers network 5): an instruction's pin in another case is no change. A block call's pin
+    """SimaticML writes PV, CV, R where .s7dcl writes pv, cv, r, and each of them RET_VAL, Ret_Val or ret_val (the bed
+    of the two formats, zzBenTimers network 5): an instruction's pin in another case is no change. A block call's pin
     renamed in case is (BlockCallPinRenamedInCase)."""
 
     def test_the_same_box(self):

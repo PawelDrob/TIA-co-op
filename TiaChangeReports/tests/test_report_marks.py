@@ -122,7 +122,8 @@ class PinRenamedInCase(unittest.TestCase):
                          self.marks(CALL, CALL.replace('cmd := #c', 'Cmd := #d'), 'CALL'))
 
     def test_an_output(self):
-        self.assertEqual([('changed', ['box'])] * 2, self.marks(CALL, CALL.replace('state => #c', 'State => #c'), 'CALL'))
+        self.assertEqual([('changed', ['box'])] * 2,
+                         self.marks(CALL, CALL.replace('state => #c', 'State => #c'), 'CALL'))
 
     def test_an_instructions_pin_is_no_change(self):
         before = NET.replace('Contact( #x )', 'Contact( #x )\n            MIN(\n                in1 := #a,\n'

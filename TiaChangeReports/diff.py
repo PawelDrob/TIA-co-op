@@ -128,7 +128,7 @@ def _reduce(edges, keep):
 
 
 def sp_forest(g):
-    """(tree of the rung flow, {(eid, pin as compared (pin_key)): tree of the logic feeding that pin}).
+    """(tree of the rung flow, {(eid, pin_key of the pin): tree of the logic feeding that pin}).
 
     Trees: ('L', eid) | ('S', [..]) | ('P', [..]) | ('E',) (bare wire). Each sink takes the edges that reach it and
     that no earlier sink took: first the end of the rungs, then the box pins in order."""
@@ -190,11 +190,12 @@ def compared_params(e):
 
 
 def changed_params(x, y):
-    """What differs between two paired elements: their parameters by key (compared_params: pin names in lower case,
-    '#k' for the k-th unnamed parameter, the operand of a contact or coil), 'templates' when their templates differ (the relation of a Switch case: that
-    case's pin, 'case1'), 'expression' (Calculate), 'eno' (ENO generated or not), '#call' (the called block: a pin
-    cannot be named so), '#instr' (another instruction: the relation of a compare, the kind of a contact or coil).
-    Wire names do not count."""
+    """What differs between two paired elements: the keys of their parameters that differ (compared_params: a named
+    pin by its name in lower case, '#k' for the k-th unnamed one, the operand of a contact or coil; a block call's pin
+    renamed in case differs), 'templates' when their templates differ (the relation of a Switch case: that case's
+    pin, 'case1'), 'expression' (Calculate), 'eno' (ENO generated or not), '#call' (the called block: a pin cannot be
+    named so), '#instr' (another instruction: the relation of a compare, the kind of a contact or coil). Wire names
+    do not count."""
     kx, ky = compared_params(x), compared_params(y)
     out = {k for k in list(kx) + list(ky) if kx.get(k) != ky.get(k)}
     for t in set(x.templates) | set(y.templates):
