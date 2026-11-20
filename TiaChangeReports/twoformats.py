@@ -59,8 +59,8 @@ CAUSES = {
     'rung order': (READER, 'the rungs in another order: SimaticML holds no order, the reader takes the order of the '
                            "file's elements, which TIA's export varies"),
     'FBD lines': (READER, 'an FBD network read into other lines from the two formats'),
-    'note: files': (NOTE, "the block's note compares the files, which differ between two formats (compare.file_note "
-                          "compares none between two formats)"),
+    'note: files': (NOTE, "the block's note on its files, which between two formats never read alike; compare.file_note "
+                          "compares no files between two formats, so its count is 0"),
     'note: LAD lines': (NOTE, "a LAD network's note compares its lines as read from both formats (compare._read_lines), "
                               "which differ"),
     'note: SimaticML order': (NOTE, 'a SimaticML network written in another order, with other ids, and nothing else'),

@@ -910,8 +910,8 @@ def compare_blocks(bsrc, asrc, path_b=None, path_a=None, networks=None, all_=Fal
 def compare_snapshots(before, after, blocks=None, networks=None, all_=False, found=None, across=None):
     """found: {'blocks': set, 'networks': set}, given to collect the names of `blocks` and the titles of `networks`
     the inputs hold, changed or not (a title in the blocks `blocks` selects; the rest are typos). across: a list,
-    given to collect the names of the blocks compared, listed or not, that are read from .s7dcl on one side and
-    SimaticML on the other (across_formats).
+    given to collect the BlockDiff of each block of the selection, listed or not, read from .s7dcl on one side and
+    SimaticML on the other (across_formats; page.across_names names them).
     With `networks` only the blocks holding one of them; a named block or network also when unchanged."""
     from .source import pair_blocks
     out, srcs = [], {}
@@ -933,8 +933,9 @@ def compare_snapshots(before, after, blocks=None, networks=None, all_=False, fou
             if not _skip_unreadable(((before, pb), (after, pa))):
                 raise
             continue
-        if across is not None and bsrc and asrc and across_formats(bsrc, asrc):
-            across.append(stem(pa).rsplit('/', 1)[-1])
+        if across is not None and d is not None and bsrc and asrc and across_formats(bsrc, asrc) and (
+                d.nets if networks else True):                # in the selection, as the list is
+            across.append(d)
         if found is not None and d is not None:              # named by its file: its declared names found too
             found['blocks'] |= {_block_name(b) for b in (d.before, d.after) if b} & set(blocks or ())
         if found is not None and d is not None and networks:

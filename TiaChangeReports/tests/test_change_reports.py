@@ -2213,21 +2213,24 @@ class ABlockInTheOtherFormat(unittest.TestCase):
     formats, with what that leaves out. A change across the formats is still shown."""
 
     BLOCK = 'plc/blocks/zzBenchmark/zzBenTimers'
+    FB = 'plc/blocks/zzE2e/zzE2eFbI'                       # one more block of the fixtures, in another folder
 
-    def file(self, rel, step='1-before'):
+    @staticmethod
+    def file(rel, step='1-before'):
         with open(os.path.join(TWO_FORMATS, step, rel), encoding='utf-8', newline='') as f:
             return f.read()
 
-    def sd(self):
-        return {self.BLOCK + ext: self.file(self.BLOCK + ext) for ext in ('.s7dcl', '.s7res')}
+    def sd(self, at=None, block=BLOCK):
+        """{path: text} of a block's .s7dcl and .s7res, at the path `at` (without its extension), else at its own."""
+        return {(at or block) + ext: self.file(block + ext) for ext in ('.s7dcl', '.s7res')
+                if os.path.exists(os.path.join(TWO_FORMATS, '1-before', block + ext))}
 
-    def xml(self, step='1-before', folder=None):
-        rel = self.BLOCK + '.xml'
-        at = rel if folder is None else rel.replace('/zzBenchmark/', '/%s/' % folder)
-        return {at: self.file('simaticml/' + rel, step)}
+    def xml(self, step='1-before', at=None, block=BLOCK):
+        return {(at or block) + '.xml': self.file('simaticml/%s.xml' % block, step)}
 
-    def report(self, before, after):
-        """(exit code, --json result, page) of the report of a repo's two commits, before's files then after's."""
+    def report(self, before, after, *args):
+        """(exit code, --json result, page) of the report of a repo's two commits, before's files then after's; args:
+        more options."""
         import contextlib
         import io
         import json
@@ -2243,7 +2246,7 @@ class ABlockInTheOtherFormat(unittest.TestCase):
         page = os.path.join(r, 'out', 'r.html')
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            code = main(['--git', r, 'HEAD~1', 'HEAD', '-o', page, '--json'])
+            code = main(['--git', r, 'HEAD~1', 'HEAD', '-o', page, '--json', *args])
         with open(page, encoding='utf-8') as f:
             return code, json.loads(out.getvalue()), f.read()
 
@@ -2261,7 +2264,7 @@ class ABlockInTheOtherFormat(unittest.TestCase):
                       'not read, or one only one of the two formats writes, is not compared: zzBenTimers', html)
 
     def test_switched_and_moved_to_another_folder_is_moved(self):
-        code, res, _ = self.report(self.sd(), self.xml(folder='zzOther'))
+        code, res, _ = self.report(self.sd(), self.xml(at=self.BLOCK.replace('/zzBenchmark/', '/zzOther/')))
         self.assertEqual([(b['name'], b['state']) for b in res['blocks']], [('zzBenTimers', 'moved')])
 
     def test_a_change_across_the_formats_is_shown(self):
@@ -2269,6 +2272,32 @@ class ABlockInTheOtherFormat(unittest.TestCase):
         code, res, html = self.report(self.sd(), self.xml('2-B058'))
         self.assertEqual([(b['name'], b['state'], [n['state'] for n in b['networks']]) for b in res['blocks']],
                          [('zzBenTimers', 'changed', ['changed', 'changed'])])
+        self.assertEqual(res['acrossFormats'], ['zzBenTimers'])
+
+    def test_a_network_selection_names_only_the_blocks_it_holds(self):
+        """As --block does: zzE2eFbI switched too, and the selection holds a network of zzBenTimers alone."""
+        code, res, html = self.report({**self.sd(), **self.sd(block=self.FB)}, {**self.xml(), **self.xml(block=self.FB)},
+                                      '--network', '14 Counter with fed pins')
+        self.assertEqual(res['acrossFormats'], ['zzBenTimers'])
+        self.assertIn('1 block compared between .s7dcl and SimaticML', html)
+
+    def test_two_plcs_each_switching_a_block_of_one_name_are_two_blocks(self):
+        """Each by its name, and by its place where two names are alike: the device and TIA's folders, as the tree."""
+        sd = {**self.sd('plc/PLC_1/blocks/zzBenchmark/zzBenTimers'), **self.sd('plc/PLC_2/blocks/zzBenchmark/zzBenTimers')}
+        xml = {**self.xml(at='plc/PLC_1/blocks/zzBenchmark/zzBenTimers'),
+               **self.xml(at='plc/PLC_2/blocks/zzBenchmark/zzBenTimers')}
+        code, res, html = self.report(sd, xml)
+        names = ['zzBenTimers (PLC_1/Program blocks/zzBenchmark)', 'zzBenTimers (PLC_2/Program blocks/zzBenchmark)']
+        self.assertEqual(res['acrossFormats'], names)
+        self.assertIn('2 blocks compared between .s7dcl and SimaticML by what this report reads of them; a field it does '
+                      'not read, or one only one of the two formats writes, is not compared: ' + ', '.join(names), html)
+
+    def test_a_block_goes_by_the_name_the_page_gives_it(self):
+        """Its files named after the block in another case: the declared name, as its heading and --json's blocks have
+        it (names.object_name), not the file's."""
+        code, res, _ = self.report(self.sd('plc/blocks/zzBenchmark/zzbentimers'),
+                                   self.xml('2-B058', 'plc/blocks/zzBenchmark/zzbentimers'))
+        self.assertEqual([b['name'] for b in res['blocks']], ['zzBenTimers'])
         self.assertEqual(res['acrossFormats'], ['zzBenTimers'])
 
     def test_over_ten_blocks_the_names_fold(self):

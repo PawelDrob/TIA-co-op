@@ -77,7 +77,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 from TiaChangeReports.compare import compare_snapshots     # noqa: E402
-from TiaChangeReports.page import FROM_COMMITS, FROM_WORKING_TREE, NET_NOT_SHOWN, NOT_SHOWN, listed, render    # noqa: E402
+from TiaChangeReports.page import FROM_COMMITS, FROM_WORKING_TREE, NET_NOT_SHOWN, NOT_SHOWN, across_names, listed, render  # noqa: E402
 from TiaChangeReports.source import git_snapshots, not_compared, skipped, snapshot  # noqa: E402
 from TiaChangeReports.otherfiles import other_files        # noqa: E402
 from TiaChangeReports import hmi, plctags, s7dcl           # noqa: E402
@@ -182,7 +182,7 @@ def main(argv=None):
         print('--network %s: no network of that title%s' % (_arg(title), ' in the given blocks' if a.block else ''),
               file=sys.stderr)
     full = bool(a.block or a.network) or a.all
-    across = list(dict.fromkeys(across))                 # each name once, whichever input pairs hold it
+    across = across_names(across)
     html = render(diffs, '; '.join(lb), '; '.join(la), fragment=a.fragment, title=a.title,
                   full=full, hmi=part, lang=a.lang, draw_added_removed=a.draw_added_removed, plc_tags=tag_part,
                   not_compared=not_compared_files, source_note=_source_note(a.git),

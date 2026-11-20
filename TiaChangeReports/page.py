@@ -1067,6 +1067,14 @@ def _across_html(names):
                        % (len(names), '' if one else 's', 'it' if one else 'them'), names, 'the %d names' % len(names))
 
 
+def across_names(diffs):
+    """The names of the blocks compared across the formats (compare_snapshots' across): each block once, by its paths,
+    by the name the page gives it (BlockDiff.name); where two read alike, with its place, the folders of the tree."""
+    once = list({(d.path_b, d.path_a): d for d in diffs}.values())
+    alike = collections.Counter(d.name for d in once)
+    return [d.name if alike[d.name] == 1 else '%s (%s)' % (d.name, _folder_text(d.path_a or d.path_b)) for d in once]
+
+
 def _names_html(head, names, folded):
     """head, then the names; over NAMES_SHOWN of them head and folded, the names folded open on a click."""
     if len(names) <= NAMES_SHOWN:
@@ -1083,7 +1091,7 @@ def render(diffs, before_label, after_label, fragment=False, title=None, full=Fa
     not compared: named, and the page does not say "No changes." over them. source_note: stands
     under the page's title, what a report of a git repo cannot see. other_files: the changed files it does not read
     (otherfiles.py), the same as not_compared. across: the names of the blocks read from .s7dcl on one side and
-    SimaticML on the other (compare_snapshots), after "No changes." where nothing changed."""
+    SimaticML on the other (across_names), after "No changes." where nothing changed."""
     from . import hmi as hmipart
     others = (plc_tags.items if plc_tags else []) + (hmi.items if hmi else [])
     n = len(diffs) + len(others)
