@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T17:25:45-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T01:44:40-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -340,7 +340,9 @@ On copies of a test project, 2026-11-04 `[PROBE]`; the bridge's tools are `proje
   (2026-11-05).
 - **One project per process.** `Projects.Open` in a TIA that holds one is refused at once: "Unable to open project '...'.
   Another project is already open.", with no box. The program with another path starts a second TIA process and leaves the
-  first as it was.
+  first as it was. That holds for a primary project: `Projects.Open(path, null, ProjectOpenMode.Secondary)` opens a second
+  one read-only beside it in the same process, in 0.5 s, and `Projects.Retrieve(..., ProjectOpenMode.Secondary)` an archive
+  so; section 6 (2026-11-20, without a window) `[PROBE]`.
 - **`Project.Close()` through an attach** works: 1 s, and TIA stays open with its window and no project, still in `GetProcesses`
   with an empty path. `Projects.Open` through an attach then opens one in 2 s. It asks nothing: **with unsaved changes it
   closes in the same way and they are gone**, with no event. In PowerShell the old `Project` object answers afterwards: `Name`
@@ -371,6 +373,60 @@ On copies of a test project, 2026-11-04 `[PROBE]`; the bridge's tools are `proje
   lists, such as the versions of a library type and their dependencies.
 - **Not explained:** an import of OB `Main` (2026-11-08) that never returned, with one bridge attached once and no other program
   known; TIA ended when the bridge was stopped. No stack was taken.
+
+## 6. Fingerprints and offline comparisons
+
+Probed on 2026-11-20, V20 Update 7, without a window, on copies of a test project with one language (en-US) and a safety
+program: 23 changes of one object each, imported as `.s7dcl` or SimaticML, with a snapshot of the state before
+`[PROBE]`. TiaBridge uses none of these calls.
+
+**`FingerprintProvider.GetFingerprints()`** (service of a block or PLC data type) answers `Fingerprint` items, `Id` and
+`Value` (a 20-byte value in base64).
+
+- **What moves:** `Code` and `ProgramCode` for a LAD, STL or SCL statement and an OB's LAD network; an FBD statement was
+  not tried. `Code` only for an SCL comment: an SCL comment does not move `Comments`. `Comments` for a block title, a block
+  comment, an FBD network title, an interface member's or data type member's comment. `Interface` for a member added, a start value of an FB member or a DB,
+  and optimized access switched off (with `Properties`). `Properties` for the block version and author.
+- **What does not move:** a second read, a compile, an export, a close and reopen. The same content imported again gives
+  the same values, unlike the dates (section 1, Dates). A data type changed leaves the fingerprints of the blocks and DBs
+  using it as they were; an FB's interface changed moves its instance DBs' `Interface`.
+- **A setting none of them sees:** an instance DB's `S7_StandardRetain` set from FALSE to TRUE. The `.s7dcl` export
+  writes it, TIA holds it (the export after the import reads TRUE), SimaticML does not carry it, and no fingerprint, no
+  attribute in `GetAttributeInfos` and no `PlcSoftware.CompareTo` moves.
+- **Categories are there or not by content:** on the test PLC, 480 objects: `Interface` and `Properties` on all,
+  `Comments` only where something has a comment, no `Code` on DBs and data types, `Code` without `ProgramCode` on
+  F-blocks, `Events` on OBs, `LibraryType` on instances of library types; system blocks have them, without `Code`. A
+  category missing is no evidence that nothing changed.
+- **Fails:** a block that is not consistent throws: *The block or PLC data type (UDT) '...' is inconsistent. Checksums can
+  only be formed for consistent blocks.* A tag table has no provider (`GetService` gives null). In a project opened as
+  secondary every call throws: *The operation is not permitted in a read-only context.*
+- **Cost:** 3 to 170 ms an object, median 5; the whole PLC (480 objects) 4 to 8 s, growing with TIA's memory in a session.
+
+**`PlcSoftware.CompareTo(ISoftwareCompareTarget)`** with another PLC's software, a project library, a global library or a
+master copy. Two offline PLCs: the second one opened as a secondary project in the same TIA (section 5). An archive of the
+saved project retrieved as secondary is an exact snapshot: identical in every compare against the state it was taken from.
+
+- **Result:** a tree of `CompareResultElement`: the PLC, then Software units, Program blocks (System blocks too),
+  Technology objects, PLC tags, PLC data types (System data types too); no watch or force tables. A changed object is one
+  leaf `ObjectsDifferent` with *Objects are different.* and no elements below it: the call says which object differs, not
+  what in it. The Program blocks folder's `DetailedInformation` holds the collective F-signatures of the safety programs.
+- **What it names:** every object of the 23 changes but the retain setting above, a tag table's comment too. A data type
+  changed also marks every block and DB using it, a member comment too; an FB's interface changed also marks its instance
+  DBs. A block left not consistent by a change elsewhere reads identical.
+- **Cost:** the call 2 to 46 ms; reading the tree of about 750 elements 2 to 5 s. Opening a secondary project 0.5 s;
+  archive of a 52 MB project 4 to 6 s, its retrieve 0.5 to 0.7 s.
+- `CompareTo(project.ProjectLibrary)` matches the PLC's objects with the library's types by name: instances of released
+  types identical, types without an instance `LeftMissing`, plain objects `RightMissing`.
+
+**`LibraryTypeVersion.CompareTo(LibraryTypeVersion)`** of two versions in one project library answers seven properties:
+`GUID of version object`, `Version Number`, `Is Default Version`, `Version author`, `Version comment`, `Modified Time`,
+`Original Library` (`NotCompared`). Not the content: two versions differing by a member read different in GUID, number,
+comment and time only. 65 ms a pair. `LibraryType.CompareTo` and `LibraryTypeVersion.CompareTo` against a type in a
+secondary project throw *The operation is not permitted in a read-only context.*
+
+Not tried: a project with a second language (the help says an OB's `Comments` move when the project's languages change),
+an OB's event, GRAPH, alarms, supervisions, technology objects, software units, another TIA version or update, and
+`CompareToOnline` and the station `FingerprintDataProvider`, which need a device.
 
 ## Sources
 
