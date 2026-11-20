@@ -11,7 +11,8 @@ blocks exported in both formats): the first rung from the power rail to the firs
 junction through the first input; then, for the nodes of each rung in turn, the other branches that end there and
 those that start there, of those that end there the one that starts on the node written last first, else in the order
 of the O's inputs (TIA's one O of an OR holds the ends of the legs before the branches inside them); the logic feeding a
-box pin after the rung of its box. A negated pin reads NOT: 'in2 := NOT #x', 'in1 := NOT wire#wN', and 'out => NOT' on a
+box pin after the rung of its box, in the order of the box's pins (the order of the file's wires, which TIA's export
+varies, does not count). A negated pin reads NOT: 'in2 := NOT #x', 'in1 := NOT wire#wN', and 'out => NOT' on a
 pin the rung runs through; an AND gate's rung-in and output as TIA's FBD text, 'NOT A( in2 := #b ) NOT' after 'RUNG #a';
 a negated contact or coil operand is I_Contact / I_Coil.
 """
@@ -797,10 +798,16 @@ def lad_rungs(flg, prefix, lang='LAD'):
                     if x[0] not in seen:
                         rung(x)
             else:
-                for w in it[5].values():
+                for w in fed_pins(it):
                     for x in prod.get(find(w), []):
                         if x[0] not in seen:
                             rung(x)
+
+    def fed_pins(e):
+        """The wires on e's pins fed by logic, in the order its element writes its pins, as the SD export writes the
+        rungs that feed them; the file's order of the wires, which TIA's export varies, does not count."""
+        wired = [wire_of(v) for _, _, v in _element('', e, net, str).params]
+        return sorted(e[5].values(), key=lambda w: wired.index(w) if w in wired else len(wired))
 
     ends = [e for e in els if e[4] is None or (not cons.get(find(e[4])) and find(e[4]) not in pinned)]
     for e in ends + els:

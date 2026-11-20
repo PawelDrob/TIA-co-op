@@ -9309,6 +9309,71 @@ class RungOrderMarks(unittest.TestCase):
         self.assertIn('differs in something this report does not show', bar)
 
 
+class RungsThatFeedPins(unittest.TestCase):
+    """The rungs that feed a box's pins. The SD export writes them in the order of the pins: TIA draws each pin's logic in
+    front of its pin. SimaticML holds no order of them, and TIA's export writes its wires in an order that varies (the
+    bed of the two formats, cause 'rung order': zzBenBoxes 12, zzBenSafety 18, row A010). Read alike from both formats
+    and from two SimaticML of one network. What a user orders keeps its order: the branches of an OR on a pin swapped
+    are 'other order', in each format and across the two."""
+
+    def xml(self, b_first=True, big_first=True):
+        """#start then the call of #inst on the rail; its pin a fed by #stop, its pin b by the OR of #big and #latch
+        (big_first: #big on the O's first input). b_first: the wires of pin b stand before those of pin a."""
+        n = NegatedPins('test_taken_away')
+        parts = ('<Part Name="Contact" UId="30" /><Call UId="31"><CallInfo Name="Callee" BlockType="FB">'
+                 '<Instance Scope="LocalVariable" UId="36"><Component Name="inst" /></Instance>'
+                 '<Parameter Name="a" Section="Input" Type="Bool" /><Parameter Name="b" Section="Input" Type="Bool" />'
+                 '</CallInfo></Call><Part Name="Contact" UId="32" /><Part Name="Contact" UId="33" />'
+                 '<Part Name="Contact" UId="34" /><Part Name="O" UId="35">'
+                 '<TemplateValue Name="Card" Type="Cardinality">2</TemplateValue></Part>')
+        first, second = (34, 33) if big_first else (33, 34)
+        pin_a = [n.flow(32, 'out', 31, 'a')]
+        pin_b = [n.flow(35, 'out', 31, 'b'), n.flow(first, 'out', 35, 'in1'), n.flow(second, 'out', 35, 'in2')]
+        wires = (['<Powerrail /><NameCon UId="30" Name="in" /><NameCon UId="32" Name="in" /><NameCon UId="33" Name="in" />'
+                  '<NameCon UId="34" Name="in" />', n.op(21, 30, 'operand'), n.flow(30, 'out', 31, 'en')]
+                 + (pin_b + pin_a if b_first else pin_a + pin_b)
+                 + [n.op(22, 32, 'operand'), n.op(24, 33, 'operand'), n.op(23, 34, 'operand')])
+        return _xml_src(n.net(parts, wires, 'LAD'))
+
+    @staticmethod
+    def sd(big_first=True):
+        """The same network as the SD export writes it: the rungs of pin a, then of pin b."""
+        first, second = ('#big', '#latch') if big_first else ('#latch', '#big')
+        return NoteAcrossTheFormats.sd(
+            'Contact( #start )', '#inst(', '    a := wire#w1,', '    b := wire#w2', ')',
+            after=('RUNG wire#powerrail', '    Contact( #stop )', 'END_RUNG wire#w1',
+                   'RUNG wire#powerrail', '    Contact( %s )' % first, 'END_RUNG wire#w2',
+                   'RUNG wire#powerrail', '    Contact( %s )' % second, 'END_RUNG wire#w2'))
+
+    @staticmethod
+    def nets(b, a):
+        """The listed pairs of the network both versions hold (the fixture's others are SimaticML's alone)."""
+        return [p for p in compare_blocks(b, a).nets if p.before and p.after]
+
+    def test_the_rungs_of_a_boxs_pins_follow_its_pins_whatever_the_order_of_the_wires(self):
+        from TiaChangeReports.simaticml import rungs_text
+        self.assertEqual(*(rungs_text(parse_block(self.xml(b_first)).networks[0].rungs) for b_first in (True, False)))
+
+    def test_from_both_formats_alike(self):
+        self.assertEqual([], self.nets(self.sd(), self.xml()))
+
+    def test_from_two_simaticml_with_the_wires_in_another_order_in_no_other_order(self):
+        """Nothing marked and no other order. The network's note on its file's order is ticket 351's."""
+        for p in self.nets(self.xml(b_first=False), self.xml()):
+            self.assertEqual((p.reordered, RungOrderMarks.marks(self, p)), (False, ([], [])))
+
+    def test_the_branches_of_an_or_swapped_are_another_order(self):
+        """In .s7dcl, in SimaticML, and from one to the other: the two contacts of the OR marked moved, nothing else."""
+        for name, b, a in (('.s7dcl', self.sd(), self.sd(big_first=False)),
+                           ('SimaticML', self.xml(), self.xml(big_first=False)),
+                           ('across', self.sd(), self.xml(big_first=False)),
+                           ('across, back', self.xml(big_first=False), self.sd())):
+            with self.subTest(name):
+                (p,) = self.nets(b, a)
+                self.assertEqual((p.state, p.reordered), ('changed', True))
+                self.assertEqual(RungOrderMarks.marks(self, p), (['#big', '#latch'], ['#big', '#latch']))
+
+
 class DeclaredName(unittest.TestCase):
     def test_quoted_name_holding_a_colon(self):              # a library type's name may hold one
         from TiaChangeReports.names import decl_name
