@@ -3,7 +3,7 @@ type: Guide
 title: SIMATIC SD (.s7dcl) authoring guide
 description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-12T18:28:31-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T01:50:30-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -286,7 +286,7 @@ Add(
 | Pragma | Purpose |
 |---|---|
 | `{ S7_Templates := "name := value" }` | Specializes the following instruction (data type selection). List form: `"[ inType := Int, outType := Real ]"`. Only exported when the value differs from the default; automatic type selection (`Auto`) is never exported. |
-| `{ S7_GenerateENO := TRUE }` | The following box computes a real ENO. Default for some math instructions is off (ENO := EN), in which case no pragma appears. |
+| `{ S7_GenerateENO := TRUE }` | The following box computes a real ENO. On a box with TIA's ENO setting (8.10) the export writes it `"TRUE"` where ENO is generated and writes nothing where it is not (ENO := EN) `[EXPORT]`. |
 | `{ S7_Expression := "..." }` | Stores the expression of a `Calculate` box, using the formal names; the export writes them `IN1`, `IN2`, ... (8.14) |
 | `{ CASE0 := "==" }` | The relation of a `Switch` case, one per case, beside its `S7_Templates` (8.13) `[EXPORT]` |
 
@@ -367,7 +367,7 @@ LAD has exactly three negation instructions: `I_Contact` (negates the operand), 
 
 - `EN`/`ENO` are the rung pins of ENO boxes and are never written in text.
 - If EN is false, the box is not executed and connected outputs are untouched; ENO goes false.
-- ENO generation is off by default for some math instructions (ENO := EN); switch it on with `{ S7_GenerateENO := TRUE }` (see 8.6).
+- ENO generation is a setting of some boxes: math, move, conversion, string, word logic, shift and rotate, `Calculate` (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`). Off, ENO := EN, and TIA draws ENO gray, with a line from EN through the box. The export writes `{ S7_GenerateENO := "TRUE" }` on such a box where it is on and nothing where it is off; its SimaticML writes `DisabledENO`, `"true"` where it is off `[EXPORT]`. A box without the setting (timers, counters, calls, `SEL`, `MUX`, ...) and every box of an F-block carry neither `[EXPORT]`; the change report reads their ENO as generated. Switch it on with `{ S7_GenerateENO := TRUE }` (see 8.6).
 - The overflow-guard idiom (Add into a temp, Move copies only on ENO true) is expressed as two consecutive boxes in one rung.
 - Implicit data-type conversions inserted by the compiler have **no** textual representation.
 - Auto data type: never exported; a selected data type appears as an `S7_Templates` pragma.
@@ -809,7 +809,7 @@ There is no `out :=` inside the expression; the output binding is fixed.
 
 Export of an FB (V20 Update 7, 2026-10-30) `[EXPORT]`: `{ S7_Templates := "SrcType := DInt"; S7_Expression := "(IN1 + IN2) * (IN1 - IN2)" }` before `Calculate( in1 := ..., in2 := ..., in3 := ..., out => ... )`: the export writes the formal names in the expression in upper case, as the editor shows them (`OUT := (IN1 + IN2) * (IN1 - IN2)`). The SimaticML export of the same network in an OB: the part `Calc` with `<Equation>(IN1 + IN2) * (IN1 - IN2)</Equation>`, `Card` (the number of inputs) and `SrcType`; pins `en`, `in1..n`, `out`.
 
-ENO: the Calculate as placed in the editor has `DisabledENO="true"` in the SimaticML export (ENO not generated: TIA draws it gray, with a line from EN through the box), and its `.s7dcl` export has no `S7_GenerateENO` pragma `[EXPORT]`. So no pragma = the gray ENO. That `S7_GenerateENO := TRUE` is written when ENO is generated (8.6) is not yet seen for a Calculate `[INFERRED]`.
+ENO: the Calculate as placed in the editor has `DisabledENO="true"` in the SimaticML export (ENO not generated: TIA draws it gray, with a line from EN through the box), and its `.s7dcl` export has no `S7_GenerateENO` pragma `[EXPORT]`. So no pragma = the gray ENO. With ENO generated the export writes `S7_GenerateENO := "TRUE"`, as on any box with the setting (8.10), and its SimaticML `DisabledENO="false"` `[EXPORT]`.
 
 ---
 

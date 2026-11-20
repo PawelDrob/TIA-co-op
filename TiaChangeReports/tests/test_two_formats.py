@@ -45,12 +45,13 @@ class RunRepo(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_nothing_changed_lists_each_object_with_its_causes(self):
+        """zzE2eFbI's Move, its ENO not generated (DisabledENO="true", no S7_GenerateENO), reads alike from both formats:
+        no network listed, the block by the raw files' note alone."""
         got = {(x['object'], tuple(x['network']) if x['network'] else None): x['causes']
                for x in twoformats.nothing_changed(self.repo, 'HEAD~2')}
         self.assertEqual({
             (TIMERS, None): ['note: files'],
-            (FB, None): ['ENO'],
-            (FB, (1, 1, '')): ['ENO'],
+            (FB, None): ['note: files'],
             (IDB, None): ['DB retain', 'instance DB access', 'instance DB start values'],
             (UDT, None): ['declaration'],
         }, got)

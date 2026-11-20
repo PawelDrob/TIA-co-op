@@ -6,11 +6,11 @@ import re
 import unittest
 from itertools import dropwhile
 
-from TiaChangeReports import instructions
+from TiaChangeReports import diff, instructions, render_lad, twoformats
 from TiaChangeReports.compare import compare_blocks
 from TiaChangeReports.page import render
 from TiaChangeReports.render_lad import Layout
-from TiaChangeReports.s7dcl import parse_block
+from TiaChangeReports.s7dcl import parse_block, parse_lad
 from TiaChangeReports.simaticml import address, scl_text, stl_text
 from TiaChangeReports.source import BlockSource
 from TiaChangeReports.verify import check
@@ -576,6 +576,105 @@ class NotInTheCatalogue(unittest.TestCase):
         svg = re.findall(r'<div class="pane">.*?</svg>', render([d], 'b', 'a'), re.S)[-1]
         marks = [float(w) for w in re.findall(r'<rect class="hl [^"]*" x="[\d.]+" y="[\d.]+" width="([\d.]+)"', svg)]
         self.assertTrue(marks and max(marks) > 50, marks)
+
+
+class EnoSetting(unittest.TestCase):
+    """TIA's ENO setting (instructions.ENO_SETTING): ENO generated, or not (ENO := EN, drawn gray). SimaticML writes it as
+    DisabledENO, .s7dcl as S7_GenerateENO := "TRUE" where ENO is generated and nothing where it is not: zzBenBoxes network 1,
+    the pragma on Add and Mul and none on Move, DisabledENO "false", "false" and "true". A box without the setting, and every
+    box of an F-block, carries neither and reads as ENO generated."""
+
+    F_SD = '{\n    S7_Safety := "TRUE"\n}\n'
+
+    @staticmethod
+    def xml_name(instr):
+        return next((x for x, sd in instructions.XML_NAMES.items() if sd == instr), instr)
+
+    @staticmethod
+    def sd(instr, generated, pins=('in1', 'out'), safety=False):
+        """The box alone on the rail as .s7dcl, #start on its input, #big on its output."""
+        src = sd_source(('{ S7_GenerateENO := "TRUE" }\n' if generated else '')
+                        + '%s(\n %s := #start,\n %s => #big\n)' % ((instr,) + pins))
+        return BlockSource('Sample', EnoSetting.F_SD + src.s7dcl, None, 'Sample.s7dcl') if safety else src
+
+    def xml(self, instr, disabled, pins=('in1', 'out'), safety=False):
+        """The same box as SimaticML: DisabledENO as given, None for none."""
+        attr = '' if disabled is None else ' DisabledENO="%s"' % disabled
+        text = cr.NegatedPins('test_taken_away').net('<Part Name="%s" UId="%d"%s />' % (self.xml_name(instr), PART, attr),
+                                                     [rail('en'), inp(A, pins[0]), out(C, pins[1])], 'LAD')
+        if safety:
+            text = text.replace('      <ProgrammingLanguage>LAD</ProgrammingLanguage>', '      <ProgrammingLanguage>F_LAD</ProgrammingLanguage>', 1)
+        return cr._xml_src(text)
+
+    @staticmethod
+    def read(src):
+        """(the network, its box)."""
+        net = parse_block(src).networks[0]
+        (el,) = [x for r in net.rungs for x in r.items if not isinstance(x, tuple)]
+        return net, el
+
+    def test_every_box_with_the_setting_reads_alike_from_both_formats(self):
+        """Every box zz-226-repo holds DisabledENO or the pragma on, both ways; the SimaticML network's text writes the pragma as
+        .s7dcl does, and reads back the same."""
+        for instr in sorted(instructions.ENO_SETTING):
+            for generated in (True, False):
+                with self.subTest(instr, generated=generated):
+                    _, s = self.read(self.sd(instr, generated))
+                    net, x = self.read(self.xml(instr, 'false' if generated else 'true'))
+                    self.assertEqual((s.no_eno, x.no_eno), (not generated, not generated))
+                    self.assertEqual('S7_GenerateENO := "TRUE"' in net.body, generated)
+                    (back,) = [e for r in parse_lad(net.body, 'r') for e in r.items if not isinstance(e, tuple)]
+                    self.assertEqual(back.no_eno, not generated)
+
+    def test_a_box_without_the_setting_reads_as_generated(self):
+        """SEL, MUX, SEG, a box the report does not know and a block call: no pragma, no DisabledENO, ENO generated."""
+        for instr in ('SEL', 'Mux', 'SEG', 'NewBox', '"Helper"'):
+            with self.subTest(instr):
+                self.assertFalse(self.read(self.sd(instr, False))[1].no_eno)
+                if not instr.startswith('"'):
+                    net, x = self.read(self.xml(instr, None))
+                    self.assertFalse(x.no_eno)
+                    self.assertNotIn('S7_GenerateENO', net.body)
+
+    def test_an_f_blocks_box_reads_as_generated(self):
+        """zzFMath's Add: in an F-block neither format writes the setting, and its ENO reads as generated from both."""
+        _, s = self.read(self.sd('Add', False, safety=True))
+        net, x = self.read(self.xml('Add', None, safety=True))
+        self.assertEqual((s.no_eno, x.no_eno), (False, False))
+        self.assertNotIn('S7_GenerateENO', net.body)
+        self.assertEqual(s.sig(), x.sig())
+
+    def test_an_open_eno_not_generated_is_drawn_gray_from_both_formats(self):
+        """zzBenLarge's MOVE, its ENO open: gray in TIA, with a line from EN through the box; and an ADD so. Generated: black."""
+        for instr, pins in (('Move', ('in', 'out1')), ('Add', ('in1', 'out'))):
+            for generated in (True, False):
+                with self.subTest(instr, generated=generated):
+                    drawn = [''.join(view(src)[0].draw(0, 100))
+                             for src in (self.sd(instr, generated, pins), self.xml(instr, 'false' if generated else 'true', pins))]
+                    self.assertEqual(drawn[0], drawn[1])
+                    (fill,) = re.findall(r'fill="([^"]+)"[^>]*>ENO</text>', drawn[0])
+                    self.assertEqual(fill == render_lad.C_OFF, not generated)
+                    self.assertEqual('stroke="%s"' % render_lad.C_OFF in drawn[0], not generated)
+
+    def test_the_setting_changed_is_a_change_marked_alike_from_both_formats(self):
+        """A box's ENO generated, then not, or the other way: a real change, though no row of zz-226-repo makes it alone (the
+        pragma moves there with a box added or removed). Each format's report lists the network as changed, marks the box's ENO,
+        and the two reports mark it alike."""
+        for instr, pins in (('Move', ('in', 'out1')), ('Add', ('in1', 'out'))):
+            for before in (True, False):
+                with self.subTest(instr, generated_before=before):
+                    ds = compare_blocks(self.sd(instr, before, pins), self.sd(instr, not before, pins),
+                                        'plc/blocks/Sample.s7dcl', 'plc/blocks/Sample.s7dcl')
+                    dx = compare_blocks(*(self.xml(instr, 'false' if g else 'true', pins) for g in (before, not before)),
+                                        'plc/blocks/Sample.xml', 'plc/blocks/Sample.xml')
+                    marks = []
+                    for d in (ds, dx):
+                        (p,) = d.nets
+                        self.assertEqual((d.state, p.state, d.not_shown), ('changed', 'changed', False))
+                        self.assertEqual(diff.changed_params(p.before.rungs[0].items[0], p.after.rungs[0].items[0]), {'eno'})
+                        marks.append(sorted(f[3:] for f in twoformats.facts([d]) if f[1] == 'mark'))
+                    self.assertTrue(marks[0])
+                    self.assertEqual(marks[0], marks[1])
 
 
 class ExtendedBoxes(unittest.TestCase):

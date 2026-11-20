@@ -554,15 +554,17 @@ class Rung:
     end: Optional[str]            # node name or None (rung ends in its last element)
 
 
-def parse_lad(body, prefix, itf=None):
-    return lad_read(body, prefix, itf)[0]
+def parse_lad(body, prefix, itf=None, safety=False):
+    return lad_read(body, prefix, itf, safety)[0]
 
 
-def lad_read(body, prefix, itf=None):
+def lad_read(body, prefix, itf=None, safety=False):
     """(the rungs of a LAD network, its text as read): the text with each template the reader leaves out of a box (a
     template at the value its instruction fixes: a type, or Sub, Div and Mod's Card 2; instructions.left_out) taken out
     of the S7_Templates the box was read from, the last before it, and a pragma left empty gone, so that its lines, its
-    part of the file and its units (beside.py) read as its element does; body itself where nothing is left out."""
+    part of the file and its units (beside.py) read as its element does; body itself where nothing is left out. A box's
+    ENO is not generated where its pragma says S7_GenerateENO := "FALSE", or says nothing on a box with TIA's ENO
+    setting (instructions.eno_setting; safety: the network is of an F-block, where no box has it)."""
     rungs = []
     cur = None
     pend, pend_at = {}, []                        # the pragmas before the next element, and their lines [start, end)
@@ -634,8 +636,8 @@ def lad_read(body, prefix, itf=None):
                 break
         _fill_f_type(el, pend, itf)
         el.expression = pend.get('S7_Expression')
-        eno = pend.get('S7_GenerateENO', '').upper()      # Calculate: ENO off unless generated [INFERRED], 8.6
-        el.no_eno = eno == 'FALSE' or (head == 'Calculate' and eno != 'TRUE')
+        eno = pend.get('S7_GenerateENO', '').upper()
+        el.no_eno = eno == 'FALSE' or (eno != 'TRUE' and instructions.eno_setting(el.instr, safety))
         pend, pend_at = {}, []
         cur.items.append(el)
     if not rewritten:
@@ -814,7 +816,8 @@ def parse_block(src, lang=None):
     if kind == 'TYPE':
         body = text[m.start():]
     itf = parse_interface(body, res, db=kind == 'DATA_BLOCK')
-    nets = [network(k, m.group(1), m.group(2), res, itf, tag) for k, m in enumerate(_NET.finditer(text), 1)]
+    safety = props.get('S7_Safety', '').lower() == 'true'
+    nets = [network(k, m.group(1), m.group(2), res, itf, tag, safety) for k, m in enumerate(_NET.finditer(text), 1)]
     return Block(object_name(src.name, declared_name(text)), src.label, itf, nets, kind, decl, props)
 
 
@@ -829,15 +832,15 @@ def text_as_read(src):
     return ''.join(out) + text[at:]
 
 
-def network(k, pragma, body, res, itf, tag):
+def network(k, pragma, body, res, itf, tag, safety=False):
     """The k-th network of a block from its pragma block's settings and its lines; tag: the block's number, which keeps
-    the element ids apart. A LAD network's text, its part of the file and its raw lines are its lines as read
-    (lad_read)."""
+    the element ids apart; safety: the block is an F-block. A LAD network's text, its part of the file and its raw lines
+    are its lines as read (lad_read)."""
     pr = _pragmas('{' + pragma + '}')
     lang_ = pr.get('S7_Language', '')
     rungs = None
     if lang_ == 'LAD':
-        rungs, body = lad_read(body, 'b%dn%d_' % (tag, k), itf)
+        rungs, body = lad_read(body, 'b%dn%d_' % (tag, k), itf, safety)
     nbody = _mlc_texts(body, res) if lang_ != 'LAD' else body
     net = Network(k, lang_, res.get(pr.get('S7_NetworkTitle', ''), ''), res.get(pr.get('S7_NetworkComment', ''), ''), nbody,
                   source=_network_source(pragma, body, res, lang_), raw=('sd', pragma, body, res, itf))

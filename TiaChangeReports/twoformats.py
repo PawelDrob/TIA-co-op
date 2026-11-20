@@ -53,8 +53,8 @@ CAUSES = {
                           "named pin by its name, in any order)"),
     'pin direction': (READER, "a coil's operand read as an output (=>) from .s7dcl and as an input (:=) from SimaticML"),
     'templates': (ONE_FIELD, 'a type template SimaticML writes and .s7dcl does not (value_type, ptr_type, Card, ...)'),
-    'ENO': (READER, "a box's ENO: SimaticML writes DisabledENO, .s7dcl S7_GenerateENO := \"TRUE\" where it is false "
-                    "and nothing where it is true; the .s7dcl reader takes nothing as an ENO generated"),
+    'ENO': (READER, "a box's ENO generated read from one format and not from the other: SimaticML writes DisabledENO, "
+                    ".s7dcl S7_GenerateENO := \"TRUE\" where it is false and nothing where it is true"),
     'rung order': (READER, 'the rungs in another order: SimaticML holds no order, the reader takes the order of the '
                            "file's elements, which TIA's export varies"),
     'FBD lines': (READER, 'an FBD network read into other lines from the two formats'),

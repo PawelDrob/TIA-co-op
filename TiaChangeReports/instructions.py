@@ -315,6 +315,24 @@ def left_out(instr, template, value):
     return fixed.get(template) == value
 
 
+# The boxes with TIA's ENO setting (ENO generated, or not: ENO := EN, drawn gray), by their .s7dcl names. SimaticML writes it on
+# each as DisabledENO, "true" where ENO is not generated; .s7dcl writes S7_GenerateENO := "TRUE" where it is, nothing where it is
+# not. Evidence: every box zz-226-repo's 531 commits of the two formats hold DisabledENO on, and every box they hold the pragma on,
+# are these, the pragma on as many boxes as DisabledENO="false" (ticket 341). No other box carries either field, and no box of an
+# F-block (S7_Safety): those read as ENO generated, as does a box not listed here, from either format.
+ENO_SETTING = frozenset(
+    'Abs Acos Add And Asin Atan Calculate Ceil CONCAT Convert Cos Dec DECO DELETE Div ENCO Exp Expt FillBlockI FillBlockU FIND '
+    'Floor Frac GATHER GatherBlock Inc INSERT Inv LEFT LEN Limit Ln Lower_Bound MAX MID MIN Mod Move MoveBlockI MoveBlockU Mul '
+    'Neg Normalize Or REPLACE RIGHT Rol Ror Round S_CONV Scale SCATTER ScatterBlock Shl Shr Sin Sqr Sqrt Sub Swap Tan Trunc '
+    'Upper_Bound Xor'.split())
+
+
+def eno_setting(instr, safety=False):
+    """Whether a box (instr: its .s7dcl name) has TIA's ENO setting (ENO_SETTING), so that a .s7dcl without
+    S7_GenerateENO := "TRUE" on it says its ENO is not generated; safety: the box is in an F-block, where none has it."""
+    return not safety and instr in ENO_SETTING
+
+
 def lookup(instr):
     """The Instruction of an element's name (exact), None when the report does not know it."""
     return CATALOGUE.get(instr)

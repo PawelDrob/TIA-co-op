@@ -1074,13 +1074,14 @@ def parse_block(src, lang=None):
     if kind == 'ORGANIZATION_BLOCK' and _text(al, 'SecondaryType'):
         props['Event class'] = _text(al, 'SecondaryType')       # the SD export of an OB has none
     cus = [cu for ol in _kids(blk, 'ObjectList') for cu in _kids(ol, 'SW.Blocks.CompileUnit')]
-    nets = [network(cu, k, tag, lang) for k, cu in enumerate(cus, 1)]
+    nets = [network(cu, k, tag, lang, plang.startswith('F_')) for k, cu in enumerate(cus, 1)]
     return Block(object_name(src.name, name), src.label, itf, nets, kind, decl, props,
                  auto_number=_text(al, 'Number') if _text(al, 'AutoNumber') == 'true' else None)
 
 
-def network(cu, k, tag, lang):
-    """The k-th network of a block from its CompileUnit; tag: the block's number, which keeps the element ids apart."""
+def network(cu, k, tag, lang, safety=False):
+    """The k-th network of a block from its CompileUnit; tag: the block's number, which keeps the element ids apart;
+    safety: the block is an F-block."""
     cal = _kid(cu, 'AttributeList')
     lang_ = _text(cal, 'ProgrammingLanguage')
     lang_ = LANGS.get(lang_, lang_)
@@ -1091,7 +1092,7 @@ def network(cu, k, tag, lang):
     if src_ is not None:
         net.label = label(src_)
         net.rungs = lad_rungs(src_, 'b%dn%d_' % (tag, k), lang_)
-        net.body = rungs_text(net.rungs)
+        net.body = rungs_text(net.rungs, safety)
         if lang_ != 'LAD':
             net.rungs = None                          # shown as text: its label first, as the SD export
             net.body = ('Label(%s)\n' % net.label if net.label else '') + net.body
@@ -1122,8 +1123,9 @@ def _negated_gate(it, heads_rung):
     return operand if heads else None, '    %sA( %s )%s' % ('NOT ' if negated_in else '', ', '.join(rest), ' NOT' if negated_out else '')
 
 
-def rungs_text(rungs):
-    """The rungs as the LAD text of a .s7dcl network."""
+def rungs_text(rungs, safety=False):
+    """The rungs as the LAD text of a .s7dcl network: S7_GenerateENO := "TRUE" on a box with TIA's ENO setting whose ENO
+    is generated, as the .s7dcl export writes it (instructions.eno_setting; safety: an F-block's, where none has it)."""
     out = []
     for r in rungs:
         first = next((x for x in r.items[:1] if not isinstance(x, tuple)), None)
@@ -1142,10 +1144,10 @@ def rungs_text(rungs):
             if tpl:
                 pragmas.append('S7_Templates := "%s"' % ', '.join('%s := %s' % kv for kv in tpl))
             pragmas += ['%s := "%s"' % kv for kv in it.templates.items() if re.match(r'CASE\d+$', kv[0])]
+            if instructions.eno_setting(it.instr, safety) and not it.no_eno:
+                pragmas.append('S7_GenerateENO := "TRUE"')
             if it.expression is not None:
                 pragmas.append('S7_Expression := "%s"' % it.expression)
-            if it.instr == 'Calculate' and not it.no_eno:
-                pragmas.append('S7_GenerateENO := TRUE')
             if pragmas:
                 out.append('    { %s }' % '; '.join(pragmas))
             head = it.instr if it.instr != 'CALL' else (it.instance or '"%s"' % it.call)
