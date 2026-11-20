@@ -8744,17 +8744,26 @@ class WrittenInAnotherOrder(unittest.TestCase):
         self.in_other_order(before, self.text(self.LEG_WIRES + swapped, [self.LEGS[k] for k in (0, 4, 5, 6, 1, 2, 3, 7, 8)]), False)
         self.in_other_order(before, self.text(self.LEG_WIRES + swapped, self.LEGS), True)
 
-    def test_an_or_s_inputs_in_fbd(self):
-        """With no rail (FBD), an O is a gate whose inputs are pins by name: their numbers stay a difference."""
+    def test_an_or_s_inputs_by_the_network_s_language(self):
+        """Whether an O only joins wires goes by the network's programming language, as the reader draws it: in LAD its
+        inputs are branches, whose numbers are TIA's; in FBD it is a gate whose inputs are pins, their numbers a
+        difference. A rail tells neither: here an FBD network with one and a LAD network without."""
         parts = [('x', '<Part Name="Contact" UId="%d" />'), ('y', '<Part Name="Contact" UId="%d" />'), self.PARTS[4],
                  ('q', '<Part Name="Coil" UId="%d" />')]
         wires = [['#a', 'x.operand'], ['#b', 'y.operand'], ['x.out', 'or.in1'], ['y.out', 'or.in2'], ['or.out', 'q.in'],
                  ['#latch', 'q.operand']]
         swapped = [list(w) for w in wires]
         swapped[2:4] = [['x.out', 'or.in2'], ['y.out', 'or.in1']]
-        self.assertFalse(alike_exports(self.text(wires, parts), self.text(swapped, parts)))
+        lad = '<ProgrammingLanguage>LAD</ProgrammingLanguage>\n        </AttributeList>'
+
+        def written(ws, language):
+            return self.text(ws, parts).replace(lad, lad.replace('LAD', language), 1)
+        self.assertNotEqual(written(wires, 'FBD'), self.text(wires, parts))
         rail = [['rail', 'x.in', 'y.in']]
-        self.assertTrue(alike_exports(self.text(rail + wires, parts), self.text(rail + swapped, parts)))
+        for ws, language, alike in ((wires, 'LAD', True), (rail + wires, 'LAD', True), (wires, 'FBD', False),
+                                    (rail + wires, 'FBD', False)):
+            again = swapped if ws is wires else rail + swapped
+            self.assertEqual(alike_exports(written(ws, language), written(again, language)), alike, (language, ws is wires))
 
     def test_a_wire_moved_to_another_pin(self):
         self.differs(self.edited((['b.out', 'add.en'], ['b.out', 'q.in']), (['or.out', 'q.in'], ['or.out', 'add.en'])))

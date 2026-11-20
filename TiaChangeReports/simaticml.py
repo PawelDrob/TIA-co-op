@@ -99,22 +99,25 @@ def _other_language(el, lang):
     return tag == 'MultiLanguageText' and el.get('Lang') != lang
 
 
-def _plain(el, uids=None, lang=None):
+def _plain(el, uids=None, lang=None, network_lang=None):
     """An element without what TIA writes differently per export: the export time and how it was exported, the object
     numbers (ID left out; UId, which tells what a wire connects, numbered by first appearance in its network; a LAD or
     FBD network's not at all, nor the order of its operands and wires, _flgnet), the order of the languages and a
     language without a text, TIA's expansion of a UDT member under a Member (_expansion), a block's number while
     automatic numbering is on (TIA's; a user cannot set it then, and an .s7dcl does not write it), and a part's template
     at the value its instruction fixes (_left_out).
-    lang: only this language's texts (the others are compared apart, as texts)."""
+    lang: only this language's texts (the others are compared apart, as texts); network_lang: the programming language
+    of the network an element is in, taken from its CompileUnit (network_language)."""
     tag = _local(el.tag)
     if tag == 'FlgNet':
-        return _flgnet(el, lang)
+        return _flgnet(el, lang, network_lang)
     if uids is None or tag == 'SW.Blocks.CompileUnit':
         uids = {}
+    if tag == 'SW.Blocks.CompileUnit':
+        network_lang = network_language(el)
     auto = tag == 'AttributeList' and _text(el, 'AutoNumber') == 'true'
     instr = _part_instr(el) if tag == 'Part' else None
-    kids = [_plain(c, uids, lang) for c in el
+    kids = [_plain(c, uids, lang, network_lang) for c in el
             if _local(c.tag) != 'DocumentInfo' and not (tag == 'Member' and _local(c.tag) == 'Sections' and _expansion(c))
             and not (_local(c.tag) == 'MultilingualTextItem' and _no_text(c)) and not (lang and _other_language(c, lang))
             and not (auto and _local(c.tag) == 'Number') and not (instr and _left_out(instr, c))]
@@ -156,12 +159,18 @@ def wire_end(c, reach):
     return tag, tuple(sorted(c.attrib.items())), None
 
 
-def joining_os(flg):
-    """The numbers of the O parts of a LAD network, read by its rail, that only join wires (_joins_wires): TIA numbers
-    their inputs otherwise for a network nobody changed (zzBenLarge networks 2 and 3, from the same .s7dcl text)."""
-    net = _Net(flg)
-    return {p.get('UId') for p in _held(flg, 'Parts')
-            if _joins_wires(p.get('UId'), _local(p.tag), p, net, 'LAD' if net.rail else 'FBD')}
+def network_language(cu):
+    """A network's programming language from its CompileUnit, an F-language as its standard one (F_LAD: LAD)."""
+    lang = _text(_kid(cu, 'AttributeList'), 'ProgrammingLanguage')
+    return LANGS.get(lang, lang)
+
+
+def joining_os(net, lang):
+    """The numbers of the O parts that only join wires (_joins_wires) of a FlgNet read as _Net, in a network of this
+    programming language: in LAD, an O whose inputs are branches, which the reader joins into one node and orders by the
+    numbers of its inputs where the drawing does; TIA numbers those inputs otherwise for a network nobody changed
+    (zzBenLarge networks 2 and 3, from the same .s7dcl text). In FBD an O is a gate whose inputs are pins."""
+    return {uid for uid, tag, p in net.parts if _joins_wires(uid, tag, p, net, lang)}
 
 
 def pin_of(end, joining):
@@ -179,7 +188,7 @@ def wire_ends(ends):
 _TRIES = 64                               # leaves of the search for the least form before a network is compared as written
 
 
-def _flgnet(el, lang):
+def _flgnet(el, lang, network_lang):
     """A FlgNet as _plain, without what TIA's export writes otherwise for a network nobody changed: the object numbers,
     which TIA gives in the order of the file; the order of the operands (Access) among the parts and of the wires
     (zzBenBoxes networks 4-6 beside a change of network 1); the order of a wire's ends after its first, which follows
@@ -194,7 +203,7 @@ def _flgnet(el, lang):
     parts, wires = _held(el, 'Parts'), _held(el, 'Wires')
     nodes = [_blank(_plain(p, lang=lang)) for p in parts]
     at = {p.get('UId'): k for k, p in enumerate(parts)}
-    joining = joining_os(el)
+    joining = joining_os(_Net(el), network_lang)
 
     def end(c):
         tag, fields, k = wire_end(c, at.get)
@@ -823,9 +832,10 @@ def lad_rungs(flg, prefix, lang='LAD'):
         if kind == 'flow':
             flows.setdefault(uid, {})[pin] = w
     els = []                                                  # [(uid, tag, xml, in wire, out wire, pins)]
+    joining = joining_os(net, lang)
     for uid, tag, p in net.parts:
         fl = flows.get(uid, {})
-        if _joins_wires(uid, tag, p, net, lang):
+        if uid in joining:
             for pin, w in fl.items():
                 union(fl.get('out', w), w)
                 if pin != 'out':
@@ -1237,8 +1247,7 @@ def parse_block(src, lang=None):
 def network(cu, k, tag, lang):
     """The k-th network of a block from its CompileUnit; tag: the block's number, which keeps the element ids apart."""
     cal = _kid(cu, 'AttributeList')
-    lang_ = _text(cal, 'ProgrammingLanguage')
-    lang_ = LANGS.get(lang_, lang_)
+    lang_ = network_language(cu)
     ns = _kid(cal, 'NetworkSource')
     src_, st, sl = ((_kid(ns, x) if ns is not None else None) for x in ('FlgNet', 'StructuredText', 'StatementList'))
     net = Network(k, lang_, _mltext(cu, 'Title', lang), _mltext(cu, 'Comment', lang), '',

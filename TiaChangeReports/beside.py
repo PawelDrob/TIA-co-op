@@ -189,7 +189,7 @@ def _wire_fields(cu, lang, kept):
     on the rail came or went with what the change added or removed, and is left out with its fields."""
     parts, _, operand, wires, flg = _read_net(cu, lang)
     what = dict(operand, **{x[0]: x[1] for x in parts})
-    joining = simaticml.joining_os(flg)
+    joining = simaticml.joining_os(simaticml._Net(flg), simaticml.network_language(cu))
     out = Counter()
     for w in wires:
         on = [_local(e.tag) in ('NameCon', 'IdentCon') for e in w]
