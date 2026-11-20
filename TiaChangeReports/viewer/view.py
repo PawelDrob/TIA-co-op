@@ -57,8 +57,8 @@ def block_of(path):
 
 
 def _xml_db(src):
-    """The SimaticML of a DB read as a global DB's: its members with their retain. The reader leaves them out of an
-    instance DB and a DB of a UDT, which the .s7dcl does not repeat either; it reads only the start values set there."""
+    """The SimaticML of a DB read as a global DB's: its members with their retain. Of an instance DB and a DB of a
+    UDT the reader reads only the start values set in the DB, as the .s7dcl holds no more."""
     return parse_interface(ET.fromstring(src.xml.lstrip('\ufeff').encode('utf-8')), LANG, db=True)
 
 

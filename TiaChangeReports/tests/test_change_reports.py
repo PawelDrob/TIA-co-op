@@ -5471,8 +5471,7 @@ class TypedDbStartValues(unittest.TestCase):
 
 
 def _two_format_file(rel):
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'twoformats', '1-before', rel),
-              encoding='utf-8-sig') as f:
+    with open(os.path.join(TWO_FORMATS, '1-before', rel), encoding='utf-8-sig') as f:
         return f.read()
 
 
@@ -5535,23 +5534,24 @@ class InstanceDbStartValuesFromSimaticML(unittest.TestCase):
         for before, after in (({'inv': None}, {}), ({}, {'inv': '6'}), ({}, {'inv': None}),
                               ({}, {'m1': '3'}), ({'m1': '3'}, {'m1': '4'}), ({'m1': '3'}, {})):
             with self.subTest(before=before, after=after):
-                ds, rs = self.report(self.sd(**before), self.sd(**after))
+                rs = self.report(self.sd(**before), self.sd(**after))[1]
                 dx, rx = self.report(self.xml(**before), self.xml(**after))
                 self.assertTrue(rs)
                 self.assertEqual(rs, rx)
                 self.assertEqual(('changed', False), (dx.state, dx.not_shown), 'shown, not left to the note')
-                da, ra = self.report(self.sd(**before), self.xml(**after))
-                self.assertEqual(rs, ra, '.s7dcl before, SimaticML after')
+                across = self.report(self.sd(**before), self.xml(**after))[1]
+                self.assertEqual(rs, across, '.s7dcl before, SimaticML after')
 
     def test_the_same_start_values_in_the_two_formats_are_no_change(self):
         for own in ({}, {'inv': None}, {'m1': '3'}):
             with self.subTest(own=own):
                 self.assertEqual([], self.report(self.sd(**own), self.xml(**own))[1])
 
-    def test_a_member_added_to_the_fb_gives_the_db_no_row(self):
+    def test_a_member_added_to_the_fb_gives_the_db_no_row_and_the_note_as_before(self):
         """TIA writes the FB's new input into the instance DB's SimaticML; the .s7dcl of the DB does not move. From
-        SimaticML the DB gets no row of it either: the member is the FB's, shown on the FB. Its file moved in what the
-        report does not read, so the note, as before (the two-format bed's cause "type members")."""
+        SimaticML the DB gets no row of it either: the member is the FB's, shown on the FB. But its file moved in what
+        the report does not read, so the DB keeps the note it had before, which the .s7dcl does not give it (the
+        two-format bed's cause "type members"; whether to drop it is the maintainer's to say)."""
         def with_inx(xml):                  # inX after inW, as TIA writes inW in the FB and in its instance DB
             start = xml.index('    <Member Name="inW"')
             end = xml.index('    </Member>\n', start) + len('    </Member>\n')

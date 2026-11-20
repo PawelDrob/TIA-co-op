@@ -298,8 +298,7 @@ def _read(itf):
     def walk(member, path):
         for m in member.children.values():
             here = path + part_text(m.name)
-            out[here] = (m.type, m.value, m.comment, m.retain, sorted(m.attrs.items()), m.section,
-                         sorted((k, v) for k, v in itf.start.items() if k == here or k.startswith((here + '.', here + '['))))
+            out[here] = (m.type, m.value, m.comment, m.retain, sorted(m.attrs.items()), m.section, _starts(itf, here))
             walk(m, here + '.')
     walk(itf.root, '')
     return out
@@ -308,8 +307,12 @@ def _read(itf):
 def _read_typed_db(itf, paths):
     """_read of an instance DB or a DB of a UDT, at the paths of its members: of the members TIA writes from the FB or
     UDT the report reads none, only the start values the DB sets."""
-    return {p: (None,) * 6 + (sorted((k, v) for k, v in itf.start.items()
-                                     if k == p or k.startswith((p + '.', p + '['))),) for p in paths}
+    return {p: (None,) * 6 + (_starts(itf, p),) for p in paths}
+
+
+def _starts(itf, path):
+    """The start values of the member at path and of the members and elements inside it, sorted."""
+    return sorted((k, v) for k, v in itf.start.items() if k == path or k.startswith((path + '.', path + '[')))
 
 
 # What the report reads of a member's fields, as positions in _read's values. A field not here it does not read.

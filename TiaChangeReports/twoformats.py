@@ -91,8 +91,8 @@ CAUSES = {
                                           'block with standard access'),
     'another kind of block': (ONE_FIELD, 'a block become another kind (FC, FB): SimaticML writes the sections and '
                                          'attributes of the kind'),
-    'instance DB start values': (READER, "an instance DB's start values, which both readers read, read otherwise "
-                                         "from the two formats"),
+    'instance DB start values': (READER, "a start value set in an instance DB read as another value from each "
+                                         "format, each file's spelling kept"),
     'library link across formats': (DIFF, "a program block marked as differing from its library type: the two "
                                            "changes compared as text, each from one format to the other"),
     'author': (READER, "a block's author: S7_Author shown from .s7dcl, HeaderAuthor left to the note from SimaticML"),
@@ -389,7 +389,7 @@ XML_READ = (r'/Access@Scope$', r'/Symbol/Component (added|removed)$', r'/Symbol/
             r'/TemplateValue\[\w+\]#text$', r'/ConstantValue#text$', r'/MemoryLayout#text$', r'/NameCon@Name$',
             r'/Label@Name$', r'/InstanceOfName#text$')
 # What the .s7dcl reader shows and the SimaticML reader leaves to the note.
-XML_UNREAD = [(r'/Member/StartValue', 'instance DB start values'), (r'/HeaderAuthor\b', 'author')]
+XML_UNREAD = [(r'/HeaderAuthor\b', 'author')]
 SD_FIELDS = {'S7_StandardRetain': 'DB retain'}
 
 
@@ -451,7 +451,6 @@ def _object_causes(d, sd, xml):
             out.add('unknown: note, unread part')
     for name, vb, va in props_rows(d.before.props, d.after.props):
         out.add(property_cause(name, vb, va, d.kind))
-    xml_members = bool(d.after.interface.root.children)
     for r in block_rows(d.before, d.after):
         if r.state == 'same':
             continue
@@ -462,7 +461,7 @@ def _object_causes(d, sd, xml):
                 ab, aa = r.b.attrs or {}, r.a.attrs or {}
                 out |= {'member setpoint' if k == 'S7_Setpoint' and ab.get(k) is None and aa.get(k) == 'True'
                         else 'unknown: interface, %s' % k for k in set(ab) | set(aa) if ab.get(k) != aa.get(k)}
-            elif f == 'value' and d.kind == 'Instance DB' and not xml_members:
+            elif f == 'value' and d.kind == 'Instance DB':
                 out.add('instance DB start values')       # an instance DB has no member of its own: a start value
             else:
                 out.add('unknown: interface, %s' % f)
@@ -697,7 +696,7 @@ def _block_part(o, ds, dx, fs, fx, side):
 
 
 # A fact the .s7dcl report shows (its part, or a property's name) -> the cause naming the SimaticML reader's gap.
-UNREAD_SHOWN = {'start value': 'instance DB start values', 'Author': 'author', 'S7_Author': 'author'}
+UNREAD_SHOWN = {'Author': 'author', 'S7_Author': 'author'}
 
 
 def _without_name(decl, name):
