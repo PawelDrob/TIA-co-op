@@ -40,8 +40,9 @@ XML_ROOT = 'simaticml'                                      # the SimaticML side
 READER, ONE_FIELD, NOTE, DRAWING, DIFF, ONE_OBJECT = (
     'reader', 'a field only one format writes', "the note's raw comparison", 'the drawing', 'the diff',
     'an object exported in one format only')
-# A field neither reader reads gives both reports the same note: the second check cannot see it as a difference, and in
-# the first it is part of 'note: files'.
+# A field neither reader reads gives both reports the same note: the second check cannot see it as a difference. The
+# first cannot either: between two formats the block's note compares no files (compare.file_note), and the page names
+# the block as compared across the formats; 'note: files' stays a cause, its count 0.
 
 # id: (kind, what it is). An id with a colon carries what was seen and has no kind: 'unknown: ...', 'SimaticML
 # field: <path>', '.s7dcl field: <pragma>', 'SimaticML unread: <path>'.
