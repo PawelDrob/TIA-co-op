@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, with what its fingerprint and compare calls answer, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T01:49:11-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T01:57:37-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -315,6 +315,8 @@ screen, template, pop-up and HMI tag folders of a Comfort panel):
   declared name looks at the right block.
 - **Archive** refuses a project with unsaved changes `[PROBE]`. TIA can mark a project modified on opening, with no
   write made (seen without user interface, 2026-11-01), so it may need a save before its first archive `[PROBE]`.
+  `Project.Archive(directory, name, mode)` takes `name` as the file's whole name: without `.zap20` it writes a file with
+  no extension (2026-11-20) `[PROBE]`; retrieving such a file was not tried.
 - **UMC.** Without user interface, opening a UMC-protected project without a login fails after about 20 s ("The
   project is protected. You are not authorized to open the project in write mode."), without a prompt `[PROBE]`.
 - **Safety.** A wrong safety password fails with "Wrong Safety Administration Editor password was supplied."
@@ -377,61 +379,68 @@ On copies of a test project, 2026-11-04 `[PROBE]`; the bridge's tools are `proje
 
 Probed on 2026-11-20, V20 Update 7, without a window, on copies of a test project with one language (en-US) and a safety
 program: changes of one object each (code, comments, interface, start values, block properties, a data type, a tag),
-imported as `.s7dcl` or SimaticML, each compared with an archive of the state before `[PROBE]`. TiaBridge uses none of
-these calls.
+imported as `.s7dcl` or SimaticML. Fingerprints were read on the project before and after each change, `CompareTo`
+compared the project after it with a retrieved archive of the state before `[PROBE]`. TiaBridge uses none of these calls.
 
 **`FingerprintProvider.GetFingerprints()`** (service of a block or PLC data type) answers `Fingerprint` items, `Id` and
-`Value` (a 20-byte value in base64).
+`Value`; every value read was 28 characters of base64 (20 bytes).
 
-- **What moves:** `Code` and `ProgramCode` for a LAD, STL or SCL statement and an OB's LAD network; an FBD statement was
-  not tried. `Code` only for an SCL comment: an SCL comment does not move `Comments`. `Comments` for a block title, a block
-  comment, an FBD network title, an interface member's or data type member's comment. `Interface` for a member added, a
-  start value of an FB member or a DB, and optimized access switched off (with `Properties`). `Properties` for the block
-  version and author.
-- **What does not move:** a second read, a compile, an export, a close and reopen. The same content imported again gives
-  the same values, unlike the dates (section 1, Dates). A data type changed leaves the fingerprints of the blocks and DBs
-  using it as they were; an FB's interface changed moves its instance DBs' `Interface`.
-- **A setting none of them sees:** an instance DB's `S7_StandardRetain` set from FALSE to TRUE. The `.s7dcl` export
-  writes it, TIA holds it (the export after the import reads TRUE), SimaticML does not carry it, and no fingerprint, no
-  attribute in `GetAttributeInfos` and no `PlcSoftware.CompareTo` moves.
-- **Categories are there or not by content:** on the test PLC, 480 objects: `Interface` and `Properties` on all,
-  `Comments` only where something has a comment, no `Code` on DBs and data types, `Code` without `ProgramCode` on
-  F-blocks, `Events` on OBs, `LibraryType` on instances of library types; system blocks have them, without `Code`. A
-  category missing is no evidence that nothing changed, and neither is a read that fails: a tag table imported in an older
-  state left three blocks that use its tags not consistent, and their fingerprints gone, with nothing of theirs changed.
+- **What moved:** `Code` and `ProgramCode` for a LAD, STL or SCL statement and an OB's LAD network; an FBD statement was
+  not tried. `Code` only for an SCL comment: it did not move `Comments`. `Comments` for a block title, a block comment, an
+  FBD network title, an FB interface member's and a data type member's comment. `Interface` for a member added, a start
+  value of an FB member and of a global DB, and optimized access switched off (with `Properties`). `Properties` for the
+  block version and author.
+- **What did not move:** a second read, a compile by name, a `full_export`, a close and reopen. The same content imported
+  again gave the same values, unlike the dates (section 1, Dates). A member added to a data type, its users compiled,
+  left the fingerprints of the FB and the DBs using it as they were; an input added to an FB moved its instance DBs'
+  `Interface`.
+- **A setting none of them saw:** an instance DB's `S7_StandardRetain` set from FALSE to TRUE. The `.s7dcl` export writes
+  it, and the export after the import read TRUE again. No fingerprint moved, nor `PlcSoftware.CompareTo`; of the 30
+  attributes `GetAttributeInfos` lists on that DB only its four dates moved (`CreationDate`, `ModifiedDate`,
+  `CodeModifiedDate`, `CompileDate`).
+- **Categories by kind:** on the test PLC, 246 blocks, 6 data types and 228 system blocks. `Interface` and `Properties`
+  on all; `Comments` on every block and data type but the F-OB, also on those with no comment and no `.s7res`, and on 9
+  system blocks; `Code` on 225 blocks, on no DB, data type or system block, nor the F-OB; `ProgramCode` on 208 of them,
+  the other 17 being F-blocks; `Events` on the two OBs; `LibraryType` on 10 instances of library types. A category an
+  object lacks says nothing about a change.
 - **Fails:** a block that is not consistent throws: *The block or PLC data type (UDT) '...' is inconsistent. Checksums can
-  only be formed for consistent blocks.* A tag table has no provider (`GetService` gives null). In a project opened as
-  secondary every call throws: *The operation is not permitted in a read-only context.*
-- **Cost:** 3 to 174 ms an object, median 7; the whole PLC (480 objects) 4 to 9 s, growing with TIA's memory in a session.
+  only be formed for consistent blocks.* A block left so by a change elsewhere loses its fingerprints with nothing of its
+  own changed: a tag table imported in an older state left three other blocks so. A tag table has no provider
+  (`GetService` gives null). In a project opened as secondary every call throws: *The operation is not permitted in a
+  read-only context.*
+- **Cost:** 3 to 225 ms an object, median 6; the whole PLC 4.3 to 8.7 s, growing with TIA's memory in a session.
 
 **`PlcSoftware.CompareTo(ISoftwareCompareTarget)`**, tried with another PLC's software and with the project library. Two
 offline PLCs: the second one opened as a secondary project in the same TIA, `Projects.Open(path, null,
-ProjectOpenMode.Secondary)`, 0.5 s. An archive of the saved project (`Project.Archive`, which takes its name argument as the
-whole file name: without `.zap20` the file has no extension) retrieved as secondary (`Projects.Retrieve(..., null,
-ProjectOpenMode.Secondary)`) is an exact copy of that state: identical in every compare against the state it was taken from.
+ProjectOpenMode.Secondary)`, 0.3 to 0.4 s. An archive of the saved project (section 4, Archive) retrieved as secondary,
+`Projects.Retrieve(..., null, ProjectOpenMode.Secondary)`, compared identical with the state it was taken from every time.
 
 - **Result:** a tree of `CompareResultElement`: the PLC, then Software units, Program blocks (System blocks too),
-  Technology objects, PLC tags, PLC data types (System data types too); no watch or force tables. A changed object is one
+  Technology objects, PLC tags, PLC data types (System data types too); no watch or force tables. A changed object was one
   leaf `ObjectsDifferent` with *Objects are different.* and no elements below it: the call says which object differs, not
-  what in it. The Program blocks folder's `DetailedInformation` holds the collective F-signatures of the safety programs.
-- **What it names:** the changed object of every change tried but the retain setting above, a tag table's comment too. A
-  data type changed also marks every block and DB using it, a member comment too; an FB's interface changed also marks
-  its instance DBs. A block left not consistent by a change elsewhere reads identical.
-- **Cost:** the call 2 to 46 ms; reading the tree of about 750 elements 2 to 5 s. Archive of a 52 MB project 4 to 6 s,
-  its retrieve 0.5 to 0.7 s.
-- `CompareTo(project.ProjectLibrary)` matches the PLC's objects with the library's types by name: instances of released
-  types identical, types without an instance `LeftMissing`, plain objects `RightMissing`.
+  what in it. With a block changed, the Program blocks folder's `DetailedInformation` held the collective F-signatures of
+  the safety programs.
+- **What it named:** the changed object of every change tried but the retain setting above, a tag's comment too (as the
+  tag table). A member added to a data type, and a member comment, also marked the FB and the DBs using it; an input
+  added to an FB also marked its instance DBs. A caller not consistent on both sides read identical.
+- **Cost:** the call 2 to 51 ms, the first of a session the slowest; reading the tree of about 750 elements 1.9 to 4.9 s.
+  Archive of a 52 MB project 3.9 to 5.9 s, its retrieve 0.5 to 0.7 s.
+- **Against the project library** (`CompareTo(project.ProjectLibrary)`): instances of released type versions and objects
+  named as a master copy's object were compared with them: 8 `ObjectsIdentical` (5 instances, a block, a tag table and a
+  data type of master copies), one block `ObjectsDifferent` against a master copy's block of its name. Released types
+  without an instance read `LeftMissing` (12); plain objects and the instances of versions in work `RightMissing` (716).
+  The Program blocks folder itself read `ObjectsDifferent`, with elements below it.
 
-**`LibraryTypeVersion.CompareTo(LibraryTypeVersion)`** of two versions in one project library answers seven properties:
+**`LibraryTypeVersion.CompareTo(LibraryTypeVersion)`** of two versions in one project library answered seven properties:
 `GUID of version object`, `Version Number`, `Is Default Version`, `Version author`, `Version comment`, `Modified Time`,
 `Original Library` (`NotCompared`). Not the content: two versions differing by a member read different in GUID, number,
 comment and time only. 8 to 65 ms a pair. `LibraryType.CompareTo` and `LibraryTypeVersion.CompareTo` against a type in a
 secondary project throw *The operation is not permitted in a read-only context.*
 
 Not tried: a project with a second language (an OB's `Comments` with the project's languages changed), an OB's event,
-GRAPH, alarms, supervisions, technology objects, software units, another TIA version or update, a global library or a
-master copy as the target of `CompareTo`, and `CompareToOnline` and the station `FingerprintDataProvider`, which need a
-device.
+GRAPH, alarms, supervisions, technology objects, software units, another CPU, another TIA version or update, a global
+library or a master copy as the target of `CompareTo`, and `CompareToOnline` and the station `FingerprintDataProvider`,
+which need a device.
 
 ## Sources
 
