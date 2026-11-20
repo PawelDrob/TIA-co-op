@@ -467,7 +467,7 @@ class Element:
     templates: dict               # S7_Templates values; a Switch also its relations ('CASE0': '==')
     call: Optional[str] = None    # FB / FC name for calls
     expression: Optional[str] = None   # Calculate: S7_Expression
-    no_eno: bool = False          # ENO not generated (ENO := EN): TIA draws it gray
+    no_eno: Optional[bool] = None   # ENO not generated (ENO := EN), TIA draws it gray; None: the file does not say
     more: dict = field(default_factory=dict)     # SimaticML: the other type templates, no part of the instruction's text
 
     @property
@@ -563,8 +563,7 @@ def lad_read(body, prefix, itf=None, safety=False):
     template at the value its instruction fixes: a type, or Sub, Div and Mod's Card 2; instructions.left_out) taken out
     of the S7_Templates the box was read from, the last before it, and a pragma left empty gone, so that its lines, its
     part of the file and its units (beside.py) read as its element does; body itself where nothing is left out. A box's
-    ENO is not generated where its pragma says S7_GenerateENO := "FALSE", or says nothing on a box with TIA's ENO
-    setting (instructions.eno_setting; safety: the network is of an F-block, where no box has it)."""
+    ENO as its S7_GenerateENO says (instructions.s7dcl_no_eno; safety: the network is of an F-block)."""
     rungs = []
     cur = None
     pend, pend_at = {}, []                        # the pragmas before the next element, and their lines [start, end)
@@ -636,8 +635,7 @@ def lad_read(body, prefix, itf=None, safety=False):
                 break
         _fill_f_type(el, pend, itf)
         el.expression = pend.get('S7_Expression')
-        eno = pend.get('S7_GenerateENO', '').upper()
-        el.no_eno = eno == 'FALSE' or (eno != 'TRUE' and instructions.eno_setting(el.instr, safety))
+        el.no_eno = instructions.s7dcl_no_eno(pend.get('S7_GenerateENO', ''), el.instr, safety)
         pend, pend_at = {}, []
         cur.items.append(el)
     if not rewritten:

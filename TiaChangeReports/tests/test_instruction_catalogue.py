@@ -582,7 +582,7 @@ class EnoSetting(unittest.TestCase):
     """TIA's ENO setting (instructions.ENO_SETTING): ENO generated, or not (ENO := EN, drawn gray). SimaticML writes it as
     DisabledENO, .s7dcl as S7_GenerateENO := "TRUE" where ENO is generated and nothing where it is not: zzBenBoxes network 1,
     the pragma on Add and Mul and none on Move, DisabledENO "false", "false" and "true". A box without the setting, and every
-    box of an F-block, carries neither and reads as ENO generated."""
+    box of an F-block, carries neither: its ENO reads as not said (None), drawn black, alike from both formats."""
 
     F_SD = '{\n    S7_Safety := "TRUE"\n}\n'
 
@@ -614,7 +614,7 @@ class EnoSetting(unittest.TestCase):
         return net, el
 
     def test_every_box_with_the_setting_reads_alike_from_both_formats(self):
-        """Every box zz-226-repo holds DisabledENO or the pragma on, both ways; the SimaticML network's text writes the pragma as
+        """Every box the two-format run holds DisabledENO or the pragma on, both ways; the SimaticML network's text writes the pragma as
         .s7dcl does, and reads back the same."""
         for instr in sorted(instructions.ENO_SETTING):
             for generated in (True, False):
@@ -626,21 +626,30 @@ class EnoSetting(unittest.TestCase):
                     (back,) = [e for r in parse_lad(net.body, 'r') for e in r.items if not isinstance(e, tuple)]
                     self.assertEqual(back.no_eno, not generated)
 
-    def test_a_box_without_the_setting_reads_as_generated(self):
-        """SEL, MUX, SEG, a box the report does not know and a block call: no pragma, no DisabledENO, ENO generated."""
+    def test_a_box_without_the_setting_reads_as_not_said(self):
+        """SEL, MUX, SEG, a box the report does not know and a block call: no pragma, no DisabledENO, alike."""
         for instr in ('SEL', 'Mux', 'SEG', 'NewBox', '"Helper"'):
             with self.subTest(instr):
-                self.assertFalse(self.read(self.sd(instr, False))[1].no_eno)
+                self.assertIsNone(self.read(self.sd(instr, False))[1].no_eno)
                 if not instr.startswith('"'):
                     net, x = self.read(self.xml(instr, None))
-                    self.assertFalse(x.no_eno)
+                    self.assertIsNone(x.no_eno)
                     self.assertNotIn('S7_GenerateENO', net.body)
 
-    def test_an_f_blocks_box_reads_as_generated(self):
-        """zzFMath's Add: in an F-block neither format writes the setting, and its ENO reads as generated from both."""
+    def test_a_box_not_listed_whose_setting_changed_is_a_change_from_both_formats(self):
+        """Should a box with the setting be missing from ENO_SETTING, its ENO turned off still reads as a change: .s7dcl takes
+        its S7_GenerateENO away, SimaticML turns DisabledENO to "true"."""
+        for d in (compare_blocks(self.sd('NewBox', True), self.sd('NewBox', False)),
+                  compare_blocks(self.xml('NewBox', 'false'), self.xml('NewBox', 'true'))):
+            (p,) = d.nets
+            self.assertEqual((d.state, p.state), ('changed', 'changed'))
+            self.assertEqual(diff.changed_params(p.before.rungs[0].items[0], p.after.rungs[0].items[0]), {'eno'})
+
+    def test_an_f_blocks_box_reads_as_not_said(self):
+        """zzFMath's Add: in an F-block neither format writes the setting; its ENO reads alike from both, drawn black."""
         _, s = self.read(self.sd('Add', False, safety=True))
         net, x = self.read(self.xml('Add', None, safety=True))
-        self.assertEqual((s.no_eno, x.no_eno), (False, False))
+        self.assertEqual((s.no_eno, x.no_eno), (None, None))
         self.assertNotIn('S7_GenerateENO', net.body)
         self.assertEqual(s.sig(), x.sig())
 
@@ -657,7 +666,7 @@ class EnoSetting(unittest.TestCase):
                     self.assertEqual('stroke="%s"' % render_lad.C_OFF in drawn[0], not generated)
 
     def test_the_setting_changed_is_a_change_marked_alike_from_both_formats(self):
-        """A box's ENO generated, then not, or the other way: a real change, though no row of zz-226-repo makes it alone (the
+        """A box's ENO generated, then not, or the other way: a real change, though no row of the two-format run makes it alone (the
         pragma moves there with a box added or removed). Each format's report lists the network as changed, marks the box's ENO,
         and the two reports mark it alike."""
         for instr, pins in (('Move', ('in', 'out1')), ('Add', ('in1', 'out'))):

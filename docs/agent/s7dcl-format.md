@@ -286,7 +286,7 @@ Add(
 | Pragma | Purpose |
 |---|---|
 | `{ S7_Templates := "name := value" }` | Specializes the following instruction (data type selection). List form: `"[ inType := Int, outType := Real ]"`. Only exported when the value differs from the default; automatic type selection (`Auto`) is never exported. |
-| `{ S7_GenerateENO := TRUE }` | The following box computes a real ENO. On a box with TIA's ENO setting (8.10) the export writes it `"TRUE"` where ENO is generated and writes nothing where it is not (ENO := EN) `[EXPORT]`. |
+| `{ S7_GenerateENO := "TRUE" }` | The following box computes a real ENO. On a box with TIA's ENO setting (8.10) the export writes it where ENO is generated and writes nothing where it is not (ENO := EN) `[EXPORT]`. |
 | `{ S7_Expression := "..." }` | Stores the expression of a `Calculate` box, using the formal names; the export writes them `IN1`, `IN2`, ... (8.14) |
 | `{ CASE0 := "==" }` | The relation of a `Switch` case, one per case, beside its `S7_Templates` (8.13) `[EXPORT]` |
 
@@ -295,7 +295,7 @@ Combined pragma list (semicolon-separated), placed immediately before the instru
 ```
 {
     S7_Templates := "SrcType := SInt";
-    S7_GenerateENO := TRUE
+    S7_GenerateENO := "TRUE"
 }
 Add(
     in1 := #ioSpeed,
@@ -367,7 +367,7 @@ LAD has exactly three negation instructions: `I_Contact` (negates the operand), 
 
 - `EN`/`ENO` are the rung pins of ENO boxes and are never written in text.
 - If EN is false, the box is not executed and connected outputs are untouched; ENO goes false.
-- ENO generation is a setting of some boxes: math, move, conversion, string, word logic, shift and rotate, `Calculate` (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`). Off, ENO := EN, and TIA draws ENO gray, with a line from EN through the box. The export writes `{ S7_GenerateENO := "TRUE" }` on such a box where it is on and nothing where it is off; its SimaticML writes `DisabledENO`, `"true"` where it is off `[EXPORT]`. A box without the setting (timers, counters, calls, `SEL`, `MUX`, ...) and every box of an F-block carry neither `[EXPORT]`; the change report reads their ENO as generated. Switch it on with `{ S7_GenerateENO := TRUE }` (see 8.6).
+- ENO generation is a setting of some boxes: math, move, conversion, string, word logic, shift and rotate, `Calculate` (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`). Off, ENO := EN, and TIA draws ENO gray, with a line from EN through the box. The export writes `{ S7_GenerateENO := "TRUE" }` on such a box where it is on and nothing where it is off; its SimaticML writes `DisabledENO`, `"true"` where it is off `[EXPORT]`. A box without the setting (timers, counters, calls, `SEL`, `MUX`, ...) and every box of an F-block carry neither `[EXPORT]`; the change report draws their ENO black, and reads the pragma written on one of them or taken away as a change. Switch it on with `{ S7_GenerateENO := "TRUE" }` (see 8.6).
 - The overflow-guard idiom (Add into a temp, Move copies only on ENO true) is expressed as two consecutive boxes in one rung.
 - Implicit data-type conversions inserted by the compiler have **no** textual representation.
 - Auto data type: never exported; a selected data type appears as an `S7_Templates` pragma.

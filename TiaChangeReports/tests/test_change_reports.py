@@ -1969,7 +1969,7 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
         out; a box with TIA's ENO setting with its ENO generated, as zzLadWordLogic network 5's DECO."""
         n = NegatedPins('test_taken_away')
         tvs = ''.join('<TemplateValue Name="%s" Type="Type">%s</TemplateValue>' % kv for kv in templates)
-        eno = ' DisabledENO="false"' if instructions.eno_setting(instructions.sd_name(part)) else ''
+        eno = ' DisabledENO="false"' if instructions.sd_name(part) in instructions.ENO_SETTING else ''
         return _xml_src(n.net('<Part Name="%s" UId="25"%s>%s</Part>' % (part, eno, tvs),
                               ['<Powerrail /><NameCon UId="25" Name="en" />'] + [n.op(21, 25, p) for p in pins]
                               + ['<NameCon UId="25" Name="out" /><IdentCon UId="23" />'], 'LAD'))
@@ -1979,7 +1979,7 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
         """The same box as .s7dcl writes it, in a network of xml_src's title: no template, else templates as its
         S7_Templates; S7_GenerateENO := "TRUE" on a box with TIA's ENO setting, as xml_src's ENO generated."""
         pragmas = (['S7_Templates := "%s"' % templates] if templates else []) \
-            + (['S7_GenerateENO := "TRUE"'] if instructions.eno_setting(instr) else [])
+            + (['S7_GenerateENO := "TRUE"'] if instr in instructions.ENO_SETTING else [])
         pragma = ['{ %s }' % '; '.join(pragmas)] if pragmas else []
         return TemplatesTheInstructionFixes.sd_rung(*pragma + ['%s(' % instr] + ['    %s := #start,' % p for p in pins]
                                                     + ['    out => #big', ')'])

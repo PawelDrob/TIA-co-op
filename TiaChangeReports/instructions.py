@@ -317,9 +317,9 @@ def left_out(instr, template, value):
 
 # The boxes with TIA's ENO setting (ENO generated, or not: ENO := EN, drawn gray), by their .s7dcl names. SimaticML writes it on
 # each as DisabledENO, "true" where ENO is not generated; .s7dcl writes S7_GenerateENO := "TRUE" where it is, nothing where it is
-# not. Evidence: every box zz-226-repo's 531 commits of the two formats hold DisabledENO on, and every box they hold the pragma on,
-# are these, the pragma on as many boxes as DisabledENO="false" (ticket 341). No other box carries either field, and no box of an
-# F-block (S7_Safety): those read as ENO generated, as does a box not listed here, from either format.
+# not. Evidence: every box the two-format benchmark run's 531 commits hold DisabledENO on, and every box they hold the pragma on,
+# are these, the pragma on as many boxes as DisabledENO="false". No other box carries either field, and no box of an
+# F-block (S7_Safety). A box not listed here whose file says nothing of its ENO reads as one whose ENO setting is not known.
 ENO_SETTING = frozenset(
     'Abs Acos Add And Asin Atan Calculate Ceil CONCAT Convert Cos Dec DECO DELETE Div ENCO Exp Expt FillBlockI FillBlockU FIND '
     'Floor Frac GATHER GatherBlock Inc INSERT Inv LEFT LEN Limit Ln Lower_Bound MAX MID MIN Mod Move MoveBlockI MoveBlockU Mul '
@@ -327,10 +327,14 @@ ENO_SETTING = frozenset(
     'Upper_Bound Xor'.split())
 
 
-def eno_setting(instr, safety=False):
-    """Whether a box (instr: its .s7dcl name) has TIA's ENO setting (ENO_SETTING), so that a .s7dcl without
-    S7_GenerateENO := "TRUE" on it says its ENO is not generated; safety: the box is in an F-block, where none has it."""
-    return not safety and instr in ENO_SETTING
+def s7dcl_no_eno(pragma, instr, safety=False):
+    """Element.no_eno of a .s7dcl box (instr: its .s7dcl name) from its S7_GenerateENO pragma ('' for none): False where
+    it says "TRUE" (ENO generated), True where it says "FALSE" or nothing on a box with TIA's ENO setting (ENO_SETTING),
+    None where the file says nothing of it: another box, or any box of an F-block (safety), where none has the setting. So
+    the pragma written or taken away is a change of the box on any box, listed or not."""
+    if pragma.upper() in ('TRUE', 'FALSE'):
+        return pragma.upper() == 'FALSE'
+    return True if not safety and instr in ENO_SETTING else None
 
 
 def lookup(instr):

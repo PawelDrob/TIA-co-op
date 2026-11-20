@@ -135,7 +135,7 @@ class ElementCauses(unittest.TestCase):
     """What makes two readings of one element unequal, as compared (Element.sig)."""
 
     SD = ('CTU', '#instCtu', '', (('cv', '=>', '#statStep'), ('pv', ':=', '#inSpeed'), ('r', ':=', 'wire#')),
-          (('value_type', 'Int'),), '', False)
+          (('value_type', 'Int'),), '', None)
 
     def test_pins_in_another_case_and_order_are_no_reading(self):
         """The CTU of zzBenTimers as each reader reads it: r, pv, cv from .s7dcl, PV, CV, R from SimaticML."""
