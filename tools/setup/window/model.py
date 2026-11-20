@@ -257,13 +257,13 @@ def bridge_settings_rows(look):
                    for name, value in look.bridge_settings.items() if name.lower() != 'projectsroot']
 
 
-def open_count(rows):
+def open_words(rows):
     """What is open on a page, in words: '1 not done', '1 missing', '1 not done, 1 missing'; '' when nothing is. A row
     not done counts so whether it is optional or not, a step skipped too; it is never counted as missing. A dashboard
     that is not running is no part of the setup: it runs when a person wants it."""
     rows = [r for r in rows if r.key not in ('development', 'tia')]
     counts = ((sum(r.state == 'todo' for r in rows), 'not done'), (sum(r.state == 'missing' for r in rows), 'missing'))
-    return ', '.join(f'{n} {words}' for n, words in counts if n)
+    return ', '.join(f'{n} {what}' for n, what in counts if n)
 
 
 def menu_entries(look):
@@ -271,7 +271,7 @@ def menu_entries(look):
     entries = []
     for key, title, line in PAGES:
         rows = page_rows(look, key)
-        count = open_count(rows)
+        words = open_words(rows)
         missing = any(r.state == 'missing' for r in rows if not r.optional)
         if key == 'by-hand':
             todo = sum(r.state == 'missing' for r in rows)
@@ -280,8 +280,8 @@ def menu_entries(look):
         elif key == 'dashboards':
             running = sum(r.state == 'ok' for r in rows)
             entries.append((key, title, line, 'ok' if running else 'info', f'{running} of {len(rows)} running'))
-        elif count:
-            entries.append((key, title, line, 'missing' if missing else 'todo', count))
+        elif words:
+            entries.append((key, title, line, 'missing' if missing else 'todo', words))
         else:
             entries.append((key, title, line, 'ok', 'All set'))
     return entries

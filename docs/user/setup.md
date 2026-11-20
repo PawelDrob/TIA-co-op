@@ -4,7 +4,7 @@ title: Setup
 description: How to set up this repository on a Windows PC, with the setup window a person double-clicks or one command for agents, and what the window shows after the first run.
 tags: [setup, tia-portal]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T19:18:10-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T19:38:05-05:00 }
 sources:
   - id: setup
     resource: ../../tools/setup/
@@ -109,8 +109,7 @@ end a session that was running and run `claude --continue`.
 **After Finish** the same double-click opens a menu: one entry a page, with what it holds now ("All set", or how many are
 not done, a step you skipped too, and how many are missing). Open goes to the page, read fresh, as is everything on
 Refresh. A dashboard shows as running only when its port answers as that dashboard; a dashboard of another clone says so,
-and another program
-on its port is named with its process number. Which clones finished the first run is kept in
+and another program on its port is named with its process number. Which clones finished the first run is kept in
 `%LOCALAPPDATA%\TIA-co-op\setup-window.json`: delete it, and the pages come again.
 
 In a worktree the window says what the command says: a worktree needs only `uv sync`, and its settings belong to the main
