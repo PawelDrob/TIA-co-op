@@ -338,9 +338,14 @@ def s7dcl_no_eno(pragma, instr, safety=False):
     it says "TRUE" (ENO generated), True where it says "FALSE" or nothing on a box with TIA's ENO setting (ENO_SETTING),
     None where the file says nothing of it: another box, or any box of an F-block (safety), where none has the setting. So
     the pragma written or taken away is a change of the box on any box, listed or not."""
-    if pragma.upper() in ('TRUE', 'FALSE'):
+    if eno_said(pragma):
         return pragma.upper() == 'FALSE'
     return True if not safety and instr in ENO_SETTING else None
+
+
+def eno_said(pragma):
+    """Whether an S7_GenerateENO value is one s7dcl_no_eno reads, "TRUE" or "FALSE" in any case; another reads as none."""
+    return pragma.upper() in ('TRUE', 'FALSE')
 
 
 def lookup(instr):

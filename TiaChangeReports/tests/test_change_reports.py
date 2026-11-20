@@ -2041,6 +2041,16 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
                 self.assertIn('S7_Templates := "value_type := UInt"', net.body)
                 self.assertNotIn('UDInt', net.body)
 
+    def test_what_the_fixed_templates_setting_holds_beside_it_stays(self):
+        """From .s7dcl to .s7dcl: TUSEND's S7_Templates at the fixed type, then also with a part that names no template, or
+        the type given twice: the fixed template goes from the text as read, the rest stays, and the network is noted."""
+        before = self.sd_rung('{ S7_Templates := "value_type := UDInt" }', 'TUSEND(', '    REQ := #start', ')')
+        for templates in ('[value_type := UDInt, Junk]', '[value_type := UInt, value_type := UDInt]'):
+            with self.subTest(templates):
+                after = self.sd_rung('{ S7_Templates := "%s" }' % templates, 'TUSEND(', '    REQ := #start', ')')
+                d = compare_blocks(before, after, 'plc/blocks/Main.s7dcl', 'plc/blocks/Main.s7dcl')
+                self.assertEqual([(p.state, p.not_shown) for p in d.nets], [('changed', True)])
+
     def test_a_comment_line_stays_as_it_is(self):
         net, _ = self.read('// S7_Templates := "value_type := UDInt"', 'TUSEND(', '    REQ := #start', ')')
         self.assertIn('// S7_Templates := "value_type := UDInt"', lad_lines(net.body))
@@ -2300,9 +2310,67 @@ class NoteAcrossTheFormats(unittest.TestCase):
                 if note:
                     self.assertTrue(not_shown)
 
+    @staticmethod
+    def edited(source, old, new):
+        """The .s7dcl source with its first old written as new."""
+        assert old in source.s7dcl, old
+        return src(source.s7dcl.replace(old, new, 1), name='Main')
+
+    ONE_LINE = '{ S7_Templates := "SrcType := Int"; S7_GenerateENO := "TRUE" }'
+
+    def test_what_the_reader_takes_part_of_a_line_from_leaves_the_rest_compared(self):
+        """Neg against its SimaticML, the box read alike: what the .s7dcl reader reads nothing from in a line it reads, or a
+        value another of the same name overwrites, is noted, as written. No TIA export writes any of them; a .s7dcl a
+        person or an agent wrote can."""
+        neg, several = self.neg(self.ONE_LINE), self.neg('{', '    S7_Templates := "SrcType := Int";',
+                                                         '    S7_GenerateENO := "TRUE"', '}')
+        cases = {
+            "text after a pragma's }": self.edited(neg, '"TRUE" }', '"TRUE" } junk'),
+            "text after the } that closes a pragma over several lines": self.edited(several, '            }\n', '            } junk\n'),
+            'a setting given twice in one pragma': self.neg('{ S7_Templates := "SrcType := DInt"; S7_Templates := '
+                                                            '"SrcType := Int"; S7_GenerateENO := "TRUE" }'),
+            'a setting given again in a later pragma': self.neg('{ S7_Templates := "SrcType := DInt" }', self.ONE_LINE),
+            'a template given twice': self.neg('{ S7_Templates := "[SrcType := DInt, SrcType := Int]"; '
+                                               'S7_GenerateENO := "TRUE" }'),
+            'a template part without :=': self.neg('{ S7_Templates := "SrcType := Int, Junk"; S7_GenerateENO := "TRUE" }'),
+            "text after a RUNG's wire": self.edited(neg, 'RUNG wire#powerrail', 'RUNG wire#powerrail junk'),
+            'text after END_RUNG': self.edited(neg, 'END_RUNG', 'END_RUNG junk'),
+            'a pragma part that names no setting': self.neg('{ "junk"; S7_Templates := "SrcType := Int"; '
+                                                            'S7_GenerateENO := "TRUE" }'),
+            'a setting of the network beside its language, title and comment': self.edited(
+                neg, 'S7_NetworkTitle := "MLC_2"', 'S7_NetworkTitle := "MLC_2"; S7_Unknown := "1"'),
+        }
+        for kind, sd in cases.items():
+            with self.subTest(kind):
+                self.assertEqual(TemplatesTheInstructionFixes.across(sd, self.neg_xml()), ('changed', True))
+        with self.subTest('an S7_GenerateENO of a value s7dcl_no_eno does not know'):
+            eno = self.neg('{ S7_Templates := "SrcType := Int"; S7_GenerateENO := "junk" }')
+            self.assertEqual(TemplatesTheInstructionFixes.across(eno, self.neg_xml(attrs=' DisabledENO="true"')),
+                             ('changed', True))
+            self.assertEqual(TemplatesTheInstructionFixes.across(self.neg('{ S7_Templates := "SrcType := Int" }'),
+                                                                 self.neg_xml(attrs=' DisabledENO="true"')), ('same', False))
+
+    def test_an_f_boxs_type_the_reader_takes_from_its_own_setting_is_read_once(self):
+        """SHR with its type as a setting of its own, as the reader takes it where S7_Templates gives none: read alike from
+        both formats. Where S7_Templates gives one, the setting is read into nothing and noted."""
+        own = self.shr('{ value_type := "Word" }')
+        self.assertEqual(TemplatesTheInstructionFixes.across(own, self.shr_xml()), ('same', False))
+        both = self.shr('{ S7_Templates := "value_type := Word"; value_type := "DWord" }')
+        self.assertEqual(TemplatesTheInstructionFixes.across(both, self.shr_xml()), ('changed', True))
+
     def nets(self, before, after, path):
         d = compare_blocks(before, after, path, path)
         return [(p.state, p.not_shown) for p in d.nets]
+
+    def test_beside_another_change_what_a_pragma_line_holds_unread_is_the_tag(self):
+        """From .s7dcl to .s7dcl, the box's operand changed and text written after a pragma's `}` or a part of it that
+        names no setting: the network is changed, with the tag (beside.py)."""
+        sd = 'plc/blocks/Main.s7dcl'
+        for kind, junk in (("text after a pragma's }", ('"0" }', '"0" } junk')),
+                           ('a pragma part that names no setting', ('{ f_image_card', '{ "junk"; f_image_card'))):
+            with self.subTest(kind):
+                after = self.edited(self.shr('{ f_image_card := "0" }', n='#latch'), *junk)
+                self.assertEqual(self.nets(self.shr('{ f_image_card := "0" }'), after, sd), [('changed', True)])
 
     def test_a_card_changed_in_one_format_is_noted_also_beside_another_change(self):
         """From SimaticML to SimaticML, as from .s7dcl to .s7dcl: a card changed alone is the note, beside another

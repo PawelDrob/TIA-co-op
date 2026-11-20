@@ -57,15 +57,37 @@ def parse_res(text, lang=None):
 
 def _pragmas(text):
     """'{ A := "x"; B := TRUE }' body -> {A: 'x', B: 'TRUE'}."""
-    out = {}
+    return pragma_parts(text)[0]
+
+
+def take_pragmas(pend, block):
+    """A pragma block of a LAD network's lines, from its `{` up to the line of its `}`, added to pend, {setting: value} of
+    those before one statement: what it reads nothing from, as written. The rest of the line after `}`, a part that names
+    no setting, and a value pend held or the block holds before another of its name (pragma_parts)."""
+    close = block.find('}')
+    got, rest = pragma_parts(block[:close + 1] if close >= 0 else block)
+    after = block[close + 1:].strip() if close >= 0 else ''
+    rest += [after] * bool(after) + ['%s := "%s"' % (k, pend[k]) for k in got if k in pend]
+    pend.update(got)
+    return rest
+
+
+def pragma_parts(text):
+    """({setting: value}, [what it reads nothing from, as written]) of a pragma block '{ A := "x"; B := TRUE }': a part
+    that names no setting, and a setting's value a later one of its name overwrites."""
+    out, rest = {}, []
     for part in re.split(r';\s*(?=[A-Za-z_]\w*\s*(?::=|$))', text.strip().strip('{}').strip()):
         m = re.match(r'\s*([A-Za-z_]\w*)\s*(?::=\s*(.*))?$', part.strip(), re.S)
-        if m:
-            v = (m.group(2) or '').strip().rstrip(';').strip()
-            if len(v) >= 2 and v[0] == '"' and v[-1] == '"':
-                v = v[1:-1]
-            out[m.group(1)] = v
-    return out
+        if not m:
+            rest += [part.strip()] if part.strip() else []
+            continue
+        v = (m.group(2) or '').strip().rstrip(';').strip()
+        if len(v) >= 2 and v[0] == '"' and v[-1] == '"':
+            v = v[1:-1]
+        if m.group(1) in out:
+            rest.append('%s := "%s"' % (m.group(1), out[m.group(1)]))
+        out[m.group(1)] = v
+    return out, rest
 
 
 # ---------------------------------------------------------------- interface
@@ -469,9 +491,10 @@ class Element:
     expression: Optional[str] = None   # Calculate: S7_Expression
     no_eno: Optional[bool] = None   # ENO not generated (ENO := EN), TIA draws it gray; None: the file does not say
     more: dict = field(default_factory=dict)     # SimaticML: the other type templates, no part of the instruction's text
-    # The settings in front of the box that no field above reads, by their .s7dcl names: an F-box's cards (f_user_card :=
-    # "1"), which SimaticML writes as templates of those names; from .s7dcl also any other. Not drawn and not in sig():
-    # the network's lines compare them (compare.NetPair._unseen).
+    # The settings in front of the box whose value no field above takes, by their .s7dcl names: an F-box's cards
+    # (f_user_card := "1"), which SimaticML writes as templates of those names; from .s7dcl also any other, among them an
+    # F-box's type where S7_Templates gave one (s7dcl._fill_f_type) and an S7_GenerateENO of a value it does not know
+    # (instructions.eno_said). Not drawn and not in sig(): the network's lines compare them (compare.NetPair._unseen).
     settings: dict = field(default_factory=dict)
 
     @property
@@ -568,9 +591,11 @@ def lad_read(body, prefix, itf=None, safety=False):
     of the S7_Templates the box was read from, the last before it, and a pragma left empty gone, so that its lines, its
     part of the file and its units (beside.py) read as its element does; body itself where nothing is left out. A box's
     ENO as its S7_GenerateENO says (instructions.s7dcl_no_eno; safety: the network is of an F-block); the settings in
-    front of it that none of its fields reads, as they stand (Element.settings). The lines read nothing from, stripped: a
-    comment, a line no element is read from but the jump label in front of all (Network.label), the pragmas after the last
-    box."""
+    front of it whose value none of its fields takes, as they stand (Element.settings). What it reads nothing from, each
+    as written: a comment line, a line no element is read from but the jump label in front of all (Network.label), the
+    pragmas after the last box, the rest of a line read in part (after a pragma's `}`, after a RUNG's or END_RUNG's wire,
+    a pragma's or S7_Templates' part that names no setting or template) and a value a later one of its name overwrites,
+    in one pragma block or another before the same box."""
     rungs, unread = [], []
     cur = None
     pend, pend_at = {}, []                        # the pragmas before the next element, and their lines [start, end)
@@ -594,15 +619,17 @@ def lad_read(body, prefix, itf=None, safety=False):
             while '}' not in blk and i < len(lines):
                 blk += '\n' + lines[i]
                 i += 1
-            pend.update(_pragmas(blk[:blk.index('}') + 1]))
+            unread += take_pragmas(pend, blk)
             pend_at.append((start, i))
             continue
-        m = re.match(r'^RUNG\s+wire#(\w+)', t, re.I)
+        m = re.match(r'^RUNG\s+wire#(\w+)(.*)$', t, re.I)
         if m:
             cur = Rung(m.group(1).lower(), [], None)
+            unread += [m.group(2).strip()] * bool(m.group(2).strip())
             continue
-        m = re.match(r'^END_RUNG(?:\s+wire#(\w+))?', t, re.I)
+        m = re.match(r'^END_RUNG(?:\s+wire#(\w+))?(.*)$', t, re.I)
         if m:
+            unread += [m.group(2).strip()] * bool(m.group(2).strip())
             cur.end = m.group(1).lower() if m.group(1) else None
             rungs.append(cur)
             cur = None
@@ -633,7 +660,8 @@ def lad_read(body, prefix, itf=None, safety=False):
                     plines.append(pt)
             params = _param_list(plines)
         params = [(name, d, operand_text(v)) for name, d, v in params]
-        written = _templates_value(pend.get('S7_Templates', ''))
+        written, rest = template_parts(pend.get('S7_Templates', ''))
+        unread += rest
         templates = dict(written)
         templates.update((k, v) for k, v in pend.items() if re.match(r'CASE\d+$', k))   # Switch: CASE0 := "=="
         if 'S7_Relation' in pend:                         # T_COMP, S_COMP: S7_Relation := "EQ"
@@ -647,10 +675,12 @@ def lad_read(body, prefix, itf=None, safety=False):
             if read is not None:
                 rewritten[start] = (end, read)
                 break
-        _fill_f_type(el, pend, itf)
+        read = {k for k in pend if _READ_SETTING.match(k)} | _fill_f_type(el, pend, itf)
         el.expression = pend.get('S7_Expression')
         el.no_eno = instructions.s7dcl_no_eno(pend.get('S7_GenerateENO', ''), el.instr, safety)
-        el.settings = {k: v for k, v in pend.items() if not _READ_SETTING.match(k)}
+        if not instructions.eno_said(pend.get('S7_GenerateENO', 'TRUE')):
+            read.discard('S7_GenerateENO')                # a value it does not know reads as nothing said
+        el.settings = {k: v for k, v in pend.items() if k not in read}
         pend, pend_at = {}, []
         cur.items.append(el)
     unread += [x.strip() for start, end in pend_at for x in lines[start:end] if x.strip()]
@@ -664,13 +694,15 @@ def lad_read(body, prefix, itf=None, safety=False):
     return rungs, '\n'.join(out), unread
 
 
-# The pragma settings in front of a box that lad_read reads into its own fields; the others are its settings.
+# The pragma settings in front of a box that lad_read reads into its own fields whatever their value (S7_GenerateENO only
+# at a value it knows, an F-box's type as _fill_f_type takes it); the others are its settings.
 _READ_SETTING = re.compile(r'(S7_Templates|S7_Relation|S7_Expression|S7_GenerateENO|CASE\d+)$')
 
 
-def _templates_value(text):
-    """{template: type} of an S7_Templates value, 'a := X' or '[a := X, b := Y]': split at a comma outside brackets, so
-    that a type keeps its own (Array[0..1, 0..2] of Byte)."""
+def template_parts(text):
+    """({template: type}, [what it reads nothing from, as written]) of an S7_Templates value, 'a := X' or '[a := X, b :=
+    Y]': split at a comma outside brackets, so that a type keeps its own (Array[0..1, 0..2] of Byte); a part that names
+    no template, and a type a later one of its name overwrites."""
     t = text.strip()
     if t.startswith('[') and _bracket_end(t, 0) == len(t) - 1:
         t = t[1:-1]
@@ -681,7 +713,16 @@ def _templates_value(text):
             parts.append(t[start:k])
             start = k + 1
     parts.append(t[start:])
-    return dict((x.strip() for x in p.split(':=', 1)) for p in parts if ':=' in p)
+    out, rest = {}, []
+    for p in parts:
+        if ':=' not in p:
+            rest += [p.strip()] if p.strip() else []
+            continue
+        k, v = (x.strip() for x in p.split(':=', 1))
+        if k in out:
+            rest.append('%s := %s' % (k, out[k]))
+        out[k] = v
+    return out, rest
 
 
 def _bracket_end(text, at):
@@ -694,10 +735,11 @@ def _bracket_end(text, at):
     return -1
 
 
-def _templates_text(templates):
-    """An S7_Templates value as the export writes it: one 'a := X', several in brackets."""
-    text = ', '.join('%s := %s' % kv for kv in templates.items())
-    return '[%s]' % text if len(templates) > 1 else text
+def _templates_text(templates, rest=()):
+    """An S7_Templates value as the export writes it: one 'a := X', several in brackets; rest, what of it names no
+    template or is overwritten (template_parts), after them as written."""
+    items = ['%s := %s' % kv for kv in templates.items()] + list(rest)
+    return '[%s]' % ', '.join(items) if len(items) > 1 else ', '.join(items)
 
 
 _S7_TEMPLATES = re.compile(r'(;\s*)?S7_Templates\s*:=\s*"([^"]*)"(\s*;\s*)?')
@@ -706,14 +748,15 @@ _S7_TEMPLATES = re.compile(r'(;\s*)?S7_Templates\s*:=\s*"([^"]*)"(\s*;\s*)?')
 def _without_templates(lines, gone):
     """A pragma's lines with the templates `gone`, (template, value), taken out of its last S7_Templates (the one the
     reader keeps), the setting gone with the last of them, the pragma gone when nothing is left in it; None for a
-    pragma without S7_Templates."""
+    pragma without S7_Templates. What of it names no template or is overwritten stays (template_parts)."""
     text = '\n'.join(lines)
     m = ([None] + list(_S7_TEMPLATES.finditer(text)))[-1]
     if m is None:
         return None
-    kept = {k: v for k, v in _templates_value(m.group(2)).items() if (k, v) not in gone}
-    if kept:
-        setting = '%sS7_Templates := "%s"%s' % (m.group(1) or '', _templates_text(kept), m.group(3) or '')
+    written, rest = template_parts(m.group(2))
+    kept = {k: v for k, v in written.items() if (k, v) not in gone}
+    if kept or rest:
+        setting = '%sS7_Templates := "%s"%s' % (m.group(1) or '', _templates_text(kept, rest), m.group(3) or '')
     else:                                         # between two settings, one separator stays
         setting = '; ' if m.group(1) and m.group(3) else ''
     text = text[:m.start()] + setting + text[m.end():]
@@ -761,12 +804,17 @@ def _element(eid, head, params, templates, itf=None):
 
 def _fill_f_type(el, pragmas, itf):
     """The type an F-box's .s7dcl leaves out, only where nothing says another: a type already read wins, and an instance has to be of the box's own type, written
-    without quotes, as on TIA's screen (TON, not IEC_LTIMER, not a DB of its own whose type this file does not hold). A box without an instance: SHR."""
+    without quotes, as on TIA's screen (TON, not IEC_LTIMER, not a DB of its own whose type this file does not hold). A box without an instance: SHR.
+    The names of the pragma settings whose value it took."""
     fill = instructions.f_templates(el.instr, pragmas)
     if not fill or el.instance and not _plain_instance(itf, el):
-        return
+        return set()
+    read = set()
     for template, typ in fill.items():
-        el.templates.setdefault(template, typ)
+        if template not in el.templates:
+            el.templates[template] = typ
+            read |= {template} & set(pragmas)
+    return read
 
 
 def _plain_instance(itf, el):
@@ -793,7 +841,7 @@ class Network:
     label: str = ''               # its jump label (LAD, FBD: TIA's box over the network)
     source: object = None         # its part of the file, to compare with what the report read
     raw: object = field(default=None, repr=False, compare=False)    # that part as read, to read again (beside.py)
-    unread: list = field(default_factory=list)    # .s7dcl LAD: the lines its reader reads nothing from (lad_read)
+    unread: list = field(default_factory=list)    # .s7dcl: what its reader reads nothing from (network, lad_read)
 
 
 @dataclass
@@ -871,7 +919,7 @@ def network(k, pragma, body, res, itf, tag, safety=False):
                   source=_network_source(pragma, body, res, lang_), raw=('sd', pragma, body, res, itf, safety))
     lm = _LABEL.match(nbody)
     net.label = lm.group(1) if lm else ''
-    net.rungs, net.unread = rungs, unread
+    net.rungs, net.unread = rungs, list(net.source[1]) + unread     # its own settings but language, title and comment
     return net
 
 

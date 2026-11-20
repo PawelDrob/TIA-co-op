@@ -117,8 +117,10 @@ def _format(net):
 def _read_lines(net):
     """A LAD network's lines as its reader read it, from either format alike: its rungs as one writer writes them
     (simaticml.rungs_text: its boxes' templates, ENO, expression and settings; not the templates SimaticML alone writes,
-    Element.more; the jump label is compared apart). An .s7dcl's lines its reader reads nothing from (Network.unread: a
-    comment, the pragmas after its last box) stand at their end as they are: the other format has none."""
+    Element.more; the jump label is compared apart). What an .s7dcl's reader reads nothing from stands at their end as
+    written (Network.unread: the network's own settings but its language, title and comment; a comment line, a line no
+    element is read from, the pragmas after its last box, the rest of a line read in part, a value another overwrites;
+    s7dcl.lad_read): the other format has none."""
     return _lad_lines(rungs_text(net.rungs)) + net.unread
 
 
@@ -754,10 +756,10 @@ _END_BLOCK = re.compile(r'END_(FUNCTION_BLOCK|FUNCTION|ORGANIZATION_BLOCK|DATA_B
 
 def _around_networks(src, ids):
     """An .s7dcl's networks and what stands around them, in order: ('net', its text, its pair), each pragma block
-    ('pragma', settings) and line ('line', text) before the first network after the interface's last line, between
+    ('pragma', settings, then what of it names no setting) and line ('line', text) before the first network after the interface's last line, between
     networks and after the last; the texts for their keys, without the layout and the block's END_ line, which its kind
     tells; a network's text as read (s7dcl.text_as_read). ids: {network number: its pair}."""
-    from .s7dcl import _NET, _pragmas, parse_res, text_as_read
+    from .s7dcl import _NET, parse_res, pragma_parts, text_as_read
     from .source import _PRAGMA
     res = parse_res(src.s7res)
     text = text_as_read(src)
@@ -768,7 +770,8 @@ def _around_networks(src, ids):
         pieces = _PRAGMA.split(part)
         for k, piece in enumerate(pieces):
             if k % 2:
-                out.append(('pragma', tuple(sorted((n, res.get(v, v)) for n, v in _pragmas('{%s}' % piece).items()))))
+                got, rest = pragma_parts('{%s}' % piece)                 # what names no setting: as written
+                out.append(('pragma', tuple(sorted((n, res.get(v, v)) for n, v in got.items())) + tuple(rest)))
             else:
                 lines = [texts_for_keys(x.strip(), res) for x in piece.splitlines() if x.strip()]
                 lines = [x for x in lines if not _END_BLOCK.fullmatch(x)]
