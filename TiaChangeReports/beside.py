@@ -14,7 +14,8 @@ A pair that differs is tried alone: the version before with that one unit of the
 keeping the object numbers it had; a SimaticML wire with its ends on the parts of the version before that hold the same
 (_wire_reaching); an .s7dcl statement also with only its pragmas of the version after. Read the same as before, the unit
 differs in what the report does not read. The fields of a SimaticML wire and its ends, which the report reads none of,
-are compared apart, each wire by what it connects wherever the file writes it (_wire_fields_differ). A unit one version
+are compared apart, each wire by what it connects wherever the file writes it, an O's input as the network's
+comparison reads it; a wire only one version has comes with its fields (_wire_fields_differ). A unit one version
 has is left to what the report shows, as a part or instruction comes with its fields and pragmas; one around the
 network's source (a title or comment TIA writes empty, a field of the network) is tried too, taken out or put in. A pair
 that reads otherwise is no tag, also where the same unit holds a field the report does not read (an SCL operand's Scope
@@ -180,16 +181,22 @@ def _wire_reaching(old, new, cu, other, lang):
     return reach if _wire(reach) != _wire(old) else None
 
 
-def _wire_fields(cu, lang):
-    """Counter of a network's wires as (what each connects, its fields): an end by its kind, its pin and what it reaches,
-    a part with the operands on its pins or an operand by what it holds, the ends after the first in any order
-    (simaticml.wire_ends); the fields of the wire and of each end that holds one, but their numbers and pins."""
-    parts, _, operand, wires = _read_net(cu, lang)
+def _wire_fields(cu, lang, kept):
+    """Counter of a network's wires as (what each connects, its fields): an end by its kind, its pin as compared
+    (simaticml.pin_of) and what it reaches, a part with the operands on its pins or an operand by what it holds, the ends
+    after the first in any order (simaticml.wire_ends); the fields of the wire and of each end that holds one, but
+    their numbers and pins. kept: the parts and operands both versions hold; a wire with fewer than two ends on them or
+    on the rail came or went with what the change added or removed, and is left out with its fields."""
+    parts, _, operand, wires, flg = _read_net(cu, lang)
     what = dict(operand, **{x[0]: x[1] for x in parts})
+    joining = simaticml.joining_os(flg)
     out = Counter()
     for w in wires:
-        ends = [(_local(e.tag), e.get('Name') or '', repr(what.get(e.get('UId'))) if _local(e.tag) in ('NameCon', 'IdentCon')
-                 else '') for e in w]
+        on = [_local(e.tag) in ('NameCon', 'IdentCon') for e in w]
+        if sum(_local(e.tag) == 'Powerrail' or (o and e.get('UId') in kept) for e, o in zip(w, on)) < 2:
+            continue
+        ends = [(_local(e.tag), simaticml.pin_of(e, joining), repr(what.get(e.get('UId'))) if o else '')
+                for e, o in zip(w, on)]
         held = sorted((end, f) for end, e in zip(ends, w) for f in [tuple(x for x in _unnumbered(e) if x[0] != 'Name')] if f)
         out[simaticml.wire_ends(ends), _unnumbered(w), tuple(held)] += 1
     return out
@@ -198,8 +205,10 @@ def _wire_fields(cu, lang):
 def _wire_fields_differ(cu, other, lang):
     """A field of a wire or of a wire's end differs between two networks, each wire by what it connects, wherever the
     file writes it (_wire_fields): two wires that connect the same, by their fields; the wires a change of the logic
-    leaves without such a partner, by their fields alone, the ends by their kind and pin."""
-    mine, theirs = _wire_fields(cu, lang), _wire_fields(other, lang)
+    leaves without such a partner, by their fields as a set, the ends by their kind and pin. A wire only one version
+    has comes with its fields, as a part does."""
+    number = _numbered_before(cu, other, lang)
+    mine, theirs = _wire_fields(cu, lang, set(number.values())), _wire_fields(other, lang, set(number))
     left, left_o = mine - theirs, theirs - mine
     if {k[0] for k in left} & {k[0] for k in left_o}:
         return True                                  # the same connections, other fields
@@ -225,7 +234,7 @@ def _wire(w):
 def _read_net(cu, lang):
     """A network's FlgNet read by what its objects hold: ([(number, what it holds with the operands on its pins, what it
     holds, kind)] of its parts and calls in their order, {operand: the pins it is on}, {operand: what it holds}, its
-    wires)."""
+    wires, the FlgNet)."""
     flg = next((e for e in cu.iter() if _local(e.tag) == 'FlgNet'), None)
     held, wires = _held(flg, 'Parts'), _held(flg, 'Wires')
     operand = {p.get('UId'): _blank(_plain(p, lang=lang)) for p in held if _local(p.tag) == 'Access'}
@@ -243,7 +252,7 @@ def _read_net(cu, lang):
             what = _blank(_plain(p, lang=lang))
             parts.append((p.get('UId'), (what, tuple(sorted(on.get(p.get('UId'), ()), key=repr))), what,
                           (_local(p.tag), p.get('Name'))))
-    return parts, pins, operand, wires
+    return parts, pins, operand, wires, flg
 
 
 def _numbered_before(cu, other, lang):
@@ -251,7 +260,7 @@ def _numbered_before(cu, other, lang):
     or call by what it holds with the operands on its pins: one that each network holds once pairs wherever it stands
     (a user's change can move it); the rest in their order, by that, then by what they hold, then by their kind. An
     operand by the pins it is on, of those parts."""
-    (mine, pins, _, _), (theirs, pins_o, _, _) = _read_net(cu, lang), _read_net(other, lang)
+    (mine, pins, _, _, _), (theirs, pins_o, _, _, _) = _read_net(cu, lang), _read_net(other, lang)
     once, once_o = (Counter(x[1] for x in xs) for xs in (mine, theirs))
     single = {x[1]: x[0] for x in mine if once[x[1]] == 1}
     out = {x[0]: single[x[1]] for x in theirs if once_o[x[1]] == 1 and x[1] in single}

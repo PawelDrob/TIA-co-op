@@ -156,6 +156,20 @@ def wire_end(c, reach):
     return tag, tuple(sorted(c.attrib.items())), None
 
 
+def joining_os(flg):
+    """The numbers of the O parts of a LAD network, read by its rail, that only join wires (_joins_wires): TIA numbers
+    their inputs otherwise for a network nobody changed (zzBenLarge networks 2 and 3, from the same .s7dcl text)."""
+    net = _Net(flg)
+    return {p.get('UId') for p in _held(flg, 'Parts')
+            if _joins_wires(p.get('UId'), _local(p.tag), p, net, 'LAD' if net.rail else 'FBD')}
+
+
+def pin_of(end, joining):
+    """A wire end's pin as compared: an input of an O of joining (joining_os) as 'in', its number being TIA's."""
+    name = end.get('Name') or ''
+    return re.sub(r'^in\d+$', 'in', name) if end.get('UId') in joining else name
+
+
 def wire_ends(ends):
     """A wire's ends as compared: its first, where it starts, then the others in any order, as TIA writes them in the
     order of the parts they reach."""
@@ -169,8 +183,7 @@ def _flgnet(el, lang):
     """A FlgNet as _plain, without what TIA's export writes otherwise for a network nobody changed: the object numbers,
     which TIA gives in the order of the file; the order of the operands (Access) among the parts and of the wires
     (zzBenBoxes networks 4-6 beside a change of network 1); the order of a wire's ends after its first, which follows
-    the order of the parts; and in LAD, read by its rail, the numbers of the inputs of an O that only joins wires
-    (_joins_wires), which TIA gives otherwise (zzBenLarge networks 2 and 3, from the same .s7dcl text).
+    the order of the parts; and in LAD the numbers of the inputs of an O that only joins wires (joining_os, pin_of).
     What stays: the parts and calls in their order, which TIA moves only where a user changed the network; each with
     all it holds, and each operand; each wire's own fields, its first end, where it starts, and the others, each end
     with its fields and what it reaches.
@@ -181,13 +194,12 @@ def _flgnet(el, lang):
     parts, wires = _held(el, 'Parts'), _held(el, 'Wires')
     nodes = [_blank(_plain(p, lang=lang)) for p in parts]
     at = {p.get('UId'): k for k, p in enumerate(parts)}
-    net = _Net(el)
-    junction = {k for k, p in enumerate(parts) if _joins_wires(p.get('UId'), _local(p.tag), p, net, 'LAD' if net.rail else 'FBD')}
+    joining = joining_os(el)
 
     def end(c):
         tag, fields, k = wire_end(c, at.get)
-        if k in junction:
-            fields = tuple((n, re.sub(r'^in\d+$', 'in', v) if n == 'Name' else v) for n, v in fields)
+        if k is not None:
+            fields = tuple((n, pin_of(c, joining) if n == 'Name' else v) for n, v in fields)
         return tag, fields, k
     ends = [[end(c) for c in w] for w in wires]
     ends_on = [[] for _ in nodes]                            # part -> [(wire, place of its end)]

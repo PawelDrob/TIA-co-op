@@ -8818,6 +8818,39 @@ class WrittenInAnotherOrder(unittest.TestCase):
         on_end = dict(end_field=('rail', 'a.in'))
         self.assertEqual(self.listed(self.text(**on_end), self.text(rail, **on_end)), [('changed', False, [('changed', False)])])
 
+    SHOWN = [('changed', False, [('changed', False)])]          # listed, the network changed, no tag
+    TAGGED = [('changed', False, [('changed', True)])]
+
+    def test_a_field_on_a_wire_that_comes_or_goes_with_a_part(self):
+        """Contact d taken away with its wires: a wire that keeps fewer than two ends on what both versions hold comes or
+        goes with what the change added or removed, and its fields with it, as a part's do."""
+        without = [['rail', 'a.in', 'c.in'] if w[0] == 'rail' else w for w in self.WIRES
+                   if w not in (['#b', 'd.operand'], ['d.out', 'or.in2'])]
+        parts = [p for p in self.PARTS if p[0] != 'd']
+        for field in (dict(field=['#b', 'd.operand']), dict(field=['d.out', 'or.in2']), dict(end_field=('#b', 'd.operand'))):
+            self.assertEqual(self.listed(self.text(**field), self.text(without, parts)), self.SHOWN, field)
+            self.assertEqual(self.listed(self.text(without, parts), self.text(**field)), self.SHOWN, field)
+
+    def test_a_field_on_an_or_input_tia_renumbers(self):
+        """Beside an operand renamed, TIA numbers the inputs of the O otherwise: the end on c's input, read as 'in', keeps
+        its field, no tag; the field taken away, a tag."""
+        renumbered = self.edited((['#latch', 'q.operand'], ['#other', 'q.operand']), (['c.out', 'or.in1'], ['c.out', 'or.in2']),
+                                 (['d.out', 'or.in2'], ['d.out', 'or.in1']))
+        before = self.text(end_field=('c.out', 'or.in1'))
+        self.assertEqual(self.listed(before, self.text(renumbered, end_field=('c.out', 'or.in2'))), self.SHOWN)
+        self.assertEqual(self.listed(before, self.text(renumbered)), self.TAGGED)
+
+    def test_a_field_taken_from_a_rewired_wire(self):
+        """Two wires a change of the logic leaves without a partner: their fields differ as a set, a tag."""
+        moved = self.edited((['b.out', 'add.en'], ['b.out', 'q.in']), (['or.out', 'q.in'], ['or.out', 'add.en']))
+        self.assertEqual(self.listed(self.text(field=['b.out', 'add.en']), self.text(moved)), self.TAGGED)
+        self.assertEqual(self.listed(self.text(field=['b.out', 'add.en']), self.text(moved, field=['b.out', 'q.in'])), self.SHOWN)
+
+    def test_where_a_wire_starts_beside_a_change(self):
+        """The reader does not read which end starts a wire; beside an operand renamed, the network is tagged."""
+        wires = self.edited((['a.out', 'b.in'], ['b.in', 'a.out']), (['#latch', 'q.operand'], ['#other', 'q.operand']))
+        self.assertEqual(self.listed(self.text(), self.text(wires)), self.TAGGED)
+
     def test_two_parts_swapped_with_the_operands_among_them(self):
         """A part's place is among the parts and calls alone: where the operands stand among them does not count."""
         before = self.text(slots={0, 2, 10, 11, 12, 13, 14})
