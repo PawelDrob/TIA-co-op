@@ -8605,12 +8605,17 @@ class WrittenInAnotherOrder(unittest.TestCase):
         return ('<Access Scope="LiteralConstant" UId="%d"><Constant><ConstantType>Int</ConstantType><ConstantValue>%s'
                 '</ConstantValue></Constant></Access>' % (uid, operand))
 
+    @staticmethod
+    def operands(wires):
+        """The operands the wires reach, in their order."""
+        return [e for w in wires for e in w if e[0] == '#' or e.isdigit()]
+
     @classmethod
     def text(cls, wires=None, parts=None, operands=None, first=21):
         """The fixture with its first network as these parts and wires, written as TIA writes them: the operands, the parts,
         the wires, numbered in that order from first. operands: their order (else as the wires reach them)."""
         wires, parts = wires or cls.WIRES, parts or cls.PARTS
-        reached = [e for w in wires for e in w if e[0] == '#' or e.isdigit()]
+        reached = cls.operands(wires)
         number = iter(range(first, first + 1000))
         uid = {op: next(number) for op in operands or reached}
         uid.update({name: next(number) for name, _ in parts})
@@ -8632,17 +8637,20 @@ class WrittenInAnotherOrder(unittest.TestCase):
     def rewritten(cls, wires=None):
         """As TIA writes the same network again: the operands and wires the other way round, the rail's ends in another
         order, numbered from elsewhere."""
-        wires = [list(w) for w in reversed(wires or cls.WIRES)]
-        rail = next(w for w in wires if w[0] == 'rail')
+        wires = wires or cls.WIRES
+        again = [list(w) for w in reversed(wires)]
+        rail = next(w for w in again if w[0] == 'rail')
         rail[1:] = reversed(rail[1:])
-        reached = [e for w in cls.WIRES for e in w if e[0] == '#' or e.isdigit()]
-        return cls.text(wires, operands=list(reversed(reached)), first=41)
+        return cls.text(again, operands=list(reversed(cls.operands(wires))), first=41)
+
+    def blocks(self, before, after):
+        """The report's blocks of the fixture, as before and after."""
+        return [x for x in LibraryInstances.run_(self, {self.PATH: before}, {self.PATH: after})[2]
+                if 'D.s7dcl' not in (x.path_a or x.path_b)]
 
     def listed(self, before, after):
         """The report's blocks: (state, note, [(network state, its tag)])."""
-        return [(x.state, x.not_shown, [(p.state, p.not_shown) for p in x.nets])
-                for x in LibraryInstances.run_(self, {self.PATH: before}, {self.PATH: after})[2]
-                if 'D.s7dcl' not in (x.path_a or x.path_b)]
+        return [(x.state, x.not_shown, [(p.state, p.not_shown) for p in x.nets]) for x in self.blocks(before, after)]
 
     def test_rewritten_reads_alike(self):
         self.assertNotEqual(self.rewritten(), self.text())
@@ -8682,9 +8690,7 @@ class WrittenInAnotherOrder(unittest.TestCase):
         report lists the network in another order."""
         self.assertNotEqual(before, after)
         self.assertTrue(alike_exports(before, after))
-        ds = [x for x in LibraryInstances.run_(self, {self.PATH: before}, {self.PATH: after})[2]
-              if 'D.s7dcl' not in (x.path_a or x.path_b)]
-        self.assertEqual([[(p.state, p.reordered) for p in x.nets] for x in ds], [[('changed', True)]])
+        self.assertEqual([[(p.state, p.reordered) for p in x.nets] for x in self.blocks(before, after)], [[('changed', True)]])
 
     def test_the_branches_of_an_or_swapped(self):
         wires = self.edited((['c.out', 'or.in1'], ['c.out', 'or.in2']), (['d.out', 'or.in2'], ['d.out', 'or.in1']))
@@ -8701,23 +8707,29 @@ class WrittenInAnotherOrder(unittest.TestCase):
         wires[2] = ['a.out', 'q2.in', 'q1.in']
         self.in_other_order(self.text(self.COIL_WIRES, self.COILS), self.text(wires, [self.COILS[k] for k in (0, 2, 1)]))
 
+    # zzBenLarge network 2's shape, two legs: a contact on the rail, then an OR of legs closing on one O, each leg a
+    # contact and from the node after it its end and a branch inside it
+    LEGS = [(n, '<Part Name="Contact" UId="%d" />') for n in ('i', 'a1', 'x10', 'x11', 'a2', 'x20', 'x21')] + [
+        ('or', '<Part Name="O" UId="%d"><TemplateValue Name="Card" Type="Cardinality">4</TemplateValue></Part>'),
+        ('q', '<Part Name="Coil" UId="%d" />')]
+    LEG_WIRES = [['rail', 'i.in'], ['i.out', 'a1.in', 'a2.in'], ['a1.out', 'x10.in', 'x11.in'], ['a2.out', 'x20.in', 'x21.in'],
+                 ['or.out', 'q.in']] + [['#%s' % n, '%s.operand' % n] for n, _ in LEGS[:7]] + [['#latch', 'q.operand']]
+    LEGS_FIRST = [['x10.out', 'or.in1'], ['x20.out', 'or.in2'], ['x11.out', 'or.in3'], ['x21.out', 'or.in4']]
+
     def test_an_or_of_legs_numbered_otherwise(self):
-        """zzBenLarge network 2, nobody changed it: TIA numbered the O's inputs with the legs' ends first, then the
-        branches inside them, and the next time each branch after its own leg, the parts in that order."""
-        contact = '<Part Name="Contact" UId="%d" />'
-        parts = [(n, contact) for n in ('i', 'a1', 'x10', 'x11', 'a2', 'x20', 'x21')] + [
-            ('or', '<Part Name="O" UId="%d"><TemplateValue Name="Card" Type="Cardinality">4</TemplateValue></Part>'),
-            ('q', '<Part Name="Coil" UId="%d" />')]
-        wires = [['rail', 'i.in'], ['i.out', 'a1.in', 'a2.in'], ['a1.out', 'x10.in', 'x11.in'], ['a2.out', 'x20.in', 'x21.in'],
-                 ['or.out', 'q.in']] + [['#%s' % n, '%s.operand' % n] for n, _ in parts if n not in ('or', 'q')] + [
-                ['#latch', 'q.operand']]
-        legs_first = [['x10.out', 'or.in1'], ['x20.out', 'or.in2'], ['x11.out', 'or.in3'], ['x21.out', 'or.in4']]
+        """Nobody changed it: TIA numbered the O's inputs with the legs' ends first, then the branches inside them, and
+        the next time each branch after its own leg, the parts in that order."""
         each_after_its_leg = [['x10.out', 'or.in1'], ['x11.out', 'or.in2'], ['x20.out', 'or.in3'], ['x21.out', 'or.in4']]
-        before = self.text(wires + legs_first, parts)
-        after = self.text(each_after_its_leg + wires, [parts[k] for k in (0, 1, 2, 4, 5, 3, 6, 7, 8)])
+        before = self.text(self.LEG_WIRES + self.LEGS_FIRST, self.LEGS)
+        after = self.text(each_after_its_leg + self.LEG_WIRES, [self.LEGS[k] for k in (0, 1, 2, 4, 5, 3, 6, 7, 8)])
         self.assertNotEqual(before, after)
         self.assertTrue(alike_exports(before, after))
         self.assertEqual(self.listed(before, after), [])
+
+    def test_the_legs_of_that_or_swapped(self):
+        swapped = [['x20.out', 'or.in1'], ['x10.out', 'or.in2'], ['x21.out', 'or.in3'], ['x11.out', 'or.in4']]
+        self.in_other_order(self.text(self.LEG_WIRES + self.LEGS_FIRST, self.LEGS),
+                            self.text(self.LEG_WIRES + swapped, [self.LEGS[k] for k in (0, 4, 5, 6, 1, 2, 3, 7, 8)]))
 
     def test_an_or_s_inputs_in_fbd(self):
         """With no rail (FBD), an O is a gate whose inputs are pins by name: their numbers stay a difference."""
@@ -8744,6 +8756,15 @@ class WrittenInAnotherOrder(unittest.TestCase):
             self.assertNotEqual(text, self.text())
             self.assertFalse(alike_exports(self.text(), text))
             self.assertEqual([s for _, s in self.listed(self.text(), text)[0][2]], [True])
+
+    def test_a_field_on_a_wire_beside_a_change_of_the_part_it_reaches(self):
+        """The part changed has no partner that holds the same: the wire's end on it keeps the place it had."""
+        add = self.PARTS[5][1]
+        for part, wire in ((add.replace('>Int<', '>DInt<'), '<Wire UId="42">'), (add.replace('"Add"', '"Sub"'), '<Wire UId="45">')):
+            parts = self.PARTS[:5] + [('add', part)] + self.PARTS[6:]
+            text = self.text(parts=parts).replace(wire, wire[:-1] + ' Hint="x">', 1)
+            self.assertNotEqual(text, self.text(parts=parts))
+            self.assertEqual(self.listed(self.text(), text), [('changed', False, [('changed', True)])])
 
     SR = [('s', '<Part Name="Contact" UId="%d" />'),
           ('e', '<Part Name="Eq" UId="%d"><TemplateValue Name="SrcType" Type="Type">Int</TemplateValue></Part>'),

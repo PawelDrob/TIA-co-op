@@ -133,58 +133,67 @@ def _blank(plain):
     return tag, tuple((k, v) for k, v in attrs if k not in _NUMBERS), text, tuple(_blank(k) for k in kids)
 
 
+def _unnumbered(el):
+    """An element's own fields without the object numbers."""
+    return tuple(sorted((k, v) for k, v in el.attrib.items() if k not in _NUMBERS))
+
+
+def _held(flg, tag):
+    """The elements a FlgNet's Parts or Wires holds, [] for none."""
+    holder = _kid(flg, tag) if flg is not None else None
+    return list(holder) if holder is not None else []
+
+
+def wire_end(c, reach):
+    """A wire's end as compared: (tag, its fields but its number, reach(its number) for an end on a part or operand;
+    None for the rail and an open end, whose number is its own). An end whose number reach gives None keeps it among
+    its fields, as written."""
+    tag = _local(c.tag)
+    if tag in ('NameCon', 'IdentCon') and reach(c.get('UId')) is not None:
+        return tag, _unnumbered(c), reach(c.get('UId'))
+    if tag in ('Powerrail', 'OpenCon'):
+        return tag, _unnumbered(c), None
+    return tag, tuple(sorted(c.attrib.items())), None
+
+
 def wire_ends(ends):
     """A wire's ends as compared: its first, where it starts, then the others in any order, as TIA writes them in the
     order of the parts they reach."""
     return tuple(ends[:1]) + tuple(sorted(ends[1:], key=repr))
 
 
-_TRIES = 64                               # least forms tried for one network before it is compared as written
+_TRIES = 64                               # leaves of the search for the least form before a network is compared as written
 
 
 def _flgnet(el, lang):
     """A FlgNet as _plain, without what TIA's export writes otherwise for a network nobody changed (zzBenLarge networks
     2 and 3 beside a change of network 1, from the same .s7dcl text): the object numbers, which TIA gives in the order
     of the file; the order of the parts, operands and calls and of the wires; the order of a wire's ends after its
-    first, which follows the order of the parts; and in LAD (a network with a rail) the numbers of the inputs of an O
-    that only joins wires (as _joins_wires), which TIA gives otherwise. The reader orders the rungs by those inputs
-    where the drawing does (a changed order shows as one), and by the logic where it does not.
+    first, which follows the order of the parts; and in LAD, read by its rail, the numbers of the inputs of an O that
+    only joins wires (_joins_wires), which TIA gives otherwise. The reader orders the rungs by those inputs where the
+    drawing does (a changed order shows as one), and by the logic where it does not.
     What stays: each part, operand and call with all it holds; each wire's own fields, its first end, where it starts,
     and the others, each end with its fields and what it reaches.
     The parts are told apart by what they hold and, in turn, by what their wires reach (refined until nothing more
     splits); parts that stay alike are each tried first, and the least form is kept. Past _TRIES the network is as
     written, its parts in their order: two such networks are alike only where the file's order is."""
-    def own(x):
-        return tuple(sorted((k, v) for k, v in x.attrib.items() if k not in _NUMBERS))
-
-    def holder(tag):
-        h = _kid(el, tag)
-        return list(h) if h is not None else []
-    parts, wires = holder('Parts'), holder('Wires')
+    parts, wires = _held(el, 'Parts'), _held(el, 'Wires')
     nodes = [_blank(_plain(p, lang=lang)) for p in parts]
     at = {p.get('UId'): k for k, p in enumerate(parts)}
-    rail = any(_local(c.tag) == 'Powerrail' for w in wires for c in w)
-    on_operand = {c.get('UId') for w in wires if any(_local(x.tag) == 'IdentCon' for x in w) for c in w}
-    junction = {k for k, p in enumerate(parts) if rail and _local(p.tag) == 'Part' and p.get('Name') == 'O'
-                and _kid(p, 'Negated') is None and p.get('UId') not in on_operand}
+    net = _Net(el)
+    junction = {k for k, p in enumerate(parts) if _joins_wires(p.get('UId'), _local(p.tag), p, net, 'LAD' if net.rail else 'FBD')}
 
     def end(c):
-        """(tag, fields, the part it reaches or None)."""
-        tag, uid = _local(c.tag), c.get('UId')
-        if tag in ('NameCon', 'IdentCon') and uid in at:
-            fields = own(c)
-            if at[uid] in junction:
-                fields = tuple((k, re.sub(r'^in\d+$', 'in', v) if k == 'Name' else v) for k, v in fields)
-            return tag, fields, at[uid]
-        if tag in ('Powerrail', 'OpenCon'):                  # an open end's number is its own
-            return tag, own(c), None
-        return tag, tuple(sorted(c.attrib.items())), None   # an end that reaches nothing, as written
+        tag, fields, k = wire_end(c, at.get)
+        if k in junction:
+            fields = tuple((n, re.sub(r'^in\d+$', 'in', v) if n == 'Name' else v) for n, v in fields)
+        return tag, fields, k
     ends = [[end(c) for c in w] for w in wires]
-    on = [[] for _ in nodes]                                 # part -> [(wire, place of its end)]
+    ends_on = [[] for _ in nodes]                            # part -> [(wire, place of its end)]
     for i, w in enumerate(ends):
         for j, (_, _, k) in enumerate(w):
             if k is not None:
-                on[k].append((i, j))
+                ends_on[k].append((i, j))
 
     def ranked(keys):
         rank = {k: n for n, k in enumerate(sorted(set(keys), key=repr))}
@@ -196,26 +205,27 @@ def _flgnet(el, lang):
     def refine(color):
         while True:
             ws = [wire(i, color) for i in range(len(ends))]
-            new = ranked([(color[k], tuple(sorted(((min(j, 1),) + ends[i][j][:2], ws[i]) for i, j in on[k])))
+            new = ranked([(color[k], tuple(sorted(((min(j, 1),) + ends[i][j][:2], ws[i]) for i, j in ends_on[k])))
                           for k in range(len(nodes))])
             if len(set(new)) == len(set(color)):
                 return new
             color = new
-    tries = [0]
+    leaves = 0
 
     def least(color):
         """The least form of the network from this partition, None past _TRIES."""
+        nonlocal leaves
         color = refine(color)
         cells = {}
         for k, c in enumerate(color):
             cells.setdefault(c, []).append(k)
         alike = next((ks for _, ks in sorted(cells.items()) if len(ks) > 1), None)
         if alike is None:
-            tries[0] += 1
+            leaves += 1
             return color
         best = None
         for k in alike:
-            if tries[0] >= _TRIES:
+            if leaves >= _TRIES:
                 return None
             got = least(ranked([(c, i != k) for i, c in enumerate(color)]))
             if got is None:
@@ -227,20 +237,20 @@ def _flgnet(el, lang):
     def form(color):
         order = sorted(range(len(nodes)), key=color.__getitem__)
         return (tuple(nodes[k] for k in order),
-                tuple(sorted((('Wire', own(w), '', wire(i, color)) for i, w in enumerate(wires)), key=repr)))
+                tuple(sorted((('Wire', _unnumbered(w), '', wire(i, color)) for i, w in enumerate(wires)), key=repr)))
     color = least(ranked(nodes))
     written = color is None
     held, lines = form(color if not written else list(range(len(nodes))))
     if written:
-        lines = tuple(('Wire', own(w), '', tuple(ends[i])) for i, w in enumerate(wires))
+        lines = tuple(('Wire', _unnumbered(w), '', tuple(ends[i])) for i, w in enumerate(wires))
     kids = []
     for c in el:
         tag = _local(c.tag)
         if tag in ('Parts', 'Wires'):
-            kids.append((tag, own(c), '', held if tag == 'Parts' else lines))
+            kids.append((tag, _unnumbered(c), '', held if tag == 'Parts' else lines))
         else:
             kids.append(_blank(_plain(c, lang=lang)))
-    return 'FlgNet', own(el), 'as written' if written else '', tuple(kids)
+    return 'FlgNet', _unnumbered(el), 'as written' if written else '', tuple(kids)
 
 
 def _member_sources(owner, path, lang, out):
