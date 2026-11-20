@@ -2338,6 +2338,46 @@ class NoteAcrossTheFormats(unittest.TestCase):
             self.assertEqual(TemplatesTheInstructionFixes.across(self.neg('{ S7_Templates := "SrcType := Int" }'),
                                                                  self.neg_xml(attrs=' DisabledENO="true"')), ('same', False))
 
+    def test_a_title_and_a_comment_holding_a_semicolon_read_alike_from_both_formats(self):
+        """The network's title "Seal; in" and comment "Seal; on" in both formats, as TIA writes them: the same, no note. The
+        network's own settings are not compared across the formats."""
+        res = RES.replace('Seal-in', 'Seal; in') + '  - id: MLC_3\n    en-US: Seal; on\n'
+        sd = src(self.neg(self.ONE_LINE).s7dcl.replace('S7_NetworkTitle := "MLC_2"',
+                                                        'S7_NetworkTitle := "MLC_2"; S7_NetworkComment := "MLC_3"'), res, 'Main')
+        comment = ('<MultilingualText ID="90" CompositionName="Comment"><ObjectList><MultilingualTextItem ID="91" '
+                   'CompositionName="Items"><AttributeList><Culture>en-US</Culture><Text>Seal; on</Text></AttributeList>'
+                   '</MultilingualTextItem></ObjectList></MultilingualText>')
+        title = '<MultilingualText ID="4" CompositionName="Title">'
+        xml = _xml_src(self.neg_xml().xml.replace('Seal-in', 'Seal; in').replace(title, comment + title))
+        self.assertEqual((parse_block(sd).networks[0].comment, parse_block(xml).networks[0].comment), ('Seal; on',) * 2)
+        self.assertEqual(TemplatesTheInstructionFixes.across(sd, xml), ('same', False))
+
+    def test_a_pragma_with_no_closing_brace_leaves_the_file_unreadable(self):
+        with self.assertRaises(ValueError):
+            parse_block(self.neg('{ S7_Templates := "SrcType := Int"; S7_GenerateENO := "TRUE"'))
+
+    def test_beside_an_operand_change_a_type_written_over_another_keeps_the_tag(self):
+        """From .s7dcl to .s7dcl: TUSEND's fixed type written over another type, and a setting no drawing reads changed on a
+        Neg after it, beside TUSEND's operand changed: the network keeps its tag (beside.py), as with the fixed type alone.
+        Its text as read reads again as its element does."""
+        def net(templates, setting, operand):
+            return TemplatesTheInstructionFixes.sd_rung(
+                '{ S7_Templates := "%s" }' % templates, 'TUSEND(', '    REQ := %s' % operand, ')',
+                '{ X_Foo := "%s" }' % setting, 'Neg(', '    in := #start,', '    out => #big', ')')
+        from TiaChangeReports.s7dcl import network
+
+        def templates(n):
+            return [e.templates for r in n.rungs for e in r.items if isinstance(e, Element)]
+        path = 'plc/blocks/Main.s7dcl'
+        for written in ('value_type := UDInt', '[value_type := UInt, value_type := UDInt]'):
+            with self.subTest(written):
+                self.assertEqual(self.nets(net(written, '1', '#start'), net(written, '2', '#stop'), path),
+                                 [('changed', True)])
+                n = parse_block(net(written, '1', '#start')).networks[0]
+                again = network(1, n.raw[1], n.raw[2], n.raw[3], n.raw[4], 99, n.raw[5])
+                self.assertEqual(templates(n)[0], {})
+                self.assertEqual(templates(again), templates(n))
+
     def test_an_f_boxs_type_the_reader_takes_from_its_own_setting_is_read_once(self):
         """SHR with its type as a setting of its own, as the reader takes it where S7_Templates gives none: read alike from
         both formats. Where S7_Templates gives one, the setting is read into nothing and noted."""

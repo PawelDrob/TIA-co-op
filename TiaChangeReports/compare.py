@@ -117,9 +117,10 @@ def _format(net):
 def _read_lines(net):
     """A LAD network's lines as its reader read it, from either format alike: its rungs as one writer writes them
     (simaticml.rungs_text: its boxes' templates, ENO, expression and settings; not the templates SimaticML alone writes,
-    Element.more; the jump label is compared apart). What an .s7dcl's reader reads nothing from stands at their end as
-    written (Network.unread: a comment line, a line no element is read from, the pragmas after its last box, the rest of
-    a line read in part, a value another overwrites; s7dcl.lad_read): the other format has none."""
+    Element.more; the jump label is compared apart). What an .s7dcl's reader reads nothing from stands at their end
+    (Network.unread: a comment line, a line no element is read from, the pragmas after its last box, the rest of a line
+    read in part, as written; a value another overwrites, as `name := value`; s7dcl.lad_read): the other format has
+    none."""
     return _lad_lines(rungs_text(net.rungs)) + net.unread
 
 

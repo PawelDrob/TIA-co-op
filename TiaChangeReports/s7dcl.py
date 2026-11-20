@@ -62,19 +62,20 @@ def _pragmas(text):
 
 def take_pragmas(pend, block):
     """A pragma block of a LAD network's lines, from its `{` up to the line of its `}`, added to pend, {setting: value} of
-    those before one statement: what it reads nothing from, as written. The rest of the line after `}`, a part that names
-    no setting, and a value pend held or the block holds before another of its name (pragma_parts)."""
-    close = block.find('}')
-    got, rest = pragma_parts(block[:close + 1] if close >= 0 else block)
-    after = block[close + 1:].strip() if close >= 0 else ''
+    those before one statement; ValueError for one with no `}`, which leaves the file unreadable. What it reads nothing
+    from: the rest of the line after `}` as written, a part that names no setting as written, and a value pend held or
+    the block holds before another of its name, as `name := "value"` (pragma_parts)."""
+    close = block.index('}')
+    got, rest = pragma_parts(block[:close + 1])
+    after = block[close + 1:].strip()
     rest += [after] * bool(after) + ['%s := "%s"' % (k, pend[k]) for k in got if k in pend]
     pend.update(got)
     return rest
 
 
 def pragma_parts(text):
-    """({setting: value}, [what it reads nothing from, as written]) of a pragma block '{ A := "x"; B := TRUE }': a part
-    that names no setting, and a setting's value a later one of its name overwrites."""
+    """({setting: value}, [what it reads nothing from]) of a pragma block '{ A := "x"; B := TRUE }': a part that names no
+    setting as written, and a setting's value a later one of its name overwrites, as `name := "value"`."""
     out, rest = {}, []
     for part in re.split(r';\s*(?=[A-Za-z_]\w*\s*(?::=|$))', text.strip().strip('{}').strip()):
         m = re.match(r'\s*([A-Za-z_]\w*)\s*(?::=\s*(.*))?$', part.strip(), re.S)
@@ -586,16 +587,17 @@ def parse_lad(body, prefix, itf=None):
 
 
 def lad_read(body, prefix, itf=None, safety=False):
-    """(the rungs of a LAD network, its text as read, the lines it reads nothing from): the text with each template the reader leaves out of a box (a
+    """(the rungs of a LAD network, its text as read, what it reads nothing from): the text with each template the reader leaves out of a box (a
     template at the value its instruction fixes: a type, or Sub, Div and Mod's Card 2; instructions.left_out) taken out
     of the S7_Templates the box was read from, the last before it, and a pragma left empty gone, so that its lines, its
     part of the file and its units (beside.py) read as its element does; body itself where nothing is left out. A box's
     ENO as its S7_GenerateENO says (instructions.s7dcl_no_eno; safety: the network is of an F-block); the settings in
-    front of it whose value none of its fields takes, as they stand (Element.settings). What it reads nothing from, each
-    as written: a comment line, a line no element is read from but the jump label in front of all (Network.label), the
-    pragmas after the last box, the rest of a line read in part (after a pragma's `}`, after a RUNG's or END_RUNG's wire,
-    a pragma's or S7_Templates' part that names no setting or template) and a value a later one of its name overwrites,
-    in one pragma block or another before the same box."""
+    front of it whose value none of its fields takes, as they stand (Element.settings). What it reads nothing from, as
+    written: a comment line, a line no element is read from but the jump label in front of all (Network.label), the lines
+    of the pragmas after the last box, the rest of a line read in part (after a pragma's `}`, after a RUNG's or END_RUNG's
+    wire, a pragma's or S7_Templates' part that names no setting or template); and a value a later one of its name
+    overwrites, in one pragma block or another before the same box or in one S7_Templates, as `name := "value"` or
+    `name := type` (take_pragmas, template_parts). A pragma block with no `}` raises ValueError: the file is unreadable."""
     rungs, unread = [], []
     cur = None
     pend, pend_at = {}, []                        # the pragmas before the next element, and their lines [start, end)
@@ -694,15 +696,15 @@ def lad_read(body, prefix, itf=None, safety=False):
     return rungs, '\n'.join(out), unread
 
 
-# The pragma settings in front of a box that lad_read reads into its own fields whatever their value (S7_GenerateENO only
-# at a value it knows, an F-box's type as _fill_f_type takes it); the others are its settings.
+# The pragma settings in front of a box that lad_read reads into its own fields, but S7_GenerateENO at a value
+# instructions.eno_said does not know; lad_read also takes the F-box types _fill_f_type takes; the others are its settings.
 _READ_SETTING = re.compile(r'(S7_Templates|S7_Relation|S7_Expression|S7_GenerateENO|CASE\d+)$')
 
 
 def template_parts(text):
-    """({template: type}, [what it reads nothing from, as written]) of an S7_Templates value, 'a := X' or '[a := X, b :=
-    Y]': split at a comma outside brackets, so that a type keeps its own (Array[0..1, 0..2] of Byte); a part that names
-    no template, and a type a later one of its name overwrites."""
+    """({template: type}, [what it reads nothing from]) of an S7_Templates value, 'a := X' or '[a := X, b := Y]': split
+    at a comma outside brackets, so that a type keeps its own (Array[0..1, 0..2] of Byte); a part that names no template
+    as written, and a type a later one of its name overwrites, as `name := type`."""
     t = text.strip()
     if t.startswith('[') and _bracket_end(t, 0) == len(t) - 1:
         t = t[1:-1]
@@ -905,8 +907,8 @@ def f_block(props):
 def network(k, pragma, body, res, itf, tag, safety=False):
     """The k-th network of a block from its pragma block's settings and its lines; tag: the block's number, which keeps
     the element ids apart; safety: the block is an F-block. A LAD network's text, its part of the file and its raw lines
-    are its lines as read (lad_read). Its raw holds what reads it again (beside.py): ('sd', pragma, lines, texts, interface,
-    safety)."""
+    are its lines as read (lad_read), its unread what lad_read reads nothing from. Its raw holds what reads it again
+    (beside.py): ('sd', pragma, lines, texts, interface, safety)."""
     pr = _pragmas('{' + pragma + '}')
     lang_ = pr.get('S7_Language', '')
     rungs, unread = None, []
