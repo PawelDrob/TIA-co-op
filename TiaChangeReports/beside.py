@@ -173,7 +173,7 @@ def _sd_units(raw):
     where: (first line of its pragmas, first line of its statement, line after it) in the network's body."""
     _, _, body, res, _, _ = raw
     lines = body.splitlines()
-    out, first, settings, left, i = [], None, {}, [], 0
+    out, first, settings, i = [], None, {}, 0
     while i <= len(lines):
         if i == len(lines):                              # the end: what the pragmas left stand before
             start = end = i
@@ -191,7 +191,7 @@ def _sd_units(raw):
                 while '}' not in block and i < len(lines):
                     block += '\n' + lines[i]
                     i += 1
-                left += s7dcl.take_pragmas(settings, block)       # what no setting reads: its own part of the key
+                settings.update(s7dcl._pragmas(block[:block.index('}') + 1] if '}' in block else block))
                 continue
             start, end = i, i + 1
             if '(' in t and not t.rstrip(';').endswith(')'):  # an instruction over several lines, up to its bracket
@@ -201,10 +201,9 @@ def _sd_units(raw):
             text = ' '.join(x.strip() for x in lines[start:end])
             shape = (_instruction(t), tuple(_PIN.findall(text)))    # other pins: no partner, its pragmas come with them
             code = ' '.join(s7dcl.lad_lines('\n'.join(lines[start:end])))
-        key = (tuple(sorted((n, res.get(v, v)) for n, v in settings.items())) + tuple(left),
-               re.sub(r'wire#\w+', 'wire#', code, flags=re.I))
+        key = (tuple(sorted((n, res.get(v, v)) for n, v in settings.items())), re.sub(r'wire#\w+', 'wire#', code, flags=re.I))
         out.append(Unit(key, shape, (start if first is None else first, start, end), code=key[1]))
-        first, settings, left = None, {}, []
+        first, settings = None, {}
         i = end + 1 if i == len(lines) else end
     return out
 

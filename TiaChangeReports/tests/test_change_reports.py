@@ -2041,16 +2041,6 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
                 self.assertIn('S7_Templates := "value_type := UInt"', net.body)
                 self.assertNotIn('UDInt', net.body)
 
-    def test_what_the_fixed_templates_setting_holds_beside_it_stays(self):
-        """From .s7dcl to .s7dcl: TUSEND's S7_Templates at the fixed type, then also with a part that names no template, or
-        the type given twice: the fixed template goes from the text as read, the rest stays, and the network is noted."""
-        before = self.sd_rung('{ S7_Templates := "value_type := UDInt" }', 'TUSEND(', '    REQ := #start', ')')
-        for templates in ('[value_type := UDInt, Junk]', '[value_type := UInt, value_type := UDInt]'):
-            with self.subTest(templates):
-                after = self.sd_rung('{ S7_Templates := "%s" }' % templates, 'TUSEND(', '    REQ := #start', ')')
-                d = compare_blocks(before, after, 'plc/blocks/Main.s7dcl', 'plc/blocks/Main.s7dcl')
-                self.assertEqual([(p.state, p.not_shown) for p in d.nets], [('changed', True)])
-
     def test_a_comment_line_stays_as_it_is(self):
         net, _ = self.read('// S7_Templates := "value_type := UDInt"', 'TUSEND(', '    REQ := #start', ')')
         self.assertIn('// S7_Templates := "value_type := UDInt"', lad_lines(net.body))
@@ -2337,8 +2327,6 @@ class NoteAcrossTheFormats(unittest.TestCase):
             'text after END_RUNG': self.edited(neg, 'END_RUNG', 'END_RUNG junk'),
             'a pragma part that names no setting': self.neg('{ "junk"; S7_Templates := "SrcType := Int"; '
                                                             'S7_GenerateENO := "TRUE" }'),
-            'a setting of the network beside its language, title and comment': self.edited(
-                neg, 'S7_NetworkTitle := "MLC_2"', 'S7_NetworkTitle := "MLC_2"; S7_Unknown := "1"'),
         }
         for kind, sd in cases.items():
             with self.subTest(kind):
@@ -2361,16 +2349,6 @@ class NoteAcrossTheFormats(unittest.TestCase):
     def nets(self, before, after, path):
         d = compare_blocks(before, after, path, path)
         return [(p.state, p.not_shown) for p in d.nets]
-
-    def test_beside_another_change_what_a_pragma_line_holds_unread_is_the_tag(self):
-        """From .s7dcl to .s7dcl, the box's operand changed and text written after a pragma's `}` or a part of it that
-        names no setting: the network is changed, with the tag (beside.py)."""
-        sd = 'plc/blocks/Main.s7dcl'
-        for kind, junk in (("text after a pragma's }", ('"0" }', '"0" } junk')),
-                           ('a pragma part that names no setting', ('{ f_image_card', '{ "junk"; f_image_card'))):
-            with self.subTest(kind):
-                after = self.edited(self.shr('{ f_image_card := "0" }', n='#latch'), *junk)
-                self.assertEqual(self.nets(self.shr('{ f_image_card := "0" }'), after, sd), [('changed', True)])
 
     def test_a_card_changed_in_one_format_is_noted_also_beside_another_change(self):
         """From SimaticML to SimaticML, as from .s7dcl to .s7dcl: a card changed alone is the note, beside another

@@ -735,11 +735,10 @@ def _bracket_end(text, at):
     return -1
 
 
-def _templates_text(templates, rest=()):
-    """An S7_Templates value as the export writes it: one 'a := X', several in brackets; rest, what of it names no
-    template or is overwritten (template_parts), after them as written."""
-    items = ['%s := %s' % kv for kv in templates.items()] + list(rest)
-    return '[%s]' % ', '.join(items) if len(items) > 1 else ', '.join(items)
+def _templates_text(templates):
+    """An S7_Templates value as the export writes it: one 'a := X', several in brackets."""
+    text = ', '.join('%s := %s' % kv for kv in templates.items())
+    return '[%s]' % text if len(templates) > 1 else text
 
 
 _S7_TEMPLATES = re.compile(r'(;\s*)?S7_Templates\s*:=\s*"([^"]*)"(\s*;\s*)?')
@@ -748,15 +747,14 @@ _S7_TEMPLATES = re.compile(r'(;\s*)?S7_Templates\s*:=\s*"([^"]*)"(\s*;\s*)?')
 def _without_templates(lines, gone):
     """A pragma's lines with the templates `gone`, (template, value), taken out of its last S7_Templates (the one the
     reader keeps), the setting gone with the last of them, the pragma gone when nothing is left in it; None for a
-    pragma without S7_Templates. What of it names no template or is overwritten stays (template_parts)."""
+    pragma without S7_Templates."""
     text = '\n'.join(lines)
     m = ([None] + list(_S7_TEMPLATES.finditer(text)))[-1]
     if m is None:
         return None
-    written, rest = template_parts(m.group(2))
-    kept = {k: v for k, v in written.items() if (k, v) not in gone}
-    if kept or rest:
-        setting = '%sS7_Templates := "%s"%s' % (m.group(1) or '', _templates_text(kept, rest), m.group(3) or '')
+    kept = {k: v for k, v in template_parts(m.group(2))[0].items() if (k, v) not in gone}
+    if kept:
+        setting = '%sS7_Templates := "%s"%s' % (m.group(1) or '', _templates_text(kept), m.group(3) or '')
     else:                                         # between two settings, one separator stays
         setting = '; ' if m.group(1) and m.group(3) else ''
     text = text[:m.start()] + setting + text[m.end():]
@@ -841,7 +839,7 @@ class Network:
     label: str = ''               # its jump label (LAD, FBD: TIA's box over the network)
     source: object = None         # its part of the file, to compare with what the report read
     raw: object = field(default=None, repr=False, compare=False)    # that part as read, to read again (beside.py)
-    unread: list = field(default_factory=list)    # .s7dcl: what its reader reads nothing from (network, lad_read)
+    unread: list = field(default_factory=list)    # .s7dcl LAD: what its reader reads nothing from (lad_read)
 
 
 @dataclass
@@ -919,7 +917,7 @@ def network(k, pragma, body, res, itf, tag, safety=False):
                   source=_network_source(pragma, body, res, lang_), raw=('sd', pragma, body, res, itf, safety))
     lm = _LABEL.match(nbody)
     net.label = lm.group(1) if lm else ''
-    net.rungs, net.unread = rungs, list(net.source[1]) + unread     # its own settings but language, title and comment
+    net.rungs, net.unread = rungs, unread
     return net
 
 
