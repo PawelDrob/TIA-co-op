@@ -2,7 +2,8 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Tools\Objects.ps1', 'Tools\Probe.ps1') { . (Join-Path $here "..\$f") }
 
 # Openness stand-ins: the interfaces the probe asks an object for, and the self-description it reads (the V20
-# signatures: reflection of Siemens.Engineering.dll, ticket 77). Target throws on every call that would change TIA.
+# signatures: reflection of Siemens.Engineering.dll). Target and Comp record every call that would change TIA in
+# Changed, which the tests expect empty.
 if (-not ('FakeProbe.Target' -as [type])) {
     Add-Type -TypeDefinition @"
 using System; using System.Collections.Generic;
@@ -285,6 +286,13 @@ Describe 'probe of the services of an object' {
         $r.interfaces -contains 'Siemens.Engineering.IEngineeringServiceProvider' | Should Be $true
         $r.interfaces -contains 'Siemens.Engineering.IEngineeringObject' | Should Be $true
         @($r.interfaces | Where-Object { $_ -like '*.Private.*' }).Count | Should Be 0
+    }
+
+    It 'lists the methods of each public interface under its name, as a class may implement them out of sight' {
+        $script:probed = New-Object FakeProbe.ServiceTarget
+        $r = Invoke-ProbeTool ([pscustomobject]@{ object_path = 'x' })
+        @($r.methods | Where-Object { $_ -like 'IEngineeringServiceProvider.GetService(*' }).Count | Should Be 1
+        @($r.methods | Where-Object { $_ -like 'IInternalObjectAccess.*' }).Count | Should Be 0
     }
 
     $script:ProbeServiceTypes = $null

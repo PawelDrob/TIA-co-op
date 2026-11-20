@@ -118,8 +118,7 @@ $script:ProbeItemsShown = 100
 
 # What Obj gives and says of itself, read only (the head of this file). Each part that fails is named beside it, an
 # error that ended TIA goes up. Research scripts call it on objects no object_path reaches (a software unit).
-function Read-ProbeObject($Obj) {
-    $obj = $Obj
+function Read-ProbeObject($obj) {
     $t = $obj.GetType()
     $r = [ordered]@{ type = $t.FullName }
     # what the type inherits and implements: a member the methods below lack may be declared there (an explicit interface
@@ -161,9 +160,12 @@ function Read-ProbeObject($Obj) {
         })
         Add-ProbeList $r 'invocations' { ConvertFrom-ProbeInvocationInfos $obj.GetInvocationInfos() }
     }
-    $r.methods = @($t.GetMethods() | Where-Object { -not $_.IsSpecialName -and $_.DeclaringType -ne [object] } | ForEach-Object {
-        "$($_.Name)(" + (($_.GetParameters() | ForEach-Object { "$($_.ParameterType.Name) $($_.Name)" }) -join ', ') + ") : $($_.ReturnType.Name)"
-    } | Sort-Object -Unique)
+    $signature = { "$($_.Name)(" + (($_.GetParameters() | ForEach-Object { "$($_.ParameterType.Name) $($_.Name)" }) -join ', ') + ") : $($_.ReturnType.Name)" }
+    $r.methods = @($t.GetMethods() | Where-Object { -not $_.IsSpecialName -and $_.DeclaringType -ne [object] } | ForEach-Object $signature | Sort-Object -Unique)
+    # an interface's methods under its name: an Openness class implements IEngineeringObject's out of sight
+    $r.methods += @(foreach ($i in $t.GetInterfaces() | Where-Object { $_.IsPublic -and $_.Namespace -notlike 'Siemens.Engineering.Private*' }) {
+        $i.GetMethods() | Where-Object { -not $_.IsSpecialName } | ForEach-Object { "$($i.Name).$(& $signature)" }
+    }) | Sort-Object -Unique
     if ($obj -is [Siemens.Engineering.IEngineeringServiceProvider]) {
         Read-ProbeServices $obj $r
     }

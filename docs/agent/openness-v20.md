@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, with what its fingerprint and compare calls answer, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T12:12:53-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T12:18:41-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -201,7 +201,8 @@ screen, template, pop-up and HMI tag folders of a Comfort panel):
   watch table, and deleted both once empty.
 - `Documents` is for named value data types. Into a folder of the PLC, `ImportFromDocuments` refuses: "The
   'ImportFromDocuments' method only supports the import of named value data types within software units." Into a folder of
-  a software unit it takes the document's name without its extension (next paragraph). An ordinary PLC data type goes
+  a software unit an earlier probe got "The file '...' does not exist" for every file name it tried; on
+  2026-11-20 the name without its extension went in, the name with it gave that answer (next paragraph). An ordinary PLC data type goes
   to `Types`. The folders of a software unit are a tree of their own, which TiaBridge does not reach.
 - No folder was found that looks empty and holds something: F-blocks are listed without the safety login, and
   `delete_folder` reads every collection the folder reports, not only those of its kind. Something Openness does not
@@ -220,15 +221,18 @@ main program only, and say nothing of what the units hold.
   relation. A block in a unit comes from a document (`ImportFromDocuments` of an `.s7dcl`), in nested folders too.
   `PlcBlockComposition.CreateFB` refuses every language but ProDiag ("The action "Create block" only supports the
   programming language 'ProDiag'."), in the main program too, although `GetCreationInfos` lists FB as creatable.
-- **Names:** block, PLC data type and tag table names are unique in the whole PLC, units included. A second `X` in
-  another unit, or in the main program, is refused: "Import failed because an object with the name 'X' already exists in
-  the plc." The unit's `NamespacePreset` does not change that. A document that wraps the block in
-  `NAMESPACE <ns>` ... `END_NAMESPACE` goes in, and the export gives the same wrapping back. So two objects of one name
-  in one PLC differ by their namespace (`Namespace` of the block), and only so.
+- **Names:** block, PLC data type and tag table names are unique in the whole PLC, units included. The document of a
+  block or a data type of a name another unit holds is refused: "Import failed because an object with the name 'X'
+  already exists in the plc."; so is a block of that name in the main program (a data type there was not tried). A tag
+  table of another unit's table's name: `Create` throws "An attempt was made to create an object that already exists."
+  The unit's `NamespacePreset` does not change any of it. A document that wraps the block in `NAMESPACE <ns>` ...
+  `END_NAMESPACE` goes in, and the export gives the same wrapping back: two blocks of one name in one PLC differ by their
+  namespace (`Namespace` of the block). A data type and a tag table in a namespace were not tried. Named value documents
+  are not held to this: two units hold documents of one name, no namespace (next item).
 - **A named value document** goes in with `Documents.ImportFromDocuments(dir, name, options)`, `name` without `.nvt`
   (the parameter is `fileNameWithoutExtension`); with the extension TIA answers "The file '<name>.nvt' does not exist."
-  The syntax is the installed help's: `TYPE <name> : <base type> ( <NAME> := <value>, ... ) [:= <default>]; END_TYPE`,
-  optionally in `NAMESPACE` and with `{ PUBLISHED := 'TRUE' }`. Two units may hold documents of one name. A block of
+  Tried: `TYPE <name> : <base type> ( <NAME> := <value>, ... ) [:= <default>]; END_TYPE`, the syntax of the installed help,
+  which also allows `NAMESPACE` and `{ PUBLISHED := 'TRUE' }` (both not tried). Two units may hold documents of one name. A block of
   either unit then compiles with two errors, "There is an ambiguous declarations in scope <name>", and reads consistent.
   `PlcDocument.Name` carries the extension (`Colors.nvt`), so an export by `Name` writes `Colors.nvt.nvt`. Exported
   without it, a document is one `.nvt` file, the text as imported, with a BOM, and no `.s7res`.
