@@ -30,6 +30,7 @@ if __name__ == '__main__':
 from TiaChangeReports.compare import _other_texts_differ, _unread_differs, compare_snapshots, file_note  # noqa: E402
 from TiaChangeReports.diff import changed_params                                    # noqa: E402
 from TiaChangeReports.iface import FIELDS, _value, block_rows, props_rows           # noqa: E402
+from TiaChangeReports.page import scl_tokens                                         # noqa: E402
 from TiaChangeReports.render_lad import Layout                                       # noqa: E402
 from TiaChangeReports.s7dcl import scl_lines                                         # noqa: E402
 from TiaChangeReports.source import GitSnapshot, _git, git_snapshots, stem           # noqa: E402
@@ -235,8 +236,8 @@ def facts(diffs):
                 for m in _marks(p, d):
                     out[(o, 'mark', n) + m] += 1
             else:
-                for sign, line in _lines(p):
-                    out[(o, 'line', n, sign, line)] += 1
+                for sign, line, toks in _lines(p, d):
+                    out[(o, 'line', n, sign, line, toks)] += 1
     return out
 
 
@@ -245,14 +246,36 @@ def _tags(p):
             ('label', p.label_state != 'same'))
 
 
-def _lines(p):
-    """('-' or '+', line) of the lines of an SCL or FBD network that differ; all of a side without the network."""
-    bl, al = (scl_lines(x.body) if x else [] for x in (p.before, p.after))
+def _lines(p, d=None):
+    """('-' or '+', line, its tokens) of the lines of an SCL or FBD network that differ; all of a side without the
+    network. The tokens: the words of an SCL line with the kind of each (scl_colours.lines), with the block's interface
+    when d is given; None for a line of another language."""
+    (bl, kb), (al, ka) = (_side_lines(x, blk) for x, blk in ((p.before, d and d.before), (p.after, d and d.after)))
     for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, bl, al, autojunk=False).get_opcodes():
         if op == 'equal':
             continue
-        yield from (('-', x) for x in bl[i1:i2])
-        yield from (('+', x) for x in al[j1:j2])
+        yield from (('-', bl[i], kb[i]) for i in range(i1, i2))
+        yield from (('+', al[j], ka[j]) for j in range(j1, j2))
+
+
+def _side_lines(net, blk):
+    """(the lines of a side's network, the tokens of each as a tuple, or None)."""
+    lines = scl_lines(net.body) if net else []
+    toks = scl_tokens(net, lines, blk)
+    return lines, [tuple(t) for t in toks] if toks else [None] * len(lines)
+
+
+def scl_colours_differ(d):
+    """The networks of a block read from .s7dcl on one side and SimaticML on the other whose SCL lines are the same and
+    are coloured otherwise: [network key]."""
+    out = []
+    for nb, na in zip(d.before.networks, d.after.networks):
+        if nb.lang != 'SCL' or na.lang != 'SCL':
+            continue
+        (bl, kb), (al, ka) = _side_lines(nb, d.before), _side_lines(na, d.after)
+        if bl == al and kb != ka:
+            out.append((nb.index, na.index, na.title))
+    return out
 
 
 # ---------------------------------------------------------------- an element read otherwise
@@ -419,8 +442,8 @@ def nothing_changed(repo, rev, files=None):
     """[{object, network, causes}]: every object and network the report from rev's .s7dcl to its SimaticML lists."""
     files = files or Files(repo)
     sd, xml = sides_at(repo, rev)
-    out = []
-    for d in compare_snapshots(sd, xml):
+    out, across = [], []
+    for d in compare_snapshots(sd, xml, across=across):
         o = _object(d)
         if not (d.before and d.after):                    # its file in one format only: so are its networks
             why = files.missing(o, bool(d.after))
@@ -433,6 +456,27 @@ def nothing_changed(repo, rev, files=None):
             own = {'unknown: listed, nothing seen'}
         out.append({'object': o, 'network': None, 'causes': sorted(own.union(*(x['causes'] for x in nets)))})
         out += nets
+    return _colour_causes(out, across)
+
+
+def _colour_causes(out, across):
+    """out with every network whose SCL lines are the same in both formats and coloured otherwise
+    (scl_colours_differ): its object listed, or the cause added to its entry."""
+    for d in across:
+        bad = scl_colours_differ(d)
+        if not bad:
+            continue
+        o = _object(d)
+        head = next((x for x in out if x['object'] == o and x['network'] is None), None)
+        if head is None:
+            head = {'object': o, 'network': None, 'causes': []}
+            out.append(head)
+        for n in [None] + bad:
+            x = head if n is None else next((x for x in out if x['object'] == o and x['network'] == list(n)), None)
+            if x is None:
+                x = {'object': o, 'network': list(n), 'causes': []}
+                out.append(x)
+            x['causes'] = sorted(set(x['causes']) | {'unknown: SCL colours'})
     return out
 
 
@@ -739,7 +783,8 @@ def _net_part(n, dx, fs, fx):
         out.add('unknown: network tag %s' % tag)
     out |= _mark_causes(ms, mx, 'rung order' in out)
     if Counter(ls) != Counter(lx):
-        out.add('unknown: lines')
+        same_text = Counter(x[:2] for x in ls) == Counter(x[:2] for x in lx)
+        out.add('unknown: SCL colours' if same_text else 'unknown: lines')
     for part in ('network title', 'network comment'):
         if {k for k in ns if k[1] == part} != {k for k in nx if k[1] == part}:
             out.add('unknown: %s' % part)

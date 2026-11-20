@@ -7,7 +7,7 @@ One HTML page of what changed in a TIA project.
 ## What it does
 
 - Shows changed, new and deleted PLC blocks, DBs, UDTs and library types: interface and properties apart, LAD drawn as TIA
-  does, SCL as a line diff.
+  does, SCL as a line diff in the colours of TIA's SCL editor.
 - Shows PLC tag tables, and HMI screens, templates, pop-ups, tag tables and text lists before and after.
 - Compares two files, two folders or two git revisions.
 - Reads PLC blocks as `.s7dcl`, the supported format, and as SimaticML (xml), experimental.

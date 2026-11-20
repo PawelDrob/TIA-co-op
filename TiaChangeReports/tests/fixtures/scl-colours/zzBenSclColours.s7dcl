@@ -1,0 +1,139 @@
+﻿{
+    S7_EditorMode := "SCL";
+    S7_Optimized := "TRUE";
+    S7_Version := "0.1"
+}
+FUNCTION_BLOCK "zzBenSclColours"
+    VAR_INPUT 
+        inEnable : Bool;
+        inMode : Int;
+        inSetpoint : Real;
+    END_VAR
+    VAR_OUTPUT 
+        outActive : Bool;
+        outCount : DInt;
+        outText : String[40];
+    END_VAR
+    VAR_IN_OUT 
+        ioTotal : DInt;
+    END_VAR
+    VAR 
+        instColFb : _.zzBenSclColFb;
+        instDelay : TON_TIME;
+        statWord : Word;
+        statByte : Byte;
+        statValues : Array[0..9] of Int;
+        statReal : Real;
+        statTime : Time;
+        statDate : Date;
+        statTod : Time_Of_Day;
+        statChar : Char;
+        statWide : WString[20];
+        statFlag : Bool;
+        statResult : Int;
+    END_VAR
+    VAR_TEMP 
+        tmpI : Int;
+        tmpSum : DInt;
+        tmpBit : Bool;
+    END_VAR
+    VAR CONSTANT 
+        LAST : Int := 9;
+    END_VAR
+
+    { S7_Language := "SCL" }
+    NETWORK
+        REGION Constants of each form
+            // A line comment on a line of its own
+            #statFlag := TRUE;
+            #statResult := 42;
+            #statResult := -8#17;
+            #statWord := 16#00FF;
+            #statByte := 2#1010_0101;
+            #statReal := 3.14;
+            #statReal := 1.5E-3;
+            #statTime := T#1s_200ms;
+            #statDate := D#2026-11-20;
+            #statTod := TOD#12:30:00;
+            #statChar := 'A';
+            #outText := 'a string with // and (* inside';
+            #statWide := WSTRING#'wide';
+            #tmpSum := DINT#-7;
+            #statWord := WORD#16#0F0F;
+        END_REGION
+        
+        REGION Operands
+            (* A block comment
+               over two lines *)
+            #outActive := #inEnable AND "zzMcTag1"; // a comment after code
+            "zzBenSclColDb".motor.speed := #inMode;
+            "zzBenSclColDb".values[#tmpI] := #statValues[#LAST];
+            #tmpBit := #statWord.%X3;
+            #statByte := #statWord.%B0;
+            #ioTotal += #outCount;
+            "zzMcTag1" := #tmpBit;
+        END_REGION
+        
+        REGION Keywords
+            IF #inMode = 1 THEN
+                #statResult := 1;
+            ELSIF #inMode > 1 AND #inMode <= 5 THEN
+                #statResult := #inMode MOD 2;
+            ELSE
+                #statResult := 0;
+            END_IF;
+        
+            CASE #inMode OF
+                0:
+                    #outText := 'idle';
+                1..3, 5:
+                    #outText := 'run';
+                ELSE
+                    #outText := '';
+            END_CASE;
+        
+            #tmpSum := 0;
+            FOR #tmpI := 0 TO #LAST BY 1 DO
+                IF #statValues[#tmpI] < 0 THEN
+                    CONTINUE;
+                END_IF;
+                #tmpSum := #tmpSum + #statValues[#tmpI];
+                IF #tmpSum > 1000 THEN
+                    EXIT;
+                END_IF;
+            END_FOR;
+        
+            #tmpI := 0;
+            WHILE #tmpI < #LAST AND NOT #statFlag DO
+                #tmpI := #tmpI + 1;
+            END_WHILE;
+        
+            REPEAT
+                #tmpI := #tmpI - 1;
+            UNTIL #tmpI <= 0 OR #statFlag XOR #tmpBit
+            END_REPEAT;
+        END_REGION
+        
+        REGION Calls
+            // An instruction with an instance and without, an FC, an FB as a multi-instance and with its DB
+            #instDelay(IN := #inEnable,
+                       PT := T#5s,
+                       Q => #statFlag,
+                       ET => #statTime);
+            #statResult := MAX(IN1 := #statResult, IN2 := 10);
+            #statReal := SQRT(ABS(#inSetpoint)) ** 2.0;
+            #statResult := "zzBenSclColFc"(inA := #statResult, inB := 5);
+            #instColFb(inStart := #statFlag,
+                       outDone => #tmpBit);
+            "zzBenSclColFbDb"(inStart := #inEnable);
+            #outCount := INT_TO_DINT(#statResult) * 2 - #tmpSum / 3;
+        END_REGION
+        
+        IF NOT #inEnable THEN
+            GOTO lblEnd;
+        END_IF;
+        #outActive := #instColFb.outDone OR "zzBenSclColFbDb".outDone;
+        RETURN;
+        lblEnd: #outActive := FALSE;
+    END_NETWORK
+END_FUNCTION_BLOCK

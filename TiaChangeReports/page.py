@@ -9,6 +9,7 @@ import sys
 from html import escape, unescape
 from urllib.parse import quote
 
+from . import scl_colours
 from .render_lad import Layout
 from .s7dcl import scl_lines
 from .source import LEFT_OUT, UNREADABLE
@@ -63,12 +64,14 @@ CSS += """
 .ldiff table.scl td{padding:0 6px;vertical-align:top;white-space:break-spaces;word-break:normal;overflow-wrap:anywhere;border:0}
 .ldiff table.scl td.ln{width:3.2em;color:#8c8c8c;text-align:right;user-select:none;border-right:1px solid var(--grid);white-space:nowrap}
 .ldiff table.scl td.del{background:var(--del-bg)} .ldiff table.scl td.ins{background:var(--add-bg)}
-.ldiff table.scl td.del span{background:var(--del-word)} .ldiff table.scl td.ins span{background:var(--add-word)}
+.ldiff table.scl td.del span:not([class]){background:var(--del-word)}
+.ldiff table.scl td.ins span:not([class]){background:var(--add-word)}
 .ldiff table.scl td.nil{background:#f5f5f5}
 .ldiff table.scl tr.skip td{background:var(--row);color:var(--muted);font:italic 11.5px "Segoe UI",Arial,sans-serif;text-align:center;cursor:pointer}
 .ldiff table.scl tr.ctx{display:none}
 .ldiff .nw.all table.scl tr.ctx{display:table-row} .ldiff .nw.all table.scl tr.skip{display:none}
 """
+CSS += scl_colours.CSS      # the words of an SCL line in TIA's colours: a class per kind, the changed word a plain span
 
 # Block header as TIA's "Block title:" band; tables as TIA's table editors: grey column heads,
 # light grid, section rows in the field grey. Box columns as narrow as their headings' words; an interface table still
@@ -347,24 +350,44 @@ r.querySelectorAll('table.sum a[href^="#blk-"]').forEach(function(a){a.addEventL
 WORD = re.compile(r'\d+(?:\.\d+)+|\w+|\s+|[^\w\s]')
 
 
-def _inline(a, b):
-    """Word-level highlight of one paired line (whitespace never highlighted); a number with points (1.5, 0.2.1)
-    one word."""
+def _word_marks(a, b):
+    """The changed words of one paired line, as (start, end) character ranges of each side: one range a word, whitespace
+    never; a number with points (1.5, 0.2.1) one word."""
     ta = WORD.findall(a)
     tb = WORD.findall(b)
     sm = difflib.SequenceMatcher(None, ta, tb, autojunk=False)
-    oa, ob = [], []
 
-    def mark(toks):
-        return ''.join(escape(t) if t.isspace() else '<span>%s</span>' % escape(t) for t in toks)
+    def ranges(toks):
+        out, pos = [], 0
+        for t in toks:
+            out.append((pos, pos + len(t), t.isspace()))
+            pos += len(t)
+        return out
+    ra, rb = ranges(ta), ranges(tb)
+    ma, mb = [], []
     for op, i1, i2, j1, j2 in sm.get_opcodes():
-        if op == 'equal':
-            oa.append(escape(''.join(ta[i1:i2])))
-            ob.append(escape(''.join(tb[j1:j2])))
-        else:
-            oa.append(mark(ta[i1:i2]))
-            ob.append(mark(tb[j1:j2]))
-    return ''.join(oa), ''.join(ob)
+        if op != 'equal':
+            ma += [(s, e) for s, e, space in ra[i1:i2] if not space]
+            mb += [(s, e) for s, e, space in rb[j1:j2] if not space]
+    return ma, mb
+
+
+def _inline(a, b, ka=None, kb=None):
+    """Word-level highlight of one paired line (_word_marks), each changed word in a plain <span>. ka, kb: a side's
+    SCL tokens (scl_colours.lines), its words then in their colours inside and outside the marks."""
+    ma, mb = _word_marks(a, b)
+    return _marked(a, ma, ka), _marked(b, mb, kb)
+
+
+def _marked(text, marks, toks=None):
+    if toks is None:
+        toks = [(None, text)]
+    return scl_colours.html(toks, marks)
+
+
+def _line(lines, toks, i):
+    """One line of a side, escaped, in its colours where the side has them."""
+    return scl_colours.html(toks[i]) if toks and toks[i] is not None else escape(lines[i])
 
 
 def _pair_lines(bl, al, i1, i2, j1, j2, minratio=0.5):
@@ -401,21 +424,22 @@ def _pair_lines(bl, al, i1, i2, j1, j2, minratio=0.5):
     return rows
 
 
-def scl_table(bl, al, context=3):
+def scl_table(bl, al, context=3, kb=None, ka=None):
     """Before and after, a line of each side by side, a row per line: a long line folds in its row, with its one
-    number."""
+    number. kb, ka: the SCL tokens of each line of a side (scl_colours.lines; None for a side or a line without
+    colours)."""
     rows = []                                   # (ctx?, lnb, cls_b, html_b, lna, cls_a, html_a)
     sm = difflib.SequenceMatcher(None, [l.rstrip() for l in bl], [l.rstrip() for l in al], autojunk=False)
     for op, i1, i2, j1, j2 in sm.get_opcodes():
         if op == 'equal':
             for i, j in zip(range(i1, i2), range(j1, j2)):
-                rows.append([True, i + 1, '', escape(bl[i]), j + 1, '', escape(al[j])])
+                rows.append([True, i + 1, '', _line(bl, kb, i), j + 1, '', _line(al, ka, j)])
             continue
         for i, j in _pair_lines(bl, al, i1, i2, j1, j2):
-            hb = escape(bl[i]) if i is not None else ''
-            ha = escape(al[j]) if j is not None else ''
+            hb = _line(bl, kb, i) if i is not None else ''
+            ha = _line(al, ka, j) if j is not None else ''
             if i is not None and j is not None:
-                hb, ha = _inline(bl[i], al[j])
+                hb, ha = _inline(bl[i], al[j], kb[i] if kb else None, ka[j] if ka else None)
             rows.append([False, i + 1 if i is not None else '', 'del' if i is not None else 'nil', hb,
                          j + 1 if j is not None else '', 'ins' if j is not None else 'nil', ha])
     # context: unchanged rows near a change stay visible
@@ -511,6 +535,14 @@ def _comment(pair):
         '<span class="side">%s</span>' % (f or '') for f in _fields(pair, 'comment', 'cf', 'Comment'))
 
 
+def scl_tokens(net, lines, block):
+    """The tokens of each line of an SCL network, in TIA's colours (scl_colours.lines, with the block's interface for
+    its local constants); None for a network in another language, whose text stays as it is."""
+    if net is None or net.lang != 'SCL':
+        return None
+    return scl_colours.lines(lines, block.interface if block is not None else None)
+
+
 def network_html(pair, bblock, ablock):
     b, a = pair.before, pair.after
     head = _title_bar(pair)
@@ -523,9 +555,11 @@ def network_html(pair, bblock, ablock):
     else:
         bl = scl_lines(b.body) if b else []
         al = scl_lines(a.body) if a else []
+        kb, ka = scl_tokens(b, bl, bblock), scl_tokens(a, al, ablock)
         if b and a and b.lang != a.lang:
             bl = ['(%s network)' % b.lang] + bl
-        body = scl_table(bl, al)
+            kb = kb and [None] + kb
+        body = scl_table(bl, al, kb=kb, ka=ka)
     return '<div class="nw">%s%s%s</div>' % (head, _comment(pair), body)
 
 
