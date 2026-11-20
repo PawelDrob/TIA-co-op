@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, with what its fingerprint and compare calls answer, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T02:18:46-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T02:27:34-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -381,7 +381,7 @@ imported as `.s7dcl` or SimaticML. Fingerprints were read on the project before 
 compared the project after it with a retrieved archive of the state before `[PROBE]`. TiaBridge uses none of these calls.
 
 **`FingerprintProvider.GetFingerprints()`** (service of a block or PLC data type) answers `Fingerprint` items, `Id` and
-`Value`; every value read was 28 characters of base64 (20 bytes).
+`Value`; every value read was 20 bytes in base64.
 
 - **What moved:** `Code` and `ProgramCode` for a LAD, STL or SCL statement and an OB's LAD network; an FBD statement was
   not tried. `Code` only for an SCL comment: it did not move `Comments`. `Comments` for a block title, a block comment, an
@@ -393,26 +393,23 @@ compared the project after it with a retrieved archive of the state before `[PRO
   left the fingerprints of the FB and the DBs using it as they were; an input added to an FB moved its instance DBs'
   `Interface`.
 - **A setting none of them saw:** an instance DB's `S7_StandardRetain` set from FALSE to TRUE. The `.s7dcl` export writes
-  it, and the export after the import read TRUE again. No fingerprint moved, nor `PlcSoftware.CompareTo`; of the 30
-  attributes `GetAttributeInfos` lists on that DB only its four dates moved (`CreationDate`, `ModifiedDate`,
-  `CodeModifiedDate`, `CompileDate`).
-- **Categories by kind:** on the test PLC, 246 blocks, 6 data types and 228 system blocks. `Interface` and `Properties`
-  on all; `Comments` on every block and data type but the F-OB, also on the 59 whose `.s7dcl` export has no `.s7res`,
-  and on 9 system blocks; `Code` on 225 blocks, on no DB, data type or system block, nor the F-OB; `ProgramCode` on 208
-  of them, the other 17 being F-blocks; `Events` on the two OBs; `LibraryType` on 10 instances of library types. A
-  category an object lacks says nothing about a change.
+  it, and the export after the import read TRUE again. No fingerprint moved, nor `PlcSoftware.CompareTo`; of the
+  attributes `GetAttributeInfos` lists on that DB only its dates moved.
+- **Categories by kind:** `Interface` and `Properties` on every block, data type and system block. `Comments` on the
+  blocks and data types, also on those whose `.s7dcl` export has no `.s7res`, but not on the F-OB, and on few system
+  blocks. `Code` on code blocks, not on DBs, data types, system blocks or the F-OB; F-blocks have `Code` without
+  `ProgramCode`. `Events` on OBs, `LibraryType` on instances of library types. A category an object lacks says nothing
+  about a change.
 - **Fails:** a block that is not consistent throws: *The block or PLC data type (UDT) '...' is inconsistent. Checksums can
   only be formed for consistent blocks.* A block left so by a change elsewhere loses its fingerprints with nothing of its
-  own changed: a tag table imported in an older state left three other blocks so. A tag table has no provider
-  (`GetService` gives null). In a project opened as secondary every call throws: *The operation is not permitted in a
-  read-only context.*
-- **Cost:** 3 to 225 ms an object, median 6; the whole PLC 4.3 to 8.7 s. The first read after opening the project was
-  the slowest of its session in four of six sessions (7.9 to 8.7 s); later reads took 4.3 to 8.0 s, and in the longest
-  session (37 reads) they rose from 5.4 s after its first read to 7.2 s at its end.
+  own changed: a tag table imported in an older state left other blocks so. A tag table has no provider (`GetService`
+  gives null). In a project opened as secondary every call throws: *The operation is not permitted in a read-only
+  context.*
+- **Cost:** milliseconds an object; seconds for every block, data type and system block of the test PLC, a few hundred.
 
 **`PlcSoftware.CompareTo(ISoftwareCompareTarget)`**, tried with another PLC's software and with the project library. Two
 offline PLCs: the second one opened as a secondary project in the same TIA, `Projects.Open(path, null,
-ProjectOpenMode.Secondary)`, 0.3 to 0.4 s. An archive of the saved project (`Project.Archive`, its name given with
+ProjectOpenMode.Secondary)`, in under a second. An archive of the saved project (`Project.Archive`, its name given with
 `.zap20`) retrieved as secondary, `Projects.Retrieve(..., null, ProjectOpenMode.Secondary)`, compared identical with the
 state it was taken from every time.
 
@@ -425,19 +422,20 @@ state it was taken from every time.
   tag table). A member added to a data type, and a member comment, also marked the FB and the DBs using it; an input
   added to an FB also marked its instance DBs. That FB's caller, not consistent both in the archive and after the change,
   its own content unchanged, read identical.
-- **Cost:** the call 41 to 51 ms the first time in a session, 2 to 8 ms after; reading the tree of 752 elements (753
-  with a change) 1.9 to 4.9 s. Archive of the test project 3.9 to 5.9 s, its retrieve 0.5 to 0.7 s.
-- **Against the project library** (`CompareTo(project.ProjectLibrary)`): instances of released type versions and objects
-  named as a master copy's object were compared with them: 8 `ObjectsIdentical` (5 instances, a block, a tag table and a
-  data type of master copies), one block `ObjectsDifferent` against a master copy's block of its name. Released types
-  without an instance read `LeftMissing` (12); plain objects and the instances of versions in work `RightMissing` (716).
-  The Program blocks folder itself read `ObjectsDifferent`, with elements below it.
+- **Cost:** between two PLCs, tens of milliseconds the first call of a session and a few milliseconds each call after;
+  seconds to read the whole tree of the test PLC. An archive of the test project took seconds, its retrieve under a
+  second.
+- **Against the project library** (`CompareTo(project.ProjectLibrary)`): instances of released type versions, and objects
+  of the name of an object in a master copy, were compared with those: identical, or `ObjectsDifferent` where they
+  differ. Released types without an instance read `LeftMissing`; plain objects and the instances of versions in work
+  `RightMissing`. The Program blocks folder itself read `ObjectsDifferent`, with elements below it. A few milliseconds
+  the call, seconds the tree.
 
 **`LibraryTypeVersion.CompareTo(LibraryTypeVersion)`** of two versions in one project library answered seven properties:
 `GUID of version object`, `Version Number`, `Is Default Version`, `Version author`, `Version comment`, `Modified Time`,
 `Original Library` (`NotCompared`). Not the content: two versions differing by a member read different in GUID, number,
-comment and time only. 8 to 65 ms a pair. `LibraryType.CompareTo` and `LibraryTypeVersion.CompareTo` against a type in a
-secondary project throw *The operation is not permitted in a read-only context.*
+comment and time only. Milliseconds a pair. `LibraryType.CompareTo` and `LibraryTypeVersion.CompareTo` against a type in
+a secondary project throw *The operation is not permitted in a read-only context.*
 
 Not tried: a project with a second language (an OB's `Comments` with the project's languages changed), an OB's event,
 GRAPH, alarms, supervisions, technology objects, software units, a library link or version changed on an instance (the
