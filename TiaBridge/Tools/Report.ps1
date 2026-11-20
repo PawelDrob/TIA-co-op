@@ -93,8 +93,7 @@ function Invoke-ChangeReportTool($a) {
     $out = @{ ok = $true; page = (ConvertTo-RepoRelative $repo $res.page); before = $res.before; after = $res.after
               blocks = @($res.blocks) }
     # the PLC tag tables, the HMI objects (screens, tag tables, ... of hmi\ and project\graphics\), files TiaChangeReports
-    # could not read, the blocks compared between .s7dcl and SimaticML, and names in blocks that match nothing: only when
-    # there are
+    # could not read, the blocks compared between .s7dcl and SimaticML, names in blocks that match nothing: only when any
     if (@($res.plcTags | Where-Object { $_ }).Count) { $out.plcTags = @($res.plcTags) }
     if (@($res.hmi | Where-Object { $_ }).Count) { $out.hmi = @($res.hmi) }
     if ($res.skipped) { $out.skipped = @($res.skipped) }

@@ -1047,11 +1047,11 @@ FROM_COMMITS = ('This report reads what was exported and committed to a git repo
 FROM_WORKING_TREE = 'This report reads what was exported to a git repo. A change in TIA that was never exported is not in it.'
 
 
-OTHER_FILES_SHOWN = 10                                  # more fold behind a count per kind
+NAMES_SHOWN = 10                                        # of the other files or the blocks across formats: more fold
 
 
 def _other_files_html(paths):
-    """The line "n other files changed, not read" with the paths; over OTHER_FILES_SHOWN of them, a count per kind
+    """The line "n other files changed, not read" with the paths; over NAMES_SHOWN of them, a count per kind
     (the extension, else the file name) and the paths folded open on a click."""
     kinds = collections.Counter(os.path.splitext(p)[1].lower() or p.rsplit('/', 1)[-1] for p in paths)
     count = ', '.join('%d %s' % (n, kind) for kind, n in sorted(kinds.items(), key=lambda x: (-x[1], x[0])))
@@ -1060,7 +1060,7 @@ def _other_files_html(paths):
 
 def _across_html(names):
     """The line of the blocks compared between the two formats, by what the report reads of them, and what that leaves
-    out (compare.file_note); over OTHER_FILES_SHOWN of them the names fold open on a click."""
+    out (compare.file_note); over NAMES_SHOWN of them the names fold open on a click."""
     one = len(names) == 1
     return _names_html('%d block%s compared between .s7dcl and SimaticML by what this report reads of %s; a field it does '
                        'not read, or one only one of the two formats writes, is not compared: '
@@ -1068,8 +1068,8 @@ def _across_html(names):
 
 
 def _names_html(head, names, folded):
-    """head, then the names; over OTHER_FILES_SHOWN of them head and folded, the names folded open on a click."""
-    if len(names) <= OTHER_FILES_SHOWN:
+    """head, then the names; over NAMES_SHOWN of them head and folded, the names folded open on a click."""
+    if len(names) <= NAMES_SHOWN:
         return '<div class="empty">%s%s</div>' % (escape(head), escape(', '.join(names)))
     return ('<details class="empty oth"><summary>%s%s</summary><div>%s</div></details>'
             % (escape(head), escape(folded), escape(', '.join(names))))

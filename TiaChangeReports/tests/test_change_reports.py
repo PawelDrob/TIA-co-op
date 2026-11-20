@@ -9392,9 +9392,10 @@ class RungsThatFeedPins(unittest.TestCase):
     and from two SimaticML of one network. What a user orders keeps its order: the branches of an OR on a pin swapped
     are 'other order', in each format and across the two."""
 
-    def xml(self, b_first=True, big_first=True):
+    def xml(self, b_first=True, big_first=True, a='a', b='b'):
         """#start then the call of #inst on the rail; its pin a fed by #stop, its pin b by the OR of #big and #latch
-        (big_first: #big on the O's first input). b_first: the wires of pin b stand before those of pin a."""
+        (big_first: #big on the O's first input). b_first: the wires of pin b stand before those of pin a. a, b: the pins
+        #stop and the OR feed ('b', 'a': each on the other pin)."""
         n = NegatedPins('test_taken_away')
         parts = ('<Part Name="Contact" UId="30" /><Call UId="31"><CallInfo Name="Callee" BlockType="FB">'
                  '<Instance Scope="LocalVariable" UId="36"><Component Name="inst" /></Instance>'
@@ -9403,8 +9404,8 @@ class RungsThatFeedPins(unittest.TestCase):
                  '<Part Name="Contact" UId="34" /><Part Name="O" UId="35">'
                  '<TemplateValue Name="Card" Type="Cardinality">2</TemplateValue></Part>')
         first, second = (34, 33) if big_first else (33, 34)
-        pin_a = [n.flow(32, 'out', 31, 'a')]
-        pin_b = [n.flow(35, 'out', 31, 'b'), n.flow(first, 'out', 35, 'in1'), n.flow(second, 'out', 35, 'in2')]
+        pin_a = [n.flow(32, 'out', 31, a)]
+        pin_b = [n.flow(35, 'out', 31, b), n.flow(first, 'out', 35, 'in1'), n.flow(second, 'out', 35, 'in2')]
         wires = (['<Powerrail /><NameCon UId="30" Name="in" /><NameCon UId="32" Name="in" /><NameCon UId="33" Name="in" />'
                   '<NameCon UId="34" Name="in" />', n.op(21, 30, 'operand'), n.flow(30, 'out', 31, 'en')]
                  + (pin_b + pin_a if b_first else pin_a + pin_b)
@@ -9412,14 +9413,15 @@ class RungsThatFeedPins(unittest.TestCase):
         return _xml_src(n.net(parts, wires, 'LAD'))
 
     @staticmethod
-    def sd(big_first=True):
-        """The same network as the SD export writes it: the rungs of pin a, then of pin b."""
+    def sd(big_first=True, swapped=False):
+        """The same network as the SD export writes it: the rungs of pin a, then of pin b. swapped: #stop on pin b and
+        the OR on pin a."""
         first, second = ('#big', '#latch') if big_first else ('#latch', '#big')
-        return NoteAcrossTheFormats.sd(
-            'Contact( #start )', '#inst(', '    a := wire#w1,', '    b := wire#w2', ')',
-            after=('RUNG wire#powerrail', '    Contact( #stop )', 'END_RUNG wire#w1',
-                   'RUNG wire#powerrail', '    Contact( %s )' % first, 'END_RUNG wire#w2',
-                   'RUNG wire#powerrail', '    Contact( %s )' % second, 'END_RUNG wire#w2'))
+        stop = ('RUNG wire#powerrail', '    Contact( #stop )', 'END_RUNG wire#%s' % ('w2' if swapped else 'w1'))
+        ors = ('RUNG wire#powerrail', '    Contact( %s )' % first, 'END_RUNG wire#%s' % ('w1' if swapped else 'w2'),
+               'RUNG wire#powerrail', '    Contact( %s )' % second, 'END_RUNG wire#%s' % ('w1' if swapped else 'w2'))
+        return NoteAcrossTheFormats.sd('Contact( #start )', '#inst(', '    a := wire#w1,', '    b := wire#w2', ')',
+                                       after=ors + stop if swapped else stop + ors)
 
     @staticmethod
     def nets(b, a):
@@ -9434,7 +9436,7 @@ class RungsThatFeedPins(unittest.TestCase):
         self.assertEqual([], self.nets(self.sd(), self.xml()))
 
     def test_from_two_simaticml_with_the_wires_in_another_order_in_no_other_order(self):
-        """Nothing marked and no other order. The network's note on its file's order is ticket 351's."""
+        """Nothing marked and no other order. The network's note on its file's order is another cause, left as it is."""
         for p in self.nets(self.xml(b_first=False), self.xml()):
             self.assertEqual((p.reordered, RungOrderMarks.marks(self, p)), (False, ([], [])))
 
@@ -9448,6 +9450,17 @@ class RungsThatFeedPins(unittest.TestCase):
                 (p,) = self.nets(b, a)
                 self.assertEqual((p.state, p.reordered), ('changed', True))
                 self.assertEqual(RungOrderMarks.marks(self, p), (['#big', '#latch'], ['#big', '#latch']))
+
+    def test_the_logic_of_two_pins_swapped_is_marked(self):
+        """#stop and the OR each moved to the other pin: connected otherwise, all three marked moved, no other order."""
+        for name, b, a in (('.s7dcl', self.sd(), self.sd(swapped=True)),
+                           ('SimaticML', self.xml(), self.xml(a='b', b='a')),
+                           ('across', self.sd(), self.xml(a='b', b='a')),
+                           ('across, back', self.xml(a='b', b='a'), self.sd())):
+            with self.subTest(name):
+                (p,) = self.nets(b, a)
+                self.assertEqual((p.state, p.reordered), ('changed', False))
+                self.assertEqual(RungOrderMarks.marks(self, p), (['#big', '#latch', '#stop'],) * 2)
 
 
 class DeclaredName(unittest.TestCase):

@@ -182,6 +182,7 @@ def main(argv=None):
         print('--network %s: no network of that title%s' % (_arg(title), ' in the given blocks' if a.block else ''),
               file=sys.stderr)
     full = bool(a.block or a.network) or a.all
+    across = list(dict.fromkeys(across))                 # each name once, whichever input pairs hold it
     html = render(diffs, '; '.join(lb), '; '.join(la), fragment=a.fragment, title=a.title,
                   full=full, hmi=part, lang=a.lang, draw_added_removed=a.draw_added_removed, plc_tags=tag_part,
                   not_compared=not_compared_files, source_note=_source_note(a.git),
