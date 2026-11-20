@@ -126,15 +126,36 @@ Describe 'change_report' {
         @((Invoke-Report $repo).otherFiles) | Should Be 'library/mastercopies/mastercopies.json'
     }
 
-    It 'names the blocks compared between the two formats, and leaves acrossFormats out when there are none' {
+    # zzBenTimers of the two-format run, its .s7dcl and its SimaticML of one commit
+    $script:TwoFormats = Join-Path $here '..\..\TiaChangeReports\tests\fixtures\twoformats\1-before'
+
+    It 'names a block switched to the other format by its name, and leaves acrossFormats out when there is none' {
         $repo = New-ReportRepo 'Across'
         (Invoke-Report $repo).ContainsKey('acrossFormats') | Should Be $false
-        $xml = Join-Path $here '..\..\TiaChangeReports\tests\fixtures\twoformats\1-before\simaticml\plc\blocks\zzBenchmark\zzBenTimers.xml'
-        Copy-Item $xml (Join-Path $repo 'plc\A.xml')
+        foreach ($ext in '.s7dcl', '.s7res') {
+            Copy-Item (Join-Path $script:TwoFormats "plc\blocks\zzBenchmark\zzBenTimers$ext") (Join-Path $repo "plc\zzBenTimers$ext")
+        }
+        Invoke-FixtureGit $repo add -A
+        Invoke-FixtureGit $repo commit -q -m three
+        Copy-Item (Join-Path $script:TwoFormats 'simaticml\plc\blocks\zzBenchmark\zzBenTimers.xml') (Join-Path $repo 'plc\zzBenTimers.xml')
+        Remove-Item (Join-Path $repo 'plc\zzBenTimers.s7dcl'), (Join-Path $repo 'plc\zzBenTimers.s7res')
+        Invoke-FixtureGit $repo add -A
+        Invoke-FixtureGit $repo commit -q -m four
+        $r = Invoke-Report $repo
+        @($r.blocks).Count | Should Be 0
+        @($r.acrossFormats) | Should Be 'zzBenTimers'
+    }
+
+    It 'names a block renamed as it switched to the other format by its heading on the page, old and new name' {
+        $repo = New-ReportRepo 'AcrossRenamed'
+        Copy-Item (Join-Path $script:TwoFormats 'simaticml\plc\blocks\zzBenchmark\zzBenTimers.xml') (Join-Path $repo 'plc\A.xml')
         Remove-Item (Join-Path $repo 'plc\A.s7dcl'), (Join-Path $repo 'plc\A.s7res')
         Invoke-FixtureGit $repo add -A
         Invoke-FixtureGit $repo commit -q -m three
-        @((Invoke-Report $repo).acrossFormats) | Should Be 'A'
+        $r = Invoke-Report $repo
+        $r.blocks[0].name | Should Be 'zzBenTimers'
+        $r.blocks[0].was | Should Be 'A'
+        @($r.acrossFormats) | Should Be "A $([char]0x2192) zzBenTimers"
     }
 
     It 'names skipped files and leaves skipped and unmatched out when there are none' {
