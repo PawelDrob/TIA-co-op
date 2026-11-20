@@ -2015,6 +2015,26 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
                                  'DECO(', '    in := #start', ')')
         self.assertEqual(deco.templates, {'return_type': 'Array[0..1, 0..2] of Byte'})
         self.assertIn('{ S7_Templates := "return_type := Array[0..1, 0..2] of Byte" }', lad_lines(net.body))
+        _, (mid,) = self.read('{ S7_Templates := "value_type := String[10]" }', 'MID(', '    IN := #start', ')')
+        self.assertEqual(mid.templates, {'value_type': 'String[10]'})       # one value ending in a bracket: whole
+
+    def test_a_pragma_at_the_fixed_value_added_alone_leaves_the_block_the_same(self):
+        """From .s7dcl to .s7dcl, nothing changed but a pragma at the type TUSEND fixes: the block is the same, no note."""
+        before = self.sd_rung('TUSEND(', '    REQ := #start', ')')
+        after = self.sd_rung('{ S7_Templates := "value_type := UDInt" }', 'TUSEND(', '    REQ := #start', ')')
+        d = compare_blocks(before, after, 'plc/blocks/Main.s7dcl', 'plc/blocks/Main.s7dcl')
+        self.assertTrue(d is None or (d.state, d.not_shown, [p.state for p in d.nets]) == ('same', False, []),
+                        d and (d.state, d.not_shown))
+
+    def test_only_the_template_the_element_left_out_goes_from_the_text(self):
+        """The reader takes the last S7_Templates before a box; only that one, at the value left out, goes from the text."""
+        for pragmas in (['{ S7_Templates := "value_type := UInt" }', '{ S7_Templates := "value_type := UDInt" }'],
+                        ['{ S7_Templates := "value_type := UInt"; S7_Templates := "value_type := UDInt" }']):
+            with self.subTest(pragmas):
+                net, (tusend,) = self.read(*pragmas + ['TUSEND(', '    REQ := #start', ')'])
+                self.assertEqual(tusend.templates, {})
+                self.assertIn('S7_Templates := "value_type := UInt"', net.body)
+                self.assertNotIn('UDInt', net.body)
 
     def test_a_comment_line_stays_as_it_is(self):
         net, _ = self.read('// S7_Templates := "value_type := UDInt"', 'TUSEND(', '    REQ := #start', ')')

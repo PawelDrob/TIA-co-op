@@ -560,9 +560,9 @@ def parse_lad(body, prefix, itf=None):
 
 def lad_read(body, prefix, itf=None):
     """(the rungs of a LAD network, its text as read): the text with each template the reader leaves out of a box (a
-    type at the value its instruction fixes, instructions.left_out) taken out of that box's S7_Templates as well, and
-    a pragma left empty gone, so that its lines, its part of the file and its units (beside.py) read as its element
-    does; body itself where nothing is left out."""
+    template at the value its instruction fixes: a type, or Sub, Div and Mod's Card 2; instructions.left_out) taken out
+    of the S7_Templates the box was read from, the last before it, and a pragma left empty gone, so that its lines, its
+    part of the file and its units (beside.py) read as its element does; body itself where nothing is left out."""
     rungs = []
     cur = None
     pend, pend_at = {}, []                        # the pragmas before the next element, and their lines [start, end)
@@ -625,11 +625,13 @@ def lad_read(body, prefix, itf=None):
             templates['relation'] = pend['S7_Relation']
         n += 1
         el = _element('%s%d' % (prefix, n), head, params, templates, itf)
-        gone = {k for k, v in written.items() if instructions.left_out(el.instr, k, v)}     # as the SimaticML reader
-        el.templates = {k: v for k, v in el.templates.items() if k not in gone}
-        if gone:
-            for start, end in pend_at:
-                rewritten[start] = (end, _without_templates(lines[start:end], gone))
+        gone = {(k, v) for k, v in written.items() if instructions.left_out(el.instr, k, v)}     # as the SimaticML reader
+        el.templates = {k: v for k, v in el.templates.items() if (k, v) not in gone}
+        for start, end in reversed(pend_at if gone else []):     # the pragma the box's S7_Templates was read from
+            read = _without_templates(lines[start:end], gone)
+            if read is not None:
+                rewritten[start] = (end, read)
+                break
         _fill_f_type(el, pend, itf)
         el.expression = pend.get('S7_Expression')
         eno = pend.get('S7_GenerateENO', '').upper()      # Calculate: ENO off unless generated [INFERRED], 8.6
@@ -682,13 +684,14 @@ _S7_TEMPLATES = re.compile(r'(;\s*)?S7_Templates\s*:=\s*"([^"]*)"(\s*;\s*)?')
 
 
 def _without_templates(lines, gone):
-    """A pragma's lines with the templates `gone` taken out of its S7_Templates, the setting gone with the last of
-    them, the pragma gone when nothing is left in it."""
+    """A pragma's lines with the templates `gone`, (template, value), taken out of its last S7_Templates (the one the
+    reader keeps), the setting gone with the last of them, the pragma gone when nothing is left in it; None for a
+    pragma without S7_Templates."""
     text = '\n'.join(lines)
-    m = _S7_TEMPLATES.search(text)
+    m = ([None] + list(_S7_TEMPLATES.finditer(text)))[-1]
     if m is None:
-        return lines
-    kept = {k: v for k, v in _templates_value(m.group(2)).items() if k not in gone}
+        return None
+    kept = {k: v for k, v in _templates_value(m.group(2)).items() if (k, v) not in gone}
     if kept:
         setting = '%sS7_Templates := "%s"%s' % (m.group(1) or '', _templates_text(kept), m.group(3) or '')
     else:                                         # between two settings, one separator stays
@@ -813,6 +816,17 @@ def parse_block(src, lang=None):
     itf = parse_interface(body, res, db=kind == 'DATA_BLOCK')
     nets = [network(k, m.group(1), m.group(2), res, itf, tag) for k, m in enumerate(_NET.finditer(text), 1)]
     return Block(object_name(src.name, declared_name(text)), src.label, itf, nets, kind, decl, props)
+
+
+def text_as_read(src):
+    """An .s7dcl's text with each network's lines as its network reads them (network(): a LAD network's lad_read), the
+    rest as it stands: the file itself where no network leaves anything out."""
+    text = src.s7dcl
+    out, at = [], 0
+    for m, net in zip(_NET.finditer(text), parse_block(src).networks):
+        out += [text[at:m.start(2)], net.raw[2]]
+        at = m.end(2)
+    return ''.join(out) + text[at:]
 
 
 def network(k, pragma, body, res, itf, tag):

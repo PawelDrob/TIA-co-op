@@ -600,11 +600,12 @@ def _moved(path_b, path_a):
 
 
 def _resolved(src):
-    """An .s7dcl's text with every language's text in place of its MLC keys and its wires numbered in each network (TIA
-    numbers both per copy; which wire connects what stays)."""
-    from .s7dcl import all_texts
+    """An .s7dcl's text as read (s7dcl.text_as_read: a template at the value its box's instruction fixes left out), with
+    every language's text in place of its MLC keys and its wires numbered in each network (TIA numbers both per copy;
+    which wire connects what stays)."""
+    from .s7dcl import all_texts, text_as_read
     res = all_texts(src.s7res)
-    text = re.sub(r'"([^"\n]*)"', lambda m: repr(res.get(m.group(1), m.group(1))), src.s7dcl)
+    text = re.sub(r'"([^"\n]*)"', lambda m: repr(res.get(m.group(1), m.group(1))), text_as_read(src))
     return ''.join(_numbered(p) for p in re.split(r'(?<=END_NETWORK)', text))
 
 
@@ -741,11 +742,11 @@ def _around_networks(src, ids):
     """An .s7dcl's networks and what stands around them, in order: ('net', its text, its pair), each pragma block
     ('pragma', settings) and line ('line', text) before the first network after the interface's last line, between
     networks and after the last; the texts for their keys, without the layout and the block's END_ line, which its kind
-    tells. ids: {network number: its pair}."""
-    from .s7dcl import _NET, _pragmas, parse_res
+    tells; a network's text as read (s7dcl.text_as_read). ids: {network number: its pair}."""
+    from .s7dcl import _NET, _pragmas, parse_res, text_as_read
     from .source import _PRAGMA
     res = parse_res(src.s7res)
-    text = src.s7dcl
+    text = text_as_read(src)
     nets = list(_NET.finditer(text))
 
     def tokens(part, last_only=False):
