@@ -1964,29 +1964,45 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
     and Mod unchanged), is no change."""
 
     @staticmethod
-    def block(part, templates, pins=('in',)):
-        """A block whose first network holds the box alone on the rail, read from SimaticML, #start on each of pins,
-        #big on its out; no calls."""
+    def xml_src(part, templates, pins=('in',)):
+        """A block whose first network holds the box alone on the rail, as SimaticML, #start on each of pins, #big on its
+        out."""
         n = NegatedPins('test_taken_away')
         tvs = ''.join('<TemplateValue Name="%s" Type="Type">%s</TemplateValue>' % kv for kv in templates)
-        text = n.net('<Part Name="%s" UId="25">%s</Part>' % (part, tvs),
-                     ['<Powerrail /><NameCon UId="25" Name="en" />'] + [n.op(21, 25, p) for p in pins]
-                     + ['<NameCon UId="25" Name="out" /><IdentCon UId="23" />'], 'LAD')
-        blk = parse_block(_xml_src(text))
+        return _xml_src(n.net('<Part Name="%s" UId="25">%s</Part>' % (part, tvs),
+                              ['<Powerrail /><NameCon UId="25" Name="en" />'] + [n.op(21, 25, p) for p in pins]
+                              + ['<NameCon UId="25" Name="out" /><IdentCon UId="23" />'], 'LAD'))
+
+    @staticmethod
+    def sd_src(instr, pins=('in',), templates=''):
+        """The same box as .s7dcl writes it, in a network of xml_src's title: no template, else templates as its
+        S7_Templates."""
+        lines = ['                %s := #start,' % p for p in pins] + ['                out => #big']
+        pragma = '            { S7_Templates := "%s" }\n' % templates if templates else ''
+        return src('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD"; S7_NetworkTitle := "MLC_2" }\n    NETWORK\n'
+                   '        RUNG wire#powerrail\n'
+                   '%s            %s(\n%s\n            )\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
+                   % (pragma, instr, '\n'.join(lines)), name='Main')
+
+    @staticmethod
+    def parsed(source):
+        """The block of a source, no calls."""
+        blk = parse_block(source)
         blk.callees = None
         return blk
 
+    def block(self, part, templates, pins=('in',)):
+        return self.parsed(self.xml_src(part, templates, pins))
+
+    def sd_block(self, instr, pins=('in',), templates=''):
+        return self.parsed(self.sd_src(instr, pins, templates))
+
     @staticmethod
-    def sd_block(instr, pins=('in',), templates=''):
-        """The same box read from .s7dcl, as the .s7dcl writes it: no template, else templates as its S7_Templates."""
-        lines = ['                %s := #start,' % p for p in pins] + ['                out => #big']
-        pragma = '            { S7_Templates := "%s" }\n' % templates if templates else ''
-        text = ('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD" }\n    NETWORK\n        RUNG wire#powerrail\n'
-                '%s            %s(\n%s\n            )\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
-                % (pragma, instr, '\n'.join(lines)))
-        blk = parse_block(src(text, '', 'Main'))
-        blk.callees = None
-        return blk
+    def across(sd, xml):
+        """(state, note) of the first network in the report from the .s7dcl source sd to the SimaticML source xml."""
+        d = compare_blocks(sd, xml, 'plc/blocks/Main.s7dcl', 'plc/blocks/Main.xml', all_=True)
+        (p,) = [p for p in d.nets if p.before and p.before.index == 1]
+        return p.state, p.not_shown
 
     @staticmethod
     def box(net):
@@ -2026,15 +2042,20 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
 
     def test_a_fixed_template_the_s7dcl_writes_reads_as_left_out_too(self):
         """Should a .s7dcl write a template at the value its instruction fixes, it reads as one that writes none: the box is
-        the one read from SimaticML; another value stays."""
+        the one read from SimaticML, and in the report from one to the other the network is the same, with no note.
+        Another value stays, and the network is changed."""
         for part, template, value in FIXED_TEMPLATES:
             instr = instructions.sd_name(part)
             with self.subTest(part, template=template):
-                sd = self.box(self.sd_block(instr, ('REQ',), '%s := %s' % (template, value)).networks[0])
-                self.assertNotIn(template, sd.templates)
-                self.assertEqual(sd.sig(), self.box(self.sd_block(instr, ('REQ',)).networks[0]).sig())
-                self.assertEqual(self.box(self.sd_block(instr, ('REQ',), '%s := DB_ANY' % template).networks[0])
-                                 .templates[template], 'DB_ANY')
+                xml = self.xml_src(part, [(template, value)], ('REQ',))
+                sd = self.sd_src(instr, ('REQ',), '%s := %s' % (template, value))
+                s = self.box(self.parsed(sd).networks[0])
+                self.assertNotIn(template, s.templates)
+                self.assertEqual(s.sig(), self.box(self.parsed(xml).networks[0]).sig())
+                self.assertEqual(self.across(sd, xml), ('same', False))
+                other = self.sd_src(instr, ('REQ',), '%s := DB_ANY' % template)
+                self.assertEqual(self.box(self.parsed(other).networks[0]).templates[template], 'DB_ANY')
+                self.assertEqual(self.across(other, xml)[0], 'changed')
 
     def test_another_value_across_the_formats_is_a_change_drawn_on_both_sides(self):
         """TUSEND with value_type UInt in SimaticML against its .s7dcl, which writes none (UDInt, the fixed one): the network
@@ -2079,11 +2100,8 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
     def test_deco_reads_alike_from_both_formats(self):
         """zzLadWordLogic network 5: SimaticML writes value_type UInt and return_type Word, .s7dcl return_type alone."""
         x, xel = self.element('DECO', [('value_type', 'UInt'), ('return_type', 'Word')])
-        text = ('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD" }\n    NETWORK\n        RUNG wire#powerrail\n'
-                '            { S7_Templates := "return_type := Word" }\n            DECO(\n                in := #start,\n'
-                '                out => #big\n            )\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n')
-        s = parse_block(src(text, '', 'Main')).networks[0]
-        (sel,) = [x for r in s.rungs for x in r.items if isinstance(x, Element)]
+        s = self.sd_block('DECO', templates='return_type := Word').networks[0]
+        sel = self.box(s)
         self.assertEqual(sel.sig(), xel.sig())
         self.assertFalse(NetDiff(Graph(x.rungs), Graph(s.rungs)).changed)
         self.assertIn('S7_Templates := "return_type := Word"', x.body)

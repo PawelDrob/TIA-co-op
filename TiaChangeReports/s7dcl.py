@@ -814,10 +814,42 @@ def lad_lines(body):
     indentation, the trailing comma an XML export writes after the last parameter, a space after an empty output, the
     order of a box's named pins and the case of their names, the quotes round a plain name in an operand:
     operand_text, a comment line aside)."""
-    lines = [re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()]
+    lines = _fixed_templates_out([re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()])
     lines = [l if l.startswith('//') else operand_text(l) for l in lines]
     lines = _pins_in_one_order(_pins_in_one_case([l for l in lines if l]))
     return numbered('\n'.join(lines)).split('\n') if lines else []
+
+
+_TEMPLATES = re.compile(r'S7_Templates\s*:=\s*"([^"]*)"\s*;?\s*')
+_HEAD = re.compile(r'^([^\s({]+)\(')
+
+
+def _fixed_templates_out(lines):
+    """A LAD network's lines with each template of an S7_Templates at the value its box's instruction fixes left out
+    (instructions.left_out), as the reader leaves it out of the element and the SimaticML reader out of its text; a
+    pragma left empty goes. The box is the next line that opens one: its instruction is the head's last part (#i.TUSEND)."""
+    out, skip = [], False
+    for k, line in enumerate(lines):
+        m = _TEMPLATES.search(line)
+        if skip or not m:
+            out += [] if skip else [line]
+            skip = False
+            continue
+        head = next((h.group(1) for h in map(_HEAD.match, lines[k + 1:]) if h), '')
+        pairs = [[x.strip() for x in kv.split(':=', 1)] for kv in m.group(1).strip('[] ').split(',') if ':=' in kv]
+        kept = ['%s := %s' % (n, v) for n, v in pairs if not instructions.left_out(head.rpartition('.')[2], n, v)]
+        if len(kept) == len(pairs):
+            out.append(line)
+            continue
+        value = ('[%s]' if len(kept) > 1 else '%s') % ', '.join(kept)
+        line = line[:m.start()] + ('S7_Templates := "%s"; ' % value if kept else '') + line[m.end():]
+        line = re.sub(r';\s*\}$', ' }', line).strip()
+        if line and not re.fullmatch(r'\{\s*\}', line):
+            out.append(line)
+        elif out and out[-1] == '{' and lines[k + 1:k + 2] == ['}']:      # a pragma of its own lines, now empty
+            out.pop()
+            skip = True
+    return out
 
 
 def texts_for_keys(s, res):
