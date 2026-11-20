@@ -266,14 +266,16 @@ def _side_lines(net, blk):
 
 
 def scl_colours_differ(d):
-    """The networks of a block read from .s7dcl on one side and SimaticML on the other whose SCL lines are the same and
-    are coloured otherwise: [their keys as _net makes them: number before, number after, title]."""
+    """The networks of a block read from .s7dcl on one side and SimaticML on the other where an SCL line of the same
+    text on both sides is coloured otherwise (a line the readers write otherwise is the lines' cause, not this one):
+    [their keys as _net makes them: number before, number after, title]."""
     out = []
     for nb, na in zip(d.before.networks, d.after.networks):
         if nb.lang != 'SCL' or na.lang != 'SCL':
             continue
         (bl, kb), (al, ka) = _side_lines(nb, d.before), _side_lines(na, d.after)
-        if bl == al and kb != ka:
+        same = difflib.SequenceMatcher(None, bl, al, autojunk=False).get_matching_blocks()
+        if any(kb[i + k] != ka[j + k] for i, j, n in same for k in range(n)):
             out.append((nb.index, na.index, na.title))
     return out
 

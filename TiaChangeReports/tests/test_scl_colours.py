@@ -226,18 +226,32 @@ class TheKindsAsReadFromTia(unittest.TestCase):
         self.assertEqual(seen - {None}, set(scl_colours.KINDS))       # the block holds every kind
 
 
+# The lines of zzBenSclColours the SimaticML reader writes otherwise than the .s7dcl holds them: ENO := FALSE; without
+# its ENO, a name with letters outside ASCII in quotes (#"statÄnderung"), a PLC data type after TypeOf without its
+# quotes. Their colours hold on the .s7dcl side (TheKindsAsReadFromTia); the colours follow the text either way.
+READ_OTHERWISE = {89: 'ENO := FALSE;', 91: '#statÄnderung := 1;', 92: 'ELSIF TypeOf(#ioVar) = "zzBenSclColType" THEN',
+                  93: '#statÄnderung := 2;', 96: '#statÜbung := #statÄnderung + 1;'}
+
+
+def both_formats():
+    """((lines, tokens) of the .s7dcl, (lines, tokens) of the SimaticML) of zzBenSclColours' network."""
+    out = []
+    for ext in ('.s7dcl', '.xml'):
+        b = colour_block(ext)
+        lines = scl_lines(b.networks[0].body)
+        out.append((lines, scl_colours.lines(lines, b.interface)))
+    return out
+
+
 class BothFormatsAlike(unittest.TestCase):
     def test_the_same_lines_get_the_same_colours_from_s7dcl_and_simaticml(self):
-        sd, xml = colour_block('.s7dcl'), colour_block('.xml')
-        got = [[scl_colours.lines(scl_lines(n.body), b.interface) for n in b.networks] for b in (sd, xml)]
-        self.assertEqual(len(got[0][0]), 104)
-        self.assertEqual(got[0], got[1])
-
-    def test_the_simaticml_reader_writes_eno_names_in_other_letters_and_a_data_type_as_the_sd_export(self):
-        lines = scl_lines(colour_block('.xml').networks[0].body)
-        for line in ('ENO := FALSE;', '#statÜbung := #statÄnderung + 1;', 'IF TypeOf(#ioVar) = Int THEN',
-                     'ELSIF TypeOf(#ioVar) = "zzBenSclColType" THEN'):
-            self.assertIn(line, [x.strip() for x in lines])
+        (ls, ks), (lx, kx) = both_formats()
+        self.assertEqual((len(ls), len(lx)), (104, 104))
+        self.assertEqual({k + 1: ls[k].strip() for k in range(104) if ls[k] != lx[k]}, READ_OTHERWISE)
+        for k in range(104):
+            if ls[k] == lx[k]:
+                with self.subTest(line=k + 1):
+                    self.assertEqual(ks[k], kx[k])
 
     def test_the_bed_names_a_network_coloured_otherwise(self):
         sd, xml = colour_block('.s7dcl'), colour_block('.xml')
@@ -412,7 +426,11 @@ class TheViewer(unittest.TestCase):
                 self.assertIn('<span class="sr">REGION</span> <span class="sc">Constants of each form</span>', drawn)
                 self.assertIsNone(COLOUR_SPAN.search(view.source_html(path)))
         sd, xml = (view.block_of(os.path.join(COLOURS, 'zzBenSclColours' + e))[0] for e in ('.s7dcl', '.xml'))
-        self.assertEqual(view.network_html(sd.networks[0], sd), view.network_html(xml.networks[0], xml))
+        rows = [re.findall(r'<tr><td class="ln">(\d+)</td><td>(.*?)</td></tr>', view.network_html(b.networks[0], b))
+                for b in (sd, xml)]
+        self.assertEqual(len(rows[0]), 104)
+        self.assertEqual([r for r in rows[0] if int(r[0]) not in READ_OTHERWISE],
+                         [r for r in rows[1] if int(r[0]) not in READ_OTHERWISE])
 
 
 if __name__ == '__main__':
