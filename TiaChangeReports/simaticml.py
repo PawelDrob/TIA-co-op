@@ -599,6 +599,7 @@ def _left_out(instr, kid):
     Read so, an element compares and its text reads as from .s7dcl; another value stays."""
     return _local(kid.tag) == 'TemplateValue' and instructions.left_out(instr, kid.get('Name'), (kid.text or '').strip())
 
+
 # parts whose single remaining operand is written inline, without a name
 INLINE = {'Contact', 'Coil', 'SCoil', 'RCoil', 'ResetIECTimerCoil', 'CuCoil', 'CdCoil', 'PBox', 'NBox'}
 

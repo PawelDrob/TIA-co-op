@@ -618,6 +618,7 @@ def parse_lad(body, prefix, itf=None):
             templates['relation'] = pend['S7_Relation']
         n += 1
         el = _element('%s%d' % (prefix, n), head, params, templates, itf)
+        el.templates = {k: v for k, v in el.templates.items() if not instructions.left_out(el.instr, k, v)}   # as SimaticML's
         _fill_f_type(el, pend, itf)
         el.expression = pend.get('S7_Expression')
         eno = pend.get('S7_GenerateENO', '').upper()      # Calculate: ENO off unless generated [INFERRED], 8.6

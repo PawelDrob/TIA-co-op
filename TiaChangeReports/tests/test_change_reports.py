@@ -1977,12 +1977,13 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
         return blk
 
     @staticmethod
-    def sd_block(instr, pins=('in',)):
-        """The same box read from .s7dcl, as the .s7dcl writes it: no template."""
+    def sd_block(instr, pins=('in',), templates=''):
+        """The same box read from .s7dcl, as the .s7dcl writes it: no template, else templates as its S7_Templates."""
         lines = ['                %s := #start,' % p for p in pins] + ['                out => #big']
+        pragma = '            { S7_Templates := "%s" }\n' % templates if templates else ''
         text = ('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD" }\n    NETWORK\n        RUNG wire#powerrail\n'
-                '            %s(\n%s\n            )\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
-                % (instr, '\n'.join(lines)))
+                '%s            %s(\n%s\n            )\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
+                % (pragma, instr, '\n'.join(lines)))
         blk = parse_block(src(text, '', 'Main'))
         blk.callees = None
         return blk
@@ -2022,6 +2023,28 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
                     drawn = self.drawn(xml, partner)
                     self.assertFalse([x for x in drawn if template in x or value in x], drawn)
                     self.assertEqual(drawn, self.drawn(sd, partner))
+
+    def test_a_fixed_template_the_s7dcl_writes_reads_as_left_out_too(self):
+        """Should a .s7dcl write a template at the value its instruction fixes, it reads as one that writes none: the box is
+        the one read from SimaticML; another value stays."""
+        for part, template, value in FIXED_TEMPLATES:
+            instr = instructions.sd_name(part)
+            with self.subTest(part, template=template):
+                sd = self.box(self.sd_block(instr, ('REQ',), '%s := %s' % (template, value)).networks[0])
+                self.assertNotIn(template, sd.templates)
+                self.assertEqual(sd.sig(), self.box(self.sd_block(instr, ('REQ',)).networks[0]).sig())
+                self.assertEqual(self.box(self.sd_block(instr, ('REQ',), '%s := DB_ANY' % template).networks[0])
+                                 .templates[template], 'DB_ANY')
+
+    def test_another_value_across_the_formats_is_a_change_drawn_on_both_sides(self):
+        """TUSEND with value_type UInt in SimaticML against its .s7dcl, which writes none (UDInt, the fixed one): the network
+        changed, each side drawing its own value."""
+        xml, sd = self.block('TUSEND', [('value_type', 'UInt')], ('REQ',)), self.sd_block('TUSEND', ('REQ',))
+        x, s = xml.networks[0], sd.networks[0]
+        self.assertNotEqual(self.box(x).sig(), self.box(s).sig())
+        self.assertTrue(NetDiff(Graph(s.rungs), Graph(x.rungs)).changed)
+        self.assertIn('value_type: UInt', self.drawn(xml, self.box(s)))
+        self.assertIn('value_type: UDInt', self.drawn(sd, self.box(x)))
 
     def test_the_type_tia_shows_under_the_name_stays_drawn_from_either_format(self):
         """RDREC: TIA writes Variant under the box's name; both formats draw it, the viewer and a report alike."""
@@ -2064,7 +2087,7 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
         self.assertEqual(sel.sig(), xel.sig())
         self.assertFalse(NetDiff(Graph(x.rungs), Graph(s.rungs)).changed)
         self.assertIn('S7_Templates := "return_type := Word"', x.body)
-        x2, xel2 = self.element('DECO', [('value_type', 'USInt'), ('return_type', 'Word')])
+        _, xel2 = self.element('DECO', [('value_type', 'USInt'), ('return_type', 'Word')])
         self.assertNotEqual(sel.sig(), xel2.sig())
 
     def arithmetic(self, part, card=None):
