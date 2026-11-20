@@ -11,20 +11,21 @@ open one: an instruction whose pins changed pairs with nothing, and its pin coun
 drawing shows.
 
 A pair that differs is tried alone: the version before with that one unit of the version after, read again, the unit
-keeping the object numbers it had; an .s7dcl statement also with only its pragmas of the version after. Read the same as
-before, the unit differs in what the report does not read. A unit one version has is left to what the report shows, as
-a part or instruction comes with its fields and pragmas; one around the network's source (a title or comment TIA writes
-empty, a field of the network) is tried too, taken out or put in. A pair that reads otherwise is no tag, also where the
-same unit holds a field the report does not read (an SCL operand's Scope beside its name). Two units that differ only
-together (a wire and the pin it reaches) are not tried together: one of them alone reads otherwise, so they are no
-tag."""
+keeping the object numbers it had; a SimaticML wire's ends reaching the parts of the version before that hold the same
+(_numbered_before), and no try where one reaches nothing there or the wire is alike but for the order of its ends; an
+.s7dcl statement also with only its pragmas of the version after. Read the same as before, the unit differs in what the
+report does not read. A unit one version has is left to what the report shows, as a part or instruction comes with its
+fields and pragmas; one around the network's source (a title or comment TIA writes empty, a field of the network) is
+tried too, taken out or put in. A pair that reads otherwise is no tag, also where the same unit holds a field the report
+does not read (an SCL operand's Scope beside its name). Two units that differ only together (a wire and the pin it
+reaches) are not tried together: one of them alone reads otherwise, so they are no tag."""
 import copy
 import difflib
 import re
 from collections import namedtuple
 
 from . import s7dcl, simaticml
-from .simaticml import _local, _plain
+from .simaticml import _NUMBERS, _blank, _local, _plain
 
 # key: what it holds; code: an .s7dcl statement's lines, without its pragmas; shape: its kind; alone: tried also where
 # one version has it
@@ -34,7 +35,6 @@ Unit = namedtuple('Unit', 'key shape where alone code', defaults=(False, None))
 _HOLDERS = {'SW.Blocks.CompileUnit', 'AttributeList', 'ObjectList', 'NetworkSource', 'FlgNet', 'Parts', 'Wires', 'Labels',
             'StructuredText', 'StatementList'}
 _OWN = -1                                 # where[-1] of a holder's own attributes and text
-_NUMBERS = ('UId', 'ID')                  # which object is which: the drawing tells what a wire connects
 
 
 def unread_beside(b, a, reads_same):
@@ -122,12 +122,6 @@ def _attrs(el):
     return tuple(sorted((k, v) for k, v in el.attrib.items() if k not in _NUMBERS))
 
 
-def _blank(plain):
-    """_plain without the object numbers."""
-    tag, attrs, text, kids = plain
-    return tag, tuple((k, v) for k, v in attrs if k not in _NUMBERS), text, tuple(_blank(k) for k in kids)
-
-
 def _at(el, where):
     for k in where:
         el = el[k]
@@ -135,7 +129,9 @@ def _at(el, where):
 
 
 def _xml_again(b, a, x, y):
-    """[Network b read again with its unit x as unit y of network a, keeping x's object numbers]."""
+    """[Network b read again with its unit x as unit y of network a, keeping x's object numbers], [] for no try. A wire's
+    ends reach the parts of b that hold what they reach in a; a wire alike but for the order of its ends after the first
+    (simaticml.wire_ends), or with an end on nothing of b, is no try."""
     _, cu, lang = b.raw
     other = a.raw[1]
     h = copy.deepcopy(cu)
@@ -154,13 +150,63 @@ def _xml_again(b, a, x, y):
     else:
         parent = _at(h, x.where[:-1])
         old, new = parent[x.where[-1]], copy.deepcopy(_at(other, y.where))
-        for name in _NUMBERS:
-            olds, news = ([e for e in t.iter() if name in e.attrib] for t in (old, new))
-            if len(olds) == len(news):
-                for o, n in zip(olds, news):
-                    n.set(name, o.get(name))
+        if _local(new.tag) == 'Wire':
+            number = _numbered_before(cu, other, lang)
+            for end in new:
+                if _local(end.tag) in ('NameCon', 'IdentCon'):
+                    if end.get('UId') not in number:
+                        return []                        # an end that reaches nothing there: no try
+                    end.set('UId', number[end.get('UId')])
+            if _wire(new) == _wire(old):
+                return []                                # alike up to the order of its ends after the first
+            new.set('UId', old.get('UId'))
+        else:
+            for name in _NUMBERS:
+                olds, news = ([e for e in t.iter() if name in e.attrib] for t in (old, new))
+                if len(olds) == len(news):
+                    for o, n in zip(olds, news):
+                        n.set(name, o.get(name))
         parent[x.where[-1]] = new
     return [simaticml.network(h, b.index, next(s7dcl._blocks), lang)]
+
+
+def _wire(w):
+    """A wire as compared: its own fields and its ends with theirs, by the numbers of what they reach, an open end's own
+    number left out (simaticml.wire_ends)."""
+    ends = [(_local(c.tag), _attrs(c) if _local(c.tag) == 'OpenCon' else tuple(sorted(c.attrib.items()))) for c in w]
+    return _attrs(w), simaticml.wire_ends(ends)
+
+
+def _numbered_before(cu, other, lang):
+    """{the number of an object of network other: the number of the object of network cu that holds the same}: a part or
+    call by what it holds, the k-th of those alike in other the k-th in cu (TIA numbers them in the order of the file,
+    which follows the order it draws them in); an operand by the pins of those parts its wire reaches."""
+    def kids(flg, tag):
+        holder = simaticml._kid(flg, tag) if flg is not None else None
+        return list(holder) if holder is not None else []
+
+    def parts(c):
+        flg = next((e for e in c.iter() if _local(e.tag) == 'FlgNet'), None)
+        held, ops = {}, {}
+        for p in kids(flg, 'Parts'):
+            if _local(p.tag) != 'Access':
+                held.setdefault(_blank(_plain(p, lang=lang)), []).append(p.get('UId'))
+        for w in kids(flg, 'Wires'):
+            pins = tuple((e.get('UId'), e.get('Name')) for e in w if _local(e.tag) == 'NameCon')
+            for e in w:
+                if _local(e.tag) == 'IdentCon':
+                    ops[e.get('UId')] = pins
+        return held, ops
+    (held, ops), (held_o, ops_o) = parts(cu), parts(other)
+    out = {}
+    for key, uids in held_o.items():
+        out.update(zip(uids, held.get(key, ())))
+    at = {pins: uid for uid, pins in ops.items()}
+    for uid, pins in ops_o.items():
+        mine = tuple((out.get(u), n) for u, n in pins)
+        if mine in at:
+            out[uid] = at[mine]
+    return out
 
 
 # ---------------------------------------------------------------- .s7dcl

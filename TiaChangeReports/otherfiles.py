@@ -13,7 +13,8 @@ only the caller's keep leaves a file out: the generator's documents and the list
 
 Only what the report tells otherwise, what an export writes differently per export, or a release comment by the
 maintainer's word, stays silent:
-- a SimaticML .xml: simaticml.alike_exports, the export time and the object numbers, as of a block.
+- a SimaticML .xml: simaticml.alike_exports, the export time and the object numbers, as of a block (with the order of a
+  LAD or FBD network's parts and wires, simaticml._flgnet).
 - another .xml: the CreationDate on its root (alarm classes, system diagnostics).
 - a .dat that is a zip of the same text files: the same, per file (those two again, as a full export writes them).
 - a library type's .libinfo and .libint, new or deleted with its block: that block is listed.

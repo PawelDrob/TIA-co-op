@@ -19,6 +19,7 @@ from TiaChangeReports.diff import Graph, NetDiff, changed_params
 from TiaChangeReports.page import _pair_lines, columns_html, render
 from TiaChangeReports.render_lad import Layout
 from TiaChangeReports.s7dcl import Element, SET_IN_IDB, lad_lines, parse_block, parse_interface
+from TiaChangeReports.simaticml import alike_exports
 from TiaChangeReports.source import BlockSource, FolderSnapshot, LibVersion, from_file, pair_blocks
 from TiaChangeReports.verify import check
 from TiaChangeReports.viewer import view
@@ -8573,6 +8574,192 @@ class ComparedPerPart(unittest.TestCase):
                       _fixture(), flags=re.S)
         d = self.d(re.sub(r'<Text />', '<Text>Title</Text>', _fixture()), re.sub(r'<Text />', '<Text>Title</Text>', text))
         self.assertEqual(([p.not_shown for p in d.nets], d.not_shown), ([], True))
+
+
+class WrittenInAnotherOrder(unittest.TestCase):
+    """TIA's export writes a LAD network nobody changed with its operands and wires in another order, the ends of a wire
+    after its first in another order and other object numbers (zzBenBoxes networks 4-6 beside a change of network 1),
+    also its parts in another order and an O's inputs numbered otherwise (zzBenLarge networks 2 and 3): that reads
+    alike, file to file and in the report, with no note. What a user sets stays a difference of the file, though the
+    fields of the two files are alike, order and ids aside: which pin an operand is on, which part's out joins which
+    part's in, where a wire starts, a field of a wire or its end. Branches in another order read alike in the file and
+    show as rungs in another order."""
+
+    PATH = 'plc/blocks/Main.xml'
+    # name -> the part; in this order in the file
+    PARTS = [('a', '<Part Name="Contact" UId="%d" />'), ('b', '<Part Name="Contact" UId="%d" />'),
+             ('c', '<Part Name="Contact" UId="%d" />'), ('d', '<Part Name="Contact" UId="%d" />'),
+             ('or', '<Part Name="O" UId="%d"><TemplateValue Name="Card" Type="Cardinality">2</TemplateValue></Part>'),
+             ('add', '<Part Name="Add" UId="%d" DisabledENO="false"><TemplateValue Name="Card" Type="Cardinality">2</TemplateValue>'
+                     '<TemplateValue Name="SrcType" Type="Type">Int</TemplateValue></Part>'),
+             ('q', '<Part Name="Coil" UId="%d" />')]
+    # each wire its ends: 'rail', 'part.pin', '#operand', a number (an Int literal)
+    WIRES = [['rail', 'a.in', 'c.in', 'd.in'], ['#start', 'a.operand'], ['#stop', 'b.operand'], ['#a', 'c.operand'],
+             ['#b', 'd.operand'], ['a.out', 'b.in'], ['b.out', 'add.en'], ['#count', 'add.in1'], ['5', 'add.in2'],
+             ['add.out', '#big'], ['c.out', 'or.in1'], ['d.out', 'or.in2'], ['or.out', 'q.in'], ['#latch', 'q.operand']]
+
+    @staticmethod
+    def access(operand, uid):
+        if operand[0] == '#':
+            return '<Access Scope="LocalVariable" UId="%d"><Symbol><Component Name="%s" /></Symbol></Access>' % (uid, operand[1:])
+        return ('<Access Scope="LiteralConstant" UId="%d"><Constant><ConstantType>Int</ConstantType><ConstantValue>%s'
+                '</ConstantValue></Constant></Access>' % (uid, operand))
+
+    @classmethod
+    def text(cls, wires=None, parts=None, operands=None, first=21):
+        """The fixture with its first network as these parts and wires, written as TIA writes them: the operands, the parts,
+        the wires, numbered in that order from first. operands: their order (else as the wires reach them)."""
+        wires, parts = wires or cls.WIRES, parts or cls.PARTS
+        reached = [e for w in wires for e in w if e[0] == '#' or e.isdigit()]
+        number = iter(range(first, first + 1000))
+        uid = {op: next(number) for op in operands or reached}
+        uid.update({name: next(number) for name, _ in parts})
+
+        def end(e):
+            if e == 'rail':
+                return '<Powerrail />'
+            if '.' in e:
+                part, pin = e.split('.')
+                return '<NameCon UId="%d" Name="%s" />' % (uid[part], pin)
+            return '<IdentCon UId="%d" />' % uid[e]
+        net = ('<FlgNet xmlns="http://www.siemens.com/automation/Openness/SW/NetworkSource/FlgNet/v5"><Parts>'
+               + ''.join(cls.access(op, uid[op]) for op in operands or reached) + ''.join(p % uid[n] for n, p in parts)
+               + '</Parts><Wires>' + ''.join('<Wire UId="%d">%s</Wire>' % (next(number), ''.join(map(end, w))) for w in wires)
+               + '</Wires></FlgNet>')
+        return re.sub(r'<FlgNet .*?</FlgNet>', lambda m: net, _fixture(), count=1, flags=re.S)
+
+    @classmethod
+    def rewritten(cls, wires=None):
+        """As TIA writes the same network again: the operands and wires the other way round, the rail's ends in another
+        order, numbered from elsewhere."""
+        wires = [list(w) for w in reversed(wires or cls.WIRES)]
+        rail = next(w for w in wires if w[0] == 'rail')
+        rail[1:] = reversed(rail[1:])
+        reached = [e for w in cls.WIRES for e in w if e[0] == '#' or e.isdigit()]
+        return cls.text(wires, operands=list(reversed(reached)), first=41)
+
+    def listed(self, before, after):
+        """The report's blocks: (state, note, [(network state, its tag)])."""
+        return [(x.state, x.not_shown, [(p.state, p.not_shown) for p in x.nets])
+                for x in LibraryInstances.run_(self, {self.PATH: before}, {self.PATH: after})[2]
+                if 'D.s7dcl' not in (x.path_a or x.path_b)]
+
+    def test_rewritten_reads_alike(self):
+        self.assertNotEqual(self.rewritten(), self.text())
+        self.assertTrue(alike_exports(self.text(), self.rewritten()))
+        self.assertEqual(self.listed(self.text(), self.rewritten()), [])
+
+    @classmethod
+    def edited(cls, *edits):
+        """WIRES with each (old wire, new wire) replaced."""
+        wires = [list(w) for w in cls.WIRES]
+        for old, new in edits:
+            wires[wires.index(old)] = new
+        return wires
+
+    def differs(self, wires):
+        """The edit is a difference of the file, also written as TIA writes it again, and the report lists the network.
+        Its fields are those of the network before, order and ids aside, as twoformats.xml_moved compares them."""
+        from TiaChangeReports.twoformats import xml_moved
+        import xml.etree.ElementTree as ET
+        after = self.text(wires)
+        self.assertEqual(xml_moved(ET.fromstring(self.text().encode()), ET.fromstring(after.encode())), [])
+        for other in (after, self.rewritten(wires)):
+            self.assertFalse(alike_exports(self.text(), other))
+            ((state, _, nets),) = self.listed(self.text(), other)
+            self.assertEqual((state, [s for s, _ in nets]), ('changed', ['changed']))
+
+    def test_an_operand_moved_to_another_pin(self):
+        self.differs(self.edited((['#count', 'add.in1'], ['5', 'add.in1']), (['5', 'add.in2'], ['#count', 'add.in2'])))
+
+    def test_two_contacts_swapped_along_a_rung(self):
+        self.differs(self.edited((['rail', 'a.in', 'c.in', 'd.in'], ['rail', 'b.in', 'c.in', 'd.in']),
+                                 (['a.out', 'b.in'], ['b.out', 'a.in']), (['b.out', 'add.en'], ['a.out', 'add.en'])))
+
+    def in_other_order(self, before, after):
+        """The order of the branches is no difference of the file, as TIA numbers an O's inputs and orders the parts
+        otherwise for a network nobody changed (zzBenLarge networks 2 and 3); the reader orders the rungs by them, so the
+        report lists the network in another order."""
+        self.assertNotEqual(before, after)
+        self.assertTrue(alike_exports(before, after))
+        ds = [x for x in LibraryInstances.run_(self, {self.PATH: before}, {self.PATH: after})[2]
+              if 'D.s7dcl' not in (x.path_a or x.path_b)]
+        self.assertEqual([[(p.state, p.reordered) for p in x.nets] for x in ds], [[('changed', True)]])
+
+    def test_the_branches_of_an_or_swapped(self):
+        wires = self.edited((['c.out', 'or.in1'], ['c.out', 'or.in2']), (['d.out', 'or.in2'], ['d.out', 'or.in1']))
+        self.in_other_order(self.text(), self.text(wires, [self.PARTS[k] for k in (0, 1, 3, 2, 4, 5, 6)]))
+
+    COILS = [('a', '<Part Name="Contact" UId="%d" />'), ('q1', '<Part Name="Coil" UId="%d" />'),
+             ('q2', '<Part Name="Coil" UId="%d" />')]
+    COIL_WIRES = [['rail', 'a.in'], ['#start', 'a.operand'], ['a.out', 'q1.in', 'q2.in'], ['#latch', 'q1.operand'],
+                  ['#big', 'q2.operand']]
+
+    def test_two_coils_drawn_in_the_other_order(self):
+        """Parallel branches after one node: TIA writes the parts in the order it draws them, the wire's ends after."""
+        wires = [list(w) for w in self.COIL_WIRES]
+        wires[2] = ['a.out', 'q2.in', 'q1.in']
+        self.in_other_order(self.text(self.COIL_WIRES, self.COILS), self.text(wires, [self.COILS[k] for k in (0, 2, 1)]))
+
+    def test_an_or_of_legs_numbered_otherwise(self):
+        """zzBenLarge network 2, nobody changed it: TIA numbered the O's inputs with the legs' ends first, then the
+        branches inside them, and the next time each branch after its own leg, the parts in that order."""
+        contact = '<Part Name="Contact" UId="%d" />'
+        parts = [(n, contact) for n in ('i', 'a1', 'x10', 'x11', 'a2', 'x20', 'x21')] + [
+            ('or', '<Part Name="O" UId="%d"><TemplateValue Name="Card" Type="Cardinality">4</TemplateValue></Part>'),
+            ('q', '<Part Name="Coil" UId="%d" />')]
+        wires = [['rail', 'i.in'], ['i.out', 'a1.in', 'a2.in'], ['a1.out', 'x10.in', 'x11.in'], ['a2.out', 'x20.in', 'x21.in'],
+                 ['or.out', 'q.in']] + [['#%s' % n, '%s.operand' % n] for n, _ in parts if n not in ('or', 'q')] + [
+                ['#latch', 'q.operand']]
+        legs_first = [['x10.out', 'or.in1'], ['x20.out', 'or.in2'], ['x11.out', 'or.in3'], ['x21.out', 'or.in4']]
+        each_after_its_leg = [['x10.out', 'or.in1'], ['x11.out', 'or.in2'], ['x20.out', 'or.in3'], ['x21.out', 'or.in4']]
+        before = self.text(wires + legs_first, parts)
+        after = self.text(each_after_its_leg + wires, [parts[k] for k in (0, 1, 2, 4, 5, 3, 6, 7, 8)])
+        self.assertNotEqual(before, after)
+        self.assertTrue(alike_exports(before, after))
+        self.assertEqual(self.listed(before, after), [])
+
+    def test_an_or_s_inputs_in_fbd(self):
+        """With no rail (FBD), an O is a gate whose inputs are pins by name: their numbers stay a difference."""
+        parts = [('x', '<Part Name="Contact" UId="%d" />'), ('y', '<Part Name="Contact" UId="%d" />'), self.PARTS[4],
+                 ('q', '<Part Name="Coil" UId="%d" />')]
+        wires = [['#a', 'x.operand'], ['#b', 'y.operand'], ['x.out', 'or.in1'], ['y.out', 'or.in2'], ['or.out', 'q.in'],
+                 ['#latch', 'q.operand']]
+        swapped = [list(w) for w in wires]
+        swapped[2:4] = [['x.out', 'or.in2'], ['y.out', 'or.in1']]
+        self.assertFalse(alike_exports(self.text(wires, parts), self.text(swapped, parts)))
+        rail = [['rail', 'x.in', 'y.in']]
+        self.assertTrue(alike_exports(self.text(rail + wires, parts), self.text(rail + swapped, parts)))
+
+    def test_a_wire_moved_to_another_pin(self):
+        self.differs(self.edited((['b.out', 'add.en'], ['b.out', 'q.in']), (['or.out', 'q.in'], ['or.out', 'add.en'])))
+
+    def test_where_a_wire_starts(self):
+        self.differs(self.edited((['a.out', 'b.in'], ['b.in', 'a.out'])))
+
+    def test_a_field_on_a_wire_or_its_end(self):
+        """What a wire or its end holds but the numbers is no writer's form."""
+        for old, new in (('<Wire UId="49">', '<Wire UId="49" Hint="x">'), ('Name="in2" />', 'Name="in2" Hint="x" />')):
+            text = self.text().replace(old, new, 1)
+            self.assertNotEqual(text, self.text())
+            self.assertFalse(alike_exports(self.text(), text))
+            self.assertEqual([s for _, s in self.listed(self.text(), text)[0][2]], [True])
+
+    SR = [('s', '<Part Name="Contact" UId="%d" />'),
+          ('e', '<Part Name="Eq" UId="%d"><TemplateValue Name="SrcType" Type="Type">Int</TemplateValue></Part>'),
+          ('sr', '<Part Name="Sr" UId="%d" />'), ('q', '<Part Name="Coil" UId="%d" />')]
+    SR_WIRES = [['rail', 's.in', 'e.pre'], ['#start', 's.operand'], ['#count', 'e.in1'], ['0', 'e.in2'],
+                ['s.out', 'sr.s'], ['e.out', 'sr.r1'], ['#latch', 'sr.operand'], ['sr.q', 'q.in'], ['#big', 'q.operand']]
+
+    def test_a_change_that_moves_the_parts_is_shown_with_no_tag(self):
+        """zzBenTimers network 2: S and R1 of an SR box swap their wires. TIA writes the parts in the order it draws
+        them, the compare first, numbered again in that order, and the rail's ends follow the parts. The change is
+        shown; nothing beside it differs, though the rail's wire put alone with the numbers of the version before
+        read by place would join the rail to a pin no part has."""
+        wires = [list(w) for w in self.SR_WIRES]
+        wires[0], wires[4], wires[5] = ['rail', 'e.pre', 's.in'], ['e.out', 'sr.s'], ['s.out', 'sr.r1']
+        before, after = self.text(self.SR_WIRES, self.SR), self.text(wires, [self.SR[k] for k in (1, 0, 2, 3)])
+        self.assertEqual(self.listed(before, after), [('changed', False, [('changed', False)])])
 
 
 class TaggedBesideAChange(unittest.TestCase):

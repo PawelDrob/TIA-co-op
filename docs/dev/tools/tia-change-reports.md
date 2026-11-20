@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T06:26:02-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T07:32:12-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -54,7 +54,7 @@ Both block formats read into one model, so an OB compares and draws like any oth
 
 **Ignored as the export's own doing:** [the Archive Compare README, What it does not](../../../TiaArchiveCompare/README.md#what-it-does-not), the last row of its table.
 
-**Unread:** whatever a reader does not read, in another language, or that the page cannot show. If the two files differ there, the page carries a note, also beside a change it shows: `beside.py` tries each part of a network that differs alone on the version before, and a part that reads the same there is the network's note. Limits on that note: [its README, What it does not](../../../TiaChangeReports/README.md#what-it-does-not). The files of two formats are not compared (`compare.file_note`): a block read from `.s7dcl` on one side and SimaticML on the other rests on what the report reads of both, and the page and `--json` (`acrossFormats`) name it, with what that leaves out.
+**Unread:** whatever a reader does not read, in another language, or that the page cannot show. If the two files differ there, the page carries a note, also beside a change it shows: `beside.py` tries each part of a network that differs alone on the version before, and a part that reads the same there is the network's note. A SimaticML LAD or FBD network's part of the file is compared as a graph (`simaticml._flgnet`): no object numbers, no order of its parts, operands and wires or of a wire's ends after its first, and in LAD no numbers of the inputs of an O that only joins wires; TIA's export varies all of these for a network nobody changed, and the reader orders the rungs by the O's inputs where the drawing does. A wire tried alone in `beside.py` reaches the parts of the version before that hold the same. Limits on that note: [its README, What it does not](../../../TiaChangeReports/README.md#what-it-does-not). The files of two formats are not compared (`compare.file_note`): a block read from `.s7dcl` on one side and SimaticML on the other rests on what the report reads of both, and the page and `--json` (`acrossFormats`) name it, with what that leaves out.
 
 ## The two formats against each other
 
