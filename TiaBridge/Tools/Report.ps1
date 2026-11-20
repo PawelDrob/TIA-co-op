@@ -93,11 +93,13 @@ function Invoke-ChangeReportTool($a) {
     $out = @{ ok = $true; page = (ConvertTo-RepoRelative $repo $res.page); before = $res.before; after = $res.after
               blocks = @($res.blocks) }
     # the PLC tag tables, the HMI objects (screens, tag tables, ... of hmi\ and project\graphics\), files TiaChangeReports
-    # could not read, and names in blocks that match nothing: only when there are
+    # could not read, the blocks compared between .s7dcl and SimaticML, and names in blocks that match nothing: only when
+    # there are
     if (@($res.plcTags | Where-Object { $_ }).Count) { $out.plcTags = @($res.plcTags) }
     if (@($res.hmi | Where-Object { $_ }).Count) { $out.hmi = @($res.hmi) }
     if ($res.skipped) { $out.skipped = @($res.skipped) }
     if ($res.otherFiles) { $out.otherFiles = @($res.otherFiles) }
+    if ($res.acrossFormats) { $out.acrossFormats = @($res.acrossFormats) }
     if ($res.unmatched) { $out.unmatched = $res.unmatched }
     $out
 }
@@ -110,9 +112,10 @@ function Register-ReportTool {
         'before | after with their changes, tag tables and text lists with where-used, project graphics). Default: the last commit (rev2 HEAD, ' +
         'rev1 its parent); run it after save + commit. Writes changes\reports\<date>_<commit>.html (gitignored). The result lists the PLC tag tables ' +
         '(plcTags: name, state, counts, rows of tags and user constants), the HMI objects (hmi: device, kind, name, state, changes), files it ' +
-        'skipped (skipped: path, reason), changed files it does not read (otherFiles: paths, the page names them too: quote them, it reads nothing of them) ' +
-        'and names in blocks that match no block (unmatched), only when there are. blocks leaves the tag ' +
-        'tables and the HMI part out.') -Schema @{
+        'skipped (skipped: path, reason), changed files it does not read (otherFiles: paths, the page names them too: quote them, it reads nothing of them), ' +
+        'blocks .s7dcl on one side and SimaticML on the other (acrossFormats: names, the page names them too: compared by what the report reads ' +
+        'of them; a field it does not read, or one only one format writes, is not compared: say so) and names in blocks that match no block ' +
+        '(unmatched), only when there are. blocks leaves the tag tables and the HMI part out.') -Schema @{
         type = 'object'
         properties = @{
             rev1 = @{ type = 'string'; description = 'before; default: the parent of rev2. Give it to report several commits at once' }

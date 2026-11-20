@@ -17,8 +17,10 @@ One HTML page of what changed in a TIA project.
 - Export anything or touch TIA: it reads exports.
 - Show every difference. Where the files differ in something it does not display, the block or network carries a note
   saying so: compare those two versions in TIA. No note comes when the same network is already marked as changed for
-  another reason, when another attribute of the same member has also changed, or between XML and `.s7dcl` when the block
-  has other changes.
+  another reason, or when another attribute of the same member has also changed.
+- Compare the files of a block exported as XML on one side and as `.s7dcl` on the other. It compares what it reads of
+  both, and the page names such blocks: a field it does not read, or one that only one of the two formats writes, is not
+  compared there. Compare those in TIA where that matters.
 - Show changes to other translations: it reads one language, English unless `--lang` names another, else the first
   language with a text.
 - Stop at a block it cannot read in a folder or revision: it skips that file, names it and writes the rest. A file you

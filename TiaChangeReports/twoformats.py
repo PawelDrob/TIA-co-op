@@ -27,7 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if __name__ == '__main__':
     sys.path.insert(0, os.path.dirname(HERE))
 
-from TiaChangeReports.compare import _other_texts_differ, _unread_differs, compare_snapshots, files_alike  # noqa: E402
+from TiaChangeReports.compare import _other_texts_differ, _unread_differs, compare_snapshots, file_note  # noqa: E402
 from TiaChangeReports.diff import changed_params                                    # noqa: E402
 from TiaChangeReports.iface import FIELDS, _value, block_rows, props_rows           # noqa: E402
 from TiaChangeReports.render_lad import Layout                                       # noqa: E402
@@ -58,7 +58,8 @@ CAUSES = {
     'rung order': (READER, 'the rungs in another order: SimaticML holds no order, the reader takes the order of the '
                            "file's elements, which TIA's export varies"),
     'FBD lines': (READER, 'an FBD network read into other lines from the two formats'),
-    'note: files': (NOTE, "the block's note compares the raw files, which differ between two formats"),
+    'note: files': (NOTE, "the block's note compares the files, which differ between two formats (compare.file_note "
+                          "compares none between two formats)"),
     'note: LAD lines': (NOTE, "a LAD network's note compares its lines as read from both formats (compare._read_lines), "
                               "which differ"),
     'note: SimaticML order': (NOTE, 'a SimaticML network written in another order, with other ids, and nothing else'),
@@ -441,7 +442,7 @@ def _object_causes(d, sd, xml):
         out.add('declaration' if _same_decl(d.declaration, d.block.name) else 'unknown: declaration')
     if d.not_shown:
         bsrc, asrc = sd.load(d.path_b), xml.load(d.path_a)
-        if not files_alike(bsrc, asrc):
+        if file_note(bsrc, asrc):
             out.add('note: files')
         if _other_texts_differ(bsrc, asrc):
             out.add('unknown: note, texts in another language')

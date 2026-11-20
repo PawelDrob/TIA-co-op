@@ -606,9 +606,10 @@ def version_changed(bsrc, asrc):
 
 
 def _moved(path_b, path_a):
-    """The same file name in another folder of one PLC, or of the library's types of one kind (a type against its
-    released version, a project block against its type: no move)."""
+    """The same file name, its format aside, in another folder of one PLC, or of the library's types of one kind (a type
+    against its released version, a project block against its type: no move)."""
     from .source import _is_library, plc_device
+    path_b, path_a = path_b and stem(path_b), path_a and stem(path_a)
     if not path_b or not path_a or path_b == path_a:
         return False
     return (path_b.rsplit('/', 1)[-1] == path_a.rsplit('/', 1)[-1] and _is_library(path_b) == _is_library(path_a)
@@ -840,6 +841,18 @@ def _other_texts_differ(bsrc, asrc):
                for t in shown)
 
 
+def across_formats(bsrc, asrc):
+    """One version an .s7dcl, the other SimaticML."""
+    return (bsrc.xml is None) != (asrc.xml is None)
+
+
+def file_note(bsrc, asrc):
+    """The block's note on its files: two versions of one format whose files differ in what a user can change
+    (files_alike). The files of two formats cannot be compared: the block rests on what the report reads of both, and
+    the page names it (page.render's across)."""
+    return not across_formats(bsrc, asrc) and not files_alike(bsrc, asrc)
+
+
 def files_alike(bsrc, asrc):
     """Two versions' files differ at most in what the exports write differently, not in what a user can change."""
     from .simaticml import alike_exports
@@ -853,9 +866,10 @@ def compare_blocks(bsrc, asrc, path_b=None, path_a=None, networks=None, all_=Fal
     """callees: (before, after) Callees of the snapshots the two versions come from. Code unchanged but the
     library version changed: state 'version'. A renamed block is 'changed', as is one whose networks only moved
     (a moved network is shown). Nothing the report reads changed but the file differs in what a user
-    can change: 'changed', not_shown; not_shown too when a text in a language other than the report's differs, whatever
-    else changed. Nothing changed but its folder: state 'moved'; other paths without that never 'same', a pair stays on
-    the list. named: a block --block names, also when unchanged, then with all its networks."""
+    can change (file_note: not between two formats): 'changed', not_shown; not_shown too when a text in a language other
+    than the report's differs, whatever else changed. Nothing changed but its folder: state 'moved'; other paths without
+    that never 'same', a pair stays on the list; a path in the other format is no other path. named: a block --block
+    names, also when unchanged, then with all its networks."""
     from . import iface
     from .s7dcl import parse_block
     if bsrc and asrc and bsrc.s7dcl == asrc.s7dcl and (bsrc.s7res or '') == (asrc.s7res or '') \
@@ -876,14 +890,14 @@ def compare_blocks(bsrc, asrc, path_b=None, path_a=None, networks=None, all_=Fal
     state = 'new' if bb is None else ('deleted' if ab is None else
                                       ('changed' if ich or pch or renamed(bb, ab) or _decl_key(bb) != _decl_key(ab)
                                        or any(p.state != 'same' or p.moved for p in pairs) else 'same'))
-    not_shown = bool(bsrc and asrc) and (setpoint_unknown or (state == 'same' and not files_alike(bsrc, asrc))
+    not_shown = bool(bsrc and asrc) and (setpoint_unknown or (state == 'same' and file_note(bsrc, asrc))
                                          or _other_texts_differ(bsrc, asrc)
                                          or _unread_differs(bsrc, asrc, bb, ab, pairs))
     if not_shown:
         state = 'changed'
     if state == 'same' and version_changed(bsrc, asrc):
         state = 'version'
-    if state == 'same' and path_b and path_a and path_b != path_a:
+    if state == 'same' and path_b and path_a and stem(path_b) != stem(path_a):
         state = 'moved' if _moved(path_b, path_a) else 'changed'
     if networks:
         pairs = [p for p in pairs if {n.title for n in (p.before, p.after) if n} & set(networks)]
@@ -893,9 +907,11 @@ def compare_blocks(bsrc, asrc, path_b=None, path_a=None, networks=None, all_=Fal
                      asrc.version if asrc else None, props_changed=pch, not_shown=not_shown)
 
 
-def compare_snapshots(before, after, blocks=None, networks=None, all_=False, found=None):
+def compare_snapshots(before, after, blocks=None, networks=None, all_=False, found=None, across=None):
     """found: {'blocks': set, 'networks': set}, given to collect the names of `blocks` and the titles of `networks`
-    the inputs hold, changed or not (a title in the blocks `blocks` selects; the rest are typos).
+    the inputs hold, changed or not (a title in the blocks `blocks` selects; the rest are typos). across: a list,
+    given to collect the names of the blocks compared, listed or not, that are read from .s7dcl on one side and
+    SimaticML on the other (across_formats).
     With `networks` only the blocks holding one of them; a named block or network also when unchanged."""
     from .source import pair_blocks
     out, srcs = [], {}
@@ -917,6 +933,8 @@ def compare_snapshots(before, after, blocks=None, networks=None, all_=False, fou
             if not _skip_unreadable(((before, pb), (after, pa))):
                 raise
             continue
+        if across is not None and bsrc and asrc and across_formats(bsrc, asrc):
+            across.append(stem(pa).rsplit('/', 1)[-1])
         if found is not None and d is not None:              # named by its file: its declared names found too
             found['blocks'] |= {_block_name(b) for b in (d.before, d.after) if b} & set(blocks or ())
         if found is not None and d is not None and networks:

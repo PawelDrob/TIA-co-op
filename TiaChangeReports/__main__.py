@@ -48,13 +48,16 @@ taller than 16000 px in several, out-1.png, out-2.png, ..., cut between blocks (
 listed after the page; a LAD network drawn below 70 % side by side is drawn there before above after at the
 full width.
 --json prints the result as one JSON object (page, before, after, blocks; plcTags when a table changed; skipped when a
-file was; otherFiles when any; png: the PNGs)
+file was; otherFiles when any; acrossFormats when a block is .s7dcl on one side and SimaticML on the other; png: the PNGs)
 instead of the list.
 A file of a folder or revision that holds a block but is no block export (a global library type's version metadata),
 or a block that does not parse, or one outside a project repo's export folders, is skipped: named once on stderr ("skipped <path>: <why>"), the rest is written.
 The page names it too and does not say "No changes." over it, but for such a metadata file that is the same on both
 sides. So is a tag table that cannot be read; one locked on a side is no table on the page, as nothing
 tells whether it changed, is new or moved.
+A block .s7dcl on one side and SimaticML on the other is compared by what the report reads of both, not by its files:
+the page names it after the list ("n blocks compared between .s7dcl and SimaticML ..."), with what that leaves out, and
+a path that differs only in its format is the same path.
 A --block name or --network title the inputs do not hold, changed or not, nor a file named as unread may, is
 named on stderr ("--block X: no block of that name"; a title in the blocks --block selects) and in --json
 (unmatched: {blocks, networks}).
@@ -134,6 +137,7 @@ def main(argv=None):
     inputs += [(lambda g=g: git_snapshots(*g), lambda g=g: hmi.sides_of(*g)) for g in a.git or []]
     diffs, lb, la, snaps, hmi_pairs, tables, plc_not_compared, compared_inputs = [], [], [], [], [], [], [], []
     found = {'blocks': set(), 'networks': set()}
+    across = []
     for load, load_hmi in inputs:
         try:
             if plc_on:
@@ -141,7 +145,7 @@ def main(argv=None):
                 lb.append(before.label)
                 la.append(after.label)
                 diffs += compare_snapshots(before, after, set(a.block) if a.block else None,
-                                           set(a.network) if a.network else None, a.all, found)
+                                           set(a.network) if a.network else None, a.all, found, across)
                 if tags_on:
                     tables += plctags.compare(before, after)
                 snaps += [before, after]
@@ -181,7 +185,7 @@ def main(argv=None):
     html = render(diffs, '; '.join(lb), '; '.join(la), fragment=a.fragment, title=a.title,
                   full=full, hmi=part, lang=a.lang, draw_added_removed=a.draw_added_removed, plc_tags=tag_part,
                   not_compared=not_compared_files, source_note=_source_note(a.git),
-                  other_files=[p for p in others if p not in named])
+                  other_files=[p for p in others if p not in named], across=across)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, 'w', encoding='utf-8') as f:
         f.write(html)
@@ -195,6 +199,8 @@ def main(argv=None):
         res['skipped'] = [{'path': path, 'reason': why} for path, why in all_skipped]
     if others:
         res['otherFiles'] = others
+    if across:
+        res['acrossFormats'] = across
     if unmatched['blocks'] or unmatched['networks']:
         res['unmatched'] = unmatched
     if a.png:

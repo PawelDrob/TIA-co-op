@@ -1053,24 +1053,37 @@ OTHER_FILES_SHOWN = 10                                  # more fold behind a cou
 def _other_files_html(paths):
     """The line "n other files changed, not read" with the paths; over OTHER_FILES_SHOWN of them, a count per kind
     (the extension, else the file name) and the paths folded open on a click."""
-    head = '%d other file%s changed, not read: ' % (len(paths), '' if len(paths) == 1 else 's')
-    names = escape(', '.join(paths))
-    if len(paths) <= OTHER_FILES_SHOWN:
-        return '<div class="empty">%s%s</div>' % (head, names)
     kinds = collections.Counter(os.path.splitext(p)[1].lower() or p.rsplit('/', 1)[-1] for p in paths)
     count = ', '.join('%d %s' % (n, kind) for kind, n in sorted(kinds.items(), key=lambda x: (-x[1], x[0])))
+    return _names_html('%d other file%s changed, not read: ' % (len(paths), '' if len(paths) == 1 else 's'), paths, count)
+
+
+def _across_html(names):
+    """The line of the blocks compared between the two formats, by what the report reads of them, and what that leaves
+    out (compare.file_note); over OTHER_FILES_SHOWN of them the names fold open on a click."""
+    one = len(names) == 1
+    return _names_html('%d block%s compared between .s7dcl and SimaticML by what this report reads of %s; a field it does '
+                       'not read, or one only one of the two formats writes, is not compared: '
+                       % (len(names), '' if one else 's', 'it' if one else 'them'), names, 'the %d names' % len(names))
+
+
+def _names_html(head, names, folded):
+    """head, then the names; over OTHER_FILES_SHOWN of them head and folded, the names folded open on a click."""
+    if len(names) <= OTHER_FILES_SHOWN:
+        return '<div class="empty">%s%s</div>' % (escape(head), escape(', '.join(names)))
     return ('<details class="empty oth"><summary>%s%s</summary><div>%s</div></details>'
-            % (head, escape(count), names))
+            % (escape(head), escape(folded), escape(', '.join(names))))
 
 
 def render(diffs, before_label, after_label, fragment=False, title=None, full=False, hmi=None, lang='en-US',
-           draw_added_removed=True, plc_tags=None, not_compared=(), source_note=None, other_files=()):
+           draw_added_removed=True, plc_tags=None, not_compared=(), source_note=None, other_files=(), across=()):
     """diffs: [compare.BlockDiff]. fragment: only the <div class="ldiff"> (with its style and script). hmi: an
     hmi.HmiPart, its objects after the blocks (tree, sections, summary). draw_added_removed: as listed(). plc_tags: a
     plctags.PlcTagPart, its tables between the blocks and the HMI objects. not_compared: [(path, why)] of the files
     not compared: named, and the page does not say "No changes." over them. source_note: stands
     under the page's title, what a report of a git repo cannot see. other_files: the changed files it does not read
-    (otherfiles.py), the same as not_compared."""
+    (otherfiles.py), the same as not_compared. across: the names of the blocks read from .s7dcl on one side and
+    SimaticML on the other (compare_snapshots), after "No changes." where nothing changed."""
     from . import hmi as hmipart
     others = (plc_tags.items if plc_tags else []) + (hmi.items if hmi else [])
     n = len(diffs) + len(others)
@@ -1087,6 +1100,8 @@ def render(diffs, before_label, after_label, fragment=False, title=None, full=Fa
         body.append(_other_files_html(other_files))
     if not (n or not_compared or other_files):
         body.append('<div class="empty">No changes.</div>')
+    if across:
+        body.append(_across_html(across))
     body.append('<button type="button" class="top" title="Back to top" aria-label="Back to top"></button>')
     rail = (tree_html(diffs, others) + LAUNCHER + LOADING % n + '<script>%s</script>' % WAIT_JS
             if n and not fragment else '')

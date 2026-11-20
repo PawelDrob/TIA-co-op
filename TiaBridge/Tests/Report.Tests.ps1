@@ -126,6 +126,17 @@ Describe 'change_report' {
         @((Invoke-Report $repo).otherFiles) | Should Be 'library/mastercopies/mastercopies.json'
     }
 
+    It 'names the blocks compared between the two formats, and leaves acrossFormats out when there are none' {
+        $repo = New-ReportRepo 'Across'
+        (Invoke-Report $repo).ContainsKey('acrossFormats') | Should Be $false
+        $xml = Join-Path $here '..\..\TiaChangeReports\tests\fixtures\twoformats\1-before\simaticml\plc\blocks\zzBenchmark\zzBenTimers.xml'
+        Copy-Item $xml (Join-Path $repo 'plc\A.xml')
+        Remove-Item (Join-Path $repo 'plc\A.s7dcl'), (Join-Path $repo 'plc\A.s7res')
+        Invoke-FixtureGit $repo add -A
+        Invoke-FixtureGit $repo commit -q -m three
+        @((Invoke-Report $repo).acrossFormats) | Should Be 'A'
+    }
+
     It 'names skipped files and leaves skipped and unmatched out when there are none' {
         $repo = New-ReportRepo 'Skipped'
         $r = Invoke-Report $repo

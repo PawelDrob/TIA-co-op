@@ -2203,6 +2203,82 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
         self.assertNotEqual(self.listed(self.arithmetic('Add'), self.arithmetic('Add', 2)), [])
 
 
+TWO_FORMATS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'twoformats')
+
+
+class ABlockInTheOtherFormat(unittest.TestCase):
+    """A block exported in the other format with nothing changed (the bed of the two formats, cause 'note: files'):
+    zzBenTimers of the two-format run, its .s7dcl and its SimaticML of one commit. The files of two formats cannot be
+    compared: the block rests on what the report reads of both, and the page and --json name it as compared across the
+    formats, with what that leaves out. A change across the formats is still shown."""
+
+    BLOCK = 'plc/blocks/zzBenchmark/zzBenTimers'
+
+    def file(self, rel, step='1-before'):
+        with open(os.path.join(TWO_FORMATS, step, rel), encoding='utf-8', newline='') as f:
+            return f.read()
+
+    def sd(self):
+        return {self.BLOCK + ext: self.file(self.BLOCK + ext) for ext in ('.s7dcl', '.s7res')}
+
+    def xml(self, step='1-before', folder=None):
+        rel = self.BLOCK + '.xml'
+        at = rel if folder is None else rel.replace('/zzBenchmark/', '/%s/' % folder)
+        return {at: self.file('simaticml/' + rel, step)}
+
+    def report(self, before, after):
+        """(exit code, --json result, page) of the report of a repo's two commits, before's files then after's."""
+        import contextlib
+        import io
+        import json
+        from TiaChangeReports.__main__ import main
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        r = tmp.name
+        _git(r, 'init', '-q')
+        for files, msg in ((before, 'one'), ({**{k: None for k in before}, **after}, 'two')):
+            _put(r, files)
+            _git(r, 'add', '-A')
+            _git(r, 'commit', '-q', '-m', msg)
+        page = os.path.join(r, 'out', 'r.html')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = main(['--git', r, 'HEAD~1', 'HEAD', '-o', page, '--json'])
+        with open(page, encoding='utf-8') as f:
+            return code, json.loads(out.getvalue()), f.read()
+
+    def test_the_block_reads_the_same(self):
+        b, a = (from_file(os.path.join(TWO_FORMATS, '1-before', p + self.BLOCK + ext))
+                for p, ext in (('', '.s7dcl'), ('simaticml/', '.xml')))
+        d = compare_blocks(b, a)
+        self.assertEqual((d.state, d.not_shown, d.nets), ('same', False, []))
+
+    def test_switched_in_its_folder_nothing_listed_and_the_page_says_what_it_compared(self):
+        code, res, html = self.report(self.sd(), self.xml())
+        self.assertEqual((code, res['blocks'], res['acrossFormats']), (0, [], ['zzBenTimers']))
+        self.assertIn('No changes.', html)
+        self.assertIn('1 block compared between .s7dcl and SimaticML by what this report reads of it; a field it does '
+                      'not read, or one only one of the two formats writes, is not compared: zzBenTimers', html)
+
+    def test_switched_and_moved_to_another_folder_is_moved(self):
+        code, res, _ = self.report(self.sd(), self.xml(folder='zzOther'))
+        self.assertEqual([(b['name'], b['state']) for b in res['blocks']], [('zzBenTimers', 'moved')])
+
+    def test_a_change_across_the_formats_is_shown(self):
+        """Row B058 in the SimaticML after: its two networks changed, as from its SimaticML before."""
+        code, res, html = self.report(self.sd(), self.xml('2-B058'))
+        self.assertEqual([(b['name'], b['state'], [n['state'] for n in b['networks']]) for b in res['blocks']],
+                         [('zzBenTimers', 'changed', ['changed', 'changed'])])
+        self.assertEqual(res['acrossFormats'], ['zzBenTimers'])
+
+    def test_over_ten_blocks_the_names_fold(self):
+        names = ['B%02d' % k for k in range(11)]
+        html = render([], 'b', 'a', across=names)
+        self.assertIn('<details class="empty oth"><summary>11 blocks compared between .s7dcl and SimaticML by what this '
+                      'report reads of them;', html)
+        self.assertIn(', '.join(names), html)
+
+
 class NoteAcrossTheFormats(unittest.TestCase):
     """A LAD network's note from one format to the other (compare.NetPair._unseen; the bed of the two formats, cause
     'note: LAD lines'): the lines of both as read, one writer for both. What only the writer's form tells is no note:

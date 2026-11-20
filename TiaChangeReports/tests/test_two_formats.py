@@ -16,8 +16,8 @@ from TiaChangeReports import twoformats
 from TiaChangeReports.s7dcl import Element
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'twoformats')
-TIMERS, UDT = 'plc/blocks/zzBenchmark/zzBenTimers', 'plc/types/zzE2e/zzE2eUdtA'
-FB, IDB = 'plc/blocks/zzE2e/zzE2eFbI', 'plc/blocks/zzE2e/zzE2eFbI_DB'
+UDT = 'plc/types/zzE2e/zzE2eUdtA'
+IDB = 'plc/blocks/zzE2e/zzE2eFbI_DB'
 
 
 def git(repo, *args):
@@ -46,12 +46,10 @@ class RunRepo(unittest.TestCase):
 
     def test_nothing_changed_lists_each_object_with_its_causes(self):
         """zzE2eFbI's Move, its ENO not generated (DisabledENO="true", no S7_GenerateENO), reads alike from both formats:
-        no network listed, the block by the raw files' note alone."""
+        no network listed. Nor zzBenTimers or zzE2eFbI: the files of two formats are not compared."""
         got = {(x['object'], tuple(x['network']) if x['network'] else None): x['causes']
                for x in twoformats.nothing_changed(self.repo, 'HEAD~2')}
         self.assertEqual({
-            (TIMERS, None): ['note: files'],
-            (FB, None): ['note: files'],
             (IDB, None): ['DB retain', 'instance DB access', 'instance DB start values'],
             (UDT, None): ['declaration'],
         }, got)
