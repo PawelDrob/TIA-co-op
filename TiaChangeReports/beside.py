@@ -171,7 +171,7 @@ _PIN = re.compile(r'("[^"]+"|\w+)\s*(?::=|=>)')
 def _sd_units(raw):
     """A LAD network's statements, each with the pragma blocks in front of it, and its end with those after the last;
     where: (first line of its pragmas, first line of its statement, line after it) in the network's body."""
-    _, _, body, res, _ = raw
+    _, _, body, res, _, _ = raw
     lines = body.splitlines()
     out, first, settings, i = [], None, {}, 0
     while i <= len(lines):
@@ -218,11 +218,12 @@ def _instruction(line):
 
 
 def _sd_again(b, a, x, y):
-    """Network b read again with its statement x as statement y of network a; and with only its pragmas of y."""
-    _, pragma, body, res, itf = b.raw
+    """Network b read again with its statement x as statement y of network a; and with only its pragmas of y; as its
+    block reads it, an F-block's as one."""
+    _, pragma, body, res, itf, safety = b.raw
     lines, other = body.splitlines(), a.raw[2].splitlines()
     whole = lines[:x.where[0]] + other[y.where[0]:y.where[2]] + lines[x.where[2]:]
     out = [whole]
     if x.key[0] != y.key[0]:
         out.append(lines[:x.where[0]] + other[y.where[0]:y.where[1]] + lines[x.where[1]:])
-    return [s7dcl.network(b.index, pragma, '\n'.join(t), res, itf, next(s7dcl._blocks)) for t in out]
+    return [s7dcl.network(b.index, pragma, '\n'.join(t), res, itf, next(s7dcl._blocks), safety) for t in out]

@@ -27,7 +27,7 @@ from typing import Optional
 
 from .names import decl_name, decl_type
 from .render_lad import default_value
-from .s7dcl import Interface, Member, SET_IN_IDB, type_name
+from .s7dcl import Interface, Member, SET_IN_IDB, f_block, type_name
 
 SECTIONS = [('INPUT', 'Input'), ('OUTPUT', 'Output'), ('IN_OUT', 'InOut'), ('STAT', 'Static'), ('TEMP', 'Temp'),
             ('CONSTANT', 'Constant'), ('RETURN', 'Return'), ('UDT', 'Members')]
@@ -814,7 +814,7 @@ def html(bblock, ablock, whole=False, db=None):
     blk = ablock or bblock
     kind = blk.kind if blk else ''
     vhead, has_retain, has_attrs = _columns(kind)
-    safety = kind != 'TYPE' and blk.props.get('S7_Safety', '').lower() == 'true'      # an F-DB or F-FB
+    safety = kind != 'TYPE' and f_block(blk.props)      # an F-DB or F-FB
     ncols = 4 + has_retain + 4 * has_attrs
     keep = {r.path for r in rs} if whole else set()
     for r in rs:

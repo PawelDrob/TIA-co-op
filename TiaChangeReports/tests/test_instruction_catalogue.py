@@ -2,6 +2,7 @@
 catalogue does not hold keeps its raw names, and nothing is guessed for it. Shapes as TIA V20 Update 7 exported them,
 the operands made up. From the repo root: python -m unittest discover -s TiaChangeReports/tests -t .
 """
+import os
 import re
 import unittest
 from itertools import dropwhile
@@ -38,6 +39,7 @@ END_FUNCTION_BLOCK
 '''
 
 IO = chr(0x21cc)
+FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures')
 A, B, C, D = 21, 22, 23, 24       # the fixture's operands: #start, #stop, #big, #latch
 PART = 25
 
@@ -644,6 +646,32 @@ class EnoSetting(unittest.TestCase):
             (p,) = d.nets
             self.assertEqual((d.state, p.state), ('changed', 'changed'))
             self.assertEqual(diff.changed_params(p.before.rungs[0].items[0], p.after.rungs[0].items[0]), {'eno'})
+
+    def test_a_pragma_not_read_beside_a_change_is_told_in_an_f_block_too(self):
+        """beside.py reads a network again with a statement of the other version, as its block reads it: so in an F-block too
+        a pragma the report does not read, written beside an operand changed, gives the network its note."""
+        for safety in (False, True):
+            with self.subTest(safety=safety):
+                before = self.sd('Add', False, safety=safety)
+                old = 'Add(\n in1 := #start'
+                self.assertIn(old, before.s7dcl)
+                after = BlockSource('Sample', before.s7dcl.replace(old, '{ S7_Unread := "x" }\nAdd(\n in1 := #big'), None,
+                                    'Sample.s7dcl')
+                (p,) = compare_blocks(before, after).nets
+                self.assertEqual((p.state, p.not_shown), ('changed', True))
+
+    def test_an_fbd_networks_text_from_simaticml_writes_the_setting(self):
+        """zzE2eFbd network 4 "Box", FBD in a standard block, as TIA exports it before and after the two-format run's row F006:
+        a second MOVE chained on the first one's ENO, which TIA then generates (DisabledENO "true" to "false"). The network's
+        text, shown as lines, carries S7_GenerateENO := "TRUE" on that MOVE alone, and the network is listed as changed."""
+        def src(step):
+            with open(os.path.join(FIXTURES, 'eno-fbd', step, 'zzE2eFbd.xml'), encoding='utf-8-sig') as f:
+                return BlockSource('zzE2eFbd', '', None, 'zzE2eFbd.xml', xml=f.read())
+        (p,) = compare_blocks(src('1-before'), src('2-F006')).nets
+        self.assertEqual((p.title, p.lang, p.state, p.not_shown), ('Box', 'FBD', 'changed', False))
+        self.assertNotIn('S7_GenerateENO', p.before.body)
+        self.assertEqual(p.after.body.count('S7_GenerateENO := "TRUE"'), 1)
+        self.assertLess(p.after.body.index('S7_GenerateENO'), p.after.body.index('Move('))
 
     def test_an_f_blocks_box_reads_as_not_said(self):
         """zzFMath's Add: in an F-block neither format writes the setting; its ENO reads alike from both, drawn black."""

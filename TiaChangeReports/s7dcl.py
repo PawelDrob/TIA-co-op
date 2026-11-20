@@ -554,8 +554,8 @@ class Rung:
     end: Optional[str]            # node name or None (rung ends in its last element)
 
 
-def parse_lad(body, prefix, itf=None, safety=False):
-    return lad_read(body, prefix, itf, safety)[0]
+def parse_lad(body, prefix, itf=None):
+    return lad_read(body, prefix, itf)[0]
 
 
 def lad_read(body, prefix, itf=None, safety=False):
@@ -814,8 +814,7 @@ def parse_block(src, lang=None):
     if kind == 'TYPE':
         body = text[m.start():]
     itf = parse_interface(body, res, db=kind == 'DATA_BLOCK')
-    safety = props.get('S7_Safety', '').lower() == 'true'
-    nets = [network(k, m.group(1), m.group(2), res, itf, tag, safety) for k, m in enumerate(_NET.finditer(text), 1)]
+    nets = [network(k, m.group(1), m.group(2), res, itf, tag, f_block(props)) for k, m in enumerate(_NET.finditer(text), 1)]
     return Block(object_name(src.name, declared_name(text)), src.label, itf, nets, kind, decl, props)
 
 
@@ -830,10 +829,16 @@ def text_as_read(src):
     return ''.join(out) + text[at:]
 
 
+def f_block(props):
+    """Whether a block's settings (Block.props) make it an F-block: S7_Safety TRUE, as .s7dcl and the SimaticML reader write it."""
+    return props.get('S7_Safety', '').lower() == 'true'
+
+
 def network(k, pragma, body, res, itf, tag, safety=False):
     """The k-th network of a block from its pragma block's settings and its lines; tag: the block's number, which keeps
     the element ids apart; safety: the block is an F-block. A LAD network's text, its part of the file and its raw lines
-    are its lines as read (lad_read)."""
+    are its lines as read (lad_read). Its raw holds what reads it again (beside.py): ('sd', pragma, lines, texts, interface,
+    safety)."""
     pr = _pragmas('{' + pragma + '}')
     lang_ = pr.get('S7_Language', '')
     rungs = None
@@ -841,7 +846,7 @@ def network(k, pragma, body, res, itf, tag, safety=False):
         rungs, body = lad_read(body, 'b%dn%d_' % (tag, k), itf, safety)
     nbody = _mlc_texts(body, res) if lang_ != 'LAD' else body
     net = Network(k, lang_, res.get(pr.get('S7_NetworkTitle', ''), ''), res.get(pr.get('S7_NetworkComment', ''), ''), nbody,
-                  source=_network_source(pragma, body, res, lang_), raw=('sd', pragma, body, res, itf))
+                  source=_network_source(pragma, body, res, lang_), raw=('sd', pragma, body, res, itf, safety))
     lm = _LABEL.match(nbody)
     net.label = lm.group(1) if lm else ''
     net.rungs = rungs
