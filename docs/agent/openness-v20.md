@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, with what its fingerprint and compare calls answer, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T02:08:30-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T02:18:46-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -406,8 +406,9 @@ compared the project after it with a retrieved archive of the state before `[PRO
   own changed: a tag table imported in an older state left three other blocks so. A tag table has no provider
   (`GetService` gives null). In a project opened as secondary every call throws: *The operation is not permitted in a
   read-only context.*
-- **Cost:** 3 to 225 ms an object, median 6; the whole PLC 4.3 to 8.7 s, longer as a session went on and shorter again
-  after a reopen.
+- **Cost:** 3 to 225 ms an object, median 6; the whole PLC 4.3 to 8.7 s. The first read after opening the project was
+  the slowest of its session in four of six sessions (7.9 to 8.7 s); later reads took 4.3 to 8.0 s, and in the longest
+  session (37 reads) they rose from 5.4 s after its first read to 7.2 s at its end.
 
 **`PlcSoftware.CompareTo(ISoftwareCompareTarget)`**, tried with another PLC's software and with the project library. Two
 offline PLCs: the second one opened as a secondary project in the same TIA, `Projects.Open(path, null,
@@ -424,8 +425,8 @@ state it was taken from every time.
   tag table). A member added to a data type, and a member comment, also marked the FB and the DBs using it; an input
   added to an FB also marked its instance DBs. That FB's caller, not consistent both in the archive and after the change,
   its own content unchanged, read identical.
-- **Cost:** the call 41 to 51 ms the first time in a session, 2 to 8 ms after; reading the tree of about 750 elements
-  1.9 to 4.9 s. Archive of the test project 3.9 to 5.9 s, its retrieve 0.5 to 0.7 s.
+- **Cost:** the call 41 to 51 ms the first time in a session, 2 to 8 ms after; reading the tree of 752 elements (753
+  with a change) 1.9 to 4.9 s. Archive of the test project 3.9 to 5.9 s, its retrieve 0.5 to 0.7 s.
 - **Against the project library** (`CompareTo(project.ProjectLibrary)`): instances of released type versions and objects
   named as a master copy's object were compared with them: 8 `ObjectsIdentical` (5 instances, a block, a tag table and a
   data type of master copies), one block `ObjectsDifferent` against a master copy's block of its name. Released types
