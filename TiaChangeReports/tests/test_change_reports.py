@@ -18,7 +18,7 @@ from TiaChangeReports.compare import compare_blocks, pair_networks
 from TiaChangeReports.diff import Graph, NetDiff, changed_params
 from TiaChangeReports.page import _pair_lines, columns_html, render
 from TiaChangeReports.render_lad import Layout
-from TiaChangeReports.s7dcl import Element, SET_IN_IDB, parse_block, parse_interface
+from TiaChangeReports.s7dcl import Element, SET_IN_IDB, lad_lines, parse_block, parse_interface
 from TiaChangeReports.source import BlockSource, FolderSnapshot, LibVersion, from_file, pair_blocks
 from TiaChangeReports.verify import check
 from TiaChangeReports.viewer import view
@@ -1977,12 +1977,57 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
     def sd_src(instr, pins=('in',), templates=''):
         """The same box as .s7dcl writes it, in a network of xml_src's title: no template, else templates as its
         S7_Templates."""
-        lines = ['                %s := #start,' % p for p in pins] + ['                out => #big']
-        pragma = '            { S7_Templates := "%s" }\n' % templates if templates else ''
+        pragma = ['{ S7_Templates := "%s" }' % templates] if templates else []
+        return TemplatesTheInstructionFixes.sd_rung(*pragma + ['%s(' % instr] + ['    %s := #start,' % p for p in pins]
+                                                    + ['    out => #big', ')'])
+
+    @staticmethod
+    def sd_rung(*lines):
+        """A .s7dcl whose first network, of xml_src's title, holds one rung of these lines."""
         return src('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD"; S7_NetworkTitle := "MLC_2" }\n    NETWORK\n'
-                   '        RUNG wire#powerrail\n'
-                   '%s            %s(\n%s\n            )\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
-                   % (pragma, instr, '\n'.join(lines)), name='Main')
+                   '        RUNG wire#powerrail\n%s\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
+                   % '\n'.join('            ' + x for x in lines), name='Main')
+
+    def read(self, *lines):
+        """(the network, its boxes) of sd_rung."""
+        net = self.parsed(self.sd_rung(*lines)).networks[0]
+        return net, [x for r in net.rungs for x in r.items if isinstance(x, Element)]
+
+    def test_the_box_a_pragma_is_for_is_the_one_the_reader_reads(self):
+        """A box whose name is quoted with a space ("My Ctr".CTU) keeps the template a user picked, in its element and in
+        the network's text, though the box after it (TUSEND) fixes one of that name and value."""
+        net, (ctu, tusend) = self.read('{ S7_Templates := "value_type := UDInt" }', '"My Ctr".CTU(', '    cu := #start', ')',
+                                       'TUSEND(', '    REQ := #start', ')')
+        self.assertEqual((ctu.instr, ctu.templates, tusend.instr), ('CTU', {'value_type': 'UDInt'}, 'TUSEND'))
+        self.assertIn('S7_Templates := "value_type := UDInt"', net.body)
+        self.assertIn('{ S7_Templates := "value_type := UDInt" }', lad_lines(net.body))
+
+    def test_of_two_boxes_in_a_rung_only_the_one_whose_instruction_fixes_the_type_loses_it(self):
+        net, (ctu, tusend) = self.read('{ S7_Templates := "value_type := UDInt" }', 'CTU(', '    cu := #start', ')',
+                                       '{ S7_Templates := "value_type := UDInt" }', 'TUSEND(', '    REQ := #start', ')')
+        self.assertEqual((ctu.templates, tusend.templates), ({'value_type': 'UDInt'}, {}))
+        self.assertEqual(lad_lines(net.body).count('{ S7_Templates := "value_type := UDInt" }'), 1)
+        self.assertLess(net.body.index('S7_Templates'), net.body.index('CTU('))
+
+    def test_a_type_with_a_comma_and_a_bracket_stays_whole(self):
+        """DECO: value_type UInt, the one it fixes, goes; return_type, an array type, stays whole in element and text."""
+        net, (deco,) = self.read('{ S7_Templates := "[value_type := UInt, return_type := Array[0..1, 0..2] of Byte]" }',
+                                 'DECO(', '    in := #start', ')')
+        self.assertEqual(deco.templates, {'return_type': 'Array[0..1, 0..2] of Byte'})
+        self.assertIn('{ S7_Templates := "return_type := Array[0..1, 0..2] of Byte" }', lad_lines(net.body))
+
+    def test_a_comment_line_stays_as_it_is(self):
+        net, _ = self.read('// S7_Templates := "value_type := UDInt"', 'TUSEND(', '    REQ := #start', ')')
+        self.assertIn('// S7_Templates := "value_type := UDInt"', lad_lines(net.body))
+
+    def test_beside_another_change_a_fixed_template_in_s7dcl_is_no_difference(self):
+        """From .s7dcl to .s7dcl: the box's operand changed and a pragma at the type TUSEND fixes was written. The network
+        is changed, with no note: its units (beside.py) read the pragma as the element does."""
+        before = self.sd_rung('TUSEND(', '    REQ := #start', ')')
+        after = self.sd_rung('{ S7_Templates := "value_type := UDInt" }', 'TUSEND(', '    REQ := #stop', ')')
+        d = compare_blocks(before, after, 'plc/blocks/Main.s7dcl', 'plc/blocks/Main.s7dcl')
+        self.assertEqual([(p.state, p.not_shown) for p in d.nets], [('changed', False)])
+        self.assertFalse(d.not_shown)
 
     @staticmethod
     def parsed(source):

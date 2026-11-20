@@ -555,10 +555,19 @@ class Rung:
 
 
 def parse_lad(body, prefix, itf=None):
+    return lad_read(body, prefix, itf)[0]
+
+
+def lad_read(body, prefix, itf=None):
+    """(the rungs of a LAD network, its text as read): the text with each template the reader leaves out of a box (a
+    type at the value its instruction fixes, instructions.left_out) taken out of that box's S7_Templates as well, and
+    a pragma left empty gone, so that its lines, its part of the file and its units (beside.py) read as its element
+    does; body itself where nothing is left out."""
     rungs = []
     cur = None
-    pend = {}
+    pend, pend_at = {}, []                        # the pragmas before the next element, and their lines [start, end)
     lines = body.splitlines()
+    rewritten = {}                                # start of a pragma's lines -> (end, its lines as read)
     i = 0
     n = 0
     while i < len(lines):
@@ -567,11 +576,13 @@ def parse_lad(body, prefix, itf=None):
         if not t or t.startswith('//'):
             continue
         if t.startswith('{'):
+            start = i - 1
             blk = t
             while '}' not in blk and i < len(lines):
                 blk += '\n' + lines[i]
                 i += 1
             pend.update(_pragmas(blk[:blk.index('}') + 1]))
+            pend_at.append((start, i))
             continue
         m = re.match(r'^RUNG\s+wire#(\w+)', t, re.I)
         if m:
@@ -607,25 +618,83 @@ def parse_lad(body, prefix, itf=None):
                     plines.append(pt)
             params = _param_list(plines)
         params = [(name, d, operand_text(v)) for name, d, v in params]
-        templates = {}
-        if 'S7_Templates' in pend:
-            for part in pend['S7_Templates'].strip('[] ').split(','):
-                if ':=' in part:
-                    k, v = part.split(':=', 1)
-                    templates[k.strip()] = v.strip()
+        written = _templates_value(pend.get('S7_Templates', ''))
+        templates = dict(written)
         templates.update((k, v) for k, v in pend.items() if re.match(r'CASE\d+$', k))   # Switch: CASE0 := "=="
         if 'S7_Relation' in pend:                         # T_COMP, S_COMP: S7_Relation := "EQ"
             templates['relation'] = pend['S7_Relation']
         n += 1
         el = _element('%s%d' % (prefix, n), head, params, templates, itf)
-        el.templates = {k: v for k, v in el.templates.items() if not instructions.left_out(el.instr, k, v)}   # as SimaticML's
+        gone = {k for k, v in written.items() if instructions.left_out(el.instr, k, v)}     # as the SimaticML reader
+        el.templates = {k: v for k, v in el.templates.items() if k not in gone}
+        if gone:
+            for start, end in pend_at:
+                rewritten[start] = (end, _without_templates(lines[start:end], gone))
         _fill_f_type(el, pend, itf)
         el.expression = pend.get('S7_Expression')
         eno = pend.get('S7_GenerateENO', '').upper()      # Calculate: ENO off unless generated [INFERRED], 8.6
         el.no_eno = eno == 'FALSE' or (head == 'Calculate' and eno != 'TRUE')
-        pend = {}
+        pend, pend_at = {}, []
         cur.items.append(el)
-    return rungs
+    if not rewritten:
+        return rungs, body
+    out, k = [], 0
+    while k < len(lines):
+        end, read = rewritten.get(k, (k + 1, [lines[k]]))
+        out += read
+        k = end
+    return rungs, '\n'.join(out)
+
+
+def _templates_value(text):
+    """{template: type} of an S7_Templates value, 'a := X' or '[a := X, b := Y]': split at a comma outside brackets, so
+    that a type keeps its own (Array[0..1, 0..2] of Byte)."""
+    t = text.strip()
+    if t.startswith('[') and _bracket_end(t, 0) == len(t) - 1:
+        t = t[1:-1]
+    parts, depth, start = [], 0, 0
+    for k, c in enumerate(t):
+        depth += (c == '[') - (c == ']')
+        if c == ',' and depth == 0:
+            parts.append(t[start:k])
+            start = k + 1
+    parts.append(t[start:])
+    return dict((x.strip() for x in p.split(':=', 1)) for p in parts if ':=' in p)
+
+
+def _bracket_end(text, at):
+    """Where the bracket opened at `at` closes, -1 if it does not."""
+    depth = 0
+    for k in range(at, len(text)):
+        depth += (text[k] == '[') - (text[k] == ']')
+        if depth == 0:
+            return k
+    return -1
+
+
+def _templates_text(templates):
+    """An S7_Templates value as the export writes it: one 'a := X', several in brackets."""
+    text = ', '.join('%s := %s' % kv for kv in templates.items())
+    return '[%s]' % text if len(templates) > 1 else text
+
+
+_S7_TEMPLATES = re.compile(r'(;\s*)?S7_Templates\s*:=\s*"([^"]*)"(\s*;\s*)?')
+
+
+def _without_templates(lines, gone):
+    """A pragma's lines with the templates `gone` taken out of its S7_Templates, the setting gone with the last of
+    them, the pragma gone when nothing is left in it."""
+    text = '\n'.join(lines)
+    m = _S7_TEMPLATES.search(text)
+    if m is None:
+        return lines
+    kept = {k: v for k, v in _templates_value(m.group(2)).items() if k not in gone}
+    if kept:
+        setting = '%sS7_Templates := "%s"%s' % (m.group(1) or '', _templates_text(kept), m.group(3) or '')
+    else:                                         # between two settings, one separator stays
+        setting = '; ' if m.group(1) and m.group(3) else ''
+    text = text[:m.start()] + setting + text[m.end():]
+    return [] if re.fullmatch(r'\s*\{\s*\}\s*', text) else text.split('\n')
 
 
 _NAMED_PIN = re.compile(r'^("[^"]+"|[A-Za-z_]\w*)\s*(:=|=>)\s*(.*)$')        # a quoted name: "iSq01/05"
@@ -748,16 +817,19 @@ def parse_block(src, lang=None):
 
 def network(k, pragma, body, res, itf, tag):
     """The k-th network of a block from its pragma block's settings and its lines; tag: the block's number, which keeps
-    the element ids apart."""
+    the element ids apart. A LAD network's text, its part of the file and its raw lines are its lines as read
+    (lad_read)."""
     pr = _pragmas('{' + pragma + '}')
     lang_ = pr.get('S7_Language', '')
+    rungs = None
+    if lang_ == 'LAD':
+        rungs, body = lad_read(body, 'b%dn%d_' % (tag, k), itf)
     nbody = _mlc_texts(body, res) if lang_ != 'LAD' else body
     net = Network(k, lang_, res.get(pr.get('S7_NetworkTitle', ''), ''), res.get(pr.get('S7_NetworkComment', ''), ''), nbody,
                   source=_network_source(pragma, body, res, lang_), raw=('sd', pragma, body, res, itf))
     lm = _LABEL.match(nbody)
     net.label = lm.group(1) if lm else ''
-    if lang_ == 'LAD':
-        net.rungs = parse_lad(nbody, 'b%dn%d_' % (tag, k), itf)
+    net.rungs = rungs
     return net
 
 
@@ -814,42 +886,10 @@ def lad_lines(body):
     indentation, the trailing comma an XML export writes after the last parameter, a space after an empty output, the
     order of a box's named pins and the case of their names, the quotes round a plain name in an operand:
     operand_text, a comment line aside)."""
-    lines = _fixed_templates_out([re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()])
+    lines = [re.sub(r'\s*,$', '', l.strip()) for l in body.splitlines()]
     lines = [l if l.startswith('//') else operand_text(l) for l in lines]
     lines = _pins_in_one_order(_pins_in_one_case([l for l in lines if l]))
     return numbered('\n'.join(lines)).split('\n') if lines else []
-
-
-_TEMPLATES = re.compile(r'S7_Templates\s*:=\s*"([^"]*)"\s*;?\s*')
-_HEAD = re.compile(r'^([^\s({]+)\(')
-
-
-def _fixed_templates_out(lines):
-    """A LAD network's lines with each template of an S7_Templates at the value its box's instruction fixes left out
-    (instructions.left_out), as the reader leaves it out of the element and the SimaticML reader out of its text; a
-    pragma left empty goes. The box is the next line that opens one: its instruction is the head's last part (#i.TUSEND)."""
-    out, skip = [], False
-    for k, line in enumerate(lines):
-        m = _TEMPLATES.search(line)
-        if skip or not m:
-            out += [] if skip else [line]
-            skip = False
-            continue
-        head = next((h.group(1) for h in map(_HEAD.match, lines[k + 1:]) if h), '')
-        pairs = [[x.strip() for x in kv.split(':=', 1)] for kv in m.group(1).strip('[] ').split(',') if ':=' in kv]
-        kept = ['%s := %s' % (n, v) for n, v in pairs if not instructions.left_out(head.rpartition('.')[2], n, v)]
-        if len(kept) == len(pairs):
-            out.append(line)
-            continue
-        value = ('[%s]' if len(kept) > 1 else '%s') % ', '.join(kept)
-        line = line[:m.start()] + ('S7_Templates := "%s"; ' % value if kept else '') + line[m.end():]
-        line = re.sub(r';\s*\}$', ' }', line).strip()
-        if line and not re.fullmatch(r'\{\s*\}', line):
-            out.append(line)
-        elif out and out[-1] == '{' and lines[k + 1:k + 2] == ['}']:      # a pragma of its own lines, now empty
-            out.pop()
-            skip = True
-    return out
 
 
 def texts_for_keys(s, res):
