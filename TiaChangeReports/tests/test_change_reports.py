@@ -1985,11 +1985,13 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
                                                     + ['    out => #big', ')'])
 
     @staticmethod
-    def sd_rung(*lines):
-        """A .s7dcl whose first network, of xml_src's title, holds one rung of these lines."""
-        return src('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD"; S7_NetworkTitle := "MLC_2" }\n    NETWORK\n'
-                   '        RUNG wire#powerrail\n%s\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
-                   % '\n'.join('            ' + x for x in lines), name='Main')
+    def sd_rung(*lines, label='', after=()):
+        """A .s7dcl whose first network, of xml_src's title, holds one rung of these lines; label its jump label, after the
+        lines after its rung."""
+        return src('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD"; S7_NetworkTitle := "MLC_2" }\n    NETWORK\n%s'
+                   '        RUNG wire#powerrail\n%s\n        END_RUNG\n%s    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
+                   % ('        Label(%s)\n' % label if label else '', '\n'.join('            ' + x for x in lines),
+                      ''.join('        %s\n' % x for x in after)), name='Main')
 
     def read(self, *lines):
         """(the network, its boxes) of sd_rung."""
@@ -2206,7 +2208,8 @@ class NoteAcrossTheFormats(unittest.TestCase):
     'note: LAD lines'): the lines of both as read, one writer for both. What only the writer's form tells is no note:
     a pragma on one line or several, an S7_Templates in brackets and in another order, S7_Relation beside it, a box's
     pin on one line and in another case, the jump label's line. What a user sets is compared from both: a template's
-    value, ENO, a relation, an F-box's cards, the label, and a comment line only one format can hold."""
+    value, ENO, a relation, an F-box's cards, the label, and the .s7dcl lines its reader reads nothing from (a comment, a
+    pragma after the last box, a line no element is read from), which the other format cannot hold."""
 
     @staticmethod
     def tv(name, value, typ='Type'):
@@ -2225,13 +2228,7 @@ class NoteAcrossTheFormats(unittest.TestCase):
                                            '<Parts>' % label, 1)
         return _xml_src(text)
 
-    @staticmethod
-    def sd(*lines, label=''):
-        """The same as .s7dcl, a network of xml's title holding one rung of these lines, label its jump label."""
-        return src('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD"; S7_NetworkTitle := "MLC_2" }\n    NETWORK\n%s'
-                   '        RUNG wire#powerrail\n%s\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
-                   % ('        Label(%s)\n' % label if label else '', '\n'.join('            ' + x for x in lines)),
-                   name='Main')
+    sd = staticmethod(TemplatesTheInstructionFixes.sd_rung)
 
     ENO = ' DisabledENO="false"'
 
@@ -2250,10 +2247,11 @@ class NoteAcrossTheFormats(unittest.TestCase):
         return self.xml('S_COMP', self.tv('relation', relation, 'Operation') + self.tv('src_type', 'String'),
                         (('IN1', 21), ('IN2', 22)), 'OUT')
 
-    def shr(self, *more, user='1', n='#stop'):
-        """SHR of an F-block as .s7dcl writes it: its cards and no type; more: lines before the box; n its operand on n."""
+    def shr(self, *more, user='1', n='#stop', after=()):
+        """SHR of an F-block as .s7dcl writes it: its cards and no type; more: lines before the box; n its operand on n;
+        after: the lines after its rung."""
         return self.sd(*more + ('{', '    f_user_card := "%s"; ' % user, '    f_image_card := "0"', '}', 'SHR(',
-                                '    in := #start,', '    n := %s,' % n, '    out => #big', ')'))
+                                '    in := #start,', '    n := %s,' % n, '    out => #big', ')'), after=after)
 
     def shr_xml(self, user='1', n=22):
         """SHR as SimaticML writes it: its cards and its type as templates; n the operand on N."""
@@ -2292,6 +2290,8 @@ class NoteAcrossTheFormats(unittest.TestCase):
             "an F-box's card": (self.shr(), self.shr_xml(user='2'), True),
             'the jump label': (self.neg(*one_line, label='lblA'), self.neg_xml(label='lblB'), False),
             'a comment line': (self.shr('// set by hand'), self.shr_xml(), True),
+            'a pragma after the last box': (self.shr(after=('{ f_user_card := "2" }',)), self.shr_xml(), True),
+            'a line no element is read from': (self.shr('SHL'), self.shr_xml(), True),
         }
         for kind, (sd, xml, note) in cases.items():
             with self.subTest(kind):

@@ -43,9 +43,10 @@ class NetPair:
         b, a = self.before, self.after
         if not (b and a and self.lad is not None and b.rungs is not None and a.rungs is not None) or self.lad.changed:
             return None
-        lines = _lad_lines(b.body), _lad_lines(a.body)
         if _format(b) != _format(a):
             lines = _read_lines(b), _read_lines(a)
+        else:
+            lines = _lad_lines(b.body), _lad_lines(a.body)
         return lines if lines[0] != lines[1] else None
 
     def _same_lines(self):
@@ -78,8 +79,7 @@ class NetPair:
         lines = self._unseen()
         if lines:
             return not self._same_lines()
-        src_b, src_a = getattr(b, 'source', None), getattr(a, 'source', None)
-        if not (src_b and src_a and src_b[0] == src_a[0] and src_b != src_a):
+        if not (b and a and b.source and a.source and _format(b) == _format(a) and b.source != a.source):
             return False
         if self._not_shown is None:
             self._not_shown = self._read_same() or unread_beside(b, a, _reads_same)
@@ -117,12 +117,9 @@ def _format(net):
 def _read_lines(net):
     """A LAD network's lines as its reader read it, from either format alike: its rungs as one writer writes them
     (simaticml.rungs_text: its boxes' templates, ENO, expression and settings; not the templates SimaticML alone writes,
-    Element.more; the jump label is compared apart). An .s7dcl's comment lines, which nothing reads, stand at their end
-    as they are: the other format has none."""
-    lines = _lad_lines(rungs_text(net.rungs))
-    if _format(net) == 'sd':
-        lines += [x for x in _lad_lines(net.body) if x.startswith('//')]
-    return lines
+    Element.more; the jump label is compared apart). An .s7dcl's lines its reader reads nothing from (Network.unread: a
+    comment, the pragmas after its last box) stand at their end as they are: the other format has none."""
+    return _lad_lines(rungs_text(net.rungs)) + net.unread
 
 
 def _reads_same(b, other):

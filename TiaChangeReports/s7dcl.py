@@ -563,23 +563,30 @@ def parse_lad(body, prefix, itf=None):
 
 
 def lad_read(body, prefix, itf=None, safety=False):
-    """(the rungs of a LAD network, its text as read): the text with each template the reader leaves out of a box (a
+    """(the rungs of a LAD network, its text as read, the lines it reads nothing from): the text with each template the reader leaves out of a box (a
     template at the value its instruction fixes: a type, or Sub, Div and Mod's Card 2; instructions.left_out) taken out
     of the S7_Templates the box was read from, the last before it, and a pragma left empty gone, so that its lines, its
     part of the file and its units (beside.py) read as its element does; body itself where nothing is left out. A box's
     ENO as its S7_GenerateENO says (instructions.s7dcl_no_eno; safety: the network is of an F-block); the settings in
-    front of it that none of its fields reads, as they stand (Element.settings)."""
-    rungs = []
+    front of it that none of its fields reads, as they stand (Element.settings). The lines read nothing from, stripped: a
+    comment, a line no element is read from but the jump label in front of all (Network.label), the pragmas after the last
+    box."""
+    rungs, unread = [], []
     cur = None
     pend, pend_at = {}, []                        # the pragmas before the next element, and their lines [start, end)
     lines = body.splitlines()
     rewritten = {}                                # start of a pragma's lines -> (end, its lines as read)
     i = 0
     n = 0
+    lead = True                                   # no line read yet
     while i < len(lines):
         t = lines[i].strip()
         i += 1
-        if not t or t.startswith('//'):
+        if not t:
+            continue
+        first, lead = lead, False
+        if t.startswith('//'):
+            unread.append(t)
             continue
         if t.startswith('{'):
             start = i - 1
@@ -605,7 +612,9 @@ def lad_read(body, prefix, itf=None, safety=False):
             cur.items.append(('node', m.group(1).lower()))
             continue
         m = re.match(r'^(.*?)\((.*)$', t)
-        if not m or cur is None:                  # Label(x) before the first rung: Network.label (_LABEL)
+        if not m or cur is None:
+            if not (first and _LABEL.fullmatch(t)):     # the label in front of all: Network.label
+                unread.append(t)
             continue
         head, rest = operand_text(m.group(1).strip()), m.group(2)
         params = []
@@ -644,14 +653,15 @@ def lad_read(body, prefix, itf=None, safety=False):
         el.settings = {k: v for k, v in pend.items() if not _READ_SETTING.match(k)}
         pend, pend_at = {}, []
         cur.items.append(el)
+    unread += [x.strip() for start, end in pend_at for x in lines[start:end] if x.strip()]
     if not rewritten:
-        return rungs, body
+        return rungs, body, unread
     out, k = [], 0
     while k < len(lines):
         end, read = rewritten.get(k, (k + 1, [lines[k]]))
         out += read
         k = end
-    return rungs, '\n'.join(out)
+    return rungs, '\n'.join(out), unread
 
 
 # The pragma settings in front of a box that lad_read reads into its own fields; the others are its settings.
@@ -783,6 +793,7 @@ class Network:
     label: str = ''               # its jump label (LAD, FBD: TIA's box over the network)
     source: object = None         # its part of the file, to compare with what the report read
     raw: object = field(default=None, repr=False, compare=False)    # that part as read, to read again (beside.py)
+    unread: list = field(default_factory=list)    # .s7dcl LAD: the lines its reader reads nothing from (lad_read)
 
 
 @dataclass
@@ -852,15 +863,15 @@ def network(k, pragma, body, res, itf, tag, safety=False):
     safety)."""
     pr = _pragmas('{' + pragma + '}')
     lang_ = pr.get('S7_Language', '')
-    rungs = None
+    rungs, unread = None, []
     if lang_ == 'LAD':
-        rungs, body = lad_read(body, 'b%dn%d_' % (tag, k), itf, safety)
+        rungs, body, unread = lad_read(body, 'b%dn%d_' % (tag, k), itf, safety)
     nbody = _mlc_texts(body, res) if lang_ != 'LAD' else body
     net = Network(k, lang_, res.get(pr.get('S7_NetworkTitle', ''), ''), res.get(pr.get('S7_NetworkComment', ''), ''), nbody,
                   source=_network_source(pragma, body, res, lang_), raw=('sd', pragma, body, res, itf, safety))
     lm = _LABEL.match(nbody)
     net.label = lm.group(1) if lm else ''
-    net.rungs = rungs
+    net.rungs, net.unread = rungs, unread
     return net
 
 

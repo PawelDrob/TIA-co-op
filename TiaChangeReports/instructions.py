@@ -285,10 +285,16 @@ F_TYPES = {'TP': {'time_type': 'Time'}, 'TON': {'time_type': 'Time'}, 'TOF': {'t
            'BO_W': {'src_type': 'Bool', 'dest_type': 'Word'}, 'W_BO': {'src_type': 'Word', 'dest_type': 'Bool'}}
 
 
+def f_card(name):
+    """Whether a template or setting is one of an F-box's cards (f_user_card, f_image_card, ...): templates in SimaticML,
+    settings of their own in .s7dcl (s7dcl.Element.settings)."""
+    return (name or '').startswith('f_') and (name or '').endswith('_card')
+
+
 def f_templates(instr, pragmas):
     """What the type template of an F-box is when nothing else says: the pragma in front of it (a .s7dcl names only an F-box's cards there), else the table; {} for
     any other element. The caller fills only what is empty."""
-    if instr not in F_TYPES or not any(k.startswith('f_') and k.endswith('_card') for k in pragmas):
+    if instr not in F_TYPES or not any(f_card(k) for k in pragmas):
         return {}
     return {template: pragmas.get(template, typ) for template, typ in F_TYPES[instr].items()}
 
