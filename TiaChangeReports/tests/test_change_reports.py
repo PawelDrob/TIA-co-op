@@ -5470,6 +5470,101 @@ class TypedDbStartValues(unittest.TestCase):
         self.assertEqual((ds['SubFb_DB'].kind, ds['UdtDb'].kind), ('Instance DB', 'DB'))
 
 
+def _two_format_file(rel):
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'twoformats', '1-before', rel),
+              encoding='utf-8-sig') as f:
+        return f.read()
+
+
+class InstanceDbStartValuesFromSimaticML(unittest.TestCase):
+    """An instance DB's SimaticML holds the members TIA writes from its FB and the start values set in the DB; its
+    .s7dcl only those start values. The real exports of zzE2eFbI_DB (repo zz-226-repo at 5b253ff, inV set to 5 in the
+    DB, row D006) with their FB and its UDT: the report reads the start values from both formats alike, and none of
+    the members TIA spells out from the FB."""
+
+    DIR, TYPES = 'plc/blocks/zzE2e/', 'plc/types/zzE2e/'
+    SD_IDB = _two_format_file('plc/blocks/zzE2e/zzE2eFbI_DB.s7dcl')
+    XML_IDB = _two_format_file('simaticml/plc/blocks/zzE2e/zzE2eFbI_DB.xml')
+    SD_FB = _two_format_file('plc/blocks/zzE2e/zzE2eFbI.s7dcl')
+    XML_FB = _two_format_file('simaticml/plc/blocks/zzE2e/zzE2eFbI.xml')
+    SD_UDT = _two_format_file('plc/types/zzE2e/zzE2eUdtA.s7dcl')
+    XML_UDT = _two_format_file('simaticml/plc/types/zzE2e/zzE2eUdtA.xml')
+    # The UDT member stU and its member m1 as TIA writes them in the DB, from the FB: no start value of the DB's own.
+    XML_STU = '<Member Name="m1" Datatype="Int" />'
+
+    def sd(self, inv='5', m1=None, fb=None):
+        """The .s7dcl files: inV's and stU.m1's start values in the DB (None: not set there), the FB's text."""
+        own = ''.join('    %s := %s;\n' % (k, v) for k, v in (('inV', inv), ('stU.m1', m1)) if v is not None)
+        idb = self.SD_IDB.replace('    inV := 5;\n', own)
+        return {self.DIR + 'zzE2eFbI_DB.s7dcl': idb, self.DIR + 'zzE2eFbI.s7dcl': fb or self.SD_FB,
+                self.TYPES + 'zzE2eUdtA.s7dcl': self.SD_UDT}
+
+    def xml(self, inv='5', m1=None, fb=None, idb=None):
+        """The SimaticML files, as sd(); idb: the DB's file in place of the real one changed so."""
+        idb = idb or self.XML_IDB
+        idb = idb.replace('      <StartValue>5</StartValue>\n',
+                          '' if inv is None else '      <StartValue>%s</StartValue>\n' % inv)
+        if m1 is not None:
+            idb = idb.replace(self.XML_STU,
+                              '<Member Name="m1" Datatype="Int"><StartValue>%s</StartValue></Member>' % m1)
+        return {self.DIR + 'zzE2eFbI_DB.xml': idb, self.DIR + 'zzE2eFbI.xml': fb or self.XML_FB,
+                self.TYPES + 'zzE2eUdtA.xml': self.XML_UDT}
+
+    def report(self, before, after):
+        """The instance DB's BlockDiff between two sets of files, and its interface rows that are not the same."""
+        from TiaChangeReports.compare import compare_snapshots
+        with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as a:
+            _write(b, before)
+            _write(a, after)
+            d = next((d for d in compare_snapshots(FolderSnapshot(b), FolderSnapshot(a), all_=True)
+                      if d.name == 'zzE2eFbI_DB'), None)
+        rows = [('.'.join(r.path), r.state, sorted(r.changes), r.b and r.b.value, r.a and r.a.value)
+                for r in iface.block_rows(d.before, d.after) if r.state != 'same'] if d else []
+        return d, rows
+
+    def test_the_start_values_set_in_the_db_are_read_and_no_member_of_the_fb(self):
+        b = parse_block(BlockSource('zzE2eFbI_DB', '', None, 'zzE2eFbI_DB', xml=self.XML_IDB))
+        self.assertEqual(({'inV': ('5', None)}, {}), (b.interface.start, b.interface.root.children))
+        nested = self.xml(m1='3')[self.DIR + 'zzE2eFbI_DB.xml']
+        b = parse_block(BlockSource('zzE2eFbI_DB', '', None, 'zzE2eFbI_DB', xml=nested))
+        self.assertEqual({'inV': ('5', None), 'stU.m1': ('3', None)}, b.interface.start)
+        self.assertEqual(b.interface.start, parse_block(src(self.sd(m1='3')[self.DIR + 'zzE2eFbI_DB.s7dcl'], None,
+                                                            'zzE2eFbI_DB')).interface.start)
+
+    def test_a_start_value_set_changed_and_taken_away_reads_alike_from_both_formats(self):
+        for before, after in (({'inv': None}, {}), ({}, {'inv': '6'}), ({}, {'inv': None}),
+                              ({}, {'m1': '3'}), ({'m1': '3'}, {'m1': '4'}), ({'m1': '3'}, {})):
+            with self.subTest(before=before, after=after):
+                ds, rs = self.report(self.sd(**before), self.sd(**after))
+                dx, rx = self.report(self.xml(**before), self.xml(**after))
+                self.assertTrue(rs)
+                self.assertEqual(rs, rx)
+                self.assertEqual(('changed', False), (dx.state, dx.not_shown), 'shown, not left to the note')
+                da, ra = self.report(self.sd(**before), self.xml(**after))
+                self.assertEqual(rs, ra, '.s7dcl before, SimaticML after')
+
+    def test_the_same_start_values_in_the_two_formats_are_no_change(self):
+        for own in ({}, {'inv': None}, {'m1': '3'}):
+            with self.subTest(own=own):
+                self.assertEqual([], self.report(self.sd(**own), self.xml(**own))[1])
+
+    def test_a_member_added_to_the_fb_gives_the_db_no_row(self):
+        """TIA writes the FB's new input into the instance DB's SimaticML; the .s7dcl of the DB does not move. From
+        SimaticML the DB gets no row of it either: the member is the FB's, shown on the FB. Its file moved in what the
+        report does not read, so the note, as before (the two-format bed's cause "type members")."""
+        def with_inx(xml):                  # inX after inW, as TIA writes inW in the FB and in its instance DB
+            start = xml.index('    <Member Name="inW"')
+            end = xml.index('    </Member>\n', start) + len('    </Member>\n')
+            return xml[:end] + xml[start:end].replace('"inW"', '"inX"') + xml[end:]
+        fb_sd = self.SD_FB.replace('        inW : Int;\n', '        inW : Int;\n        inX : Int;\n')
+        ds, rs = self.report(self.sd(), self.sd(fb=fb_sd))
+        dx, rx = self.report(self.xml(), self.xml(fb=with_inx(self.XML_FB), idb=with_inx(self.XML_IDB)))
+        self.assertEqual(('same', []), (ds.state, rs), 'the .s7dcl of the DB did not move')
+        self.assertEqual([], rx)
+        self.assertEqual(dx.before.interface.start, dx.after.interface.start)
+        self.assertTrue(dx.not_shown)
+
+
 # ---------------------------------------------------------------- a moved network is one pair, tagged
 
 MOVE = ('SCL', 'Network to move', ['#m := #a;'])

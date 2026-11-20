@@ -91,8 +91,8 @@ CAUSES = {
                                           'block with standard access'),
     'another kind of block': (ONE_FIELD, 'a block become another kind (FC, FB): SimaticML writes the sections and '
                                          'attributes of the kind'),
-    'instance DB start values': (READER, "an instance DB's start values: the SimaticML reader leaves them to the "
-                                         "note, the .s7dcl reader shows them"),
+    'instance DB start values': (READER, "an instance DB's start values, which both readers read, read otherwise "
+                                         "from the two formats"),
     'library link across formats': (DIFF, "a program block marked as differing from its library type: the two "
                                            "changes compared as text, each from one format to the other"),
     'author': (READER, "a block's author: S7_Author shown from .s7dcl, HeaderAuthor left to the note from SimaticML"),
@@ -463,7 +463,7 @@ def _object_causes(d, sd, xml):
                 out |= {'member setpoint' if k == 'S7_Setpoint' and ab.get(k) is None and aa.get(k) == 'True'
                         else 'unknown: interface, %s' % k for k in set(ab) | set(aa) if ab.get(k) != aa.get(k)}
             elif f == 'value' and d.kind == 'Instance DB' and not xml_members:
-                out.add('instance DB start values')       # the SimaticML reader reads no member of an instance DB
+                out.add('instance DB start values')       # an instance DB has no member of its own: a start value
             else:
                 out.add('unknown: interface, %s' % f)
     if d.library_differs:

@@ -305,6 +305,13 @@ def _read(itf):
     return out
 
 
+def _read_typed_db(itf, paths):
+    """_read of an instance DB or a DB of a UDT, at the paths of its members: of the members TIA writes from the FB or
+    UDT the report reads none, only the start values the DB sets."""
+    return {p: (None,) * 6 + (sorted((k, v) for k, v in itf.start.items()
+                                     if k == p or k.startswith((p + '.', p + '['))),) for p in paths}
+
+
 # What the report reads of a member's fields, as positions in _read's values. A field not here it does not read.
 _MEMBER_READS = {'Datatype': (0,), 'Remanence': (3,), 'StartValue': (1, 6), 'Comment': (2,), 'AttributeList': (4,),
                  'Subelement': (6,), 'Sections': (6,)}
@@ -363,9 +370,13 @@ def unread_differs(bxml, axml, bblk, ablk, lang=None):
                         _member_sources(sec, '', lang, out)
         return out
     mb, ma = members(b), members(a)
-    rb, ra = _read(bblk.interface), _read(ablk.interface)
-    if not rb and not ra:                                        # an instance DB: its FB's interface is not read
-        if mb != ma:
+    if _local(b.tag) == _local(a.tag) == 'SW.Blocks.InstanceDB':
+        if set(mb) != set(ma):                                   # a member of its FB or UDT, which is not read here
+            return True
+        rb, ra = _read_typed_db(bblk.interface, mb), _read_typed_db(ablk.interface, ma)
+    else:
+        rb, ra = _read(bblk.interface), _read(ablk.interface)
+        if not rb and not ra and mb != ma:
             return True
     for path in set(mb) & set(ma):
         if mb[path] != ma[path] and _member_unread(mb[path], ma[path], rb.get(path), ra.get(path)):
@@ -1201,7 +1212,8 @@ def parse_block(src, lang=None):
     plang = _text(al, 'ProgrammingLanguage')
     safety = plang.startswith('F_')
     if _local(blk.tag) == 'SW.Blocks.InstanceDB':
-        itf = Interface()                                 # as in the SD export: the FB's interface is not repeated
+        itf = Interface()                                 # as in the SD export: the FB's interface is not repeated,
+        itf.start = parse_interface(al, lang, db=True).start      # only the start values set in the DB itself
     else:
         itf = parse_interface(al, lang, db=kind == 'DATA_BLOCK', safety=safety)
     decl = '"%s"' % name

@@ -16,7 +16,6 @@ from types import SimpleNamespace
 from TiaChangeReports import iface
 from TiaChangeReports.compare import BlockDiff, Callees
 from TiaChangeReports.page import CSS, FOLD_ALL, JS, _lad_pane, folds, version_html
-from TiaChangeReports.names import decl_type
 from TiaChangeReports.render_lad import Layout
 from TiaChangeReports.s7dcl import LANG, parse_block, scl_lines
 from TiaChangeReports.simaticml import parse_interface
@@ -51,8 +50,6 @@ def block_of(path):
     if src.xml is None and os.path.splitext(path)[1].lower() == '.xml':     # from_file reads a lower-case .xml only
         src = replace(src, s7dcl='', s7res=None, xml=src.s7dcl)
     blk = parse_block(src)
-    if src.xml is not None and decl_type(blk.decl) and blk.kind == 'DATA_BLOCK' and not blk.interface.start:
-        blk.interface.start = _xml_db(src).start
     root = project_root(path)
     rel = os.path.relpath(os.path.abspath(path), root).replace(os.sep, '/')
     blk.callees = Callees(FolderSnapshot(root)).at(rel)
@@ -60,8 +57,8 @@ def block_of(path):
 
 
 def _xml_db(src):
-    """The SimaticML of a DB read as a global DB's: its members with their retain, and the start values it sets. The
-    reader leaves both out of an instance DB and a DB of a UDT, which the .s7dcl does not repeat either."""
+    """The SimaticML of a DB read as a global DB's: its members with their retain. The reader leaves them out of an
+    instance DB and a DB of a UDT, which the .s7dcl does not repeat either; it reads only the start values set there."""
     return parse_interface(ET.fromstring(src.xml.lstrip('\ufeff').encode('utf-8')), LANG, db=True)
 
 

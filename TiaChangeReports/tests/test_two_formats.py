@@ -50,7 +50,7 @@ class RunRepo(unittest.TestCase):
         got = {(x['object'], tuple(x['network']) if x['network'] else None): x['causes']
                for x in twoformats.nothing_changed(self.repo, 'HEAD~2')}
         self.assertEqual({
-            (IDB, None): ['DB retain', 'instance DB access', 'instance DB start values'],
+            (IDB, None): ['DB retain', 'instance DB access'],
             (UDT, None): ['declaration'],
         }, got)
 
