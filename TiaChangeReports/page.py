@@ -372,11 +372,12 @@ def _word_marks(a, b):
     return ma, mb
 
 
-def _inline(a, b, ka=None, kb=None):
-    """Word-level highlight of one paired line (_word_marks), each changed word in a plain <span>. ka, kb: a side's
-    SCL tokens (scl_colours.lines), its words then in their colours inside and outside the marks."""
-    ma, mb = _word_marks(a, b)
-    return _marked(a, ma, ka), _marked(b, mb, kb)
+def _inline(a, b, toks_a=None, toks_b=None):
+    """Word-level highlight of one paired line (_word_marks), each changed word in a plain <span>. toks_a, toks_b: the
+    SCL tokens of line a and of line b (scl_colours.lines), its words then in their colours inside and outside the
+    marks."""
+    marks_a, marks_b = _word_marks(a, b)
+    return _marked(a, marks_a, toks_a), _marked(b, marks_b, toks_b)
 
 
 def _marked(text, marks, toks=None):
@@ -439,7 +440,7 @@ def scl_table(bl, al, context=3, kb=None, ka=None):
             hb = _line_html(bl, kb, i) if i is not None else ''
             ha = _line_html(al, ka, j) if j is not None else ''
             if i is not None and j is not None:
-                hb, ha = _inline(bl[i], al[j], kb[i] if kb else None, ka[j] if ka else None)
+                hb, ha = _inline(bl[i], al[j], toks_a=kb[i] if kb else None, toks_b=ka[j] if ka else None)
             rows.append([False, i + 1 if i is not None else '', 'del' if i is not None else 'nil', hb,
                          j + 1 if j is not None else '', 'ins' if j is not None else 'nil', ha])
     # context: unchanged rows near a change stay visible

@@ -444,7 +444,7 @@ def parse_header(text, res):
 
 # ---------------------------------------------------------------- a part of an operand
 
-_IDENT = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+_IDENT = re.compile(r'^[^\W\d]\w*$')     # letters outside ASCII too: the SD export writes #statÄnderung bare
 
 # Names the SD export quotes although they are identifiers (TIA's own list is not published): in SCL the reserved
 # words and a few more, in LAD also instruction names and address mnemonics (as seen in the .s7dcl exports of real

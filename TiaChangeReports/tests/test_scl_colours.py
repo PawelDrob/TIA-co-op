@@ -51,7 +51,7 @@ def kinds(toks):
 
 
 def _inline_before(a, b):
-    """page._inline as it was before the colours (TIA-co-op 395): the changed words the report marks."""
+    """page._inline as it was before the SCL colours: the changed words the report marks."""
     ta = page.WORD.findall(a)
     tb = page.WORD.findall(b)
     sm = difflib.SequenceMatcher(None, ta, tb, autojunk=False)
@@ -187,6 +187,36 @@ class TheKindsAsReadFromTia(unittest.TestCase):
         self.assertEqual(self.line('lblEnd: #outActive := FALSE;')[:2], [('label', 'lblEnd'), ('operator', ':')])
         self.assertEqual(self.line('lblEnd: #outActive := FALSE;')[-2], ('constant', 'FALSE'))
 
+    def test_a_region_line_with_a_comment_and_a_multilingual_comment(self):
+        """TIA colours the whole rest of a REGION line, its // too, as the region's name, and (/* */) as a comment."""
+        self.assertEqual(self.line("REGION Settled by TIA // a comment on the region's line"),
+                         [('region', 'REGION'), ('constant', "Settled by TIA // a comment on the region's line")])
+        self.assertEqual(self.line('(/*A multilingual comment in code*/)'),
+                         [('comment', '(/*A multilingual comment in code*/)')])
+
+    def test_eno_is_an_operand_and_a_parameter_only_inside_a_call(self):
+        """TIA colours ENO := FALSE; as an operand; a name before := is a parameter inside a call's parentheses only,
+        also on the call's next lines."""
+        self.assertEqual(self.line('ENO := FALSE;'), [('operand', 'ENO'), ('operator', ':='), ('constant', 'FALSE'),
+                                                       ('semicolon', ';')])
+        self.assertEqual(self.line('PT := T#5s,')[0], ('parameter', 'PT'))
+        self.assertEqual(kinds(scl_colours.lines(['x := 1;'])[0])[0], (None, 'x'))
+
+    def test_what_the_maintainer_chose_where_tia_differs(self):
+        """TIA colours a data type after TypeOf as a constant and the called TON of #statTimer.TON( as a block call;
+        the maintainer chose to keep them black and an operand."""
+        self.assertEqual(self.line('IF TypeOf(#ioVar) = Int THEN')[1:],
+                         [('instruction', 'TypeOf'), ('operator', '('), ('operand', '#ioVar'), ('operator', ')'),
+                          ('operator', '='), (None, 'Int'), ('keyword', 'THEN')])
+        self.assertIn(('operand', '"zzBenSclColType"'), self.line('ELSIF TypeOf(#ioVar) = "zzBenSclColType" THEN'))
+        self.assertEqual(self.line('#statTimer.TON(IN := #inEnable, PT := T#2s);')[:5],
+                         [('operand', '#statTimer'), ('operator', '.'), ('operand', 'TON'), ('operator', '('),
+                          ('parameter', 'IN')])
+
+    def test_names_in_other_letters(self):
+        self.assertEqual(self.line('#statÜbung := #statÄnderung + 1;')[:3],
+                         [('operand', '#statÜbung'), ('operator', ':='), ('operand', '#statÄnderung')])
+
     def test_each_kind_has_the_colour_read_from_tia(self):
         self.assertEqual({k: v[1] for k, v in scl_colours.KINDS.items()}, {
             'keyword': '#0000ff', 'region': '#c91ffe', 'constant': '#005989', 'comment': '#187e2b',
@@ -200,8 +230,14 @@ class BothFormatsAlike(unittest.TestCase):
     def test_the_same_lines_get_the_same_colours_from_s7dcl_and_simaticml(self):
         sd, xml = colour_block('.s7dcl'), colour_block('.xml')
         got = [[scl_colours.lines(scl_lines(n.body), b.interface) for n in b.networks] for b in (sd, xml)]
-        self.assertEqual(len(got[0][0]), 92)
+        self.assertEqual(len(got[0][0]), 104)
         self.assertEqual(got[0], got[1])
+
+    def test_the_simaticml_reader_writes_eno_names_in_other_letters_and_a_data_type_as_the_sd_export(self):
+        lines = scl_lines(colour_block('.xml').networks[0].body)
+        for line in ('ENO := FALSE;', '#statÜbung := #statÄnderung + 1;', 'IF TypeOf(#ioVar) = Int THEN',
+                     'ELSIF TypeOf(#ioVar) = "zzBenSclColType" THEN'):
+            self.assertIn(line, [x.strip() for x in lines])
 
     def test_the_bed_names_a_network_coloured_otherwise(self):
         sd, xml = colour_block('.s7dcl'), colour_block('.xml')
@@ -294,6 +330,25 @@ class LocalConstants(unittest.TestCase):
     def test_without_an_interface_every_name_is_an_operand(self):
         got = kinds(scl_colours.lines(['#a := #LIMIT;'])[0])
         self.assertEqual(got[2], ('operand', '#LIMIT'))
+
+
+class NamesOfAnyLetters(unittest.TestCase):
+    def test_a_name_is_one_word_whatever_letters_it_holds(self):
+        line = '#Übung := #ärger + "Füllstand_Tank".Ölstand + #Motorstörung + MAX(IN1 := #Größe, IN2 := 1);'
+        self.assertEqual(kinds(scl_colours.lines([line])[0]), [
+            ('operand', '#Übung'), ('operator', ':='), ('operand', '#ärger'), ('operator', '+'),
+            ('operand', '"Füllstand_Tank"'), ('operator', '.'), ('operand', 'Ölstand'), ('operator', '+'),
+            ('operand', '#Motorstörung'), ('operator', '+'), ('instruction', 'MAX'), ('operator', '('),
+            ('parameter', 'IN1'), ('operator', ':='), ('operand', '#Größe'), ('operator', ','), ('parameter', 'IN2'),
+            ('operator', ':='), ('constant', '1'), ('operator', ')'), ('semicolon', ';')])
+
+    def test_a_local_constant_and_a_call_in_other_letters(self):
+        itf = Interface()
+        itf.root.children['GRÖSSE'] = Member('GRÖSSE', 'Int', value='5', section='CONSTANT')
+        got = kinds(scl_colours.lines(['#Zähler := #GRÖSSE; #Ölpumpe(Ein := TRUE);'], itf)[0])
+        self.assertIn(('local constant', '#GRÖSSE'), got)
+        self.assertIn(('block call', '#Ölpumpe'), got)
+        self.assertIn(('parameter', 'Ein'), got)
 
 
 class WhatStaysInOneColour(unittest.TestCase):

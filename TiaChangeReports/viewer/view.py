@@ -5,8 +5,8 @@ page(path) -> (html, title). Self-contained: nothing is fetched. The drawing is 
 (page.CSS, page.JS), the interface table (iface.html), the ladder in its frame (render_lad.Layout, page._lad_pane), the
 text of an SCL network (s7dcl.scl_lines) in the colours of TIA's SCL editor (scl_colours). The title bar, comment
 field and text table are the report's classes in one column, written here. A LAD network's SVG is the one the report
-draws for it unchanged (test_viewer holds them to the same bytes). Calls and types are read from the project the file is in (project_root), as the report reads them
-from the folder it compares."""
+draws for it unchanged (test_viewer holds them to the same bytes). Calls and types are read from the project the file
+is in (project_root), as the report reads them from the folder it compares."""
 import os
 import xml.etree.ElementTree as ET
 from dataclasses import replace

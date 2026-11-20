@@ -20,7 +20,7 @@ import re
 import xml.etree.ElementTree as ET
 
 from . import instructions, s7dcl
-from .iface import setpoint_default
+from .iface import _ELEMENTARY, setpoint_default
 from .names import object_name
 from .s7dcl import RELATIONS, SCL_KEYWORDS, Block, Element, Interface, Member, Network, Rung, instr_kind, part_text, wire_of
 
@@ -669,8 +669,10 @@ def _text_walker(out, lang, stl=False):
             elif t == 'Comment':                             # a multilingual comment, as in the palette
                 texts = [(x.get('Lang'), x.text or '') for x in _kids(c, 'MultiLanguageText')]
                 out.append('(/*%s*/)' % (next((x for k, x in texts if k == lang), '') or next((x for _, x in texts if x), '')))
-            elif t == 'DataType':                            # TypeOf(#x) = Int
-                out.append(c.text or '')
+            elif t == 'DataType':                            # TypeOf(#x) = Int, = "Udt"
+                out.append(_type_text(c.text or ''))
+            elif t == 'PredefinedVariable':                  # ENO := FALSE;
+                out.append(c.get('Name', ''))
             elif t == 'Label':                               # GOTO a; a:
                 out.append(c.get('Name', ''))
                 walk(c)
@@ -711,6 +713,15 @@ def _text_walker(out, lang, stl=False):
             else:
                 walk(c)
     return walk
+
+
+def _type_text(name):
+    """A data type in SCL text as the SD export writes it: an elementary or system type bare (Int, IEC_TIMER), a PLC
+    data type in quotes ("zzBenSclColType"), which SimaticML writes bare. A system type is told by its name in capitals
+    (IEC_TIMER, TON_TIME); a data type of the project named so would read as one."""
+    if not name or _ELEMENTARY.match(name) or name == name.upper():
+        return name
+    return '"%s"' % name
 
 
 def _constant_scl(c):

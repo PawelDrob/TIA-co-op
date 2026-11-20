@@ -41,14 +41,14 @@ _TOKEN = re.compile(r"""
   | (?P<pragma>\{[^}]*\}?)
   | (?P<line_comment>//.*)
   | (?P<open>\(/\*|\(\*)
-  | (?P<string>(?:[A-Za-z_]\w*\#)?'(?:\$.|[^'$])*')
-  | (?P<open_string>(?:[A-Za-z_]\w*\#)?'.*)
-  | (?P<typed>[A-Za-z_]\w*\#[-+]?\w+(?:\.\w+)?(?:[-\#:]\w+(?:\.\w+)?)*)
+  | (?P<string>(?:[^\W\d]\w*\#)?'(?:\$.|[^'$])*')
+  | (?P<open_string>(?:[^\W\d]\w*\#)?'.*)
+  | (?P<typed>[^\W\d]\w*\#[-+]?\w+(?:\.\w+)?(?:[-\#:]\w+(?:\.\w+)?)*)
   | (?P<number>\d+\#[\w]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][-+]?\d+)?)
-  | (?P<local>\#(?:"(?:\$.|[^"$])*"|[A-Za-z_]\w*))
+  | (?P<local>\#(?:"(?:\$.|[^"$])*"|[^\W\d]\w*))
   | (?P<global>"(?:\$.|[^"$])*")
   | (?P<address>%[A-Za-z]+[\d.]*)
-  | (?P<word>[A-Za-z_]\w*)
+  | (?P<word>[^\W\d]\w*)
   | (?P<operator>:=|\?=|\+=|-=|\*=|/=|=>|<=|>=|<>|\*\*|\.\.|[-+*/<>=:,.()\[\]&^])
   | (?P<semicolon>;)
 """, re.X)
@@ -72,11 +72,8 @@ def lines(texts, itf=None):
     """[[(kind, text)] of each line]; itf: the block's Interface (s7dcl.Interface), or None where none is at hand:
     then no #name is a local constant."""
     consts = _constants(itf)
-    out, end = [], None
-    for text in texts:
-        toks, end = _tokenize(text, end, consts)
-        out.append(toks)
-    return out
+    state = {'end': None, 'depth': 0}           # a comment left open; the parentheses a call left open
+    return [_tokenize(text, state, consts) for text in texts]
 
 
 def _constants(itf):
@@ -86,16 +83,17 @@ def _constants(itf):
     return frozenset(k.upper() for k, m in itf.root.children.items() if m.section == 'CONSTANT')
 
 
-def _tokenize(text, end, consts):
-    """(tokens of one line, the end of a comment still open after it or None)."""
-    toks, i = [], 0
+def _tokenize(text, state, consts):
+    """The tokens of one line. state: the end of a comment still open ('end') and the depth of open parentheses
+    ('depth'), from the lines before; this line's are left in it."""
+    toks, i, end = [], 0, state['end']
     if end:                                     # a comment going on from the line before
         k = text.find(end)
         stop = len(text) if k < 0 else k + len(end)
         toks.append(('comment', text[:stop]))
         if k < 0:
-            return toks, end
-        i, end = stop, None
+            return toks
+        i, state['end'] = stop, None
     words = []                                  # (index in toks, upper text) of the words, for what follows a word
     while i < len(text):
         m = _TOKEN.match(text, i)
@@ -108,35 +106,39 @@ def _tokenize(text, end, consts):
             k = text.find(_END[t], m.end())
             if k < 0:
                 toks.append(('comment', text[i:]))
-                return toks, _END[t]
+                state['end'] = _END[t]
+                return toks
             t = text[i:k + len(_END[t])]
             kind = 'comment'
         elif kind == 'word':
-            kind = _word(t, text, m.end(), toks, words)
+            kind = _word(t, text, m.end(), toks, words, state['depth'])
             if kind == 'region' and t.upper() == 'REGION' and not words and text[m.end():].strip():
-                toks.append(('region', t))      # the rest of the line is the region's name
+                toks.append(('region', t))      # the rest of the line is the region's name, a // in it too
                 rest = text[m.end():]
                 lead = len(rest) - len(rest.lstrip())
                 toks += [(None, rest[:lead])] * bool(lead) + [('constant', rest[lead:])]
-                return toks, None
+                return toks
             words.append((len(toks), t.upper()))
         elif kind in ('local', 'global'):
             kind = _operand(t, text, m.end(), consts, toks)
         else:
             kind = _GROUP_KIND[kind]
+        if kind == 'operator' and t in ('(', ')'):
+            state['depth'] = state['depth'] + 1 if t == '(' else max(0, state['depth'] - 1)
         toks.append((kind, t))
         i += len(t)
-    return toks, None
+    return toks
 
 
 def _after_dot(toks):
     return bool(toks) and toks[-1] == ('operator', '.')
 
 
-def _word(t, text, end, toks, words):
+def _word(t, text, end, toks, words, depth):
     up = t.upper()
+    rest = text[end:]
     if _after_dot(toks):
-        return 'operand'                        # a member: "Db".motor, #inst.Q
+        return 'operand'                        # a member: "Db".motor, #inst.Q, and #timer.TON( (the maintainer's)
     if up in ('REGION', 'END_REGION'):
         return 'region'
     if up in BOOLS:
@@ -147,12 +149,14 @@ def _word(t, text, end, toks, words):
         return 'keyword'
     if words and words[-1][1] == 'GOTO' and words[-1][0] == len(toks) - 2:
         return 'label'
-    rest = text[end:]
     if _CALL.match(rest):
         return 'instruction'
-    if _PARAM.match(rest):
-        return 'parameter'
-    if not words and not any(k for k, _ in toks) and rest.lstrip().startswith(':'):
+    if depth and _PARAM.match(rest):
+        return 'parameter'                      # inside a call's parentheses, on its line or one after
+    if up == 'ENO':
+        return 'operand'                        # ENO := FALSE; as TIA colours it
+    after = rest.lstrip()
+    if not words and not any(k for k, _ in toks) and after.startswith(':') and not after.startswith(':='):
         return 'label'                          # lblEnd: at the start of its line
     return None
 

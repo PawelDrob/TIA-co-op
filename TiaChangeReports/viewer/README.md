@@ -6,13 +6,13 @@ Opens one PLC block export in your default browser, drawn as the [change report]
 
 ## What it does
 
-- Draws one `.s7dcl` file: its properties, its interface and every network, LAD as TIA draws it, SCL as text in the colours of TIA's SCL editor. The
-  drawing is the change report's own, so the two always look the same. A network, an interface section (Static,
-  Input, ...) and a member with members fold on a click; Collapse all and Expand all (or the keys C and E) fold or
-  open all of them. A member of a UDT type opens onto the UDT's members, read from the UDT's file in the project;
-  one whose UDT the project does not hold has nothing to open and no arrow. An array of a UDT, an FB instance and a
-  system type such as `TON_TIME` stay closed, with no arrow. The change report opens them only where a DB's start
-  values name their members.
+- Draws one `.s7dcl` file: its properties, its interface and every network, LAD as TIA draws it, SCL as text in the
+  colours of TIA's SCL editor. The drawing is the change report's own, so the two always look the same. A network, an
+  interface section (Static, Input, ...) and a member with members fold on a click; Collapse all and Expand all (or
+  the keys C and E) fold or open all of them. A member of a UDT type opens onto the UDT's members, read from the UDT's
+  file in the project; one whose UDT the project does not hold has nothing to open and no arrow. An array of a UDT, an
+  FB instance and a system type such as `TON_TIME` stay closed, with no arrow. The change report opens them only where
+  a DB's start values name their members.
 - Draws an instance DB, or a DB of a UDT, with the members of its FB or UDT, read from that block's file in the
   project: each with its type, comment, start value and retain. A start value the DB sets itself is black, the FB's
   default grey. A multi-instance opens there onto its FB's members when the project holds a file of that FB; one of an
