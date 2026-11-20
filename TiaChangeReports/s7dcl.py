@@ -830,7 +830,8 @@ def text_as_read(src):
 
 
 def f_block(props):
-    """Whether a block's settings (Block.props) make it an F-block: S7_Safety TRUE, as .s7dcl and the SimaticML reader write it."""
+    """Whether a block's settings (Block.props) make it an F-block: S7_Safety true in any case, "True" or "TRUE" from
+    .s7dcl, "TRUE" from the SimaticML reader."""
     return props.get('S7_Safety', '').lower() == 'true'
 
 
