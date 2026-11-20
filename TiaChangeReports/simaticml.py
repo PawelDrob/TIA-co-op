@@ -102,7 +102,7 @@ def _other_language(el, lang):
 def _plain(el, uids=None, lang=None):
     """An element without what TIA writes differently per export: the export time and how it was exported, the object
     numbers (ID left out; UId, which tells what a wire connects, numbered by first appearance in its network; a LAD or
-    FBD network's not at all, nor the order of its parts and wires, _flgnet), the order of the languages and a
+    FBD network's not at all, nor the order of its operands and wires, _flgnet), the order of the languages and a
     language without a text, TIA's expansion of a UDT member under a Member (_expansion), a block's number while
     automatic numbering is on (TIA's; a user cannot set it then, and an .s7dcl does not write it), and a part's template
     at the value its instruction fixes (_left_out).
@@ -166,17 +166,18 @@ _TRIES = 64                               # leaves of the search for the least f
 
 
 def _flgnet(el, lang):
-    """A FlgNet as _plain, without what TIA's export writes otherwise for a network nobody changed (zzBenLarge networks
-    2 and 3 beside a change of network 1, from the same .s7dcl text): the object numbers, which TIA gives in the order
-    of the file; the order of the parts, operands and calls and of the wires; the order of a wire's ends after its
-    first, which follows the order of the parts; and in LAD, read by its rail, the numbers of the inputs of an O that
-    only joins wires (_joins_wires), which TIA gives otherwise. The reader orders the rungs by those inputs where the
-    drawing does (a changed order shows as one), and by the logic where it does not.
-    What stays: each part, operand and call with all it holds; each wire's own fields, its first end, where it starts,
-    and the others, each end with its fields and what it reaches.
-    The parts are told apart by what they hold and, in turn, by what their wires reach (refined until nothing more
-    splits); parts that stay alike are each tried first, and the least form is kept. Past _TRIES the network is as
-    written, its parts in their order: two such networks are alike only where the file's order is."""
+    """A FlgNet as _plain, without what TIA's export writes otherwise for a network nobody changed: the object numbers,
+    which TIA gives in the order of the file; the order of the operands (Access) among the parts and of the wires
+    (zzBenBoxes networks 4-6 beside a change of network 1); the order of a wire's ends after its first, which follows
+    the order of the parts; and in LAD, read by its rail, the numbers of the inputs of an O that only joins wires
+    (_joins_wires), which TIA gives otherwise (zzBenLarge networks 2 and 3, from the same .s7dcl text).
+    What stays: the parts and calls in their order, which TIA moves only where a user changed the network; each with
+    all it holds, and each operand; each wire's own fields, its first end, where it starts, and the others, each end
+    with its fields and what it reaches.
+    A part or call is told by its place, an operand by what it holds and, in turn, by what its wires reach (refined
+    until nothing more splits); operands that stay alike are each tried first, and the least form is kept. Past _TRIES
+    the network is as written, its operands in their order: two such networks are alike only where the file's order
+    is."""
     parts, wires = _held(el, 'Parts'), _held(el, 'Wires')
     nodes = [_blank(_plain(p, lang=lang)) for p in parts]
     at = {p.get('UId'): k for k, p in enumerate(parts)}
@@ -238,7 +239,8 @@ def _flgnet(el, lang):
         order = sorted(range(len(nodes)), key=color.__getitem__)
         return (tuple(nodes[k] for k in order),
                 tuple(sorted((('Wire', _unnumbered(w), '', wire(i, color)) for i, w in enumerate(wires)), key=repr)))
-    color = least(ranked(nodes))
+    place = [k if _local(p.tag) != 'Access' else None for k, p in enumerate(parts)]
+    color = least(ranked([(place[k] is None, place[k] or 0, nodes[k]) for k in range(len(nodes))]))
     written = color is None
     held, lines = form(color if not written else list(range(len(nodes))))
     if written:
@@ -743,8 +745,7 @@ class _Net:
     def __init__(self, flg):
         self.access = {}             # uid -> operand text
         self.parts = []              # [(uid, element tag, xml element)] in document order
-        parts = _kid(flg, 'Parts')
-        for p in (parts if parts is not None else []):
+        for p in _held(flg, 'Parts'):
             t = _local(p.tag)
             if t == 'Access':
                 self.access[p.get('UId')] = operand(p)
@@ -753,8 +754,7 @@ class _Net:
         self.pin = {}                # (uid, pin) -> ('flow', wire uid) | ('op', text) | ('open', '')
         self.driven = {}             # (uid, pin) -> whether a wire starts at it (an output): a wire lists its source first
         self.rail = None
-        wires = _kid(flg, 'Wires')
-        for w in (wires if wires is not None else []):
+        for w in _held(flg, 'Wires'):
             cons = list(w)
             idents = [c for c in cons if _local(c.tag) == 'IdentCon']
             rail = any(_local(c.tag) == 'Powerrail' for c in cons)

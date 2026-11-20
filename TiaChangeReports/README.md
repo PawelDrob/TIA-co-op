@@ -18,7 +18,7 @@ One HTML page of what changed in a TIA project.
 - Show every difference. Where the files differ in something it does not display, the block or network carries a note
   saying so: compare those two versions in TIA. No note comes when the same network is already marked as changed for
   another reason, or when another attribute of the same member has also changed. The order an XML export writes a LAD
-  or FBD network's parts and wires in, and in LAD the numbers of an OR's inputs, are no difference: TIA writes them
+  or FBD network's operands and wires in, and in LAD the numbers of an OR's inputs, are no difference: TIA writes them
   otherwise for a network nobody changed. Branches in another order show as rungs in another order.
 - Compare the files of a block exported as XML on one side and as `.s7dcl` on the other. It compares what it reads of
   both, and the page names such blocks: a field it does not read, or one that only one of the two formats writes, is not

@@ -8579,11 +8579,11 @@ class ComparedPerPart(unittest.TestCase):
 class WrittenInAnotherOrder(unittest.TestCase):
     """TIA's export writes a LAD network nobody changed with its operands and wires in another order, the ends of a wire
     after its first in another order and other object numbers (zzBenBoxes networks 4-6 beside a change of network 1),
-    also its parts in another order and an O's inputs numbered otherwise (zzBenLarge networks 2 and 3): that reads
+    also its operands in another order and an O's inputs numbered otherwise (zzBenLarge networks 2 and 3): that reads
     alike, file to file and in the report, with no note. What a user sets stays a difference of the file, though the
     fields of the two files are alike, order and ids aside: which pin an operand is on, which part's out joins which
-    part's in, where a wire starts, a field of a wire or its end. Branches in another order read alike in the file and
-    show as rungs in another order."""
+    part's in, where a wire starts, the order of the parts, a field of a wire or its end. A user's swap of branches
+    shows as rungs in another order."""
 
     PATH = 'plc/blocks/Main.xml'
     # name -> the part; in this order in the file
@@ -8611,9 +8611,10 @@ class WrittenInAnotherOrder(unittest.TestCase):
         return [e for w in wires for e in w if e[0] == '#' or e.isdigit()]
 
     @classmethod
-    def text(cls, wires=None, parts=None, operands=None, first=21):
+    def text(cls, wires=None, parts=None, operands=None, first=21, field=None):
         """The fixture with its first network as these parts and wires, written as TIA writes them: the operands, the parts,
-        the wires, numbered in that order from first. operands: their order (else as the wires reach them)."""
+        the wires, numbered in that order from first. operands: their order (else as the wires reach them); field: a wire
+        (its ends) that holds a field the report does not read."""
         wires, parts = wires or cls.WIRES, parts or cls.PARTS
         reached = cls.operands(wires)
         number = iter(range(first, first + 1000))
@@ -8629,7 +8630,8 @@ class WrittenInAnotherOrder(unittest.TestCase):
             return '<IdentCon UId="%d" />' % uid[e]
         net = ('<FlgNet xmlns="http://www.siemens.com/automation/Openness/SW/NetworkSource/FlgNet/v5"><Parts>'
                + ''.join(cls.access(op, uid[op]) for op in operands or reached) + ''.join(p % uid[n] for n, p in parts)
-               + '</Parts><Wires>' + ''.join('<Wire UId="%d">%s</Wire>' % (next(number), ''.join(map(end, w))) for w in wires)
+               + '</Parts><Wires>' + ''.join('<Wire UId="%d"%s>%s</Wire>' % (next(number), ' Hint="x"' if w == field else '',
+                                                                            ''.join(map(end, w))) for w in wires)
                + '</Wires></FlgNet>')
         return re.sub(r'<FlgNet .*?</FlgNet>', lambda m: net, _fixture(), count=1, flags=re.S)
 
@@ -8684,17 +8686,19 @@ class WrittenInAnotherOrder(unittest.TestCase):
         self.differs(self.edited((['rail', 'a.in', 'c.in', 'd.in'], ['rail', 'b.in', 'c.in', 'd.in']),
                                  (['a.out', 'b.in'], ['b.out', 'a.in']), (['b.out', 'add.en'], ['a.out', 'add.en'])))
 
-    def in_other_order(self, before, after):
-        """The order of the branches is no difference of the file, as TIA numbers an O's inputs and orders the parts
-        otherwise for a network nobody changed (zzBenLarge networks 2 and 3); the reader orders the rungs by them, so the
-        report lists the network in another order."""
+    def in_other_order(self, before, after, alike):
+        """A user's swap of branches: the reader orders the rungs by an O's inputs and the order of the parts, so the
+        report lists the network in another order. alike: the two files are alike, as the order of the parts counts and
+        the numbers of an O's inputs do not (TIA renumbered them in zzBenLarge networks 2 and 3, nobody changed them)."""
         self.assertNotEqual(before, after)
-        self.assertTrue(alike_exports(before, after))
+        self.assertEqual(alike_exports(before, after), alike)
         self.assertEqual([[(p.state, p.reordered) for p in x.nets] for x in self.blocks(before, after)], [[('changed', True)]])
 
     def test_the_branches_of_an_or_swapped(self):
+        """The parts in the order TIA draws them, and in their old order."""
         wires = self.edited((['c.out', 'or.in1'], ['c.out', 'or.in2']), (['d.out', 'or.in2'], ['d.out', 'or.in1']))
-        self.in_other_order(self.text(), self.text(wires, [self.PARTS[k] for k in (0, 1, 3, 2, 4, 5, 6)]))
+        self.in_other_order(self.text(), self.text(wires, [self.PARTS[k] for k in (0, 1, 3, 2, 4, 5, 6)]), False)
+        self.in_other_order(self.text(), self.text(wires), True)
 
     COILS = [('a', '<Part Name="Contact" UId="%d" />'), ('q1', '<Part Name="Coil" UId="%d" />'),
              ('q2', '<Part Name="Coil" UId="%d" />')]
@@ -8705,7 +8709,7 @@ class WrittenInAnotherOrder(unittest.TestCase):
         """Parallel branches after one node: TIA writes the parts in the order it draws them, the wire's ends after."""
         wires = [list(w) for w in self.COIL_WIRES]
         wires[2] = ['a.out', 'q2.in', 'q1.in']
-        self.in_other_order(self.text(self.COIL_WIRES, self.COILS), self.text(wires, [self.COILS[k] for k in (0, 2, 1)]))
+        self.in_other_order(self.text(self.COIL_WIRES, self.COILS), self.text(wires, [self.COILS[k] for k in (0, 2, 1)]), False)
 
     # zzBenLarge network 2's shape, two legs: a contact on the rail, then an OR of legs closing on one O, each leg a
     # contact and from the node after it its end and a branch inside it
@@ -8718,18 +8722,21 @@ class WrittenInAnotherOrder(unittest.TestCase):
 
     def test_an_or_of_legs_numbered_otherwise(self):
         """Nobody changed it: TIA numbered the O's inputs with the legs' ends first, then the branches inside them, and
-        the next time each branch after its own leg, the parts in that order."""
+        the next time each branch after its own leg, its operands in another order; the parts stayed in theirs."""
         each_after_its_leg = [['x10.out', 'or.in1'], ['x11.out', 'or.in2'], ['x20.out', 'or.in3'], ['x21.out', 'or.in4']]
         before = self.text(self.LEG_WIRES + self.LEGS_FIRST, self.LEGS)
-        after = self.text(each_after_its_leg + self.LEG_WIRES, [self.LEGS[k] for k in (0, 1, 2, 4, 5, 3, 6, 7, 8)])
+        wires = each_after_its_leg + self.LEG_WIRES
+        after = self.text(wires, self.LEGS, operands=list(reversed(self.operands(wires))))
         self.assertNotEqual(before, after)
         self.assertTrue(alike_exports(before, after))
         self.assertEqual(self.listed(before, after), [])
 
     def test_the_legs_of_that_or_swapped(self):
+        """The parts in the order TIA draws them, and in their old order."""
         swapped = [['x20.out', 'or.in1'], ['x10.out', 'or.in2'], ['x21.out', 'or.in3'], ['x11.out', 'or.in4']]
-        self.in_other_order(self.text(self.LEG_WIRES + self.LEGS_FIRST, self.LEGS),
-                            self.text(self.LEG_WIRES + swapped, [self.LEGS[k] for k in (0, 4, 5, 6, 1, 2, 3, 7, 8)]))
+        before = self.text(self.LEG_WIRES + self.LEGS_FIRST, self.LEGS)
+        self.in_other_order(before, self.text(self.LEG_WIRES + swapped, [self.LEGS[k] for k in (0, 4, 5, 6, 1, 2, 3, 7, 8)]), False)
+        self.in_other_order(before, self.text(self.LEG_WIRES + swapped, self.LEGS), True)
 
     def test_an_or_s_inputs_in_fbd(self):
         """With no rail (FBD), an O is a gate whose inputs are pins by name: their numbers stay a difference."""
@@ -8760,11 +8767,37 @@ class WrittenInAnotherOrder(unittest.TestCase):
     def test_a_field_on_a_wire_beside_a_change_of_the_part_it_reaches(self):
         """The part changed has no partner that holds the same: the wire's end on it keeps the place it had."""
         add = self.PARTS[5][1]
-        for part, wire in ((add.replace('>Int<', '>DInt<'), '<Wire UId="42">'), (add.replace('"Add"', '"Sub"'), '<Wire UId="45">')):
+        for part, wire in ((add.replace('>Int<', '>DInt<'), ['b.out', 'add.en']), (add.replace('"Add"', '"Sub"'), ['add.out', '#big'])):
             parts = self.PARTS[:5] + [('add', part)] + self.PARTS[6:]
-            text = self.text(parts=parts).replace(wire, wire[:-1] + ' Hint="x">', 1)
-            self.assertNotEqual(text, self.text(parts=parts))
-            self.assertEqual(self.listed(self.text(), text), [('changed', False, [('changed', True)])])
+            self.noted_beside(self.text(parts=parts, field=wire), self.text(parts=parts))
+
+    def noted_beside(self, text, without):
+        """A field on a wire beside a change: the network is listed with its tag."""
+        self.assertNotEqual(text, without)
+        self.assertEqual(self.listed(self.text(), text), [('changed', False, [('changed', True)])])
+
+    def test_a_field_on_a_wire_beside_a_part_changed_among_its_like(self):
+        """One contact of several negated: the others keep their partners, whatever their place among those alike."""
+        parts = list(self.PARTS)
+        parts[1] = ('b', '<Part Name="Contact" UId="%d"><Negated Name="operand" /></Part>')
+        for wire in (['#a', 'c.operand'], ['rail', 'a.in', 'c.in', 'd.in'], ['#b', 'd.operand'], ['c.out', 'or.in1'],
+                     ['d.out', 'or.in2']):
+            self.noted_beside(self.text(parts=parts, field=wire), self.text(parts=parts))
+
+    def test_a_field_on_a_wire_beside_two_contacts_swapped(self):
+        """The swap, the parts in the order TIA draws them: each contact keeps its partner, though its place changed."""
+        wires = self.edited((['rail', 'a.in', 'c.in', 'd.in'], ['rail', 'b.in', 'c.in', 'd.in']),
+                            (['a.out', 'b.in'], ['b.out', 'a.in']), (['b.out', 'add.en'], ['a.out', 'add.en']))
+        parts = [self.PARTS[k] for k in (1, 0, 2, 3, 4, 5, 6)]
+        for wire in (['#start', 'a.operand'], ['#stop', 'b.operand']):
+            self.noted_beside(self.text(wires, parts, field=wire), self.text(wires, parts))
+
+    def test_a_field_on_a_wire_beside_two_operands_swapped(self):
+        """As a file the same as two contacts swapped and drawn in their new order: which contact is which reads two ways,
+        and the field is tried apart from both."""
+        wires = self.edited((['#start', 'a.operand'], ['#start', 'b.operand']), (['#stop', 'b.operand'], ['#stop', 'a.operand']))
+        for wire in (['rail', 'a.in', 'c.in', 'd.in'], ['a.out', 'b.in'], ['b.out', 'add.en']):
+            self.noted_beside(self.text(wires, field=wire), self.text(wires))
 
     SR = [('s', '<Part Name="Contact" UId="%d" />'),
           ('e', '<Part Name="Eq" UId="%d"><TemplateValue Name="SrcType" Type="Type">Int</TemplateValue></Part>'),
