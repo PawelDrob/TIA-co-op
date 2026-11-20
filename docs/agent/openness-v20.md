@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, with what its fingerprint and compare calls answer, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T12:18:41-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T12:32:24-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -209,33 +209,37 @@ screen, template, pop-up and HMI tag folders of a Comfort panel):
   list at all cannot be ruled out this way.
 
 **Software units and named value documents** `[PROBE]` (V20 Update 7, 2026-11-20, on a copy of a test project with an
-F-CPU, in a background session, not saved). TiaBridge reaches none of this: `list`, `export` and `full_export` walk the
-main program only, and say nothing of what the units hold.
+F-CPU, in a background session, not saved). TiaBridge reaches none of this: by their code `list`, `export` and
+`full_export` walk the main program only (`TiaBridge\Tools\Plc.ps1`), and a `full_export` of a PLC with two units
+exported nothing of them and named no unit.
 
 - **Where they are:** `PlcSoftware.GetService<PlcUnitProvider>()`, then `UnitGroup.Units` and, apart, `UnitGroup.SafetyUnits`.
   A unit has its own `BlockGroup`, `TypeGroup`, `TagTableGroup`, `ExternalSourceGroup`, `PlcAlarmTextlistGroup` and
-  `Relations`, and offers `PlcAlarmTextProvider`, `PlcAlarmTextListProvider` and `SupervisionProvider` of its own. Named value
+  `Relations`, and offers `ICompilable`, `PlcAlarmTextProvider`, `PlcAlarmTextListProvider` and `SupervisionProvider` of its own. Named value
   documents are in `TypeGroup.Documents` of a unit and of its type folders, apart from `Types`.
-- **Making them:** `Units.Create(name)` makes a standard unit, with a tag table of its own (`Default tag table_1`).
+- **Making them:** `Units.Create(name)` makes a standard unit, with a tag table of its own whose number follows the
+  PLC, as tag table names are unique there: the first unit got `Default tag table_1`, the second `Default tag table_2`.
   `GetCreationInfos` of `SafetyUnits` lists nothing. `Relations.Create(name, UnitRelationType.SoftwareUnit)` makes a
   relation. A block in a unit comes from a document (`ImportFromDocuments` of an `.s7dcl`), in nested folders too.
-  `PlcBlockComposition.CreateFB` refuses every language but ProDiag ("The action "Create block" only supports the
-  programming language 'ProDiag'."), in the main program too, although `GetCreationInfos` lists FB as creatable.
-- **Names:** block, PLC data type and tag table names are unique in the whole PLC, units included. The document of a
-  block or a data type of a name another unit holds is refused: "Import failed because an object with the name 'X'
-  already exists in the plc."; so is a block of that name in the main program (a data type there was not tried). A tag
-  table of another unit's table's name: `Create` throws "An attempt was made to create an object that already exists."
-  The unit's `NamespacePreset` does not change any of it. A document that wraps the block in `NAMESPACE <ns>` ...
+  `PlcBlockComposition.CreateFB` with SCL is refused: "The action "Create block" only supports the programming
+  language 'ProDiag'.", in a unit and in the main program, although `GetCreationInfos` lists FB as creatable. Other
+  languages were not tried.
+- **Names:** a block, a PLC data type or a tag table of a name another unit's object holds is refused. The document of
+  a block or a data type: "Import failed because an object with the name 'X' already exists in the plc."; so is a
+  block of that name in the main program (a data type and a tag table there were not tried). A tag table:
+  `Create` throws "An attempt was made to create an object that already exists." Setting the unit's `NamespacePreset`
+  first changes none of the three. A document that wraps the block in `NAMESPACE <ns>` ...
   `END_NAMESPACE` goes in, and the export gives the same wrapping back: two blocks of one name in one PLC differ by their
   namespace (`Namespace` of the block). A data type and a tag table in a namespace were not tried. Named value documents
   are not held to this: two units hold documents of one name, no namespace (next item).
 - **A named value document** goes in with `Documents.ImportFromDocuments(dir, name, options)`, `name` without `.nvt`
   (the parameter is `fileNameWithoutExtension`); with the extension TIA answers "The file '<name>.nvt' does not exist."
   Tried: `TYPE <name> : <base type> ( <NAME> := <value>, ... ) [:= <default>]; END_TYPE`, the syntax of the installed help,
-  which also allows `NAMESPACE` and `{ PUBLISHED := 'TRUE' }` (both not tried). Two units may hold documents of one name. A block of
-  either unit then compiles with two errors, "There is an ambiguous declarations in scope <name>", and reads consistent.
-  `PlcDocument.Name` carries the extension (`Colors.nvt`), so an export by `Name` writes `Colors.nvt.nvt`. Exported
-  without it, a document is one `.nvt` file, the text as imported, with a BOM, and no `.s7res`.
+  which also allows `NAMESPACE` and `{ PUBLISHED := 'TRUE' }` (both not tried). Two units may hold documents of one name. With two
+  such documents each block of either unit compiled with two errors, "There is an ambiguous declarations in scope
+  <name>", and read consistent afterwards. `PlcDocument.Name` carries the extension (`Colors.nvt`), so an export by
+  `Name` writes `Colors.nvt.nvt`. Exported without it, a document is one `.nvt` file, the text as imported with a BOM
+  added, and no `.s7res`.
 - **Exports:** a unit's blocks and data types export with `ExportAsDocuments`, its tag tables with `Export`, as the main
   program's do. A unit block's document says `S7_UnitAccess := "Unpublished"` among its attributes.
 
