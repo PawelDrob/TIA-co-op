@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look, with what its fingerprint and compare calls answer, cited to the Siemens manual and to probes on V20 Update 7.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T02:27:34-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T02:36:31-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -405,7 +405,7 @@ compared the project after it with a retrieved archive of the state before `[PRO
   own changed: a tag table imported in an older state left other blocks so. A tag table has no provider (`GetService`
   gives null). In a project opened as secondary every call throws: *The operation is not permitted in a read-only
   context.*
-- **Cost:** milliseconds an object; seconds for every block, data type and system block of the test PLC, a few hundred.
+- **Cost:** milliseconds an object; seconds for every block, data type and system block of the test PLC, a few hundred objects.
 
 **`PlcSoftware.CompareTo(ISoftwareCompareTarget)`**, tried with another PLC's software and with the project library. Two
 offline PLCs: the second one opened as a secondary project in the same TIA, `Projects.Open(path, null,
