@@ -1,7 +1,8 @@
-"""The words of an SCL network in the colours TIA V20's SCL editor gives them, read from its pictures (TIA-co-op
-change-reports 395): one tokenizer over the text of the lines, so a block reads alike from .s7dcl and SimaticML,
-with the block's interface for what the text does not tell (a local constant).
+"""The words of an SCL network in the colours TIA V20's SCL editor gives them, as read from pictures of the editor:
+one tokenizer over the text of the lines, so a block reads alike from .s7dcl and SimaticML, with the block's interface
+for what the text does not tell (a local constant).
 
+of_network(net, lines, block) -> the tokens of each line of an SCL network, None for another language.
 lines(texts, itf=None) -> per line [(kind, text)], the texts in order joined giving the line back unchanged: colouring
 never adds, drops or moves a character. kind is a key of KINDS, or None for what has no colour of its own (spaces, and
 what the tokenizer does not take: those stay in the text's black). A comment opened by (* or (/* goes on over the
@@ -51,21 +52,41 @@ _TOKEN = re.compile(r"""
   | (?P<operator>:=|\?=|\+=|-=|\*=|/=|=>|<=|>=|<>|\*\*|\.\.|[-+*/<>=:,.()\[\]&^])
   | (?P<semicolon>;)
 """, re.X)
+# what a group of _TOKEN is, apart from those whose kind depends on what stands around them
+_GROUP_KIND = {'space': None, 'pragma': None, 'line_comment': 'comment', 'string': 'constant', 'open_string': 'constant',
+               'typed': 'constant', 'number': 'constant', 'address': 'operand', 'operator': 'operator',
+               'semicolon': 'semicolon'}
 _PARAM = re.compile(r'\s*(?::=|=>)')
 _CALL = re.compile(r'\s*\(')
+
+
+def of_network(net, texts, block):
+    """The tokens of each of texts, the lines of network net of block (lines()); None for a network in another language
+    than SCL, whose text stays in one colour. block None: no interface at hand."""
+    if net is None or net.lang != 'SCL':
+        return None
+    return lines(texts, block.interface if block is not None else None)
 
 
 def lines(texts, itf=None):
     """[[(kind, text)] of each line]; itf: the block's Interface (s7dcl.Interface), or None where none is at hand:
     then no #name is a local constant."""
+    consts = _constants(itf)
     out, end = [], None
     for text in texts:
-        toks, end = _line(text, end, itf)
+        toks, end = _tokenize(text, end, consts)
         out.append(toks)
     return out
 
 
-def _line(text, end, itf):
+def _constants(itf):
+    """The names of the interface's local constants (VAR CONSTANT), upper case: TIA's names do not differ by case."""
+    if itf is None:
+        return frozenset()
+    return frozenset(k.upper() for k, m in itf.root.children.items() if m.section == 'CONSTANT')
+
+
+def _tokenize(text, end, consts):
     """(tokens of one line, the end of a comment still open after it or None)."""
     toks, i = [], 0
     if end:                                     # a comment going on from the line before
@@ -100,10 +121,9 @@ def _line(text, end, itf):
                 return toks, None
             words.append((len(toks), t.upper()))
         elif kind in ('local', 'global'):
-            kind = _operand(t, text, m.end(), itf, toks)
+            kind = _operand(t, text, m.end(), consts, toks)
         else:
-            kind = {'space': None, 'pragma': None, 'line_comment': 'comment', 'string': 'constant', 'open_string': 'constant',
-                    'typed': 'constant', 'number': 'constant', 'address': 'operand'}.get(kind, kind)
+            kind = _GROUP_KIND[kind]
         toks.append((kind, t))
         i += len(t)
     return toks, None
@@ -137,11 +157,12 @@ def _word(t, text, end, toks, words):
     return None
 
 
-def _operand(t, text, end, itf, toks):
-    if not _after_dot(toks) and _CALL.match(text, end):
+def _operand(t, text, end, consts, toks):
+    if _after_dot(toks):
+        return 'operand'
+    if _CALL.match(text, end):
         return 'block call'
-    if t.startswith('#') and itf is not None and not _after_dot(toks) and text[end:end + 1] not in ('.', '[') \
-            and itf.constant(t) is not None:
+    if t.startswith('#') and t[1:].strip('"').upper() in consts and text[end:end + 1] not in ('.', '['):
         return 'local constant'
     return 'operand'
 
@@ -150,12 +171,8 @@ def html(toks, marks=()):
     """One line's HTML: marks are (start, end) character ranges, each written as a plain <span> (the report's changed
     word) with the coloured words inside it; a coloured word a mark cuts is two spans."""
     text = ''.join(t for _, t in toks)
-    cuts = sorted({0, len(text)} | {p for m in marks for p in m} | set(_starts(toks)))
-    kind_at = {}
-    pos = 0
-    for k, t in toks:
-        kind_at[pos] = k
-        pos += len(t)
+    kind_at = dict(zip(_starts(toks), (k for k, _ in toks)))
+    cuts = sorted({0, len(text)} | {p for m in marks for p in m} | set(kind_at))
     open_marks = {s: e for s, e in marks}
     out, kind, in_mark = [], None, None
     for a, b in zip(cuts, cuts[1:]):

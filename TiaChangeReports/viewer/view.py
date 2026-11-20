@@ -3,9 +3,9 @@ text of its file; a file it cannot read shows its source with the reason.
 
 page(path) -> (html, title). Self-contained: nothing is fetched. The drawing is the report's: its styles and script
 (page.CSS, page.JS), the interface table (iface.html), the ladder in its frame (render_lad.Layout, page._lad_pane), the
-text of an SCL network (s7dcl.scl_lines) in TIA's colours (page.scl_tokens). The title bar, comment field and text
-table are the report's classes in one column, written here. A LAD network's SVG is the one the report draws for it unchanged (test_viewer holds them to
-the same bytes). Calls and types are read from the project the file is in (project_root), as the report reads them
+text of an SCL network (s7dcl.scl_lines) in the colours of TIA's SCL editor (scl_colours). The title bar, comment
+field and text table are the report's classes in one column, written here. A LAD network's SVG is the one the report
+draws for it unchanged (test_viewer holds them to the same bytes). Calls and types are read from the project the file is in (project_root), as the report reads them
 from the folder it compares."""
 import os
 import xml.etree.ElementTree as ET
@@ -15,7 +15,8 @@ from types import SimpleNamespace
 
 from TiaChangeReports import iface
 from TiaChangeReports.compare import BlockDiff, Callees
-from TiaChangeReports.page import CSS, FOLD_ALL, JS, _lad_pane, _line, folds, scl_tokens, version_html
+from TiaChangeReports.page import CSS, FOLD_ALL, JS, _lad_pane, _line_html, folds, version_html
+from TiaChangeReports.scl_colours import of_network
 from TiaChangeReports.render_lad import Layout
 from TiaChangeReports.s7dcl import LANG, parse_block, scl_lines
 from TiaChangeReports.simaticml import parse_interface
@@ -80,8 +81,8 @@ def lad_svg(net, blk):
 def _lines_table(lines, toks=None):
     """Text with its line numbers, as one side of the report's SCL table; toks: the SCL tokens of each line
     (scl_colours.lines), its words then in TIA's colours."""
-    rows = ''.join('<tr><td class="ln">%d</td><td>%s</td></tr>' % (k, _line(lines, toks, k - 1) or '&#8203;')
-                   for k in range(1, len(lines) + 1))
+    rows = ''.join('<tr><td class="ln">%d</td><td>%s</td></tr>' % (k + 1, _line_html(lines, toks, k) or '&#8203;')
+                   for k in range(len(lines)))
     return '<table class="scl"><colgroup><col style="width:3.2em"><col></colgroup>%s</table>' % rows
 
 
@@ -95,7 +96,7 @@ def network_html(net, blk):
         body = '<div class="panes"><div class="pane"><div class="pb">%s</div></div></div>' % lad_svg(net, blk)
     else:
         lines = scl_lines(net.body)
-        body = _lines_table(lines, scl_tokens(net, lines, blk))
+        body = _lines_table(lines, of_network(net, lines, blk))
     return '<div class="nw">%s<div class="nwc"><span class="side">%s</span></div>%s</div>' % (title, comment, body)
 
 

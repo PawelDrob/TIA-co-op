@@ -385,7 +385,7 @@ def _marked(text, marks, toks=None):
     return scl_colours.html(toks, marks)
 
 
-def _line(lines, toks, i):
+def _line_html(lines, toks, i):
     """One line of a side, escaped, in its colours where the side has them."""
     return scl_colours.html(toks[i]) if toks and toks[i] is not None else escape(lines[i])
 
@@ -433,11 +433,11 @@ def scl_table(bl, al, context=3, kb=None, ka=None):
     for op, i1, i2, j1, j2 in sm.get_opcodes():
         if op == 'equal':
             for i, j in zip(range(i1, i2), range(j1, j2)):
-                rows.append([True, i + 1, '', _line(bl, kb, i), j + 1, '', _line(al, ka, j)])
+                rows.append([True, i + 1, '', _line_html(bl, kb, i), j + 1, '', _line_html(al, ka, j)])
             continue
         for i, j in _pair_lines(bl, al, i1, i2, j1, j2):
-            hb = _line(bl, kb, i) if i is not None else ''
-            ha = _line(al, ka, j) if j is not None else ''
+            hb = _line_html(bl, kb, i) if i is not None else ''
+            ha = _line_html(al, ka, j) if j is not None else ''
             if i is not None and j is not None:
                 hb, ha = _inline(bl[i], al[j], kb[i] if kb else None, ka[j] if ka else None)
             rows.append([False, i + 1 if i is not None else '', 'del' if i is not None else 'nil', hb,
@@ -535,14 +535,6 @@ def _comment(pair):
         '<span class="side">%s</span>' % (f or '') for f in _fields(pair, 'comment', 'cf', 'Comment'))
 
 
-def scl_tokens(net, lines, block):
-    """The tokens of each line of an SCL network, in TIA's colours (scl_colours.lines, with the block's interface for
-    its local constants); None for a network in another language, whose text stays as it is."""
-    if net is None or net.lang != 'SCL':
-        return None
-    return scl_colours.lines(lines, block.interface if block is not None else None)
-
-
 def network_html(pair, bblock, ablock):
     b, a = pair.before, pair.after
     head = _title_bar(pair)
@@ -555,7 +547,7 @@ def network_html(pair, bblock, ablock):
     else:
         bl = scl_lines(b.body) if b else []
         al = scl_lines(a.body) if a else []
-        kb, ka = scl_tokens(b, bl, bblock), scl_tokens(a, al, ablock)
+        kb, ka = scl_colours.of_network(b, bl, bblock), scl_colours.of_network(a, al, ablock)
         if b and a and b.lang != a.lang:
             bl = ['(%s network)' % b.lang] + bl
             kb = kb and [None] + kb

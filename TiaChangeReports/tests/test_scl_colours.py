@@ -8,6 +8,7 @@ apart by the system's separator, ';' on Windows), such as the benchmark repo, wh
 import contextlib
 import difflib
 import io
+import json
 import os
 import re
 import tempfile
@@ -238,7 +239,7 @@ class TextAndMarksUnchanged(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             v1, v2 = (os.path.join(FIXTURES, 'plant', v) for v in ('v1', 'v2'))
             assert report([v1, v2, '--all', '-o', os.path.join(d, 'c.html')]) == 0
-            with mock.patch.object(page, 'scl_tokens', return_value=None):
+            with mock.patch.object(scl_colours, 'of_network', return_value=None):
                 assert report([v1, v2, '--all', '-o', os.path.join(d, 'p.html')]) == 0
             coloured, plain = (_read(os.path.join(d, n)) for n in ('c.html', 'p.html'))
         self.assertIn('<span class="sk">', coloured)
@@ -286,6 +287,10 @@ class LocalConstants(unittest.TestCase):
         self.assertEqual([t for k, t in got if k == 'local constant'], ['#LIMIT'])
         self.assertEqual([t for k, t in got if k == 'operand'], ['#a', '#limit2', '#OTHER'])
 
+    def test_in_any_case_and_in_quotes(self):
+        got = kinds(scl_colours.lines(['#a := #limit + #"LIMIT" + #LIMIT.x;'], self.interface())[0])
+        self.assertEqual([t for k, t in got if k == 'local constant'], ['#limit', '#"LIMIT"'])
+
     def test_without_an_interface_every_name_is_an_operand(self):
         got = kinds(scl_colours.lines(['#a := #LIMIT;'])[0])
         self.assertEqual(got[2], ('operand', '#LIMIT'))
@@ -300,9 +305,9 @@ class WhatStaysInOneColour(unittest.TestCase):
             net = Network(1, lang, '', '', body)
             with self.subTest(lang):
                 lines = scl_lines(body)
-                self.assertIsNone(page.scl_tokens(net, lines, None))
+                self.assertIsNone(scl_colours.of_network(net, lines, None))
                 self.assertIsNone(COLOUR_SPAN.search(page.scl_table(lines, ['L #a', 'T #c'])))
-        self.assertIsNotNone(page.scl_tokens(Network(1, 'SCL', '', '', body), scl_lines(body), None))
+        self.assertIsNotNone(scl_colours.of_network(Network(1, 'SCL', '', '', body), scl_lines(body), None))
 
     def test_a_network_of_another_language_on_one_side(self):
         """An SCL network that became STL: the SCL side coloured, the STL side and the line naming its language not."""
@@ -314,6 +319,24 @@ class WhatStaysInOneColour(unittest.TestCase):
         before = [x for x in re.findall(r'<td class="b [^"]*">(.*?)</td>', html) if x != '&#8203;']
         self.assertEqual(before, ['(STL network)', 'L #a'])
         self.assertIn('<span class="so">#a</span>', html)
+
+    def test_byte_for_byte_as_before(self):
+        """one-colour.json: the report's STL, LAD and FBD networks shown as text, the viewer's interface and Source
+        view of zzBenSclColours, as the code before the colours wrote them."""
+        with open(os.path.join(COLOURS, 'one-colour.json'), encoding='utf-8') as f:
+            before = json.load(f)
+        blk = mock.Mock(interface=None)
+        for c in before['cases']:
+            pair = mock.Mock(before=Network(1, c['lang'], 'T', '', c['before']),
+                             after=Network(1, c['lang'], 'T', '', c['after']), lad=None, state='changed', moved=False,
+                             reordered=False, not_shown=False)
+            with self.subTest(c['lang']):
+                self.assertEqual(page.network_html(pair, blk, blk), c['html'])
+        path = os.path.join(COLOURS, 'zzBenSclColours.s7dcl')
+        b, src, root, rel = view.block_of(path)
+        drawn = view.block_html(b, src, rel, root)
+        self.assertEqual(drawn[:drawn.index('<div class="nwt">')], before['interface'])
+        self.assertEqual(view.source_html(path), before['source'])
 
     def test_declarations_get_no_colours(self):
         blk, src, root, rel = view.block_of(os.path.join(COLOURS, 'zzBenSclColours.s7dcl'))

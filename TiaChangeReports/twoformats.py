@@ -30,7 +30,7 @@ if __name__ == '__main__':
 from TiaChangeReports.compare import _other_texts_differ, _unread_differs, compare_snapshots, file_note  # noqa: E402
 from TiaChangeReports.diff import changed_params                                    # noqa: E402
 from TiaChangeReports.iface import FIELDS, _value, block_rows, props_rows           # noqa: E402
-from TiaChangeReports.page import scl_tokens                                         # noqa: E402
+from TiaChangeReports.scl_colours import of_network                                  # noqa: E402
 from TiaChangeReports.render_lad import Layout                                       # noqa: E402
 from TiaChangeReports.s7dcl import scl_lines                                         # noqa: E402
 from TiaChangeReports.source import GitSnapshot, _git, git_snapshots, stem           # noqa: E402
@@ -261,13 +261,13 @@ def _lines(p, d=None):
 def _side_lines(net, blk):
     """(the lines of a side's network, the tokens of each as a tuple, or None)."""
     lines = scl_lines(net.body) if net else []
-    toks = scl_tokens(net, lines, blk)
+    toks = of_network(net, lines, blk)
     return lines, [tuple(t) for t in toks] if toks else [None] * len(lines)
 
 
 def scl_colours_differ(d):
     """The networks of a block read from .s7dcl on one side and SimaticML on the other whose SCL lines are the same and
-    are coloured otherwise: [network key]."""
+    are coloured otherwise: [their keys as _net makes them: number before, number after, title]."""
     out = []
     for nb, na in zip(d.before.networks, d.after.networks):
         if nb.lang != 'SCL' or na.lang != 'SCL':
@@ -463,20 +463,14 @@ def _colour_causes(out, across):
     """out with every network whose SCL lines are the same in both formats and coloured otherwise
     (scl_colours_differ): its object listed, or the cause added to its entry."""
     for d in across:
-        bad = scl_colours_differ(d)
-        if not bad:
-            continue
+        nets = scl_colours_differ(d)
         o = _object(d)
-        head = next((x for x in out if x['object'] == o and x['network'] is None), None)
-        if head is None:
-            head = {'object': o, 'network': None, 'causes': []}
-            out.append(head)
-        for n in [None] + bad:
-            x = head if n is None else next((x for x in out if x['object'] == o and x['network'] == list(n)), None)
-            if x is None:
-                x = {'object': o, 'network': list(n), 'causes': []}
-                out.append(x)
-            x['causes'] = sorted(set(x['causes']) | {'unknown: SCL colours'})
+        for key in [None] * bool(nets) + [list(n) for n in nets]:     # the object's entry, then each network's
+            entry = next((x for x in out if x['object'] == o and x['network'] == key), None)
+            if entry is None:
+                entry = {'object': o, 'network': key, 'causes': []}
+                out.append(entry)
+            entry['causes'] = sorted(set(entry['causes']) | {'unknown: SCL colours'})
     return out
 
 
