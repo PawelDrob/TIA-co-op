@@ -26,6 +26,8 @@ namespace FakeProbe {
     public class NonRecoverableException : Exception { public NonRecoverableException(string m) : base(m) { } }
     public class Target : Siemens.Engineering.IEngineeringObject, Siemens.Engineering.Private.IInternalObjectAccess {
         public bool Ends { get; set; }
+        public object Refusing { get { throw new InvalidOperationException("getter refused"); } }
+        public object Empty { get { return null; } }
         public List<string> Changed = new List<string>();
         public List<Siemens.Engineering.EngineeringAttributeInfo> Attributes = new List<Siemens.Engineering.EngineeringAttributeInfo> {
             new Siemens.Engineering.EngineeringAttributeInfo { Name = "A", AccessMode = "Read" } };
@@ -197,6 +199,21 @@ Describe 'probe of what an object describes of itself' {
         $a = @($r.attributes | Where-Object { $_.name -eq 'Number' })[0]
         $a.createRelevance | Should Be 'Mandatory'
         ($a.supportedTypes -join ',') | Should Be 'System.Int32,System.String'
+    }
+}
+
+Describe 'probe of the properties of an object' {
+    function Resolve-ProbeRoot([string]$Path) { $script:probed }
+
+    It 'keeps a getter that throws as the error of that property, apart from one that gives null' {
+        $script:probed = New-Object FakeProbe.Target
+        $r = Invoke-ProbeTool ([pscustomobject]@{ object_path = 'x' })
+        $refusing = @($r.properties | Where-Object { $_.name -eq 'Refusing' })[0]
+        $refusing.error | Should Match 'getter refused'
+        $refusing.Contains('value') | Should Be $false
+        $empty = @($r.properties | Where-Object { $_.name -eq 'Empty' })[0]
+        $empty.Contains('error') | Should Be $false
+        $null -eq $empty.value | Should Be $true
     }
 }
 

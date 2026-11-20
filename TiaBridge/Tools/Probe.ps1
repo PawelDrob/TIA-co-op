@@ -129,7 +129,8 @@ function Read-ProbeObject($Obj) {
 
     $r.properties = @(foreach ($p in $t.GetProperties() | Where-Object { $_.GetIndexParameters().Count -eq 0 } | Sort-Object Name) {
         $entry = [ordered]@{ name = $p.Name; type = $p.PropertyType.Name }
-        try { $entry.value = Format-ProbeValue ($obj.($p.Name)) }
+        # by reflection: PowerShell 5.1 answers a getter that throws with null and no error
+        try { $entry.value = Format-ProbeValue ($p.GetValue($obj.PSObject.BaseObject, $null)) }
         catch {
             if (Test-TiaEndedError $_) { throw }
             $entry.error = (ConvertTo-BridgeError $_).message
