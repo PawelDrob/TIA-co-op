@@ -174,10 +174,10 @@ def _flgnet(el, lang):
     What stays: the parts and calls in their order, which TIA moves only where a user changed the network; each with
     all it holds, and each operand; each wire's own fields, its first end, where it starts, and the others, each end
     with its fields and what it reaches.
-    A part or call is told by its place, an operand by what it holds and, in turn, by what its wires reach (refined
-    until nothing more splits); operands that stay alike are each tried first, and the least form is kept. Past _TRIES
-    the network is as written, its operands in their order: two such networks are alike only where the file's order
-    is."""
+    A part or call is told by its place among the parts and calls, an operand by what it holds and, in turn, by what its
+    wires reach (refined until nothing more splits); operands that stay alike are each tried first, and the least form
+    is kept. Past _TRIES the network is as written, its operands in their order: two such networks are alike only where
+    the file's order is."""
     parts, wires = _held(el, 'Parts'), _held(el, 'Wires')
     nodes = [_blank(_plain(p, lang=lang)) for p in parts]
     at = {p.get('UId'): k for k, p in enumerate(parts)}
@@ -197,7 +197,8 @@ def _flgnet(el, lang):
                 ends_on[k].append((i, j))
 
     def ranked(keys):
-        rank = {k: n for n, k in enumerate(sorted(set(keys), key=repr))}
+        """Each key's place among the keys, compared as they are: numbers as numbers."""
+        rank = {k: n for n, k in enumerate(sorted(set(keys)))}
         return [rank[k] for k in keys]
 
     def wire(i, color):
@@ -239,8 +240,8 @@ def _flgnet(el, lang):
         order = sorted(range(len(nodes)), key=color.__getitem__)
         return (tuple(nodes[k] for k in order),
                 tuple(sorted((('Wire', _unnumbered(w), '', wire(i, color)) for i, w in enumerate(wires)), key=repr)))
-    place = [k if _local(p.tag) != 'Access' else None for k, p in enumerate(parts)]
-    color = least(ranked([(place[k] is None, place[k] or 0, nodes[k]) for k in range(len(nodes))]))
+    place = {k: n for n, k in enumerate(k for k, p in enumerate(parts) if _local(p.tag) != 'Access')}   # among them alone
+    color = least(ranked([(k not in place, place.get(k, 0), nodes[k]) for k in range(len(nodes))]))
     written = color is None
     held, lines = form(color if not written else list(range(len(nodes))))
     if written:

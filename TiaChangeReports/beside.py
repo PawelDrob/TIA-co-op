@@ -11,14 +11,15 @@ open one: an instruction whose pins changed pairs with nothing, and its pin coun
 drawing shows.
 
 A pair that differs is tried alone: the version before with that one unit of the version after, read again, the unit
-keeping the object numbers it had; a SimaticML wire two ways, its ends on the parts of the version before that hold the
-same and its fields alone (_wires_again); an .s7dcl statement also with only its pragmas of the version after. Read the
-same as before, the unit differs in what the report does not read. A unit one version has is left to what the report
-shows, as a part or instruction comes with its fields and pragmas; one around the network's source (a title or comment
-TIA writes empty, a field of the network) is tried too, taken out or put in. A pair that reads otherwise is no tag, also
-where the same unit holds a field the report does not read (an SCL operand's Scope beside its name). Two units that
-differ only together (a wire and the pin it reaches) are not tried together: one of them alone reads otherwise, so they
-are no tag."""
+keeping the object numbers it had; a SimaticML wire with its ends on the parts of the version before that hold the same
+(_wire_reaching); an .s7dcl statement also with only its pragmas of the version after. Read the same as before, the unit
+differs in what the report does not read. The fields of a SimaticML wire and its ends, which the report reads none of,
+are compared apart, each wire by what it connects wherever the file writes it (_wire_fields_differ). A unit one version
+has is left to what the report shows, as a part or instruction comes with its fields and pragmas; one around the
+network's source (a title or comment TIA writes empty, a field of the network) is tried too, taken out or put in. A pair
+that reads otherwise is no tag, also where the same unit holds a field the report does not read (an SCL operand's Scope
+beside its name). Two units that differ only together (a wire and the pin it reaches) are not tried together: one of
+them alone reads otherwise, so they are no tag."""
 import copy
 import difflib
 import re
@@ -49,6 +50,8 @@ def unread_beside(b, a, reads_same):
             return False                  # its lines are shown as they stand
         units, again = _sd_units, _sd_again
     else:
+        if _wire_fields_differ(b.raw[1], a.raw[1], b.raw[2]):
+            return True                   # a field of a wire: none is read
         units, again = _xml_units, _xml_again
     bu, au = units(b.raw), units(a.raw)
     for x, y in _pairs(bu, au):
@@ -125,8 +128,8 @@ def _at(el, where):
 
 
 def _xml_again(b, a, x, y):
-    """[Network b read again with its unit x as unit y of network a, keeping x's object numbers]; for a wire, each way
-    _wires_again finds, [] for none."""
+    """[Network b read again with its unit x as unit y of network a, keeping x's object numbers]; a wire as
+    _wire_reaching puts it, [] for none."""
     _, cu, lang = b.raw
     other = a.raw[1]
     h = copy.deepcopy(cu)
@@ -141,12 +144,10 @@ def _xml_again(b, a, x, y):
         _take_fields(el, src)
         el.text = src.text
     elif _local(_at(other, y.where).tag) == 'Wire':
-        out = []
-        for w in _wires_again(_at(cu, x.where), _at(other, y.where), cu, other, lang):
-            g = copy.deepcopy(cu)
-            _at(g, x.where[:-1])[x.where[-1]] = w
-            out.append(simaticml.network(g, b.index, next(s7dcl._blocks), lang))
-        return out
+        w = _wire_reaching(_at(cu, x.where), _at(other, y.where), cu, other, lang)
+        if w is None:
+            return []
+        _at(h, x.where[:-1])[x.where[-1]] = w
     else:
         parent = _at(h, x.where[:-1])
         old, new = parent[x.where[-1]], copy.deepcopy(_at(other, y.where))
@@ -159,14 +160,11 @@ def _xml_again(b, a, x, y):
     return [simaticml.network(h, b.index, next(s7dcl._blocks), lang)]
 
 
-def _wires_again(old, new, cu, other, lang):
-    """The wire new of network other put in the place of the wire old of network cu, two ways, each where it differs
-    from old (simaticml.wire_end, the order of the ends after the first aside):
-    - what it reaches: its ends on the parts of cu that hold what they reach in other (_numbered_before); an end on a
-      part or operand that changed, the end old had at its place; none where an end reaches nothing there;
-    - its fields alone: old with the fields of new, its own and its ends', an end by its kind and pin in their order.
-    Each way alone, as which part is which can read two ways (two contacts swapped, or their operands)."""
-    out = []
+def _wire_reaching(old, new, cu, other, lang):
+    """The wire new of network other put in the place of the wire old of network cu, its ends on the parts of cu that
+    hold what they reach in other (_numbered_before); an end on a part or operand that changed, the end old had at its
+    place. None where an end reaches nothing there, or the wire is old up to the order of its ends after the first
+    (simaticml.wire_end). Its fields come with it; those alone _wire_fields_differ tells."""
     reach = copy.deepcopy(new)
     number = _numbered_before(cu, other, lang)
     for k, end in enumerate(reach):
@@ -177,21 +175,39 @@ def _wires_again(old, new, cu, other, lang):
         elif k < len(old) and _local(old[k].tag) == _local(end.tag):
             end.set('UId', old[k].get('UId'))       # on what changed: the end the wire had there
         else:
-            reach = None                             # an end that reaches nothing there
-            break
-    if reach is not None:
-        reach.set('UId', old.get('UId'))
-        out.append(reach)
-    fields = copy.deepcopy(old)
-    _take_fields(fields, new)
-    theirs = {}
-    for end in new:
-        theirs.setdefault((_local(end.tag), end.get('Name')), []).append(end)
-    for end in fields:
-        if theirs.get((_local(end.tag), end.get('Name'))):
-            _take_fields(end, theirs[(_local(end.tag), end.get('Name'))].pop(0))
-    out.append(fields)
-    return [w for w in out if _wire(w) != _wire(old)]
+            return None                              # an end that reaches nothing there
+    reach.set('UId', old.get('UId'))
+    return reach if _wire(reach) != _wire(old) else None
+
+
+def _wire_fields(cu, lang):
+    """Counter of a network's wires as (what each connects, its fields): an end by its kind, its pin and what it reaches,
+    a part with the operands on its pins or an operand by what it holds, the ends after the first in any order
+    (simaticml.wire_ends); the fields of the wire and of each end that holds one, but their numbers and pins."""
+    parts, _, operand, wires = _read_net(cu, lang)
+    what = dict(operand, **{x[0]: x[1] for x in parts})
+    out = Counter()
+    for w in wires:
+        ends = [(_local(e.tag), e.get('Name') or '', repr(what.get(e.get('UId'))) if _local(e.tag) in ('NameCon', 'IdentCon')
+                 else '') for e in w]
+        held = sorted((end, f) for end, e in zip(ends, w) for f in [tuple(x for x in _unnumbered(e) if x[0] != 'Name')] if f)
+        out[simaticml.wire_ends(ends), _unnumbered(w), tuple(held)] += 1
+    return out
+
+
+def _wire_fields_differ(cu, other, lang):
+    """A field of a wire or of a wire's end differs between two networks, each wire by what it connects, wherever the
+    file writes it (_wire_fields): two wires that connect the same, by their fields; the wires a change of the logic
+    leaves without such a partner, by their fields alone, the ends by their kind and pin."""
+    mine, theirs = _wire_fields(cu, lang), _wire_fields(other, lang)
+    left, left_o = mine - theirs, theirs - mine
+    if {k[0] for k in left} & {k[0] for k in left_o}:
+        return True                                  # the same connections, other fields
+
+    def alone(c):
+        return Counter((own, tuple(sorted((end[:2], f) for end, f in held))) for (_, own, held), n in c.items()
+                       for _ in range(n) if own or held)
+    return alone(left) != alone(left_o)
 
 
 def _take_fields(el, src):
@@ -206,31 +222,36 @@ def _wire(w):
     return _unnumbered(w), simaticml.wire_ends([simaticml.wire_end(c, lambda uid: uid) for c in w])
 
 
+def _read_net(cu, lang):
+    """A network's FlgNet read by what its objects hold: ([(number, what it holds with the operands on its pins, what it
+    holds, kind)] of its parts and calls in their order, {operand: the pins it is on}, {operand: what it holds}, its
+    wires)."""
+    flg = next((e for e in cu.iter() if _local(e.tag) == 'FlgNet'), None)
+    held, wires = _held(flg, 'Parts'), _held(flg, 'Wires')
+    operand = {p.get('UId'): _blank(_plain(p, lang=lang)) for p in held if _local(p.tag) == 'Access'}
+    pins, on = {}, {}                                    # operand -> the pins it is on; part -> [(pin, operand)]
+    for w in wires:
+        reached = tuple((e.get('UId'), e.get('Name')) for e in w if _local(e.tag) == 'NameCon')
+        for e in w:
+            if _local(e.tag) == 'IdentCon':
+                pins[e.get('UId')] = reached
+                for uid, pin in reached:
+                    on.setdefault(uid, []).append((pin, operand.get(e.get('UId'))))
+    parts = []
+    for p in held:
+        if _local(p.tag) != 'Access':
+            what = _blank(_plain(p, lang=lang))
+            parts.append((p.get('UId'), (what, tuple(sorted(on.get(p.get('UId'), ()), key=repr))), what,
+                          (_local(p.tag), p.get('Name'))))
+    return parts, pins, operand, wires
+
+
 def _numbered_before(cu, other, lang):
     """{the number of an object of network other: the number of the object of network cu that holds the same}. A part
     or call by what it holds with the operands on its pins: one that each network holds once pairs wherever it stands
     (a user's change can move it); the rest in their order, by that, then by what they hold, then by their kind. An
     operand by the pins it is on, of those parts."""
-    def parts(c):
-        flg = next((e for e in c.iter() if _local(e.tag) == 'FlgNet'), None)
-        held = _held(flg, 'Parts')
-        operand = {p.get('UId'): _blank(_plain(p, lang=lang)) for p in held if _local(p.tag) == 'Access'}
-        pins, on = {}, {}                                # operand -> the pins it is on; part -> [(pin, operand)]
-        for w in _held(flg, 'Wires'):
-            reached = tuple((e.get('UId'), e.get('Name')) for e in w if _local(e.tag) == 'NameCon')
-            for e in w:
-                if _local(e.tag) == 'IdentCon':
-                    pins[e.get('UId')] = reached
-                    for uid, pin in reached:
-                        on.setdefault(uid, []).append((pin, operand.get(e.get('UId'))))
-        out = []                                         # [(number, with its operands, what it holds, kind)]
-        for p in held:
-            if _local(p.tag) != 'Access':
-                what = _blank(_plain(p, lang=lang))
-                out.append((p.get('UId'), (what, tuple(sorted(on.get(p.get('UId'), ()), key=repr))), what,
-                            (_local(p.tag), p.get('Name'))))
-        return out, pins
-    (mine, pins), (theirs, pins_o) = parts(cu), parts(other)
+    (mine, pins, _, _), (theirs, pins_o, _, _) = _read_net(cu, lang), _read_net(other, lang)
     once, once_o = (Counter(x[1] for x in xs) for xs in (mine, theirs))
     single = {x[1]: x[0] for x in mine if once[x[1]] == 1}
     out = {x[0]: single[x[1]] for x in theirs if once_o[x[1]] == 1 and x[1] in single}

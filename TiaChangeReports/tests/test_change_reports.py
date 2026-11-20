@@ -8611,27 +8611,33 @@ class WrittenInAnotherOrder(unittest.TestCase):
         return [e for w in wires for e in w if e[0] == '#' or e.isdigit()]
 
     @classmethod
-    def text(cls, wires=None, parts=None, operands=None, first=21, field=None):
+    def text(cls, wires=None, parts=None, operands=None, first=21, field=None, end_field=None, slots=None):
         """The fixture with its first network as these parts and wires, written as TIA writes them: the operands, the parts,
         the wires, numbered in that order from first. operands: their order (else as the wires reach them); field: a wire
-        (its ends) that holds a field the report does not read."""
+        (its ends) that holds a field the report does not read; end_field: (a wire's first end, one of its ends) that
+        holds one, wherever the wire stands; slots: the places of the parts among the operands (else after them)."""
         wires, parts = wires or cls.WIRES, parts or cls.PARTS
         reached = cls.operands(wires)
         number = iter(range(first, first + 1000))
         uid = {op: next(number) for op in operands or reached}
         uid.update({name: next(number) for name, _ in parts})
 
-        def end(e):
+        def end(w, e):
             if e == 'rail':
                 return '<Powerrail />'
             if '.' in e:
                 part, pin = e.split('.')
-                return '<NameCon UId="%d" Name="%s" />' % (uid[part], pin)
+                hint = ' Hint="x"' if end_field == (w[0], e) else ''
+                return '<NameCon UId="%d" Name="%s"%s />' % (uid[part], pin, hint)
             return '<IdentCon UId="%d" />' % uid[e]
+        accesses = iter(cls.access(op, uid[op]) for op in operands or reached)
+        held = iter(p % uid[n] for n, p in parts)
+        everything = len(reached) + len(parts)
+        slots = slots if slots is not None else range(everything - len(parts), everything)
         net = ('<FlgNet xmlns="http://www.siemens.com/automation/Openness/SW/NetworkSource/FlgNet/v5"><Parts>'
-               + ''.join(cls.access(op, uid[op]) for op in operands or reached) + ''.join(p % uid[n] for n, p in parts)
+               + ''.join(next(held) if k in slots else next(accesses) for k in range(everything))
                + '</Parts><Wires>' + ''.join('<Wire UId="%d"%s>%s</Wire>' % (next(number), ' Hint="x"' if w == field else '',
-                                                                            ''.join(map(end, w))) for w in wires)
+                                                                            ''.join(end(w, e) for e in w)) for w in wires)
                + '</Wires></FlgNet>')
         return re.sub(r'<FlgNet .*?</FlgNet>', lambda m: net, _fixture(), count=1, flags=re.S)
 
@@ -8798,6 +8804,38 @@ class WrittenInAnotherOrder(unittest.TestCase):
         wires = self.edited((['#start', 'a.operand'], ['#start', 'b.operand']), (['#stop', 'b.operand'], ['#stop', 'a.operand']))
         for wire in (['rail', 'a.in', 'c.in', 'd.in'], ['a.out', 'b.in'], ['b.out', 'add.en']):
             self.noted_beside(self.text(wires, field=wire), self.text(wires))
+
+    def test_a_field_the_same_on_both_sides_of_a_network_written_again(self):
+        """Beside a shown change (an operand renamed), TIA writes the wires, the operands and the rail's ends in another
+        order. A field the same on both sides, on a wire or on an end, is no note."""
+        shown = self.edited((['#latch', 'q.operand'], ['#other', 'q.operand']))
+        again = [list(w) for w in reversed(shown)]
+        on_wire = dict(field=['#start', 'a.operand'])
+        self.assertEqual(self.listed(self.text(**on_wire), self.text(again, operands=list(reversed(self.operands(shown))),
+                                                                     first=41, **on_wire)),
+                         [('changed', False, [('changed', False)])])
+        rail = [['rail', 'd.in', 'c.in', 'a.in'] if w[0] == 'rail' else w for w in shown]
+        on_end = dict(end_field=('rail', 'a.in'))
+        self.assertEqual(self.listed(self.text(**on_end), self.text(rail, **on_end)), [('changed', False, [('changed', False)])])
+
+    def test_two_parts_swapped_with_the_operands_among_them(self):
+        """A part's place is among the parts and calls alone: where the operands stand among them does not count."""
+        before = self.text(slots={0, 2, 10, 11, 12, 13, 14})
+        after = self.text(parts=[self.PARTS[k] for k in (0, 2, 1, 3, 4, 5, 6)], slots={0, 1, 2, 10, 11, 12, 13})
+        self.assertFalse(alike_exports(before, after))
+        self.assertEqual([[s for s, _ in nets] for _, _, nets in self.listed(before, after)], [['changed']])
+        self.assertTrue(alike_exports(before, self.text(slots={0, 1, 2, 3, 4, 5, 6})))
+
+    def test_two_of_twelve_parts_swapped(self):
+        """Places counted as numbers: the tenth part and on."""
+        names = ['p%d' % k for k in range(11)]
+        parts = [(n, '<Part Name="Contact" UId="%d" />') for n in names] + [('q', '<Part Name="Coil" UId="%d" />')]
+        wires = ([['rail', 'p0.in']] + [['%s.out' % x, '%s.in' % y] for x, y in zip(names, names[1:] + ['q'])]
+                 + [['#%s' % n, '%s.operand' % n] for n in names] + [['#latch', 'q.operand']])
+        for k, j in ((2, 10), (9, 10), (1, 11)):
+            swapped = list(parts)
+            swapped[k], swapped[j] = parts[j], parts[k]
+            self.assertFalse(alike_exports(self.text(wires, parts), self.text(wires, swapped)), (k, j))
 
     SR = [('s', '<Part Name="Contact" UId="%d" />'),
           ('e', '<Part Name="Eq" UId="%d"><TemplateValue Name="SrcType" Type="Type">Int</TemplateValue></Part>'),
