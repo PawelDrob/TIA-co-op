@@ -12,7 +12,7 @@ from .diff import Graph, NetDiff, out_of_order
 from .names import decl_name, decl_type, file_safe
 from .s7dcl import (Network, _norm, lad_lines as _lad_lines, numbered as _numbered, pin_key, scl_lines, texts_for_keys,
                     wire_of)
-from .simaticml import same_export
+from .simaticml import rungs_text, same_export
 from .source import UNREADABLE, stem
 
 
@@ -39,11 +39,13 @@ class NetPair:
 
     def _unseen(self):
         """The two versions' lines of a LAD network whose text differs though its elements and connections are alike, else
-        None."""
+        None. Two versions of two formats: their lines as read (_read_lines), as the two formats write a network otherwise."""
         b, a = self.before, self.after
         if not (b and a and self.lad is not None and b.rungs is not None and a.rungs is not None) or self.lad.changed:
             return None
         lines = _lad_lines(b.body), _lad_lines(a.body)
+        if _format(b) != _format(a):
+            lines = _read_lines(b), _read_lines(a)
         return lines if lines[0] != lines[1] else None
 
     def _same_lines(self):
@@ -107,14 +109,29 @@ class NetPair:
         return 'changed' if scl_lines(b.body) != scl_lines(a.body) else 'same'
 
 
+def _format(net):
+    """'sd' or 'xml': the format a network was read from; None for one made otherwise."""
+    return (net.source or (None,))[0]
+
+
+def _read_lines(net):
+    """A LAD network's lines as its reader read it, from either format alike: its rungs as one writer writes them
+    (simaticml.rungs_text: its boxes' templates, ENO, expression and settings; not the templates SimaticML alone writes,
+    Element.more; the jump label is compared apart). An .s7dcl's comment lines, which nothing reads, stand at their end
+    as they are: the other format has none."""
+    lines = _lad_lines(rungs_text(net.rungs))
+    if _format(net) == 'sd':
+        lines += [x for x in _lad_lines(net.body) if x.startswith('//')]
+    return lines
+
+
 def _reads_same(b, other):
-    """What the report reads of two versions of a network is alike. The lines of an .s7dcl LAD network also hold what its
-    drawing does not read: there the drawing alone."""
+    """What the report reads of two versions of a network is alike. The lines of a LAD network also hold what its
+    drawing does not read (an .s7dcl's pragmas, a box's settings from either format): there the drawing alone."""
     p = NetPair(b, other)
     if b.lang == 'LAD' and other.lang == 'LAD':
         p.lad = NetDiff(Graph(b.rungs), Graph(other.rungs))
-        if b.source[0] == 'sd':
-            return (b.title, b.comment, b.label) == (other.title, other.comment, other.label) and not p.lad.changed
+        return (b.title, b.comment, b.label) == (other.title, other.comment, other.label) and not p.lad.changed
     return p._read_same()
 
 

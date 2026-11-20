@@ -59,7 +59,8 @@ CAUSES = {
                            "file's elements, which TIA's export varies"),
     'FBD lines': (READER, 'an FBD network read into other lines from the two formats'),
     'note: files': (NOTE, "the block's note compares the raw files, which differ between two formats"),
-    'note: LAD lines': (NOTE, "a LAD network's note compares its text, which the two formats write otherwise"),
+    'note: LAD lines': (NOTE, "a LAD network's note compares its lines as read from both formats (compare._read_lines), "
+                              "which differ"),
     'note: SimaticML order': (NOTE, 'a SimaticML network written in another order, with other ids, and nothing else'),
     'note: .s7dcl jump label': (NOTE, "a .s7dcl network's note when its jump label changed, the label shown"),
     'type members': (ONE_FIELD, 'SimaticML spells out the members of a type a block uses (an instance DB, a DB of a '

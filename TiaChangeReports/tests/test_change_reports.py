@@ -2201,6 +2201,122 @@ class TemplatesTheInstructionFixes(unittest.TestCase):
         self.assertNotEqual(self.listed(self.arithmetic('Add'), self.arithmetic('Add', 2)), [])
 
 
+class NoteAcrossTheFormats(unittest.TestCase):
+    """A LAD network's note from one format to the other (compare.NetPair._unseen; the bed of the two formats, cause
+    'note: LAD lines'): the lines of both as read, one writer for both. What only the writer's form tells is no note:
+    a pragma on one line or several, an S7_Templates in brackets and in another order, S7_Relation beside it, a box's
+    pin on one line and in another case, the jump label's line. What a user sets is compared from both: a template's
+    value, ENO, a relation, an F-box's cards, the label, and a comment line only one format can hold."""
+
+    @staticmethod
+    def tv(name, value, typ='Type'):
+        return '<TemplateValue Name="%s" Type="%s">%s</TemplateValue>' % (name, typ, value)
+
+    @staticmethod
+    def xml(part, values='', pins=(('in', 21),), out='out', attrs='', label=''):
+        """A block whose first network holds the box alone on the rail, as SimaticML: values its TemplateValues, pins
+        (name, operand) its inputs (NegatedPins.net: 21 #start, 22 #stop, 24 #latch), out on #big; label its jump label."""
+        n = NegatedPins('test_taken_away')
+        text = n.net('<Part Name="%s" UId="25"%s>%s</Part>' % (part, attrs, values),
+                     ['<Powerrail /><NameCon UId="25" Name="en" />'] + [n.op(uid, 25, p) for p, uid in pins]
+                     + ['<NameCon UId="25" Name="%s" /><IdentCon UId="23" />' % out], 'LAD')
+        if label:
+            text = text.replace('<Parts>', '<Labels><LabelDeclaration><Label Name="%s" /></LabelDeclaration></Labels>'
+                                           '<Parts>' % label, 1)
+        return _xml_src(text)
+
+    @staticmethod
+    def sd(*lines, label=''):
+        """The same as .s7dcl, a network of xml's title holding one rung of these lines, label its jump label."""
+        return src('ORGANIZATION_BLOCK "Main"\n    { S7_Language := "LAD"; S7_NetworkTitle := "MLC_2" }\n    NETWORK\n%s'
+                   '        RUNG wire#powerrail\n%s\n        END_RUNG\n    END_NETWORK\nEND_ORGANIZATION_BLOCK\n'
+                   % ('        Label(%s)\n' % label if label else '', '\n'.join('            ' + x for x in lines)),
+                   name='Main')
+
+    ENO = ' DisabledENO="false"'
+
+    def neg(self, *pragma, label=''):
+        """Neg with SrcType Int and its ENO generated, after these pragma lines."""
+        return self.sd(*pragma + ('Neg(', '    in := #start,', '    out => #big', ')'), label=label)
+
+    def neg_xml(self, src_type='Int', attrs=ENO, label=''):
+        return self.xml('Neg', self.tv('SrcType', src_type), attrs=attrs, label=label)
+
+    def s_comp(self):
+        return self.sd('{', '    S7_Templates := "src_type := String";', '    S7_Relation := "EQ"', '}', 'S_COMP(',
+                       '    IN1 := #start,', '    IN2 := #stop,', '    OUT => #big', ')')
+
+    def s_comp_xml(self, relation='EQ'):
+        return self.xml('S_COMP', self.tv('relation', relation, 'Operation') + self.tv('src_type', 'String'),
+                        (('IN1', 21), ('IN2', 22)), 'OUT')
+
+    def shr(self, *more, user='1', n='#stop'):
+        """SHR of an F-block as .s7dcl writes it: its cards and no type; more: lines before the box; n its operand on n."""
+        return self.sd(*more + ('{', '    f_user_card := "%s"; ' % user, '    f_image_card := "0"', '}', 'SHR(',
+                                '    in := #start,', '    n := %s,' % n, '    out => #big', ')'))
+
+    def shr_xml(self, user='1', n=22):
+        """SHR as SimaticML writes it: its cards and its type as templates; n the operand on N."""
+        return self.xml('SHR', self.tv('f_user_card', user, 'Cardinality') + self.tv('f_image_card', '0', 'Cardinality')
+                        + self.tv('value_type', 'Word'), (('IN', 21), ('N', n)), 'OUT')
+
+    def test_what_only_the_writers_form_tells_is_no_note(self):
+        """Each kind the bed holds at its start state, as there; each was a note."""
+        alike = {
+            'a pragma over several lines': (self.neg('{', '    S7_Templates := "SrcType := Int"; ',
+                                                     '    S7_GenerateENO := "TRUE"', '}'), self.neg_xml()),
+            'templates in brackets, in another order': (
+                self.sd('{', '    S7_Templates := "[SrcType := Int, DestType := Real]";', '    S7_GenerateENO := "TRUE"',
+                        '}', 'Convert(', '    in := #start,', '    out => #big', ')'),
+                self.xml('Convert', self.tv('DestType', 'Real') + self.tv('SrcType', 'Int'), attrs=self.ENO)),
+            'S7_Relation beside the templates': (self.s_comp(), self.s_comp_xml()),
+            "a box's pin on one line, in another case": (
+                self.sd('Get_AlarmResources(RET_VAL => #big)'),
+                self.xml('Get_AlarmResources', pins=(), out='Ret_Val')),
+            "the jump label's line": (self.neg('{ S7_Templates := "SrcType := Int"; S7_GenerateENO := "TRUE" }',
+                                               label='lblA'), self.neg_xml(label='lblA')),
+            "an F-box's cards": (self.shr(), self.shr_xml()),
+        }
+        for kind, (sd, xml) in alike.items():
+            with self.subTest(kind):
+                self.assertEqual(TemplatesTheInstructionFixes.across(sd, xml), ('same', False))
+
+    def test_what_a_user_sets_is_still_compared_from_both_formats(self):
+        """Another value on the SimaticML side, or a line the .s7dcl alone holds: the network is changed. The card and the
+        comment line no drawing shows: the note says them."""
+        one_line = ('{ S7_Templates := "SrcType := Int"; S7_GenerateENO := "TRUE" }',)
+        cases = {
+            "a template's value": (self.neg(*one_line), self.neg_xml('DInt'), False),
+            'ENO': (self.neg(*one_line), self.neg_xml(attrs=' DisabledENO="true"'), False),
+            'a relation': (self.s_comp(), self.s_comp_xml('NE'), False),
+            "an F-box's card": (self.shr(), self.shr_xml(user='2'), True),
+            'the jump label': (self.neg(*one_line, label='lblA'), self.neg_xml(label='lblB'), False),
+            'a comment line': (self.shr('// set by hand'), self.shr_xml(), True),
+        }
+        for kind, (sd, xml, note) in cases.items():
+            with self.subTest(kind):
+                state, not_shown = TemplatesTheInstructionFixes.across(sd, xml)
+                self.assertEqual(state, 'changed')
+                if note:
+                    self.assertTrue(not_shown)
+
+    def nets(self, before, after, path):
+        d = compare_blocks(before, after, path, path)
+        return [(p.state, p.not_shown) for p in d.nets]
+
+    def test_a_card_changed_in_one_format_is_noted_also_beside_another_change(self):
+        """From SimaticML to SimaticML, as from .s7dcl to .s7dcl: a card changed alone is the note, beside another
+        operand the tag (beside.py), which reads the box's cards as no drawing does."""
+        xml = 'plc/blocks/Main.xml'
+        self.assertEqual(self.nets(self.shr_xml(), self.shr_xml(user='2'), xml), [('changed', True)])
+        self.assertEqual(self.nets(self.shr_xml(), self.shr_xml(user='2', n=24), xml), [('changed', True)])
+        self.assertEqual(self.nets(self.shr_xml(), self.shr_xml(n=24), xml), [('changed', False)])
+        sd = 'plc/blocks/Main.s7dcl'
+        self.assertEqual(self.nets(self.shr(), self.shr(user='2'), sd), [('changed', True)])
+        self.assertEqual(self.nets(self.shr(), self.shr(user='2', n='#latch'), sd), [('changed', True)])
+        self.assertEqual(self.nets(self.shr(), self.shr(n='#latch'), sd), [('changed', False)])
+
+
 # ---------------------------------------------------------------- renamed members and member order
 
 ORD = '''FUNCTION_BLOCK "O"

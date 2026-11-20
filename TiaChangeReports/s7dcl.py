@@ -469,6 +469,10 @@ class Element:
     expression: Optional[str] = None   # Calculate: S7_Expression
     no_eno: Optional[bool] = None   # ENO not generated (ENO := EN), TIA draws it gray; None: the file does not say
     more: dict = field(default_factory=dict)     # SimaticML: the other type templates, no part of the instruction's text
+    # The settings in front of the box that no field above reads, by their .s7dcl names: an F-box's cards (f_user_card :=
+    # "1"), which SimaticML writes as templates of those names; from .s7dcl also any other. Not drawn and not in sig():
+    # the network's lines compare them (compare.NetPair._unseen).
+    settings: dict = field(default_factory=dict)
 
     @property
     def kind(self):
@@ -563,7 +567,8 @@ def lad_read(body, prefix, itf=None, safety=False):
     template at the value its instruction fixes: a type, or Sub, Div and Mod's Card 2; instructions.left_out) taken out
     of the S7_Templates the box was read from, the last before it, and a pragma left empty gone, so that its lines, its
     part of the file and its units (beside.py) read as its element does; body itself where nothing is left out. A box's
-    ENO as its S7_GenerateENO says (instructions.s7dcl_no_eno; safety: the network is of an F-block)."""
+    ENO as its S7_GenerateENO says (instructions.s7dcl_no_eno; safety: the network is of an F-block); the settings in
+    front of it that none of its fields reads, as they stand (Element.settings)."""
     rungs = []
     cur = None
     pend, pend_at = {}, []                        # the pragmas before the next element, and their lines [start, end)
@@ -636,6 +641,7 @@ def lad_read(body, prefix, itf=None, safety=False):
         _fill_f_type(el, pend, itf)
         el.expression = pend.get('S7_Expression')
         el.no_eno = instructions.s7dcl_no_eno(pend.get('S7_GenerateENO', ''), el.instr, safety)
+        el.settings = {k: v for k, v in pend.items() if not _READ_SETTING.match(k)}
         pend, pend_at = {}, []
         cur.items.append(el)
     if not rewritten:
@@ -646,6 +652,10 @@ def lad_read(body, prefix, itf=None, safety=False):
         out += read
         k = end
     return rungs, '\n'.join(out)
+
+
+# The pragma settings in front of a box that lad_read reads into its own fields; the others are its settings.
+_READ_SETTING = re.compile(r'(S7_Templates|S7_Relation|S7_Expression|S7_GenerateENO|CASE\d+)$')
 
 
 def _templates_value(text):
