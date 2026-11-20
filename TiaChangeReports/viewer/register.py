@@ -71,13 +71,26 @@ def delete_tree(root, sub):
     winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
 
 
-def _empty(root, sub):
+def delete_value(root, sub, name):
+    """The value name of root\\sub deleted; nothing when it is not there."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub, 0, winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, name)
+    except OSError:
+        pass
+
+
+def _keys_and_values(root, sub):
+    """(subkeys, values) of root\\sub; None when it is not there."""
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub) as k:
-            n_keys, n_values, _ = winreg.QueryInfoKey(k)
-            return n_keys == 0 and n_values == 0
+            return winreg.QueryInfoKey(k)[:2]
     except OSError:
-        return False
+        return None
+
+
+def _empty(root, sub):
+    return _keys_and_values(root, sub) == (0, 0)
 
 
 def _notify():
@@ -145,7 +158,6 @@ def unregister(classes=CLASSES, notify=True):
     return ['%s files no longer open in the block viewer%s.' % (EXT, ': back to %s' % previous if previous else '')]
 
 
-
 def register_xml(cmd=None, classes=CLASSES, notify=True):
     """XML_PROGID with its open command, and XML_PROGID among .xml's OpenWithProgids. The key made when it is not there,
     and which one kept on XML_PROGID's key, so that unregister_xml takes back only that. Nothing of .s7dcl."""
@@ -182,21 +194,3 @@ def unregister_xml(classes=CLASSES, notify=True):
     if notify:
         _notify()
     return ['"Open with" no longer lists the block viewer for .xml files.']
-
-
-def delete_value(root, sub, name):
-    """The value name of root\\sub deleted; nothing when it is not there."""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub, 0, winreg.KEY_SET_VALUE) as k:
-            winreg.DeleteValue(k, name)
-    except OSError:
-        pass
-
-
-def _keys_and_values(root, sub):
-    """(subkeys, values) of root\\sub; None when it is not there."""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, root + '\\' + sub) as k:
-            return winreg.QueryInfoKey(k)[:2]
-    except OSError:
-        return None

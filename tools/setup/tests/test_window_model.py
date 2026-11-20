@@ -142,13 +142,32 @@ class Menu(unittest.TestCase):
     def test_a_skipped_step_shows_as_not_done_and_its_page_does_it(self):
         change = Finding('change', 'status line: adds the TIA row', 'status line', make=lambda: [])
         bridge = dict((e[0], e) for e in model.menu_entries(self.lk(change)))['bridge']
-        self.assertEqual(bridge[3:], ('todo', '1 not done or missing'))
+        self.assertEqual(bridge[3:], ('todo', '1 not done'))
         status = row(model.page_rows(self.lk(change), 'bridge'), 'status line')
         self.assertEqual([a.finding for a in status.actions], [change])
 
     def test_something_missing_that_is_needed_marks_its_entry(self):
         missing = Finding('missing', 'git: install it', 'git')
         self.assertEqual(model.menu_entries(self.lk(missing))[0][3], 'missing')
+
+    def test_not_done_and_missing_are_counted_apart(self):
+        found = [Finding('missing', 'git: install it', 'git'), Finding('change', 'uv: install it', 'uv', make=lambda: [])]
+        self.assertEqual(model.menu_entries(self.lk(*found))[0][3:], ('missing', '1 not done, 1 missing'))
+
+    def test_the_block_viewer_entry_in_each_state_of_its_two_rows(self):
+        """Each row optional: one not set is not done, never missing; another clone's counts as set, as on main."""
+        s7dcl = {'none': {}, 'this': {'command': 'x', 'default': True}, 'other': {'command': 'o', 'default': True}}
+        xml = {'none': {}, 'this': {'command': 'x', 'listed': True}, 'other': {'command': 'o', 'listed': True},
+               'id alone': {'command': 'x'}, 'value alone': {'listed': True}}
+        not_set = {'none', 'id alone', 'value alone'}
+        for a, b in itertools.product(s7dcl, xml):
+            with self.subTest(s7dcl=a, xml=b):
+                lk = look(viewer={**VIEWER, **s7dcl[a], 'xml': {**XML, **xml[b]}}, dashboards=[])
+                open_rows = (a == 'none') + (b in not_set)
+                expected = ('todo', f'{open_rows} not done') if open_rows else ('ok', 'All set')
+                self.assertEqual(dict((e[0], e[3:]) for e in model.menu_entries(lk))['viewer'], expected)
+        lk = look(viewer={'error': 'The registry could not be read: x'}, dashboards=[])
+        self.assertEqual(dict((e[0], e[3:]) for e in model.menu_entries(lk))['viewer'], ('todo', '2 missing'))
 
     def test_a_dashboard_that_is_not_running_is_nothing_missing(self):
         entries = dict((e[0], e) for e in model.menu_entries(self.lk()))
