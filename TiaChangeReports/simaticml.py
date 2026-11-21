@@ -76,8 +76,8 @@ def _no_text(item):
 
 def _expansion(sections, values):
     """The Sections under a Member hold only what TIA writes when it expands a UDT member: members, a struct's nested,
-    with a name, a data type and a version, and, with values, the start values and comments set inside, which
-    unread_differs compares apart; nothing else a user set."""
+    with a name, a data type and a version, and, with values, the start values and comments set inside, on a member or
+    an array element, which unread_differs compares apart; nothing else a user set."""
     return all(_bare_member(m, values) for section in _kids(sections, 'Section') for m in _kids(section))
 
 
@@ -86,8 +86,10 @@ def _bare_member(m, values):
         return False
     for c in m:
         tag = _local(c.tag)
-        if tag not in (('StartValue', 'Comment', 'Member', 'Sections') if values else ('Member', 'Sections')) \
-                or (tag == 'Member' and not _bare_member(c, values)) or (tag == 'Sections' and not _expansion(c, values)):
+        if tag not in (('StartValue', 'Comment', 'Subelement', 'Member', 'Sections') if values else ('Member', 'Sections')) \
+                or (tag == 'Member' and not _bare_member(c, values)) or (tag == 'Sections' and not _expansion(c, values)) \
+                or (tag == 'Subelement' and (set(c.attrib) - {'Path'}
+                                             or any(_local(x.tag) not in ('StartValue', 'Comment') for x in c))):
             return False
     return True
 
@@ -99,7 +101,7 @@ def _other_language(el, lang):
     return tag == 'MultiLanguageText' and el.get('Lang') != lang
 
 
-def _plain(el, uids=None, lang=None, network_lang=None, expansions='out'):
+def _plain(el, uids=None, lang=None, network_lang=None, values=True):
     """An element without what TIA writes differently per export: the export time and how it was exported, the object
     numbers (ID left out; UId, which tells what a wire connects, numbered by first appearance in its network; a LAD or
     FBD network's not at all, nor the order of its operands and wires, _flgnet), the order of the languages and a
@@ -107,9 +109,9 @@ def _plain(el, uids=None, lang=None, network_lang=None, expansions='out'):
     automatic numbering is on (TIA's; a user cannot set it then, and an .s7dcl does not write it), and a part's template
     at the value its instruction fixes (_left_out).
     lang: only this language's texts (the others are compared apart, as texts); network_lang: the programming language
-    of the network an element is in, taken from its CompileUnit (network_language); expansions: TIA's expansion of a UDT
-    member 'out' (with the start values and comments set inside, which unread_differs compares), 'out bare' (out only
-    when it holds nothing but members: unread_differs's, on a file without what the reader took) or 'kept'."""
+    of the network an element is in, taken from its CompileUnit (network_language); values: TIA's expansion of a UDT
+    member left out also with the start values and comments set inside, which unread_differs compares; without,
+    only one that holds nothing but members (unread_differs's, on a file without what the reader took)."""
     tag = _local(el.tag)
     if tag == 'FlgNet':
         return _flgnet(el, lang, network_lang)
@@ -119,10 +121,9 @@ def _plain(el, uids=None, lang=None, network_lang=None, expansions='out'):
         network_lang = network_language(el)
     auto = tag == 'AttributeList' and _text(el, 'AutoNumber') == 'true'
     instr = _part_instr(el) if tag == 'Part' else None
-    kids = [_plain(c, uids, lang, network_lang, expansions) for c in el
+    kids = [_plain(c, uids, lang, network_lang, values) for c in el
             if _local(c.tag) != 'DocumentInfo'
-            and not (expansions != 'kept' and tag == 'Member' and _local(c.tag) == 'Sections'
-                     and _expansion(c, values=expansions == 'out'))
+            and not (tag == 'Member' and _local(c.tag) == 'Sections' and _expansion(c, values))
             and not (_local(c.tag) == 'MultilingualTextItem' and _no_text(c)) and not (lang and _other_language(c, lang))
             and not (auto and _local(c.tag) == 'Number') and not (instr and _left_out(instr, c))]
     if tag == 'ObjectList' and all(k[0] == 'MultilingualTextItem' for k in kids):
@@ -281,13 +282,14 @@ def _flgnet(el, lang, network_lang):
     return 'FlgNet', _unnumbered(el), 'as written' if written else '', tuple(kids)
 
 
-def _member_sources(owner, path, lang, out, expansions):
-    """{path: a member's part of the file, without its struct members, which have their own}; expansions: _plain's."""
+def _member_sources(owner, path, lang, out):
+    """{path: a member's part of the file, without its struct members, which have their own, nor TIA's expansion of a
+    UDT member where only members are in it (the file is one without what the reader took, unread_differs)}."""
     for m in _kids(owner, 'Member'):
         here = path + part_text(m.get('Name'))
-        plain = _plain(m, lang=lang, expansions=expansions)
+        plain = _plain(m, lang=lang, values=False)
         out[here] = plain[:3] + ([k for k in plain[3] if k[0] != 'Member'],)
-        _member_sources(m, here + '.', lang, out, expansions)
+        _member_sources(m, here + '.', lang, out)
 
 
 def _block_of(xml):
@@ -353,20 +355,25 @@ def _unread_part(field, value):
     return value if isinstance(value, list) else None
 
 
-def _member_unread(b, a, rb, ra, unread):
+# The elements that hold a text the reader takes, by the attributes they have beside it: a StartValue; a comment's
+# MultiLanguageText, its Comment; an array element (TIA writes one only to hold them). Left with nothing else once
+# the text is out, such an element is TIA's: unread_differs takes it out with the text.
+_HOLDS = {'StartValue': set(), 'MultiLanguageText': {'Lang'}, 'Comment': set(), 'Subelement': {'Path'}}
+
+
+def _member_unread(b, a, rb, ra):
     """A member's field differs and what the report reads of it does not: told apart field by field, so also on a member
-    whose row is changed for another field, and within a field the report reads only in part (_unread_part). unread:
-    the member's part of the file before and after, with TIA's expansion kept and without the elements the reader took
-    (unread_differs). A member gone to another section, which the report shows, gets that section's defaults: no
-    difference of its own. rb, ra: _read's values, None where the report does not read the member."""
+    whose row is changed for another field, and within a field the report reads only in part (_unread_part). b, a: the
+    member's part of the file before and after, without the texts the reader took (unread_differs). A member gone to
+    another section, which the report shows, gets that section's defaults: no difference of its own. rb, ra: _read's
+    values, None where the report does not read the member."""
     fb, fa = _fields(b), _fields(a)
-    gb, ga = _fields(unread[0]), _fields(unread[1])
     other_section = rb is not None and ra is not None and rb[5] != ra[5]
     for field in set(fb) | set(fa):
         if fb.get(field) != fa.get(field):
             if other_section and field in _SECTION_DEFAULTS and {fb.get(field), fa.get(field)} <= _SECTION_DEFAULTS[field]:
                 continue
-            if _unread_part(field, gb.get(field)) != _unread_part(field, ga.get(field)):
+            if _unread_part(field, fb.get(field)) != _unread_part(field, fa.get(field)):
                 return True
             reads = _MEMBER_READS.get(field, ())
             if rb is None or ra is None or not any(rb[k] != ra[k] for k in reads):
@@ -388,33 +395,23 @@ def unread_differs(bxml, axml, bblk, ablk, lang=None):
         return True
 
     def members(blk):
-        """The members' parts of the file without the texts the reader took from it, and an element that held nothing
-        but such a text with them (a StartValue, a comment's MultiLanguageText of no other language, a Comment left
-        with nothing): with TIA's expansion of a UDT member left out where nothing but members is left in it, and with
-        it kept and without an array element left with nothing but its path (TIA writes one only to hold them)."""
+        """The members' parts of the file without the texts the reader took from it, nor an element that held nothing
+        but such a text (_HOLDS)."""
         al = _kid(blk, 'AttributeList')
         sections = [sec for itf in _kids(al, 'Interface') for secs in _kids(itf, 'Sections')
                     for sec in _kids(secs, 'Section') if sec.get('Name') != 'Return']     # the declaration shows it
-        out, unread, taken = {}, {}, []
+        out, taken = {}, []
         _interface(blk, lang, taken)
         parent = {c: p for p in blk.iter() for c in p}
-        holders = []
         for _, el in taken:
             el.text = None
-            while _local(el.tag) in ('StartValue', 'MultiLanguageText', 'Comment') and not len(el) \
-                    and set(el.attrib) <= {'Lang'}:
+            while _local(el.tag) in _HOLDS and not len(el) and set(el.attrib) <= _HOLDS[_local(el.tag)]:
                 parent[el].remove(el)
                 el = parent[el]
-            holders.append(el)
         for sec in sections:
-            _member_sources(sec, '', lang, out, expansions='out bare')
-        for el in holders:
-            if _local(el.tag) == 'Subelement' and not len(el) and set(el.attrib) <= {'Path'} and el in parent[el]:
-                parent[el].remove(el)
-        for sec in sections:
-            _member_sources(sec, '', lang, unread, expansions='kept')
-        return out, unread
-    (mb, unreadb), (ma, unreada) = members(b), members(a)
+            _member_sources(sec, '', lang, out)
+        return out
+    mb, ma = members(b), members(a)
     if _local(b.tag) == _local(a.tag) == 'SW.Blocks.InstanceDB':
         if set(mb) != set(ma):                                   # a member of its FB or UDT, which is not read here
             return True
@@ -424,8 +421,7 @@ def unread_differs(bxml, axml, bblk, ablk, lang=None):
         if not rb and not ra and mb != ma:      # no member read on either side, as of an instance DB become a block of
             return True                         # another kind with none: a member one file has is read nowhere else
     for path in set(mb) & set(ma):
-        if mb[path] != ma[path] and _member_unread(mb[path], ma[path], rb.get(path), ra.get(path),
-                                                   (unreadb[path], unreada[path])):
+        if mb[path] != ma[path] and _member_unread(mb[path], ma[path], rb.get(path), ra.get(path)):
             return True
 
     def attributes(blk):
@@ -1191,7 +1187,7 @@ def _set_inside(m, here):
     where the export writes a start value or comment only as the instance sets its own ('"x".q := ();' with its
     comment), the members of a struct in the UDT being Member elements of the struct. Not a member inside an array of
     struct, nor a Subelement under a member that is no array, as TIA may write an element of an array of a UDT: no
-    real export holds one, so their path is not settled (ticket 402), and the note compares them (unread_differs)."""
+    real export holds one, so the path they would be read at is not settled, and the note compares them (unread_differs)."""
     if re.match(r'Array\s*\[', m.get('Datatype') or ''):
         for sub in _kids(m, 'Subelement'):
             yield '%s[%s]' % (here, sub.get('Path')), sub

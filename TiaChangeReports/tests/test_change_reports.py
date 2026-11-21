@@ -5580,14 +5580,17 @@ class NoteBesideAReadField(unittest.TestCase):
     STU = '<Member Name="stU" Datatype="&quot;zzE2eUdtA&quot;" Remanence="NonRetain" Accessibility="Public">'
     WRITABLE = '<BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>'
 
-    def text(self, kind, start='4', added=False, stu='', extra=''):
-        """kind: the block's tag; start: arr[1]'s start value (None: arr without one); added: m9 in stU's members;
-        stu: in front of stU's own attributes; extra: more members of stU, after arr."""
+    def text(self, kind, start='4', added=False, stu='', extra='', hmi=False):
+        """kind: the block's tag; start: arr[1]'s start value (None: arr without one); added: m9 in stU's members, as
+        TIA writes it when the UDT grows; stu: in front of stU's own attributes; extra: more members of stU, after arr;
+        hmi: m1 not writable from HMI, as a user sets it on an element in the DB, which the report does not read."""
         x = _two_format_file('simaticml/plc/blocks/zzE2e/zzE2eFbI_DB.xml').replace('SW.Blocks.InstanceDB', kind)
         arr = ('<Member Name="arr" Datatype="Array[0..1] of Int" />' if start is None else
                '<Member Name="arr" Datatype="Array[0..1] of Int"><Subelement Path="1"><StartValue>%s</StartValue>'
                '</Subelement></Member>' % start)
-        x = x.replace(self.M1, self.M1 + arr + extra + ('<Member Name="m9" Datatype="Int" />' if added else ''))
+        m1 = ('<Member Name="m1" Datatype="Int"><AttributeList>%s</AttributeList></Member>'
+              % self.WRITABLE.replace('true<', 'false<') if hmi else self.M1)
+        x = x.replace(self.M1, m1 + arr + extra + ('<Member Name="m9" Datatype="Int" />' if added else ''))
         i = x.index(self.STU) + len(self.STU)
         j = x.index(self.WRITABLE, i)
         return x[:j] + stu + x[j:]
@@ -5603,8 +5606,10 @@ class NoteBesideAReadField(unittest.TestCase):
             with self.subTest(kind=kind):
                 base = self.text(kind)
                 self.assertFalse(self.note(base, self.text(kind, start='5')), 'the start value alone is read')
-                self.assertTrue(self.note(base, self.text(kind, added=True)), 'a member TIA writes, alone')
-                self.assertTrue(self.note(base, self.text(kind, start='5', added=True)), 'both in one commit')
+                self.assertTrue(self.note(base, self.text(kind, hmi=True)), 'a field set in the DB, alone')
+                self.assertTrue(self.note(base, self.text(kind, start='5', hmi=True)), 'both in one commit')
+                self.assertFalse(self.note(base, self.text(kind, added=True)), "TIA's expansion grown: the UDT shows it")
+                self.assertFalse(self.note(base, self.text(kind, start='5', added=True)), 'and beside the start value')
 
     def test_a_start_value_first_set_inside_tias_expansion_of_a_udt_member(self):
         """Without it, stU's members are TIA's expansion, which the report leaves out; with it they are written out."""
@@ -5657,115 +5662,203 @@ class NoteBesideAReadField(unittest.TestCase):
 
 
 class EveryStartValueAndComment(unittest.TestCase):
-    """Every start value and every comment in the DB exports the tests hold, changed alone, as an instance DB and as a
-    global DB: what the reader reads the report shows, with no note; what it does not read gives the note and no row.
-    Each falls in exactly one of the two. And what the reader reads does not change the note on anything else: a
-    member of TIA's expansion of a UDT member retyped, as TIA writes it when the UDT changes, gives the same note with
-    and without the start values and comments the reader reads (the bed's commit c8fbe58, zzE2eDb).
-    The real exports of zzE2eFbI_DB (twoformats/1-before and 3-D009) and of zzE2eDb (fixtures/notes, before c8fbe58),
-    and two files made by hand from the first (fixtures/notes, each says so in its head), for what no real export
-    holds: start values and comments in an array element, a struct of the block, a struct, an array of struct and an
-    array of a UDT inside a UDT member, an informative comment, and a UDT member's expansion bare but for a member
-    inside an array of struct."""
+    """What the reader reads the report shows, with no note; what it does not read gives the note and no row: each
+    pair below falls in exactly one of the two, as an instance DB and as a global DB.
+    The places: every Member and array element (Subelement) of the interface, where the reader's walk visits it or
+    skips it, and an element not written yet (Path 0) of each array: a member's own, an array element's, a struct
+    member's, inside TIA's expansion of a UDT member and inside an array of struct or of a UDT there. A start value
+    stands on a member with nothing under it or on an element; a comment on either.
+    What is done there: a start value set (and so taken away, the pair the other way), changed, given each attribute
+    it can carry (ConstantName, IsBulkValue, Informative), its ConstantName changed, and changed beside a ConstantName;
+    a comment set and changed. Each pair both ways, alone, and, at a place inside an expansion, beside TIA's retype of
+    a member of that expansion (as TIA writes it when the UDT changes): then the rows are those of the pair alone, and
+    the note is the pair's or the retype's. Where the expansion counts as TIA's and the pair puts no attribute there, the
+    retype gives none, so a pair the reader reads stays a row and no note; an attribute the report does not read keeps
+    the expansion compared, and the retype then gives the note, as in a file where the expansion is compared.
+    The files: the expansion compared (fixtures/notes, made by hand: zzE2eFbI_DB-hand-made, -hand-made-bare) and
+    counting as TIA's (the real exports of zzE2eFbI_DB in twoformats/1-before and 3-D009 and of zzE2eDb before the bed's
+    commit c8fbe58, and zzE2eDb-altered, that export with an array element's start value and a struct put in dev1's
+    expansion by hand). Each made or altered file says so in its head."""
 
-    FILES = [os.path.join(TWO_FORMATS, v, 'simaticml', 'plc', 'blocks', 'zzE2e', 'zzE2eFbI_DB.xml')
+    # (file, whether the expansion in it counts as TIA's)
+    FILES = [(os.path.join(TWO_FORMATS, v, 'simaticml', 'plc', 'blocks', 'zzE2e', 'zzE2eFbI_DB.xml'), True)
              for v in ('1-before', '3-D009')] + \
-            [os.path.join(os.path.dirname(TWO_FORMATS), 'notes', f)
-             for f in ('zzE2eDb-c8fbe58-before.xml', 'zzE2eFbI_DB-hand-made.xml', 'zzE2eFbI_DB-hand-made-bare.xml')]
+            [(os.path.join(os.path.dirname(TWO_FORMATS), 'notes', f), tia)
+             for f, tia in (('zzE2eDb-c8fbe58-before.xml', True), ('zzE2eDb-altered.xml', True),
+                            ('zzE2eFbI_DB-hand-made.xml', False), ('zzE2eFbI_DB-hand-made-bare.xml', False))]
+    NS = '{http://www.siemens.com/automation/Openness/SW/Interface/v5}'
+    # The start values a place is given, (text, attributes), by name; and the pairs of them.
+    START = {'none': None, 'set': ('', {}), 'changed': ('9', {}), 'K1': ('', {'ConstantName': 'K1'}),
+             'K2': ('', {'ConstantName': 'K2'}), 'K1 changed': ('9', {'ConstantName': 'K1'}),
+             'bulk': ('', {'IsBulkValue': 'true'}), 'informative': ('', {'Informative': 'true'})}
+    START_PAIRS = [('none', 'set'), ('set', 'changed'), ('set', 'K1'), ('K1', 'K2'), ('K1', 'K1 changed'), ('set', 'bulk'),
+                   ('set', 'informative')]
+    COMMENT = {'none': None, 'set': ('', {}), 'changed': (' changed', {})}
+    COMMENT_PAIRS = [('none', 'set'), ('set', 'changed')]
+
+    def setUp(self):
+        self.reports = {}
 
     @staticmethod
-    def changed(text, i):
-        """The file with its i-th element (in document order) changed, a start value or a comment in every language,
-        and where it is: the names of the members and elements it is under."""
-        import xml.etree.ElementTree as ET
-        root = ET.fromstring(text)
-        els = list(root.iter())
-        el = els[i]
-        if el.tag.endswith('StartValue'):
-            el.text = (el.text or '') + '9'
-        else:
-            for t in el:
-                t.text = (t.text or '') + ' changed'
-        parent = {c: q for q in els for c in q}
-        names, x = [], el
-        while x is not None:
-            if x.tag.rsplit('}', 1)[-1] in ('Member', 'Subelement'):
-                names.append(x.get('Name') or '[%s]' % x.get('Path'))
-            x = parent.get(x)
-        where = '.'.join(reversed(names)).replace('.[', '[')
-        return ET.tostring(root, encoding='unicode'), '%s %s' % (where, el.tag.rsplit('}', 1)[-1])
+    def local(el):
+        return el.tag.rsplit('}', 1)[-1]
 
-    @staticmethod
-    def report(before, after):
-        """(rows that are not the same, the note) of the DB between two texts of its file."""
-        d = compare_blocks(BlockSource('DB', '', None, 'DB', xml=before), BlockSource('DB', '', None, 'DB', xml=after))
-        return [r for r in iface.block_rows(d.before, d.after) if r.state != 'same'] if d else [], bool(d and d.not_shown)
+    def report(self, before, after):
+        """(the rows that are not the same, the note) of the DB between two texts of its file."""
+        if (before, after) not in self.reports:
+            d = compare_blocks(BlockSource('DB', '', None, 'DB', xml=before), BlockSource('DB', '', None, 'DB', xml=after))
+            rows = sorted((tuple(r.path), r.state, tuple(sorted(r.changes)))
+                          for r in iface.block_rows(d.before, d.after) if r.state != 'same') if d else []
+            self.reports[before, after] = rows, bool(d and d.not_shown)
+        return self.reports[before, after]
 
-    @staticmethod
-    def without(text, places):
-        """The file without the elements at places (indices in document order), nor an array element left empty."""
-        import xml.etree.ElementTree as ET
-        root = ET.fromstring(text)
-        els = list(root.iter())
-        parent = {c: q for q in els for c in q}
-        for i in places:
-            parent[els[i]].remove(els[i])
-            up = parent[els[i]]
-            if up.tag.endswith('Subelement') and not len(up) and up in parent[up]:
-                parent[up].remove(up)
-        return ET.tostring(root, encoding='unicode')
+    def places(self, root):
+        """[(index path from root, Path of an element not written yet or None, where)] of the interface."""
+        out, parent = [], {c: q for q in root.iter() for c in q}
 
-    @staticmethod
-    def retyped(text, paths=None):
-        """{path: the file with that member of TIA's expansion of a UDT member retyped, Int to DInt and any other type
-        to Int}: of each member there with nothing under it, or of those at paths."""
-        import xml.etree.ElementTree as ET
-        out = {}
-        for i, el in enumerate(ET.fromstring(text).iter()):
-            root = ET.fromstring(text)
-            parent = {c: q for q in root.iter() for c in q}
-            x, names = list(root.iter())[i], []
-            if not x.tag.endswith('Member') or not parent[parent[x]].tag.endswith('Sections')                     or not parent[parent[parent[x]]].tag.endswith('Member'):
-                continue
-            y = x
-            while y is not None:
-                names += [y.get('Name')] if y.tag.endswith('Member') else []
-                y = parent.get(y)
-            path = '.'.join(reversed(names))
-            if (len(x) == 0) if paths is None else path in paths:
-                x.set('Datatype', 'DInt' if x.get('Datatype') == 'Int' else 'Int')
-                out[path] = ET.tostring(root, encoding='unicode')
+        def walk(el, at):
+            for i, c in enumerate(el):
+                if self.local(c) in ('Member', 'Subelement'):
+                    out.append((at + (i,), None, self.where(c, parent)))
+                    if self.local(c) == 'Member' and (c.get('Datatype') or '').startswith('Array') and \
+                            not any(self.local(x) == 'Subelement' and x.get('Path') == '0' for x in c):
+                        out.append((at + (i,), '0', self.where(c, parent) + '[0]'))
+                walk(c, at + (i,))
+        walk(next(x for x in root.iter() if self.local(x) == 'Interface'), self.path(root, next(
+            x for x in root.iter() if self.local(x) == 'Interface')))
         return out
 
-    def test_each_read_and_shown_or_not_read_and_the_note(self):
+    def path(self, root, el):
+        parent = {c: q for q in root.iter() for c in q}
+        out = []
+        while el is not root:
+            out.insert(0, list(parent[el]).index(el))
+            el = parent[el]
+        return tuple(out)
+
+    def where(self, el, parent):
+        names = []
+        while el is not None:
+            if self.local(el) in ('Member', 'Subelement'):
+                names.insert(0, el.get('Name') or '[%s]' % el.get('Path'))
+            el = parent.get(el)
+        return '.'.join(names).replace('.[', '[')
+
+    def at(self, root, place):
+        el = root
+        for i in place[0]:
+            el = el[i]
+        if place[1] is None:
+            return el
+        sub = next((x for x in el if self.local(x) == 'Subelement' and x.get('Path') == place[1]), None)
+        if sub is None:
+            import xml.etree.ElementTree as ET
+            sub = ET.SubElement(el, self.NS + 'Subelement', Path=place[1])
+        return sub
+
+    def given(self, text, place, tag, spec):
+        """The file with the place's StartValue or Comment (tag) as spec: None for none, else (text added to the one
+        there or to a new one's, attributes); an element not written yet stays out while it holds nothing."""
+        import xml.etree.ElementTree as ET
+        from TiaChangeReports.s7dcl import LANG
+        root = ET.fromstring(text)
+        el = self.at(root, place)
+        old = next((x for x in el if self.local(x) == tag), None)
+        if old is not None:
+            el.remove(old)
+        if spec is not None:
+            add, attrs = spec
+            new = ET.Element(self.NS + tag, attrs)
+            if tag == 'StartValue':
+                new.text = ((old.text or '') if old is not None else '7') + add
+            else:
+                texts = [x for x in old] if old is not None else []
+                if not texts:
+                    t = ET.SubElement(new, self.NS + 'MultiLanguageText', Lang=LANG)
+                    t.text = 'c'
+                for x in texts:
+                    y = ET.SubElement(new, x.tag, x.attrib)
+                    y.text = x.text
+                for y in new:
+                    y.text = (y.text or '') + add
+            kinds = [self.local(x) for x in el]
+            first = next((i for i, k in enumerate(kinds) if k not in ('AttributeList', 'Comment')), len(kinds))
+            el.insert(kinds.index('AttributeList') + 1 if tag == 'Comment' and 'AttributeList' in kinds else
+                      0 if tag == 'Comment' else first, new)
+        if self.local(el) == 'Subelement' and not len(el):
+            root_parent = {c: q for q in root.iter() for c in q}
+            root_parent[el].remove(el)
+        return ET.tostring(root, encoding='unicode')
+
+    def retype(self, text, place, base):
+        """The file with a member of the expansion the place is in retyped, Int to DInt and any other type to Int: the
+        first member with nothing under it of the outermost expansion around the place in base, not the place's own;
+        None where the place is in none."""
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(base)
+        parent = {c: q for q in root.iter() for c in q}
+        el, expansion = self.at(root, place), None
+        x = el
+        while x in parent:
+            if self.local(x) == 'Sections' and self.local(parent[x]) == 'Member':
+                expansion = x
+            x = parent[x]
+        if expansion is None:
+            return None
+        mine = set()
+        x = el
+        while x is not None:
+            mine.add(x)
+            x = parent.get(x)
+        target = next((m for s in expansion for m in s if self.local(m) == 'Member' and not len(m) and m not in mine),
+                      None)
+        if target is None:
+            return None
+        at = self.path(root, target)
+        root = ET.fromstring(text)
+        target = self.at(root, (at, None))
+        target.set('Datatype', 'DInt' if target.get('Datatype') == 'Int' else 'Int')
+        return ET.tostring(root, encoding='unicode')
+
+    def test_each_pair_shown_with_no_note_or_the_note_with_no_row(self):
         import xml.etree.ElementTree as ET
         seen = Counter()
-        for f in self.FILES:
+        for f, tia in self.FILES:
             with open(f, encoding='utf-8-sig') as h:
                 real = h.read()
             for kind in ('SW.Blocks.InstanceDB', 'SW.Blocks.GlobalDB'):
                 base = ET.tostring(ET.fromstring(real.replace('SW.Blocks.InstanceDB', kind)), encoding='unicode')
-                places = [i for i, el in enumerate(ET.fromstring(base).iter())
-                          if el.tag.rsplit('}', 1)[-1] in ('StartValue', 'Comment')]
-                read = []
-                for i in places:
-                    after, where = self.changed(base, i)
-                    with self.subTest(file=os.path.relpath(f, os.path.dirname(TWO_FORMATS)), kind=kind, where=where):
-                        rows, note = self.report(base, after)
-                        self.assertNotEqual(bool(rows), note, 'shown with the note, or neither')
-                        seen[bool(rows)] += 1
-                        if rows:
-                            read.append(i)
-                plain = self.without(base, sorted(read, reverse=True))
-                retyped = self.retyped(base)
-                plain_retyped = self.retyped(plain, retyped)
-                for path, after in retyped.items():
-                    with self.subTest(file=os.path.relpath(f, os.path.dirname(TWO_FORMATS)), kind=kind, retyped=path):
-                        self.assertEqual(self.report(plain, plain_retyped[path])[1], self.report(base, after)[1],
-                                         'the note with the start values and comments the reader reads as without')
-                        seen['retyped'] += 1
-        self.assertTrue(seen[True] and seen[False] and seen['retyped'], 'all kinds of place are in the files: %s'
-                        % dict(seen))
+                name = os.path.relpath(f, os.path.dirname(TWO_FORMATS))
+                for place in self.places(ET.fromstring(base)):
+                    for tag, states, pairs in (('StartValue', self.START, self.START_PAIRS),
+                                               ('Comment', self.COMMENT, self.COMMENT_PAIRS)):
+                        el = self.at(ET.fromstring(base), place)
+                        if tag == 'StartValue' and any(self.local(x) in ('Member', 'Sections') for x in el):
+                            continue                            # a start value stands on a member with nothing under it
+                        for one, other in pairs:
+                            b = self.given(base, place, tag, states[one])
+                            a = self.given(base, place, tag, states[other])
+                            for x, y, what in ((b, a, '%s -> %s' % (one, other)), (a, b, '%s -> %s' % (other, one))):
+                                with self.subTest(file=name, kind=kind, where=place[2], field=tag, pair=what):
+                                    self.assertNotEqual(x, y)
+                                    rows, note = self.report(x, y)
+                                    self.assertNotEqual(bool(rows), note, 'shown with the note, or neither')
+                                    seen[bool(rows)] += 1
+                                    y2 = self.retype(y, place, base)
+                                    if y2 is None:
+                                        continue
+                                    rows2, note2 = self.report(x, y2)
+                                    self.assertEqual(rows, rows2, 'the retype adds no row')
+                                    self.assertEqual(note or self.report(y, y2)[1], note2, "the pair's or the retype's")
+                                    attributes = any(states[s] and states[s][1] for s in (one, other))
+                                    if tia and rows and not note and not attributes:
+                                        self.assertFalse(note2, "beside TIA's retype a read pair stays a row, no note")
+                                    seen['beside'] += 1
+                retyped = next(r for r in (self.retype(base, p, base) for p in self.places(ET.fromstring(base))) if r)
+                with self.subTest(file=name, kind=kind, retype='alone'):
+                    self.assertEqual(([], not tia), self.report(base, retyped),
+                                     "TIA's retype alone: the note where the expansion is compared, else none")
+        self.assertTrue(seen[True] and seen[False] and seen['beside'], dict(seen))
 
 
 # ---------------------------------------------------------------- a moved network is one pair, tagged
