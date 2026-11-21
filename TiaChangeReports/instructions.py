@@ -105,7 +105,7 @@ CATALOGUE.update(_boxes(
     'LEAD_LAG BCDCPL R_TRIG F_TRIG Calculate'))
 # Logic on a pin gets no place from SimaticML's wires, so these and the counters, BO_W and W_BO below hold the order of their .s7dcl exports.
 # Not Mux, Demux, Move, FILL_BLK, UFILL_BLK: the networks made for this did not go through import and compile on V20 Update 7, so they have no such order.
-# On a CPU 1515F, Mux, Demux and Move refuse the type Bool; FILL_BLK and UFILL_BLK take it on operands and refuse logic on IN (s7dcl guide 8.13b). Other CPU families and the editor were not tried.
+# On a CPU 1515F, Mux, Demux and Move refuse the type Bool; FILL_BLK and UFILL_BLK take it on operands and refuse logic on IN (docs/agent/s7dcl-lad.md 8.13b). Other CPU families and the editor were not tried.
 CATALOGUE.update({
     'SEL': Instruction('SEL', pins=_pins('G IN0 IN1', outs='OUT')),
     'DCAT': Instruction('DCAT', pins=_pins('CMD O_FB C_FB', outs='Q OA CA')),

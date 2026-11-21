@@ -845,7 +845,7 @@ function Resolve-ImportFiles([string]$Repo, [string]$KindDir, [string[]]$Paths) 
 
 # Writes a .s7dcl with a lone LF as CRLF, every other byte as it was; the note for the result, $null when nothing changed.
 # TIA takes the 8 spaces of the export off a body line only after a CRLF: a line after a lone LF keeps them, and the
-# export adds 8 again, on every round trip (docs/agent/s7dcl-format.md section 10, measured 2026-11-02).
+# export adds 8 again, on every round trip (docs/agent/s7dcl-import.md section 10, measured 2026-11-02).
 function Repair-DocumentLineEnds([string]$Path) {
     $bytes = [System.IO.File]::ReadAllBytes($Path)
     # UTF-16: its bytes are not its characters. Latin-1 maps every byte to one character and back.
@@ -854,7 +854,7 @@ function Repair-DocumentLineEnds([string]$Path) {
     $text = $latin.GetString($bytes)
     if ($text -notmatch '(?<!\r)\n') { return $null }
     [System.IO.File]::WriteAllBytes($Path, $latin.GetBytes(($text -replace '(?<!\r)\n', "`r`n")))
-    "Line ends of $([System.IO.Path]::GetFileName($Path)) written as CRLF before the import: with LF, TIA indents an SCL body 8 deeper on every round trip ($(Get-GuidePath 's7dcl-format.md') section 10)."
+    "Line ends of $([System.IO.Path]::GetFileName($Path)) written as CRLF before the import: with LF, TIA indents an SCL body 8 deeper on every round trip ($(Get-GuidePath 's7dcl-import.md') section 10)."
 }
 
 # What may stand between the words of a .s7dcl's head. The gap is atomic: once read it is not given back. Otherwise a comment

@@ -1,5 +1,16 @@
 # Log
 
+## 2026-11-21
+* **Update**: [SIMATIC SD (.s7dcl) authoring guide](agent/s7dcl-format.md) in parts: it keeps the core every PLC change reads (sections 0 to 7, 9, 12, 13) and a table of which file holds each section; every section keeps its number, and the checklist says which part holds the rule of each item.
+* **Move**: [SIMATIC SD guide: LAD networks](agent/s7dcl-lad.md): sections 8 to 8.13, 8.13b, 8.14a, 8.14 and Appendices A and B of the SD guide.
+* **Move**: [SIMATIC SD guide: what exports showed](agent/s7dcl-exports.md): sections 8.13a, 8.14b, 8.14c and 8.14d of the SD guide.
+* **Move**: [SIMATIC SD guide: import behavior and platform notes](agent/s7dcl-import.md): sections 10 and 11 of the SD guide.
+* **Update**: [WinCC Comfort guide](agent/wincc-comfort-openness.md): 5.1, the generator's calls, and 5.2, a worked screen, so a generator is written without opening `hmixml.py`; a test holds 5.1 to the module and runs 5.2.
+* **Move**: [WinCC Comfort: the Openness API from PowerShell](agent/wincc-comfort-api.md): sections 2.1 and 2.2 of the WinCC Comfort guide.
+* **Move**: [WinCC Comfort: faceplates](agent/wincc-comfort-faceplates.md): section 6 of the WinCC Comfort guide.
+* **Move**: [WinCC Comfort: history of the first runs](agent/wincc-comfort-history.md): section 9 of the WinCC Comfort guide.
+* **Update**: [Openness facts](agent/openness-v20.md): its pointers to sections 10, 11 and 8.13a of the SD guide lead to the files that hold them.
+
 ## 2026-11-19
 * **Creation**: [First setup internals](dev/tools/setup.md): how setup's steps look before they change, so the command and the setup window run the same checks and changes, and how the window tells a dashboard on its port.
 * **Update**: [Setup](user/setup.md): the setup window, `Setup.wsf` at the clone's top.

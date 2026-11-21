@@ -1,6 +1,6 @@
 """Parse a SIMATIC SD block (.s7dcl + .s7res) into interface + networks; LAD networks into rungs and elements.
 
-Grammar: docs/agent/s7dcl-format.md section 8. Only what the renderer and the diff need.
+Grammar: docs/agent/s7dcl-lad.md section 8. Only what the renderer and the diff need.
 """
 import itertools
 import re

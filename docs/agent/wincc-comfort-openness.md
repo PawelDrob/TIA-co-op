@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-19T12:08:57-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:19:37-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -25,6 +25,14 @@ Target: TIA Portal V20 Update 7, WinCC Comfort / Advanced ("WinCC (TIA Portal)",
 not WinCC Unified), Comfort Panel TP1200 (1280 x 800). Companion to
 [s7dcl-format.md](s7dcl-format.md): that one generates PLC blocks as SIMATIC SD files,
 this one generates HMI screens as SimaticML XML through Openness.
+
+**This guide in parts.** A section keeps its number in the file that holds it. A screen, pop-up, template, tag table or text list change reads this file; these sections are in files of their own:
+
+| File | Sections | Read for |
+|---|---|---|
+| [wincc-comfort-api.md](wincc-comfort-api.md) | 2.1, 2.2 | Loading the Openness API from PowerShell and finding the HMI objects in it: what the bridge does for you |
+| [wincc-comfort-faceplates.md](wincc-comfort-faceplates.md) | 6 | A faceplate: its staging screen, its type, its instances |
+| [wincc-comfort-history.md](wincc-comfort-history.md) | 9 | The first runs on project B, in order |
 
 ## 0. Source basis and confidence tags
 
@@ -96,45 +104,6 @@ from the tool repo (`<py> -I gen\x.py <tool repo>\TiaHmiGenerator <project repo>
 It runs `hmixml.begin(repo)`, `plan` / `add` per item and `finish()`; the screen
 size comes from the declared panel (`hmi\panel.json`). The preview commands run
 from `TiaHmiGenerator\` with the project repo as argument (section 3).
-
-### 2.1 Loading the API from PowerShell `[PROBE]`
-
-- TIA V20 installs the API versions side by side:
-  `Portal V20\PublicAPI\V17 ... \V20\Siemens.Engineering.dll`. Load the
-  `V20` folder explicitly. A search for "V20" in the path matches every
-  folder, because the install folder is `Portal V20` (picked V19 once).
-- `Add-Type -Path Siemens.Engineering.dll` fails with "Unable to load one or
-  more of the requested types" (it enumerates all types). Use
-  `[Reflection.Assembly]::LoadFrom()`.
-- Dependencies are resolved by a small C# `AssemblyResolve` handler compiled
-  with `Add-Type -TypeDefinition` (only `Siemens.*` names, only from the API
-  folder, re-entry guard). A PowerShell script block as resolver recursed into
-  itself: `StackOverflowException` on `Attach()`.
-- Generic `GetService<T>()`: PowerShell 5.1 has no generic call syntax; use
-  `[IEngineeringServiceProvider].GetMethod('GetService').MakeGenericMethod([T]).Invoke($obj, $null)`.
-- Calling Openness methods through `MethodInfo.Invoke` with an argument array
-  built in PowerShell fails ("PSObject cannot be converted to ExportOptions").
-  Call the methods directly: `$v.Export([IO.FileInfo]::new($f), [Siemens.Engineering.ExportOptions]::None)`.
-- `Attach()` raises the Openness access dialog in TIA; the Windows user must
-  be in the local group "Siemens TIA Openness".
-
-### 2.2 Navigation in the API `[PROBE]` `[IMPORT]`
-
-```
-TiaPortal.GetProcesses()[i].Attach().Projects[0]
-Device (project.Devices, project.DeviceGroups recursively) -> DeviceItems (recursive)
-  GetService<SoftwareContainer>().Software -> HmiTarget
-HmiTarget.ScreenFolder.Screens / .Folders (Find, Create)       Screen.Export / Screens.Import
-HmiTarget.ScreenTemplateFolder.ScreenTemplates / .Folders
-HmiTarget.TextLists                                            TextList.Export / TextLists.Import
-HmiTarget.TagFolder.TagTables
-Project.ProjectLibrary.TypeFolder.Types / .Folders             LibraryType.Versions
-```
-
-Export options: `None` = minimal (only non-default attributes),
-`WithDefaults | WithReadOnly` = everything (the only option used for screens,
-templates and pop-ups, 2.3). Export refuses to overwrite a file;
-delete it first. Imports use `ImportOptions.Override`.
 
 ### 2.3 Full exports only
 
@@ -476,42 +445,150 @@ tag works with a range list 0/1.
   are from the operating instructions, and the `//Portrait` suffix is
   `[INFERRED]` until a portrait panel is seen.
 
----
+### 5.1 Calls
 
-## 6. Faceplates `[PROBE]` `[USER]`
+Every public function of `hmixml`, by what a generator does with it; enough to write a generator without opening
+`hmixml.py`, whose docstrings say more. A test holds this list to the module
+(`TiaHmiGenerator\Tests\test_guide_calls.py`). `doc` is a `<Document>` element, `e` a screen item or other element;
+the colour keys are those of `set_colours`.
 
-- `FaceplateLibraryTypeVersion.Export(file, options)` writes only the version
-  metadata (author, version number, comment), not the contents.
-- `ExportAsDocuments(dir, name, format, options)`: format `''` -> "Cannot
-  export a version without specifying an export format or with an invalid
-  export format"; `SimaticML`, `Xml`, `Documents`, `s7dcl` -> "The type
-  version could not be exported". `GetSupportedExportFormats()` returns an
-  empty list.
-- The type folder has `CreateFromDocuments(...)`; without an export there is
-  nothing to feed it.
-- Route used instead: generate a **staging screen** with the faceplate's
-  objects at their final positions (styles, texts, formats, text lists,
-  animations, events, groups), import it into `zzStaging`, select the objects, create the
-  faceplate in TIA, then connect the tags to the interface. Creating the
-  faceplate clears the tag connections `[USER]`, so the staging screens carry
-  none.
-- A faceplate's look only shows on an instance; check it on a screen.
-- Faceplate instances on generated screens: copy the exported shape (4.2)
-  with the type name and version of the released type.
-- **Putting a faceplate type in work through Openness crashes TIA**:
-  `FaceplateLibraryTypeVersion.Edit(LibraryTypeInstanceInfo)` (through an
-  instance on a screen) ended TIA V20 Update 7 with
-  `NonRecoverableException` "Unexpected exception - no exception message
-  available" `[PROBE]` (project B 2026-10-06 16:04). TiaBridge refuses it; the user
-  edits and updates faceplate types in TIA.
-- A faceplate type that contains a PLC data type (its interface) keeps its
-  version when that data type gets a new one, and is then **not using the
-  default version** of it: `Dependencies` of the faceplate version names the
-  version it was built with (`faceplateStation20Operate` 0.0.2 ->
-  `typeHmiBench30` 0.0.1 while 0.0.2 is the default) `[PROBE]`
-  (project B 2026-10-06). `library_update_usages` does not put the faceplate in
-  work; TiaBridge reports it (`library_review`, `list`), and it needs a new
-  version made in TIA.
+**The run.** Documents reach the disk only through it.
+
+| Call | Takes | Gives |
+|---|---|---|
+| `begin(repo, panel=None, device=None)` | The project repo; `panel` declares the target panel with the run (name, order number or `WxH`); `device` with several HMI devices | The declared panel's resolution. Reads the project's languages and tag tables. `ValueError` without a declared panel, or one that differs from the device in TIA |
+| `plan(kind, name, note='')` | Something the run needs that TIA does not hold yet: a style preset, text list, template, picture, faceplate type version, screen | Nothing; `planned.json`. The bridge refuses an import while an item stays open |
+| `add(kind, doc, folder='')` | `kind` `screen`, `template`, `popup`, `textlist` or `tagtable`; `folder` the TIA folder under the kind | The path it will write, repo-relative, under `hmi\[<device>\]generated\<kind dir>\` |
+| `finish()` | | The run's findings, printed too. On an error `GenerationRefused`, and nothing written |
+| `GenerationRefused` | | The exception of a refused run; `.findings` |
+| `size()` | | `(width, height)` of the run's panel; `RuntimeError` outside a run |
+| `generated_dirs(repo, device=None)` | | `{kind: absolute folder}` of the generated documents |
+
+**What to copy from.**
+
+| Call | Takes | Gives |
+|---|---|---|
+| `load_templates(path, aliases=None)` | A full export of a screen; `aliases` `{key: ObjectName}` or `{key: (ObjectName, {attribute: value})}` (section 5, Preset names) | The presets: every screen item named `S-...`, and the aliases. Its roots, layers and groups become shapes |
+| `load_shapes(path)` | Another full export: a template, a pop-up | Its objects as shapes for `blank` |
+| `set_colours(d)` | `{key: (r, g, b)}`: `screen` for a screen's `BackColor`, and the keys the animations name | Nothing |
+| `generated_cultures()` | | The languages every text and font gets (section 5, Languages) |
+
+**Documents.**
+
+| Call | Takes | Gives |
+|---|---|---|
+| `screen_doc(name, number, items, template=None, events=(), back='screen', is_template=False, popup=None)` | Ready screen items, in the order of the file (first at the back); `template` the screen template's name; `events` from `event`; `back` a colour key; `is_template=True` a screen template; `popup=(width, height)` a pop-up | `doc`, sized to the run's panel (a pop-up to its own), IDs numbered |
+| `screen(name, number, objs)` | Object dicts (section 5); `group` keys and `m.grp` make groups | `doc`, `BackColor` the colour `screen` |
+| `textlist(name, entries)` | `[(value, text)]` | `doc` of a value list |
+| `tag_table(name, tags)` | In a run: `[{name, data_type, cycle, plc_tag, connection, hmi_type}]`; without `plc_tag` and `connection` an internal tag (section 5, `tag_table`) | `doc`; `Length` and `HmiDataType` from the data type, `ValueError` when nothing knows them |
+| `document(root_elem)` | A root element | `doc` around it, `DocumentInfo` copied from the export `load_templates` loaded, IDs numbered |
+| `renumber(doc)` | | IDs numbered again in document order |
+| `serialize(doc)` | | The bytes `finish` writes: UTF-8 with BOM, CRLF, indented as exported |
+| `indent(e, level=0)` | | `e` indented in place, rich text left on one line |
+
+**Screen items.**
+
+| Call | Takes | Gives |
+|---|---|---|
+| `item(o)` | One object dict (section 5) | A copy of its preset without the preset's animations, events and properties; geometry, name, `m.text`, `m.fmt` (and `FieldLength`), `m.mode`, `m.anim`, `m.vis` set; `m.tl` a text list link, beside one the preset has; a button gets the `Press` event `SetBitWhileKeyPressed`, its tag open |
+| `template(style)` | A preset's key | A whole copy of the preset, its animations and events with it, in the project's languages |
+| `shape_item(tag, name, x, y, w, h, cultures=None)` | An element type (`Hmi.Screen.Gauge`) | A whole object of that type from the exports loaded, else from the screen object catalogue's fixture, without links, animations, events and properties |
+| `blank(tag, composition=None)` | An element type | A new element with the attributes of the first such object loaded, no children |
+| `group(name, members)` | Screen items | A group |
+| `graphic_view(name, x, y, w, h, picture)` | A project graphic's name | A graphic view linking it |
+
+**Attributes, texts and links** on an element `e`.
+
+| Call | Takes | Gives |
+|---|---|---|
+| `setattr_(e, name, value)` | | The attribute set; the list stays in alphabetical order |
+| `sort_objects(e)` | | `e`'s `ObjectList` in export order, by `CompositionName`; call it after appending a child |
+| `child_list(e)` | | `e`'s `ObjectList`, made when missing |
+| `set_text(e, comp, lines)` | The composition (`Text`, `TextOff`, `TextOn`) and its lines | That text in every language; `KeyError` when `e` has no such composition |
+| `ml_text(comp, lines)` | `lines` `None` for an empty text | A `MultilingualText` in the project's languages |
+| `body(lines)` | | The rich text `<Text>` of the lines |
+| `tag_link(parent, name, kind='Tag')` | Any element; `kind` `Tag`, `Picture`, `Template`, `Value`, ... | The link by name, after `parent`'s attribute list |
+| `link(e, kind, name)` | | The same, returning nothing |
+| `process_value(e, tag)` | An I/O field or symbolic I/O field and an HMI tag's name | Its `ProcessValue` connected to the tag |
+
+**Animations and events.** A child of a screen item: `child_list(e).append(...)`, then `sort_objects(e)`.
+
+| Call | Takes | Gives |
+|---|---|---|
+| `appear_anim_tag(tag, ranges)` | An HMI tag, or `None` to leave the trigger open; `[(lower, upper, back_key, fore_key)]` | A `RangeAppearanceAnimation` |
+| `appear_anim(value, back, fore)` | | One range at `value`, its trigger open (`m.anim`) |
+| `vis_anim_tag(tag, lo=1, hi=1, visible=True)` | | A `VisibilityAnimation` |
+| `vis_anim()` | | One visible at 1, its trigger open (`m.vis`) |
+| `trigger(comp, tag)` | `RangeTag` or `VisibilityTag`; `None` leaves it open | A `TagElementTrigger` |
+| `event(name, funcs)` | `Press`, `Release`, `Click`, or a screen's `GenerateScreen`; functions from `func` | An event |
+| `func(name, params=())` | A system function (section 4.4); `[(name, kind, value)]`, `kind` `link` (a tag, screen or pop-up by name, `None` open), `self` (the own screen or pop-up), `int` or `double` | One function list entry |
+| `hold_event()` | | `Press`: `SetBitWhileKeyPressed`, `Bit` 0, its tag open |
+
+### 5.2 A worked screen
+
+A pump screen in the style of the screen `Motors`, whose export holds the presets `S-Panel`, `S-Title`, `S-Value`,
+`S-State` and `S-Button`; its tags and text list are made in the same run. In the project repo as `gen\pump.py`, run
+as section 2 says: `<py> -I gen\pump.py <tool repo>\TiaHmiGenerator <project repo>`.
+
+```python
+import os
+import sys
+
+sys.path.insert(0, sys.argv[1])                     # <tool repo>\TiaHmiGenerator
+import hmixml as hx
+
+repo = sys.argv[2]
+hx.load_templates(os.path.join(repo, 'hmi', 'screens', 'Motors.xml'))
+hx.set_colours({'screen': (224, 224, 224), 'ok': (0, 160, 0), 'fault': (220, 0, 0)})
+hx.begin(repo)
+
+
+def obj(name, type_, style, x, y, w, h, **m):
+    return {'name': name, 'type': type_, 'style': style, 'x': x, 'y': y, 'w': w, 'h': h, 'group': None, 'm': m}
+
+
+def plc(name, data_type, plc_tag):
+    return {'name': name, 'data_type': data_type, 'cycle': '1 s', 'plc_tag': plc_tag,
+            'connection': 'HMI_Connection_1'}
+
+
+hx.add('tagtable', hx.tag_table('PumpP1', [
+    plc('PumpP1_speed', 'Int', '"PumpP1_DB".speed'),
+    plc('PumpP1_state', 'Int', '"PumpP1_DB".state'),
+    plc('PumpP1_fault', 'Bool', '"PumpP1_DB".fault'),
+    plc('PumpP1_start', 'Bool', '"PumpP1_DB".start'),
+]))
+hx.add('textlist', hx.textlist('tlPumpState', [(0, 'Stopped'), (1, 'Running'), (2, 'Fault')]))
+
+speed = hx.item(obj('ioSpeed', 'I/O field', 'S-Value', 40, 160, 120, 30, fmt='s9999'))
+hx.process_value(speed, 'PumpP1_speed')
+state = hx.item(obj('symState', 'Symbolic I/O field', 'S-State', 40, 210, 200, 30, tl='tlPumpState', mode='Output'))
+hx.process_value(state, 'PumpP1_state')
+
+fault = hx.item(obj('rectFault', 'Rectangle', 'S-Panel', 260, 210, 30, 30))
+hx.child_list(fault).append(hx.appear_anim_tag('PumpP1_fault', [(0, 0, 'ok', 'ok'), (1, 1, 'fault', 'fault')]))
+hx.sort_objects(fault)
+
+start = hx.item(obj('btnStart', 'Button', 'S-Button', 40, 330, 120, 40, text=['Start']))
+bit = next(p for p in start.iter('Hmi.Event.FunctionListEntryParameter') if p.findtext('AttributeList/Name') == 'Tag')
+hx.tag_link(bit, 'PumpP1_start')                    # the Press event item() gives a button: the bit while pressed
+
+back = hx.item(obj('btnBack', 'Button', 'S-Button', 180, 330, 120, 40, text=['Back']))
+events = hx.child_list(back)
+events.remove(events.find('Hmi.Event.Event'))       # no Press event on this one
+events.append(hx.event('Click', [hx.func('ActivatePreviousScreen')]))
+hx.sort_objects(back)
+
+items = [hx.item(obj('rectPanel', 'Rectangle', 'S-Panel', 20, 90, 600, 300)),
+         hx.item(obj('txtTitle', 'Text field', 'S-Title', 40, 100, 400, 40, text=['Pump P1'])),
+         speed, state, fault, start, back]
+hx.add('screen', hx.screen_doc('2100 - Pump P1', 2100, items, template='Frame'), folder='Pumps')
+hx.finish()
+```
+
+It writes `hmi\generated\tags\PumpP1.xml`, `textlists\tlPumpState.xml` and `screens\Pumps\2100 - Pump P1.xml`, or
+nothing when the validator finds an error; the screen's template `Frame` is one the project has. Then the preview,
+section 3, step 3.
 
 ---
 
@@ -802,59 +879,3 @@ refuses on its errors. The rest stays manual.
 8. No `Override` of a screen, slide-in or global screen with controls the export cannot carry (7.1): validator,
    `handbuilt.*`, once the controls are listed in `hmi\handbuilt.json`.
 9. Dependent properties follow their main property (7.2; a refused one ends TIA): validator, `dependent.*`.
-
-## 9. History
-
-- 2026-10-01: first export / import round trip (project B): 11 staging screens
-  for the configuration and operation faceplates and 8 text lists generated;
-  text lists and the first staging screen imported without errors, then all
-  11 staging screens in one run (`import_log.txt` 13:19, no errors).
-  Audit of the whole HMI from the exports (`B\HmiProjectAudit_2026-10-01.md`);
-  `HmiExport.ps1` extended for PLC types / blocks and HMI tag tables.
-- 2026-10-01, later: full redesign imported in one run (third try), first
-  compile: all safety element links failed until the UDT elements were made
-  accessible from the HMI (7.2). Screen titles removed from the redesign.
-- 2026-10-01, run 3 prepared: 49 tab screens with generated faceplate
-  instances, restyled pop-ups (Override), jog buttons rebuilt from presets.
-- 2026-10-02, run 4 prepared: help in one text style, tab screens renamed
-  with numbers in per-station folders, mode button feedback, G00 system on.
-
-- 2026-10-02, run 6 prepared: internal tag for button feedback, group
-  overviews with the Modes row as group bar.
-- 2026-10-02, run 7 prepared: feedback back on the button bit, safety device
-  symbols from rectangles, circles and lines (Line: StartLeft / StartTop /
-  EndLeft / EndTop; height 0 for a horizontal line, `[INFERRED]` until
-  imported) as the source for faceplate types (staging screen), graphic
-  view at the graphic's own size (a scaled 128 px PNG pixelates).
-- 2026-10-02, run 8 prepared: range appearance animations on Rectangle and
-  Circle (BackColor = fill, ForeColor taken as the border colour
-  `[INFERRED]` until imported) and on a transparent text field for a red
-  text (BackColor of the range unused); status symbols grey while OK.
-- 2026-10-02, run 9 prepared: invisible link buttons on the Modes rows;
-  user name through a scheduled task on "User change".
-- 2026-10-02, run 10 prepared: GetUserName removed from the generated screen
-  events and the User pop-up (generator filters it out of copied screen
-  events); the scheduled task is the only writer of the user name tag.
-- 2026-10-02: faceplate type version mismatch crashed TIA during an import
-  (pitfall above).
-- 2026-10-02: project B catch-up run imported (tag table, three pop-ups with
-  Override, 65 screens in two passes, nested folders); authorizations set
-  per object in the generator; ImportStaging.ps1 continues after a failed
-  screen (`$StopOnError = $false`, `$ScreenSkip`, failure list at the end).
-- 2026-10-06: HMI preview built (validator, preview server, browser app,
-  diff, PNGs through headless Edge); `render.py` retired; the generator
-  writes to `hmi\generated\` and validates; TiaBridge `import` refuses on
-  validator errors. Not yet run on project B.
-- 2026-10-06: full exports only (2.3): TiaBridge exports screens, templates
-  and pop-ups full into `hmi\<kind dir>`; the HMI preview's default sizes,
-  fallback margins and colours removed, `document.incomplete` /
-  `document.not-full` added; renders of 040, 1005, 5051, 5052 and the
-  template from the full exports show no incomplete object.
-- 2026-10-06: probes on project B through TiaBridge: HMI
-  `TypeIdentifier` from the hardware side (section 5), screen size in the
-  minimal export (section 4), `FaceplateTypeName` folders = library folder
-  path (7.2). The preview's faceplate link check dropped the `_Library` root
-  and was fixed (`links.py`); `list` kind `hmi_screen` reported `infoError`
-  for every screen and was fixed (`Objects.ps1`). Still `[INFERRED]`:
-  text-fit font size in pixels, absent margins as 0, `Culture` inside
-  `FontItem`, the `//Portrait` suffix.

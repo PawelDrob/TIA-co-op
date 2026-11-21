@@ -2,7 +2,7 @@
 
 # also here: tests load this file alone
 . (Join-Path $PSScriptRoot 'Guides.ps1')
-$script:ObS7dclReason = "OBs are exchanged as SimaticML only: the .s7dcl of an OB loses its event class ($(Get-GuidePath 's7dcl-format.md')). Use kind block with format xml."
+$script:ObS7dclReason = "OBs are exchanged as SimaticML only: the .s7dcl of an OB loses its event class ($(Get-GuidePath 's7dcl-import.md') section 11). Use kind block with format xml."
 
 # 's7dcl' or 'xml'. Requested: '' (choose), 's7dcl' or 'xml'.
 function Select-BlockExportFormat([bool]$IsOb, [bool]$IsKnowHowProtected, [string]$Requested = '') {

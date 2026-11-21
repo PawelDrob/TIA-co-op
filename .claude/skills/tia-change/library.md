@@ -1,6 +1,6 @@
 # Library types
 
-The guide: openness-v20.md, section 3; for the documents, s7dcl-format.md.
+The guide: openness-v20.md, section 3; for the documents, s7dcl-format.md and the parts it names; for a library type after an export and a changed type inside another, s7dcl-import.md, section 10.
 
 You create and edit types. A release waits for the user's approval, asked per level.
 

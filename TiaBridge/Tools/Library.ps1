@@ -229,7 +229,7 @@ function Get-LibraryTypeInfo($Entry) {
     $i
 }
 
-# Version metadata only: Openness cannot export the contents of a faceplate type (WinCC guide section 6).
+# Version metadata only: Openness cannot export the contents of a faceplate type (docs/agent/wincc-comfort-faceplates.md, section 6).
 function Export-LibraryTypeVersions($Entry, [string]$Dir) {
     New-Item -ItemType Directory -Force -Path $Dir | Out-Null
     $files = @(foreach ($v in $Entry.obj.Versions) {
@@ -280,7 +280,7 @@ function Resolve-LibraryExportFormat([string[]]$Supported, [string]$Requested, [
 }
 
 # LAD and FBD networks of a .s7dcl text with an operand indexed in several dimensions (a[i, j]): the SD import keeps
-# only the last index of each (docs/agent/s7dcl-format.md 8.14c, checklist 17a; SCL networks keep them). Returns their count.
+# only the last index of each (docs/agent/s7dcl-exports.md 8.14c, s7dcl-format.md checklist 17a; SCL networks keep them). Returns their count.
 function Get-MultiIndexLadNetworks([string]$Text) {
     $preferred = if ($Text -match 'S7_PreferredLanguage := "(\w+)"') { $Matches[1] } else { '' }
     $count = 0; $lang = ''; $inNetwork = $false; $hit = $false
@@ -369,7 +369,7 @@ function Export-LibraryTypeDocuments($Entry, [string]$Dir, [switch]$Released, [s
     if ($format -eq 'SimaticSD' -and -not $Released) {
         $sd = Join-Path $target "$folder.s7dcl"
         $n = if (Test-Path -LiteralPath $sd) { Get-MultiIndexLadNetworks ([System.IO.File]::ReadAllText($sd)) } else { 0 }
-        if ($n) { $note += " $n LAD/FBD networks use operands indexed in several dimensions (a[i, j]): an import of this .s7dcl keeps only their last index ($(Get-GuidePath 's7dcl-format.md') 8.14c, 17a). To change the type, export it with options.format xml and edit the SimaticML." }
+        if ($n) { $note += " $n LAD/FBD networks use operands indexed in several dimensions (a[i, j]): an import of this .s7dcl keeps only their last index ($(Get-GuidePath 's7dcl-exports.md') 8.14c). To change the type, export it with options.format xml and edit the SimaticML." }
     }
     $step = [TiaBridgeTimes]::Enter('result')
     try { $messages = ConvertTo-ResultTree $r }

@@ -1,6 +1,16 @@
 # PLC block, data type, DB
 
-The guide: s7dcl-format.md. Its section 9 checklist runs before every import.
+The guide: s7dcl-format.md, the core every PLC change reads. Its section 9 checklist runs before every import, and its table says which part holds the rule of each item. Read a part, beside it in `docs\agent\`, when the change touches what it covers:
+
+| The change touches | Read too |
+|---|---|
+| SCL networks only | Nothing more |
+| A LAD network, new or changed | s7dcl-lad.md |
+| A DB's start values or retain, a data type, a member's attributes or comment (`.s7res`) | s7dcl-exports.md, 8.14b |
+| A LAD instruction named as on TIA's screen or in its help; a library, Technology or F-LAD box | s7dcl-exports.md, 8.13a |
+| A LAD branch from a merge node; a LAD operand with several indices | s7dcl-exports.md, 8.14c |
+| A classic `.scl` or `.udt` source to bring in | s7dcl-exports.md, 8.14d |
+| An import that fails, or a log message to read | s7dcl-import.md, section 10 and its table of messages |
 
 ## An OB
 

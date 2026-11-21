@@ -794,7 +794,7 @@ function Export-ForReview($Library, [string]$Name, [string]$Dir) {
     $e = Find-LibraryType $Library $Name
     $supported = @($e.obj.GetSupportedExportFormats() | ForEach-Object { [string]$_ })
     $format = Select-LibraryExportFormat $supported
-    if (-not $format) { return @{ ok = $false; note = "faceplate type: Openness cannot export its contents ($(Get-GuidePath 'wincc-comfort-openness.md') section 6); compare it in TIA" } }
+    if (-not $format) { return @{ ok = $false; note = "faceplate type: Openness cannot export its contents ($(Get-GuidePath 'wincc-comfort-faceplates.md') section 6); compare it in TIA" } }
     $first = ''
     try {
         $null = Export-LibraryTypeDocuments $e $Dir -Format $format
