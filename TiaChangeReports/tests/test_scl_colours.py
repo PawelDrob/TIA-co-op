@@ -274,6 +274,17 @@ class BothFormatsAlike(unittest.TestCase):
         fx = Counter({line + ((('operand', '#a'),),): 1, ('o', 'line', n, '+', ' := FALSE;', ()): 1})
         self.assertEqual(twoformats._net_part(n, None, fs, fx), {'unknown: lines'})
 
+    def test_the_same_change_counts_a_repeated_line_coloured_otherwise(self):
+        """The same changed line three times in each report, coloured A, A, B in one and A, B, B in the other."""
+        n = (1, 1, '')
+        a, b = (('operand', '#a'),), (('label', '#a'),)
+
+        def facts(*toks):
+            return Counter([('o', 'line', n, '+', '#a := 1;', t) for t in toks])
+        self.assertEqual(twoformats._net_part(n, None, facts(a, a, b), facts(a, b, b)), {'unknown: SCL colours'})
+        self.assertEqual(twoformats._net_part(n, None, facts(a, a), facts(a)), {'unknown: lines'})
+        self.assertEqual(twoformats._net_part(n, None, facts(a, a), facts(b)), {'unknown: lines', 'unknown: SCL colours'})
+
     def test_the_bed_names_a_network_coloured_otherwise(self):
         sd, xml = colour_block('.s7dcl'), colour_block('.xml')
         d = mock.Mock(before=sd, after=xml)
@@ -365,6 +376,74 @@ class LocalConstants(unittest.TestCase):
     def test_without_an_interface_every_name_is_an_operand(self):
         got = kinds(scl_colours.lines(['#a := #LIMIT;'])[0])
         self.assertEqual(got[2], ('operand', '#LIMIT'))
+
+
+class TheRulesAsAGrid(unittest.TestCase):
+    """Each rule that goes by position (scl_colours' doc, pass 2), with nothing, a space, a comment, a string or a quoted
+    name in the gap it reads across: across nothing or spaces the rule holds, across any other token it does not, and
+    what the comment, string or quoted name holds (a call of its own) is never read. Each construct also twice on one
+    line, both alike."""
+    GAPS = {'nothing': '', 'space': ' ', 'comment': ' (* #b( *) ', 'string': " '#b(' ", 'quoted name': ' "#b(" '}
+    # rule: (line with {g} in the gap the rule reads across, the word it colours, its kind when the rule holds,
+    # its kind when another token stands in the gap, the line can hold the construct twice)
+    RULES = {
+        'a call of an instruction': ('#x := MAX{g}(1, 2);', 'MAX', 'instruction', None, True),
+        'a call of an instance': ('#i{g}(IN := 1);', '#i', 'block call', 'operand', True),
+        'a call after a dot': ('#t.TON{g}(IN := 1);', 'TON', 'block call', 'operand', True),
+        'a member': ('#s.{g}a := 1;', 'a', 'operand', None, True),
+        'a parameter name': ('#f(IN{g}:= 1);', 'IN', 'parameter', None, True),
+        'a data type after a type test, before =': ('IF TypeOf(#v){g}= Int THEN #c := 1; END_IF;', 'Int', 'constant',
+                                                    None, True),
+        'a data type after a type test, after =': ('IF TypeOf(#v) ={g}Int THEN #c := 1; END_IF;', 'Int', 'constant',
+                                                   None, True),
+        'a jump label where it stands': ('lbl{g}: #a := 1;', 'lbl', 'label', None, False),
+        'a jump label after GOTO': ('GOTO{g} lbl;', 'lbl', 'label', None, True),
+        'a local constant': ('#a := #LAST{g}.x;', '#LAST', 'operand', 'local constant', True),
+        "a region's name": ('{g}REGION Calls', 'Calls', 'constant', None, False),
+    }
+
+    def kinds_of(self, line, word):
+        itf = Interface()
+        itf.root.children['LAST'] = Member('LAST', 'Int', value='9', section='CONSTANT')
+        toks = scl_colours.lines([line], itf)[0]
+        self.assertEqual(''.join(t for _, t in toks), line)
+        return [k for k, t in toks if t == word], toks
+
+    def test_each_rule_across_each_gap(self):
+        for rule, (line, word, holds, broken, twice) in self.RULES.items():
+            for gap, fill in self.GAPS.items():
+                text = line.format(g=fill)
+                expected = holds if gap in ('nothing', 'space') else broken
+                with self.subTest(rule=rule, gap=gap):
+                    if rule == "a region's name" and gap in ('nothing', 'space'):
+                        got, toks = self.kinds_of(text, 'Calls')
+                        self.assertEqual(toks[-1], ('constant', 'Calls'))
+                        continue
+                    got, toks = self.kinds_of(text, word)
+                    self.assertEqual(got, [expected])
+                    if gap == 'comment':
+                        self.assertIn(('comment', '(* #b( *)'), toks)
+                    elif gap == 'string':
+                        self.assertIn(('constant', "'#b('"), toks)
+                if twice and gap in ('nothing', 'space', 'comment'):
+                    with self.subTest(rule=rule, gap=gap, twice=True):
+                        self.assertEqual(self.kinds_of(text + ' ' + text, word)[0], [expected, expected])
+
+    def test_a_comparison_after_a_type_test_is_the_only_one_read_as_a_data_type(self):
+        """The audit's lines: a second comparison on a line with a type test is read as it is, not as a data type."""
+        for line, word, kind in (('IF TypeOf(#v) = Int AND #a = "Db".x THEN', '"Db"', 'operand'),
+                                 ('IF TypeOf(#v) = Int OR #k = LREAL_TO_INT(#r) THEN', 'LREAL_TO_INT', 'instruction'),
+                                 ('IF TypeOf(#v) = Int AND #f = "Fc"() THEN', '"Fc"', 'block call'),
+                                 ('IF TypeOf(#v) = Int AND #f = NOT #g THEN', 'NOT', 'operator'),
+                                 ('IF TypeOf(#v) = Int AND #b = cnt THEN', 'cnt', None)):
+            with self.subTest(line):
+                self.assertEqual(self.kinds_of(line, word)[0], [kind])
+                self.assertEqual(self.kinds_of(line, 'Int')[0], ['constant'])
+
+    def test_a_comment_after_a_name_is_no_call(self):
+        self.assertEqual(self.kinds_of('#x := #s.a (* note *);', 'a')[0], ['operand'])
+        self.assertEqual(self.kinds_of('#x := #a (* note *);', '#a')[0], ['operand'])
+        self.assertEqual(self.kinds_of('#x := MAX (/* note */);', 'MAX')[0], [None])
 
 
 class NamesOfAnyLetters(unittest.TestCase):

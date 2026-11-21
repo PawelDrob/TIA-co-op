@@ -5,8 +5,30 @@ for what the text does not tell (a local constant).
 of_network(net, lines, block) -> the tokens of each line of an SCL network, None for another language.
 lines(texts, itf=None) -> per line [(kind, text)], the texts in order joined giving the line back unchanged: colouring
 never adds, drops or moves a character. kind is a key of KINDS, or None for what has no colour of its own (spaces, and
-what the tokenizer does not take: those stay in the text's black). A comment opened by (* or (/* goes on over the
-next lines until it closes; a string left open colours to the end of its line.
+what the tokenizer does not take: those stay in the text's black).
+
+Two passes per line, in this order:
+1. _cut cuts the line into whole tokens: spaces, a comment of each kind ((* *), (/* */), //, one left open going on
+   over the next lines until it closes), a pragma in braces, a string (with its type prefix), a typed constant, a
+   number, a #name, a quoted name, an absolute address, a word, an operator or punctuation (a parenthesis among them),
+   the semicolon. A string left open runs to the end of its line. Nothing inside a comment, a string or a quoted name
+   is looked at again.
+2. _kinds gives each token its kind. A token's kind follows from its own text, and for the rules that go by position
+   from its neighbours: the token before and the token after it that are not spaces, on its line (a comment is a
+   neighbour like any other token, so a comment after a name ends what a rule reads). The rules that read neighbours,
+   and what each reads:
+   - a call: the token after is "(". A word is then an instruction (MAX(), a #name or quoted name a block call (#inst(,
+     "Fc"(); a word after "." a block call too (#timer.TON().
+   - a member: the token before is "." (a word or #name after it is an operand, unless it is called).
+   - a parameter name: a word whose token after is ":=" or "=>", inside a call's parentheses (their depth carried over
+     the lines of the network).
+   - a data type a type test compares with: a word or quoted name whose token before is "=" or "<>" and the one before
+     that the ")" closing the parentheses right after TypeOf, TypeOfElements or TypeOfDB (TypeOf(#x) = Int), a
+     constant.
+   - a jump label: a word that is the line's first token with ":" after it, or a word whose token before is GOTO.
+   - a region's name: what follows REGION as the line's first token, to the end of the line, // and all, is one
+     constant.
+   - a local constant: a #name the interface declares in VAR CONSTANT whose token after is no "." or "[".
 
 html(tokens, marks) writes one line: a span with the kind's class around a coloured word, a plain <span> around each
 range of marks (the changed words, page._word_marks) with the colours inside it."""
@@ -53,12 +75,10 @@ _TOKEN = re.compile(r"""
   | (?P<operator>:=|\?=|\+=|-=|\*=|/=|=>|<=|>=|<>|\*\*|\.\.|[-+*/<>=:,.()\[\]&^])
   | (?P<semicolon>;)
 """, re.X)
-# what a group of _TOKEN is, apart from those whose kind depends on what stands around them
-_GROUP_KIND = {'space': None, 'pragma': None, 'line_comment': 'comment', 'string': 'constant', 'open_string': 'constant',
-               'typed': 'constant', 'number': 'constant', 'address': 'operand', 'operator': 'operator',
-               'semicolon': 'semicolon'}
-_PARAM = re.compile(r'\s*(?::=|=>)')
-_CALL = re.compile(r'\s*\(')
+# the kind of a token by its group alone; word, local and global go by their text and neighbours
+_GROUP_KIND = {'space': None, 'pragma': None, 'comment': 'comment', 'string': 'constant', 'typed': 'constant',
+               'number': 'constant', 'address': 'operand', 'operator': 'operator', 'semicolon': 'semicolon',
+               'other': None}
 
 
 def of_network(net, texts, block):
@@ -74,7 +94,7 @@ def lines(texts, itf=None):
     then no #name is a local constant."""
     consts = _constants(itf)
     state = {'end': None, 'depth': 0}           # a comment left open; the parentheses a call left open
-    return [_tokenize(text, state, consts) for text in texts]
+    return [_kinds(_cut(text, state), state, consts) for text in texts]
 
 
 def _constants(itf):
@@ -84,72 +104,100 @@ def _constants(itf):
     return frozenset(k.upper() for k, m in itf.root.children.items() if m.section == 'CONSTANT')
 
 
-def _tokenize(text, state, consts):
-    """The tokens of one line. state: the end of a comment still open ('end') and the depth of open parentheses
-    ('depth'), from the lines before; this line's are left in it."""
-    toks, i, end = [], 0, state['end']
-    if end:                                     # a comment going on from the line before
-        k = text.find(end)
-        stop = len(text) if k < 0 else k + len(end)
-        toks.append(('comment', text[:stop]))
+def _cut(text, state):
+    """Pass 1: [(group, text)] of whole tokens, the texts joined giving the line back. state['end']: the end of a
+    comment still open from the line before, and after this line."""
+    out, i = [], 0
+    if state['end']:                            # a comment going on from the line before
+        k = text.find(state['end'])
+        stop = len(text) if k < 0 else k + len(state['end'])
+        out.append(('comment', text[:stop]))
         if k < 0:
-            return toks
+            return out
         i, state['end'] = stop, None
-    words = []                                  # (index in toks, upper text) of the words, for what follows a word
     while i < len(text):
         m = _TOKEN.match(text, i)
         if m is None:                           # nothing the tokenizer takes: one character in the text's black
-            toks.append((None, text[i]))
+            out.append(('other', text[i]))
             i += 1
             continue
-        kind, t = m.lastgroup, m.group()
-        if kind == 'open':
+        group, t = m.lastgroup, m.group()
+        if group == 'open':
             k = text.find(_END[t], m.end())
             if k < 0:
-                toks.append(('comment', text[i:]))
                 state['end'] = _END[t]
-                return toks
-            t = text[i:k + len(_END[t])]
-            kind = 'comment'
-        elif kind == 'word':
-            kind = _word(t, text, m.end(), toks, words, state['depth'])
-            if kind == 'region' and t.upper() == 'REGION' and not words and text[m.end():].strip():
-                toks.append(('region', t))      # the rest of the line is the region's name, a // in it too
-                rest = text[m.end():]
-                lead = len(rest) - len(rest.lstrip())
-                toks += [(None, rest[:lead])] * bool(lead) + [('constant', rest[lead:])]
-                return toks
-            words.append((len(toks), t.upper()))
-        elif kind in ('local', 'global'):
-            kind = _operand(t, text, m.end(), consts, toks, words)
-        else:
-            kind = _GROUP_KIND[kind]
-        if kind == 'operator' and t in ('(', ')'):
-            state['depth'] = state['depth'] + 1 if t == '(' else max(0, state['depth'] - 1)
-        toks.append((kind, t))
+                t = text[i:]
+            else:
+                t = text[i:k + len(_END[t])]
+            group = 'comment'
+        elif group in ('line_comment', 'open_string'):
+            group = {'line_comment': 'comment', 'open_string': 'string'}[group]
+        out.append((group, t))
         i += len(t)
-    return toks
+    return out
 
 
-def _after_dot(toks):
-    return bool(toks) and toks[-1] == ('operator', '.')
+def _kinds(cut, state, consts):
+    """Pass 2: [(kind, text)] of the tokens of _cut, each kind from its token and the neighbours the rules in the module
+    doc name. state['depth']: the parentheses open from the lines before, and after this line."""
+    real = [k for k, (g, _) in enumerate(cut) if g != 'space']        # the tokens that are neighbours
+    first = real[0] if real else None
+    if first is not None and cut[first][0] == 'word' and cut[first][1].upper() == 'REGION' and first != real[-1]:
+        name = ''.join(t for _, t in cut[real[1]:])                     # the region's name, to the end of the line
+        return ([(None, t) for _, t in cut[:first]] + [('region', cut[first][1])]
+                + [(None, t) for _, t in cut[first + 1:real[1]]] + [('constant', name)])
+    pos = {k: n for n, k in enumerate(real)}
+
+    def near(k, step):
+        n = pos[k] + step
+        return cut[real[n]] if 0 <= n < len(real) else (None, None)
+
+    type_closes = _type_test_closes(cut, real)
+    out = []
+    for k, (group, t) in enumerate(cut):
+        kind = _GROUP_KIND.get(group)
+        if group in ('word', 'local', 'global'):
+            before, after = near(k, -1), near(k, 1)
+            compared = before in (('operator', '='), ('operator', '<>')) and pos[k] >= 2 \
+                and real[pos[k] - 2] in type_closes
+            kind = _name_kind(group, t, before, after, compared, k == first, state['depth'], consts)
+        if group == 'operator' and t in ('(', ')'):
+            state['depth'] = state['depth'] + 1 if t == '(' else max(0, state['depth'] - 1)
+        out.append((kind, t))
+    return out
 
 
-def _type_name(toks, words):
-    """The word or quoted name after toks is what a type test of this line compares with (TypeOf(#x) = Int, = "Udt"):
-    a data type, told by where it stands, not by its name: TIA writes it in the constants' colour, a system type and a
-    PLC data type alike, in quotes or not."""
-    last = next((x for x in reversed(toks) if x[1].strip()), None)
-    return last in (('operator', '='), ('operator', '<>')) and any(w in TYPE_TESTS for _, w in words)
+def _type_test_closes(cut, real):
+    """The indexes in cut of the ")" that close the parentheses right after a type test (TypeOf( ... )) on this line."""
+    out, opened = set(), []                     # opened: (index of "(", it follows a type test)
+    for n, k in enumerate(real):
+        g, t = cut[k]
+        if (g, t) == ('operator', '('):
+            prev = cut[real[n - 1]] if n else (None, None)
+            opened.append(prev[0] == 'word' and prev[1].upper() in TYPE_TESTS)
+        elif (g, t) == ('operator', ')') and opened:
+            if opened.pop():
+                out.add(k)
+    return out
 
 
-def _word(t, text, end, toks, words, depth):
-    up = t.upper()
-    rest = text[end:]
-    if _after_dot(toks):                        # a member: "Db".motor, #inst.Q; the call of #timer.TON(
-        return 'block call' if _CALL.match(rest) else 'operand'
-    if _type_name(toks, words):
+def _name_kind(group, t, before, after, compared, first, depth, consts):
+    """The kind of a word, #name or quoted name from its text and its neighbours (module doc, pass 2): before and after,
+    the tokens next to it; compared: it stands right after a type test's ")" and "=" or "<>"; first: it is the line's
+    first token; depth: the parentheses open before it."""
+    called = after == ('operator', '(')
+    if before == ('operator', '.'):                                     # a member, or the call of #timer.TON(
+        return 'block call' if called else 'operand'
+    if compared and group != 'local':                                   # TypeOf(#x) = Int, = "Udt"
         return 'constant'
+    if group in ('local', 'global'):
+        if called:
+            return 'block call'
+        if group == 'local' and t[1:].strip('"').upper() in consts and after not in (('operator', '.'),
+                                                                                       ('operator', '[')):
+            return 'local constant'
+        return 'operand'
+    up = t.upper()
     if up in ('REGION', 'END_REGION'):
         return 'region'
     if up in BOOLS:
@@ -158,30 +206,17 @@ def _word(t, text, end, toks, words, depth):
         return 'operator'
     if up in KEYWORDS:
         return 'keyword'
-    if words and words[-1][1] == 'GOTO' and words[-1][0] == len(toks) - 2:
+    if before[0] == 'word' and before[1].upper() == 'GOTO':
         return 'label'
-    if _CALL.match(rest):
+    if called:
         return 'instruction'
-    if depth and _PARAM.match(rest):
+    if depth and after in (('operator', ':='), ('operator', '=>')):
         return 'parameter'                      # inside a call's parentheses, on its line or one after
     if up == 'ENO':
         return 'operand'                        # ENO := FALSE; as TIA colours it
-    after = rest.lstrip()
-    if not words and not any(k for k, _ in toks) and after.startswith(':') and not after.startswith(':='):
+    if first and after == ('operator', ':'):
         return 'label'                          # lblEnd: at the start of its line
     return None
-
-
-def _operand(t, text, end, consts, toks, words):
-    if _after_dot(toks):
-        return 'operand'
-    if t.startswith('"') and _type_name(toks, words):
-        return 'constant'
-    if _CALL.match(text, end):
-        return 'block call'
-    if t.startswith('#') and t[1:].strip('"').upper() in consts and text[end:end + 1] not in ('.', '['):
-        return 'local constant'
-    return 'operand'
 
 
 def html(toks, marks=()):

@@ -794,13 +794,15 @@ def _net_part(n, dx, fs, fx):
 def _line_causes(ls, lx):
     """The causes of a network's changed lines that differ, line by line ((sign, line, tokens) of each report): a line
     of one sign and text in both reports with other tokens, 'unknown: SCL colours'; a line one report has more often
-    than the other, 'unknown: lines'. Both can stand."""
+    than the other, 'unknown: lines'. Both can stand. A line repeated as often in both compares its tokens counted
+    (A, A, B against A, B, B differs); one repeated otherwise by the tokens either report gives it."""
     out = set()
     ts, tx = Counter(x[:2] for x in ls), Counter(x[:2] for x in lx)
     if ts != tx:
         out.add('unknown: lines')
     for key in set(ts) & set(tx):
-        if {x[2] for x in ls if x[:2] == key} != {x[2] for x in lx if x[:2] == key}:
+        cs, cx = (Counter(x[2] for x in side if x[:2] == key) for side in (ls, lx))
+        if (cs != cx) if ts[key] == tx[key] else (set(cs) != set(cx)):
             out.add('unknown: SCL colours')
     return out
 
