@@ -5,12 +5,13 @@ with the block's interface for what the text does not tell, a local constant (Lo
 of_network(net, texts, block) -> the tokens of each line of an SCL network, None for another language
 (WhatStaysInOneColour). lines(texts, itf=None) -> per line [(kind, text)], the texts in order joined giving the line
 back unchanged: colouring never adds, drops or moves a character (TextAndMarksUnchanged). kind is a key of KINDS, or
-None for what has no colour of its own: spaces, a pragma, a character no token takes, a word no rule names (row 13 of
-the table of a word's rules below). The lines are one side's whole network as it stands; page and view give each side
-its own lines.
+None for what has no colour of its own: spaces, a pragma, a character no token takes, a word no rule names (the last
+row of the rules' table below). The lines are one side's whole network as it stands; page and view give each side its
+own lines.
 
 Pass 1, _cut: each line into whole tokens. What is decided for a whole line comes first, then the tokens one by one;
-the first that applies wins (WhichLineRuleGoesFirst; WhereATokenEnds for where each token ends):
+the first that applies wins (WhichLineRuleGoesFirst; WhereATokenEnds for where each token ends). A token of WORD_LIKE
+never ends inside a word: a word character after it takes the rest of the word with it (WhereATokenEnds).
 
     | order | what                                  | takes                                                        |
     |-------|---------------------------------------|--------------------------------------------------------------|
@@ -24,56 +25,54 @@ the first that applies wins (WhichLineRuleGoesFirst; WhereATokenEnds for where e
     | 6     | a comment (* *) or (/* */)            | up to its close; left open, the line and the next ones       |
     | 7     | a string, plain or with a type prefix | up to its quote ($ escapes inside); left open, the line      |
     | 8     | a literal                             | the list LITERALS, one pattern per form                      |
-    | 9     | a #name, a quoted name                |                                                              |
+    | 9     | a #name, a quoted name                | $ escapes inside a quoted one                                |
     | 10    | an address                            | the lists ADDRESS_AREAS, PERIPHERAL_AREAS, ADDRESS_SIZES,    |
-    |       |                                       | NUMBERED_AREAS (the comment over them says what they cover); |
-    |       |                                       | a DB's data right after a "." ("Db".DBX0.0)                  |
-    | 11    | a word, an operator of the list       |                                                              |
+    |       |                                       | NUMBERED_AREAS (the comment over them says what they cover)  |
+    | 11    | a DB's data (DBX0.0, DBW2)            | wherever it stands; pass 2 makes it an operand after a "."   |
+    | 12    | a word, an operator of the list       |                                                              |
     |       | OPERATORS, a ";"                      |                                                              |
 
-So nothing inside a comment, a string, a quoted name or a region's name is looked at again.
+So nothing inside a comment, a string or a quoted name is looked at again.
 
-Pass 2, _kinds: each token's kind, from its own text and, for the rules that go by position, from its neighbours: the
-network's tokens in order, over its lines, that are no space, no comment and no pragma (_NO_NEIGHBOUR). So a rule
-reads past spaces, comments, pragmas and line ends (TheRulesAsAGrid, its HOLD columns); a string, a quoted name and
-a ";" are neighbours, and a rule that wants another token there does not hold (its BREAK columns). What a rule
-carries ends at a ";" or a word of the list STOPPERS (_stops; HalfWrittenNetworks); the words of the lists
-LOGIC_KEYWORDS and WORD_OPERATORS end nothing. The network's end ends every rule
-(HalfWrittenNetworks.test_the_networks_end_ends_every_rule). The rules, what each reads, and what ends what it carries:
+Pass 2, _kinds: each token's kind, from its own group (_GROUP_KIND) or, for a word, #name, quoted name or DB's data,
+by the rules of the list RULES. It is given the tokens only, and a rule a _Name: its token, its neighbours and what
+the tokens before it carry; no rule is handed the line's text or a place in it (test_pass_2_reads_tokens_only). The
+neighbours are the network's tokens in order, over its lines, that are no space, no comment and no pragma
+(_NO_NEIGHBOUR, _neighbours). So a rule reads past spaces, comments, pragmas and line ends (TheRulesAsAGrid, its HOLD
+columns); a string, a quoted name and a ";" are neighbours, and a rule that wants another token there does not hold
+(its BREAK columns). What a rule carries ends at a ";" or a word of the list STOPPERS (_stops; HalfWrittenNetworks);
+the words of the lists LOGIC_KEYWORDS and WORD_OPERATORS end nothing. The network's end ends every rule
+(HalfWrittenNetworks.test_the_networks_end_ends_every_rule).
 
-    | rule                         | reads                                       | carries, and what ends it        |
-    |------------------------------|---------------------------------------------|----------------------------------|
-    | a call                       | the neighbour after is "("                  |                                  |
-    | a member, a call after a dot | the neighbour before is "."                 |                                  |
-    | a parameter name             | the neighbour after is ":=" or "=>", with   | the depth of open parentheses,   |
-    |                              | a parenthesis open                          | over lines; a stopper sets it 0  |
-    | a data type of a type test   | the neighbour before is "=" or "<>", the    | the open "(" of each word of the |
-    |                              | one before that the ")" closing the "("     | list TYPE_TESTS; a stopper       |
-    |                              | after a word of the list TYPE_TESTS         | forgets them                     |
-    | a jump label                 | the first neighbour of its line with ":"    |                                  |
-    |                              | after it, or a word after GOTO              |                                  |
-    | a local constant             | the neighbour after is no "." or "["        |                                  |
+The rules of RULES, in the order _name_kind runs them; the first that applies gives the kind. Each rule that goes by
+position has rows in TheRulesAsAGrid (test_the_grid_holds_every_rule_that_goes_by_position):
 
-A word, a #name or a quoted name takes the first kind that applies, in this order (_name_kind):
+    | rule                         | pos. | when                                                  | kind               |
+    |------------------------------|------|-------------------------------------------------------|--------------------|
+    | a member, a call after a dot | yes  | the neighbour before is "."                           | block call before  |
+    |                              |      |                                                       | "(", else operand  |
+    | a DB's data not after a dot  | no   | a DB's data (after a dot the rule above holds)        | black              |
+    | a data type of a type test   | yes  | not called; the neighbour before is "=" or "<>", the  | constant           |
+    |                              |      | one before that the ")" closing the "(" after a word  |                    |
+    |                              |      | of TYPE_TESTS (a stopper forgets that "(")            |                    |
+    | a block call by its name     | yes  | a #name or quoted name before "("                     | block call         |
+    | a local constant             | yes  | a #name of the interface's constants, before no "."   | local constant     |
+    |                              |      | or "["                                                |                    |
+    | a #name or quoted name       | no   | any other                                             | operand            |
+    | a word of REGION_WORDS       | no   |                                                       | region             |
+    | a word of BOOLS              | no   |                                                       | constant           |
+    | a word of WORD_OPERATORS     | no   |                                                       | operator           |
+    | a word of KEYWORDS           | no   |                                                       | keyword            |
+    | a jump label after GOTO      | yes  | the neighbour before is GOTO                          | label              |
+    | an instruction               | yes  | before "("                                            | instruction        |
+    | a parameter name             | yes  | before ":=" or "=>", with a parenthesis open (its     | parameter          |
+    |                              |      | depth counted over lines; a stopper sets it to 0)     |                    |
+    | ENO                          | no   |                                                       | operand            |
+    | a jump label where it stands | yes  | the first neighbour of its line, before ":"           | label              |
+    | (none)                       |      | any other word                                        | black              |
 
-    | order | when                                                        | kind                                   |
-    |-------|-------------------------------------------------------------|----------------------------------------|
-    | 1     | after "."                                                   | a block call before "(", else operand  |
-    | 2     | a word or quoted name a type test compares with, not called | constant                               |
-    | 3     | a #name or quoted name                                      | block call before "("; a local         |
-    |       |                                                             | constant; else operand                 |
-    | 4     | a word of the list REGION_WORDS                             | region                                 |
-    | 5     | a word of the list BOOLS                                    | constant                               |
-    | 6     | a word of the list WORD_OPERATORS                           | operator                               |
-    | 7     | a word of the list KEYWORDS                                 | keyword                                |
-    | 8     | after GOTO                                                  | label                                  |
-    | 9     | before "("                                                  | instruction                            |
-    | 10    | before ":=" or "=>", with a parenthesis open                | parameter                              |
-    | 11    | ENO                                                         | operand                                |
-    | 12    | the first neighbour of its line, before ":"                 | label                                  |
-    | 13    | any other word                                              | black                                  |
-
-So a word's own text (4 to 7) goes before the call, label and parameter rules: NOT( is an operator, IF( a keyword.
+So a word's own text (REGION_WORDS to KEYWORDS) goes before the label, call and parameter rules: NOT( is an operator,
+IF( a keyword, TRUE: a constant.
 
 What SCL's grammar sets here and no picture of TIA has shown: a comment or a line end in a rule's gap; an ANY pointer
 as one constant, with a type word of the list DATA_TYPES; an absolute address of the lists as one operand; a pragma
@@ -81,8 +80,9 @@ before REGION; a } inside a pragma's quoted value; a type test compared with a t
 instruction). Not settled by any picture: a call on an array element of instances (#arr[1](, #arr an operand), an
 address after a quoted tag ("Tag":P, P black), NULL (black), a type test as a CASE selector (its labels black).
 
-html(tokens, marks) writes one line: a span with the kind's class around a coloured word, a plain <span> around each
-range of marks (the changed words, page._word_marks) with the colours inside it (TextAndMarksUnchanged)."""
+html(tokens, marks) writes one line: a span with the kind's class around a coloured word, none around a word whose kind
+has no class; a plain <span> around each range of marks (the changed words, page._word_marks) with the colours inside
+it, so a mark that cuts a coloured word gives two spans of its colour (TextAndMarksUnchanged)."""
 import re
 from html import escape
 
@@ -116,17 +116,18 @@ TYPE_TESTS = frozenset(('TYPEOF', 'TYPEOFELEMENTS', 'TYPEOFDB'))    # what they 
 # The words that end what a rule carries (a call's open parentheses, a type test's), with the ";" _stops adds: none
 # stands inside parentheses. The words of LOGIC_KEYWORDS and WORD_OPERATORS do, and are none of them.
 STOPPERS = STATEMENT_KEYWORDS | REGION_WORDS
-# The elementary data types: an ANY pointer's type word is one of them. A typed number's type is a word of
-# INTEGER_TYPES (an integer, signed or based) or of REAL_TYPES (a real or an integer).
+# The elementary data types: an ANY pointer's type word is one of them. A typed number takes any word before its #
+# (W#16#, DW#, CHAR#16#41 among them); INTEGER_TYPES and REAL_TYPES are what its test goes over.
 INTEGER_TYPES = 'BYTE WORD DWORD LWORD SINT INT DINT LINT USINT UINT UDINT ULINT'.split()
 REAL_TYPES = 'REAL LREAL'.split()
 DATA_TYPES = (['BOOL'] + INTEGER_TYPES + REAL_TYPES + 'TIME LTIME S5TIME DATE TOD TIME_OF_DAY LTOD LTIME_OF_DAY DT '
               'DATE_AND_TIME LDT DTL CHAR WCHAR STRING WSTRING'.split())
 # Absolute addresses as SCL of the S7-1200 and S7-1500 writes them, with "%": the process image, the peripheral access
-# with ":P", bit memory, timers and counters, a DB's data (also after the DB's quoted name, "Db".DBX0.0), a slice of an
-# operand (#w.%X3). Not in these lists, as no V20 export here holds them and none is settled as V20 SCL: the peripheral
-# form of the S7-300 and S7-400 (%PIW256, %PQW2, German %PEW256, %PAW2), a DB's number alone (%DB1, a DB_ANY), and an
-# ANY pointer to local or instance data (P#L0.0 BYTE 4, P#DIX0.0 BYTE 4).
+# with ":P", bit memory, timers and counters, a DB's data, a slice of an operand (#w.%X3); a DB's data by itself
+# (DBX0.0, DBW2) is a token of its own, an operand after any "." ("Db".DBX0.0). Not in these lists, as no V20 export
+# here holds them and none is settled as V20 SCL: the peripheral form of the S7-300 and S7-400 (%PIW256, %PQW2,
+# German %PEW256, %PAW2), a DB's number alone (%DB1, a DB_ANY), and an ANY pointer to local or instance data
+# (P#L0.0 BYTE 4, P#DIX0.0 BYTE 4).
 ADDRESS_AREAS = ('I', 'Q', 'M', 'E', 'A')            # inputs, outputs, bit memory (E and A: the German mnemonics)
 PERIPHERAL_AREAS = ('I', 'Q', 'E', 'A')              # the areas read or written past the process image, with :P
 ADDRESS_SIZES = ('X', 'B', 'W', 'D')                 # a bit (X, or none: %M10.0), a byte, a word, a double word
@@ -155,25 +156,24 @@ _ADDRESS = r'(?i:%%(?:%s:P|%s|%s\d+|%s\d+))' % (
     _chars(PERIPHERAL_AREAS) + _OFFSET, _LOCATION, _chars(NUMBERED_AREAS), _chars(ADDRESS_SIZES))
 # the last two: %T1, %C2, %Z3; a slice %X3, %B0
 
-# The number forms: the base decides the digits; only a decimal real has an exponent, and only it a sign there.
+# The number forms, one pattern per base; only a decimal real has an exponent, and only it a sign there.
 _BASED = r'(?:2\#[01_]+|8\#[0-7_]+|16\#[0-9A-Fa-f_]+)'
 _REAL = r'(?:\d[\d_]*\.\d[\d_]*(?:[eE][-+]?\d[\d_]*)?|\d[\d_]*[eE][-+]?\d[\d_]*)'
 _INT = r'\d[\d_]*'
-_DURATION = r'(?:\d[\d_]*(?:\.\d+)?(?:ms|us|ns|d|h|m|s)_?)+'                   # 1d2h3m4s5ms, 1s_200ms, 1.5s
 _DATE = r'\d+-\d+-\d+'
 _CLOCK = r'\d+:\d+(?::\d+(?:\.\d+)?)?'                                          # 12:30, 12:30:00.500
 _PREFIX = r'[^\W\d]\w*\#'                                                       # a typed constant's type and #
 # Each literal form one pattern: (form, pattern). A "-" or ":" between digits stands only in the date and time-of-day
-# forms; a sign only right after the # of a time or a typed number, and in a real's exponent; a typed string is a
-# string (pass 1, order 7).
+# forms; a sign only right after the # of a typed integer or real, and in a real's exponent; a typed string is a
+# string (pass 1, order 7). A time (T#5s, LTIME#1d2h, S5T#2h_46m_30s) is a typed number that the word end in _cut
+# carries on to the end of its word: no form of its own.
 LITERALS = [
-    ('time', r'(?i:LTIME|LT|TIME|T|S5TIME|S5T)\#[-+]?(?i:%s)' % _DURATION),
     ('date and time', r'(?i:LDATE_AND_TIME|DATE_AND_TIME|LDT|DTL|DT)\#%s-%s' % (_DATE, _CLOCK)),
     ('date', r'(?i:DATE|D)\#%s' % _DATE),
     ('time of day', r'(?i:LTIME_OF_DAY|TIME_OF_DAY|LTOD|TOD)\#%s' % _CLOCK),
     ('pointer', r'(?i:P\#%s)(?:[ \t]+%s[ \t]+\d+)?' % (_LOCATION, _words(DATA_TYPES))),     # P#DB1.DBX0.0 BYTE 1
-    ('typed Bool', r'%s(?i:TRUE|FALSE)\b' % _PREFIX),
-    ('typed based number', r'%s[-+]?%s' % (_PREFIX, _BASED)),
+    ('typed Bool', r'%s(?i:TRUE|FALSE)' % _PREFIX),
+    ('typed based number', r'%s%s' % (_PREFIX, _BASED)),
     ('typed real', r'%s[-+]?%s' % (_PREFIX, _REAL)),
     ('typed integer', r'%s[-+]?%s' % (_PREFIX, _INT)),
     ('based number', _BASED),
@@ -191,16 +191,19 @@ _TOKEN = re.compile('|'.join([
     r'(?P<literal>%s)' % '|'.join('(?:%s)' % p for _, p in LITERALS),
     r'(?P<local>\#(?:"(?:\$.|[^"$])*"|[^\W\d]\w*))',
     r'(?P<global>"(?:\$.|[^"$])*")',
-    r'(?P<address>%s|(?<=\.)(?i:%s))' % (_ADDRESS, _DB_PART),     # "Db".DBX0.0: a DB's data after its name
+    r'(?P<address>%s)' % _ADDRESS,
+    r'(?P<db_data>(?i:DB(?:%s\d+\.\d+|%s\d+(?!\w))))' % (_BIT, _WIDE),  # DBX0.0, DBW2 by itself; DBW2x a name
     r'(?P<word>[^\W\d]\w*)',
     r'(?P<operator>%s)' % '|'.join(re.escape(o) for o in sorted(OPERATORS, key=len, reverse=True)),
     r'(?P<semicolon>;)',
 ]))
-# the kind of a token by its group alone; word, local and global go by their text and neighbours
+WORD_LIKE = ('literal', 'local', 'address', 'db_data', 'word')     # each ends at a word end (_cut)
+# the kind of a token by its group alone; word, local, global and db_data go by the rules of pass 2 (RULES)
 _GROUP_KIND = {'space': None, 'pragma': None, 'comment': 'comment', 'string': 'constant', 'literal': 'constant',
                'address': 'operand', 'operator': 'operator', 'semicolon': 'semicolon', 'region name': 'constant',
                'other': None}
-_NO_NEIGHBOUR = ('space', 'comment', 'pragma')
+_BEFORE_REGION = ('space', 'comment', 'pragma')       # what may stand before REGION on its line (pass 1, row 2)
+_NO_NEIGHBOUR = ('space', 'comment', 'pragma')        # what a rule of pass 2 reads past (_neighbours)
 
 
 def of_network(net, texts, block):
@@ -227,7 +230,8 @@ def _constants(itf):
 
 def _cut(text, state):
     """Pass 1 (module doc, its table): [(group, text)] of whole tokens, the texts joined giving the line back.
-    state['end']: the end of a comment still open from the line before, and after this line."""
+    state['end']: the end of a comment still open from the line before, and after this line. A token of WORD_LIKE
+    that a word character follows takes the rest of that word with it: no token ends inside a word."""
     out, i = [], 0
     if state['end']:                            # order 1: a comment going on from the line before
         k = text.find(state['end'])
@@ -253,9 +257,11 @@ def _cut(text, state):
             group = 'comment'
         elif group in ('line_comment', 'open_string'):
             group = {'line_comment': 'comment', 'open_string': 'string'}[group]
+        elif group in WORD_LIKE:
+            t += _WORD_REST.match(text, m.end()).group()     # a word end: 42abc and %IW2x stay whole
         out.append((group, t))
         i += len(t)
-        if group == 'word' and t.upper() == 'REGION' and all(g in _NO_NEIGHBOUR for g, _ in out[:-1]):
+        if group == 'word' and t.upper() == 'REGION' and all(g in _BEFORE_REGION for g, _ in out[:-1]):
             rest = text[i:]                     # order 2: the rest of a REGION line is its name
             lead = len(rest) - len(rest.lstrip())
             if rest.strip():
@@ -264,26 +270,53 @@ def _cut(text, state):
     return out
 
 
+_WORD_REST = re.compile(r'\w*')
+
+
+class _Name:
+    """What a rule of pass 2 knows of a word, #name, quoted name or DB's data: its group and text, its neighbours
+    before and after ((group, text) of a token, or (None, None) past the network's ends), and from the tokens before
+    it: compared (it stands right after a type test's ")" and "=" or "<>"), first (the first neighbour of its line),
+    depth (the parentheses open before it), and the interface's local constants (consts). No rule gets the line's
+    text or a place in it: a rule reads tokens only."""
+    __slots__ = ('group', 'text', 'before', 'after', 'compared', 'first', 'depth', 'consts')
+
+    def __init__(self, group, text, before, after, compared, first, depth, consts):
+        self.group, self.text, self.before, self.after = group, text, before, after
+        self.compared, self.first, self.depth, self.consts = compared, first, depth, consts
+
+    @property
+    def called(self):
+        return self.after == ('operator', '(')
+
+    @property
+    def up(self):
+        return self.text.upper()
+
+
+def _neighbours(stream, i):
+    """(the token before, the token after) stream[i] among the network's neighbours, (None, None) past its ends."""
+    return (stream[i - 1] if i > 0 else (None, None)), (stream[i + 1] if i + 1 < len(stream) else (None, None))
+
+
 def _kinds(cuts, consts):
-    """Pass 2 (module doc, its table): per line [(kind, text)] of the tokens of _cut."""
+    """Pass 2 (module doc, its tables): per line [(kind, text)] of the tokens of _cut. It is given the tokens only."""
     out = [[(_GROUP_KIND.get(g), t) for g, t in cut] for cut in cuts]
-    stream, firsts = [], set()                  # stream: (line, index in its cut) of the neighbours, in order
+    places, firsts = [], set()                  # (line, index in its cut) of the neighbours, in order
     for n, cut in enumerate(cuts):
         real = [(n, k) for k, (g, _) in enumerate(cut) if g not in _NO_NEIGHBOUR]
         firsts.update(real[:1])
-        stream += real
-
-    def tok(i):
-        return cuts[stream[i][0]][stream[i][1]] if 0 <= i < len(stream) else (None, None)
-
-    closes = _type_test_closes([tok(i) for i in range(len(stream))])
+        places += real
+    stream = [cuts[n][k] for n, k in places]
+    closes = _type_test_closes(stream)
     depth = 0
-    for i, (n, k) in enumerate(stream):
-        group, t = cuts[n][k]
-        if group in ('word', 'local', 'global'):
-            before = tok(i - 1)
+    for i, (n, k) in enumerate(places):
+        group, t = stream[i]
+        if group in ('word', 'local', 'global', 'db_data'):
+            before, after = _neighbours(stream, i)
             compared = before in (('operator', '='), ('operator', '<>')) and i - 2 in closes
-            out[n][k] = (_name_kind(group, t, before, tok(i + 1), compared, (n, k) in firsts, depth, consts), t)
+            name = _Name(group, t, before, after, compared, (n, k) in firsts, depth, consts)
+            out[n][k] = (_name_kind(name), t)
         if (group, t) == ('operator', '('):
             depth += 1
         elif (group, t) == ('operator', ')'):
@@ -314,41 +347,89 @@ def _type_test_closes(toks):
     return out
 
 
-def _name_kind(group, t, before, after, compared, first, depth, consts):
-    """The kind of a word, #name or quoted name from its text and its neighbours (module doc, pass 2): before and after,
-    its neighbours; compared: it stands right after a type test's ")" and "=" or "<>"; first: it is the first neighbour
-    of its line; depth: the parentheses open before it."""
-    called = after == ('operator', '(')
-    if before == ('operator', '.'):                                     # a member, or the call of #timer.TON(
-        return 'block call' if called else 'operand'
-    if compared and group != 'local' and not called:                    # TypeOf(#x) = Int, = "Udt"
-        return 'constant'
-    if group in ('local', 'global'):
-        if called:
-            return 'block call'
-        if group == 'local' and t[1:].strip('"').upper() in consts and after not in (('operator', '.'),
-                                                                                       ('operator', '[')):
-            return 'local constant'
-        return 'operand'
-    up = t.upper()
-    if up in REGION_WORDS:
-        return 'region'
-    if up in BOOLS:
-        return 'constant'
-    if up in WORD_OPERATORS:
-        return 'operator'
-    if up in KEYWORDS:
-        return 'keyword'
-    if before[0] == 'word' and before[1].upper() == 'GOTO':
-        return 'label'
-    if called:
-        return 'instruction'
-    if depth and after in (('operator', ':='), ('operator', '=>')):
-        return 'parameter'                      # with a parenthesis open, on its line or one before
-    if up == 'ENO':
-        return 'operand'                        # ENO := FALSE; as TIA colours it
-    if first and after == ('operator', ':'):
-        return 'label'                          # lblEnd: at the start of its line
+_SKIP = object()            # a rule that does not apply to a name
+
+
+def _member(n):
+    if n.before == ('operator', '.'):
+        return 'block call' if n.called else 'operand'
+    return _SKIP
+
+
+def _db_data(n):
+    return None if n.group == 'db_data' else _SKIP
+
+
+def _type_test(n):
+    return 'constant' if n.compared and n.group != 'local' and not n.called else _SKIP
+
+
+def _named_call(n):
+    return 'block call' if n.group in ('local', 'global') and n.called else _SKIP
+
+
+def _local_constant(n):
+    if n.group == 'local' and n.text[1:].strip('"').upper() in n.consts and \
+            n.after not in (('operator', '.'), ('operator', '[')):
+        return 'local constant'
+    return _SKIP
+
+
+def _operand(n):
+    return 'operand' if n.group in ('local', 'global') else _SKIP
+
+
+def _in(words, kind):
+    return lambda n: kind if n.up in words else _SKIP
+
+
+def _label_after_goto(n):
+    return 'label' if n.before[0] == 'word' and n.before[1].upper() == 'GOTO' else _SKIP
+
+
+def _instruction(n):
+    return 'instruction' if n.called else _SKIP
+
+
+def _parameter(n):
+    return 'parameter' if n.depth and n.after in (('operator', ':='), ('operator', '=>')) else _SKIP
+
+
+def _eno(n):
+    return 'operand' if n.up == 'ENO' else _SKIP
+
+
+def _label_first(n):
+    return 'label' if n.first and n.after == ('operator', ':') else _SKIP
+
+
+# The rules of pass 2 in the order the code runs them (_name_kind): (name, it goes by position, the rule). The module
+# doc's order table is this list; TheRulesAsAGrid goes over the rules that go by position.
+RULES = [
+    ('a member, a call after a dot', True, _member),
+    ("a DB's data not after a dot", False, _db_data),
+    ('a data type of a type test', True, _type_test),
+    ('a block call by its name', True, _named_call),
+    ('a local constant', True, _local_constant),
+    ('a #name or quoted name', False, _operand),
+    ('a word of REGION_WORDS', False, _in(REGION_WORDS, 'region')),
+    ('a word of BOOLS', False, _in(BOOLS, 'constant')),
+    ('a word of WORD_OPERATORS', False, _in(WORD_OPERATORS, 'operator')),
+    ('a word of KEYWORDS', False, _in(KEYWORDS, 'keyword')),
+    ('a jump label after GOTO', True, _label_after_goto),
+    ('an instruction', True, _instruction),
+    ('a parameter name', True, _parameter),
+    ('ENO', False, _eno),
+    ('a jump label where it stands', True, _label_first),
+]
+
+
+def _name_kind(name):
+    """The kind of a word, #name, quoted name or DB's data (a _Name): the first of RULES that applies; none, black."""
+    for _, _, rule in RULES:
+        kind = rule(name)
+        if kind is not _SKIP:
+            return kind
     return None
 
 

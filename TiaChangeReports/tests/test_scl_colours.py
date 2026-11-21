@@ -6,6 +6,7 @@ character or a change mark; what stays in one colour.
 The test over every SCL network runs on the fixtures, and also on the project repos TIA_CR_SCL_REPOS names (paths
 apart by the system's separator, ';' on Windows), such as the benchmark repo, when that is set."""
 import contextlib
+import inspect
 from collections import Counter
 import difflib
 import io
@@ -320,6 +321,14 @@ class TextAndMarksUnchanged(unittest.TestCase):
                         self.assertEqual(page._inline(x, y), _inline_before(x, y))
         self.assertGreater(count, 2)
 
+    def test_the_page_marks_only_a_span_with_no_class_and_prints_its_colours(self):
+        """page.CSS: the changed word's background on a span with no class only, so a colour span inside it keeps
+        none of its own; an SCL table's cells print their colours and backgrounds."""
+        self.assertIn('.ldiff table.scl td.del span:not([class]){background:var(--del-word)}', page.CSS)
+        self.assertIn('.ldiff table.scl td.ins span:not([class]){background:var(--add-word)}', page.CSS)
+        self.assertNotIn('.ldiff table.scl td.del span{', page.CSS)
+        self.assertRegex(page.CSS, r'@media print\{[^}]*\.ldiff table\.scl td[^}]*\{print-color-adjust:exact')
+
     def test_a_whole_report_reads_as_before_with_the_colours_taken_out(self):
         with tempfile.TemporaryDirectory() as d:
             v1, v2 = (os.path.join(FIXTURES, 'plant', v) for v in ('v1', 'v2'))
@@ -379,6 +388,11 @@ class LocalConstants(unittest.TestCase):
         got = kinds(scl_colours.lines(['#a := #GRENZE + #grenze + #Grenze;'], self.interface())[0])
         self.assertEqual([t for k, t in got if k == 'local constant'], ['#GRENZE', '#grenze', '#Grenze'])
 
+    def test_before_a_dot_or_an_index_a_local_constant_is_an_operand(self):
+        for line in ('#a := #LIMIT.x;', '#a := #LIMIT[1];', '#a := #LIMIT . x;', '#a := #LIMIT [1];'):
+            with self.subTest(line):
+                self.assertEqual(kinds(scl_colours.lines([line], self.interface())[0])[2], ('operand', '#LIMIT'))
+
     def test_without_an_interface_every_name_is_an_operand(self):
         got = kinds(scl_colours.lines(['#a := #LIMIT;'])[0])
         self.assertEqual(got[2], ('operand', '#LIMIT'))
@@ -393,22 +407,31 @@ class TheRulesAsAGrid(unittest.TestCase):
     HOLD = {'nothing': '', 'space': ' ', 'comment': ' (* #b( *) ', 'two comments': ' (* #b( *) (/* x( */) ',
             'pragma': ' { p := "#b(" } ', 'line end': NEWLINE}
     BREAK = {'string': " '#b(' ", 'quoted name': ' "#b(" ', 'semicolon': ' ; '}
-    # rule: (line with {g} in the gap the rule reads across, the word it colours, its kind when the rule holds,
-    # its kind when a string, quoted name or ";" stands in the gap, the line can hold the construct twice)
+    # row: (the rule of scl_colours.RULES it holds, or None for pass 1's region's name; the line with {g} in the gap
+    # the rule reads across, the word it colours, its kind when the rule holds, its kind when a string, quoted name
+    # or ";" stands in the gap, the line can hold the construct twice)
     RULES = {
-        'a call of an instruction': ('#x := MAX{g}(1, 2);', 'MAX', 'instruction', None, True),
-        'a call of an instance': ('#i{g}(IN := 1);', '#i', 'block call', 'operand', True),
-        'a call after a dot': ('#t.TON{g}(IN := 1);', 'TON', 'block call', 'operand', True),
-        'a member': ('#s.{g}a := 1;', 'a', 'operand', None, True),
-        'a parameter name': ('#f(IN{g}:= 1);', 'IN', 'parameter', None, True),
-        'a data type after a type test, before =': ('IF TypeOf(#v){g}= Int THEN #c := 1; END_IF;', 'Int', 'constant',
-                                                    None, True),
-        'a data type after a type test, after =': ('IF TypeOf(#v) ={g}Int THEN #c := 1; END_IF;', 'Int', 'constant',
-                                                   None, True),
-        'a jump label where it stands': ('lbl{g}: #a := 1;', 'lbl', 'label', None, False),
-        'a jump label after GOTO': ('GOTO{g} lbl;', 'lbl', 'label', None, True),
-        'a local constant': ('#a := #LAST{g}.x;', '#LAST', 'operand', 'local constant', True),
-        "a region's name": ('{g}REGION Calls', 'Calls', 'constant', None, False),
+        'an instruction': ('an instruction', '#x := MAX{g}(1, 2);', 'MAX', 'instruction', None, True),
+        'a block call by its name': ('a block call by its name', '#i{g}(IN := 1);', '#i', 'block call', 'operand',
+                                     True),
+        'a call after a dot': ('a member, a call after a dot', '#t.TON{g}(IN := 1);', 'TON', 'block call', 'operand',
+                               True),
+        'a member': ('a member, a call after a dot', '#s.{g}a := 1;', 'a', 'operand', None, True),
+        "a DB's data after a dot": ('a member, a call after a dot', '#x := "Db".{g}DBX0.0;', 'DBX0.0', 'operand',
+                                    None, True),
+        'a parameter name': ('a parameter name', '#f(IN{g}:= 1);', 'IN', 'parameter', None, True),
+        'a data type, before =': ('a data type of a type test', 'IF TypeOf(#v){g}= Int THEN #c := 1; END_IF;', 'Int',
+                                  'constant', None, True),
+        'a data type, after =': ('a data type of a type test', 'IF TypeOf(#v) ={g}Int THEN #c := 1; END_IF;', 'Int',
+                                 'constant', None, True),
+        'a jump label where it stands': ('a jump label where it stands', 'lbl{g}: #a := 1;', 'lbl', 'label', None,
+                                         False),
+        'a jump label after GOTO': ('a jump label after GOTO', 'GOTO{g} lbl;', 'lbl', 'label', None, True),
+        'a local constant, before .': ('a local constant', '#a := #LAST{g}.x;', '#LAST', 'operand', 'local constant',
+                                       True),
+        'a local constant, before [': ('a local constant', '#a := #LAST{g}[1];', '#LAST', 'operand', 'local constant',
+                                       True),
+        "a region's name": (None, '{g}REGION Calls', 'Calls', 'constant', None, False),
     }
 
     def kinds_of(self, text, word):
@@ -423,7 +446,7 @@ class TheRulesAsAGrid(unittest.TestCase):
         return [k for k, t in toks if t == word], toks
 
     def test_each_rule_across_each_gap(self):
-        for rule, (line, word, holds, broken, twice) in self.RULES.items():
+        for rule, (_, line, word, holds, broken, twice) in self.RULES.items():
             for gap, fill in list(self.HOLD.items()) + list(self.BREAK.items()):
                 text = line.format(g=fill)
                 expected = holds if gap in self.HOLD else broken
@@ -440,6 +463,30 @@ class TheRulesAsAGrid(unittest.TestCase):
                 if twice and gap in self.HOLD:
                     with self.subTest(rule=rule, gap=gap, twice=True):
                         self.assertEqual(self.kinds_of(text + ' ' + text, word)[0], [expected, expected])
+
+    def test_the_grid_holds_every_rule_that_goes_by_position(self):
+        """Each rule of scl_colours.RULES that goes by position has a row here: a rule added to the code without one
+        fails this test."""
+        self.assertEqual({name for name, by_position, _ in sc.RULES if by_position},
+                         {row[0] for row in self.RULES.values() if row[0]})
+
+    def test_pass_2_reads_tokens_only(self):
+        """Pass 2 is given the tokens of pass 1 and the interface's constants, and a rule a _Name, which holds a
+        token, its neighbours and what the tokens before it carry: no text of a line and no place in it. Pass 1 reads
+        no text before a token (no look-behind)."""
+        self.assertEqual(list(inspect.signature(sc._kinds).parameters), ['cuts', 'consts'])
+        self.assertEqual(list(inspect.signature(sc._name_kind).parameters), ['name'])
+        for name, _, rule in sc.RULES:
+            with self.subTest(name):
+                self.assertEqual(len(inspect.signature(rule).parameters), 1)
+        self.assertEqual(set(sc._Name.__slots__),
+                         {'group', 'text', 'before', 'after', 'compared', 'first', 'depth', 'consts'})
+        self.assertNotIn('(?<', sc._TOKEN.pattern)
+
+    def test_a_words_own_text_goes_before_the_label_and_parameter_rules(self):
+        self.assertEqual(self.kinds_of('TRUE: #a := 1;', 'TRUE')[0], ['constant'])
+        self.assertEqual(self.kinds_of('#f(TRUE := 1);', 'TRUE')[0], ['constant'])
+        self.assertEqual(self.kinds_of('#f(NOT := 1);', 'NOT')[0], ['operator'])
 
     def test_a_comparison_after_a_type_test_is_the_only_one_read_as_a_data_type(self):
         """The audit's lines: a second comparison on a line with a type test is read as it is, not as a data type."""
@@ -528,7 +575,8 @@ class TheLiteralsAsATable(unittest.TestCase):
     S5TIME, strings of both kinds with their $ escapes and typed (STRINGS), and the ANY pointers (pointers()). Each
     one token in the constants' colour, alone and before +1 and -1; each address of addresses() one operand."""
     FORMS = {
-        'untyped number': '42 3.0 3.14 1.5E-3 1.0E+10 1.0e10 1e10 2.5E3 1_000 16#100 16#00FF 16#ff 2#1010_0101 8#17',
+        'untyped number': '42 3.0 3.14 1.5E-3 1.0E+10 1.0e10 1e10 2.5E3 1_000 16#100 16#00FF 16#ff 16#FE 2#1010_0101 '
+                          '8#17',
         'Bool': 'TRUE FALSE BOOL#TRUE BOOL#1',
         'typed, the short type names and other forms': 'Int#256 W#16#100 B#16#FF DW#16#FFFF_FFFF '
                                                        'LINT#-9223372036854775808 CHAR#16#41 LREAL#-1.0e-10',
@@ -574,6 +622,8 @@ class TheLiteralsAsATable(unittest.TestCase):
         for text, expected in (
                 ('%PIW256', [(None, '%'), (None, 'PIW256')]),
                 ('%PEW256', [(None, '%'), (None, 'PEW256')]),
+                ('%PQW2', [(None, '%'), (None, 'PQW2')]),
+                ('%PAW2', [(None, '%'), (None, 'PAW2')]),
                 ('%DB1', [(None, '%'), (None, 'DB1')]),
                 ('P#L0.0 BYTE 4', [(None, 'P'), ('operand', '#L0'), ('operator', '.'), ('constant', '0'),
                                    (None, 'BYTE'), ('constant', '4')]),
@@ -609,7 +659,7 @@ class WhereATokenEnds(unittest.TestCase):
     def tokens(cls):
         words = (sc.STATEMENT_KEYWORDS | sc.LOGIC_KEYWORDS | sc.WORD_OPERATORS | sc.BOOLS | sc.REGION_WORDS
                  | sc.TYPE_TESTS | set(sc.DATA_TYPES))
-        return TheLiteralsAsATable.all() + addresses() + sorted(words) + cls.NAMES + cls.COMMENTS
+        return TheLiteralsAsATable.all() + addresses() + db_parts() + sorted(words) + cls.NAMES + cls.COMMENTS
 
     def cut(self, text):
         return [t for _, t in scl_colours._cut(text, {'end': None})]
@@ -619,6 +669,17 @@ class WhereATokenEnds(unittest.TestCase):
             for nxt in list(sc.OPERATORS) + [';'] + self.COMMENTS:
                 with self.subTest(token=tok, then=nxt):
                     self.assertEqual(self.cut(tok + nxt), [tok, nxt])
+
+    def test_a_word_like_token_followed_by_a_word_character_is_whole(self):
+        """Each token of the tables that ends in a letter or digit (scl_colours.WORD_LIKE: a literal other than a
+        string, an address, a DB's data, a word, a #name not quoted) followed directly by "_", a letter or a digit is
+        one token, the character in it: never a token with a black tail."""
+        for tok in self.tokens():
+            if tok[-1] in '"\')' or tok.startswith('('):
+                continue                         # a string, a quoted name, a comment: no word goes on after them
+            for c in '_a0':
+                with self.subTest(token=tok, then=c):
+                    self.assertEqual(self.cut(tok + c), [tok + c])
 
     def test_a_bracket_or_comment_followed_by_each_token(self):
         for tok in self.tokens():
@@ -739,8 +800,24 @@ class HalfWrittenNetworks(unittest.TestCase):
                 self.assertEqual(got, [kind])
 
     def test_a_stopper_forgets_a_type_tests_open_parenthesis(self):
-        got = scl_colours.lines(['IF TypeOf(#v THEN', '#a := 1) = Int;'])
-        self.assertIn((None, 'Int'), got[1])
+        for opened in ('IF TypeOf(#v THEN', 'IF TypeOf(#v;'):
+            with self.subTest(opened):
+                got = scl_colours.lines([opened, '#a := 1) = Int;'])
+                self.assertIn((None, 'Int'), got[1])
+
+    def test_a_dbs_data_not_after_a_dot_is_black(self):
+        """No rule but the member's makes a DB's data an operand: elsewhere it is black, called or after GOTO too."""
+        for line in ('#x := DBX0.0;', '#x := DBW2(1);', 'GOTO DBX0.0;'):
+            with self.subTest(line):
+                self.assertEqual([k for k, t in scl_colours.lines([line])[0] if t.startswith('DB')], [None])
+
+    def test_a_name_like_a_dbs_wide_data_is_a_name(self):
+        """DBW2x is no DB's data: a name, so a parameter before := in a call."""
+        self.assertIn(('parameter', 'DBW2x'), scl_colours.lines(['#f(DBW2x := 1);'])[0])
+        self.assertIn(('operand', 'DBW2x'), scl_colours.lines(['#a := #s.DBW2x;'])[0])
+
+    def test_a_name_compared_after_a_type_test_is_no_data_type(self):
+        self.assertIn(('operand', '#w'), scl_colours.lines(['IF TypeOf(#v) = #w THEN'])[0])
 
     def test_inside_the_open_call_a_name_before_assign_is_a_parameter(self):
         got = scl_colours.lines(['#f(IN := 1,', 'ENO := FALSE;', 'x := 2;'])
