@@ -34,6 +34,7 @@ KEYWORDS = frozenset('IF THEN ELSIF ELSE END_IF CASE OF END_CASE FOR TO BY DO EN
                      'END_REPEAT RETURN EXIT CONTINUE GOTO AND OR XOR'.split())
 WORD_OPERATORS = frozenset(('NOT', 'MOD'))
 BOOLS = frozenset(('TRUE', 'FALSE'))
+TYPE_TESTS = frozenset(('TYPEOF', 'TYPEOFELEMENTS', 'TYPEOFDB'))    # what they are compared with is a data type
 _END = {'(*': '*)', '(/*': '*/)'}
 
 _TOKEN = re.compile(r"""
@@ -120,7 +121,7 @@ def _tokenize(text, state, consts):
                 return toks
             words.append((len(toks), t.upper()))
         elif kind in ('local', 'global'):
-            kind = _operand(t, text, m.end(), consts, toks)
+            kind = _operand(t, text, m.end(), consts, toks, words)
         else:
             kind = _GROUP_KIND[kind]
         if kind == 'operator' and t in ('(', ')'):
@@ -134,11 +135,21 @@ def _after_dot(toks):
     return bool(toks) and toks[-1] == ('operator', '.')
 
 
+def _type_name(toks, words):
+    """The word or quoted name after toks is what a type test of this line compares with (TypeOf(#x) = Int, = "Udt"):
+    a data type, told by where it stands, not by its name: TIA writes it in the constants' colour, a system type and a
+    PLC data type alike, in quotes or not."""
+    last = next((x for x in reversed(toks) if x[1].strip()), None)
+    return last in (('operator', '='), ('operator', '<>')) and any(w in TYPE_TESTS for _, w in words)
+
+
 def _word(t, text, end, toks, words, depth):
     up = t.upper()
     rest = text[end:]
-    if _after_dot(toks):
-        return 'operand'                        # a member: "Db".motor, #inst.Q, and #timer.TON( (the maintainer's)
+    if _after_dot(toks):                        # a member: "Db".motor, #inst.Q; the call of #timer.TON(
+        return 'block call' if _CALL.match(rest) else 'operand'
+    if _type_name(toks, words):
+        return 'constant'
     if up in ('REGION', 'END_REGION'):
         return 'region'
     if up in BOOLS:
@@ -161,9 +172,11 @@ def _word(t, text, end, toks, words, depth):
     return None
 
 
-def _operand(t, text, end, consts, toks):
+def _operand(t, text, end, consts, toks, words):
     if _after_dot(toks):
         return 'operand'
+    if t.startswith('"') and _type_name(toks, words):
+        return 'constant'
     if _CALL.match(text, end):
         return 'block call'
     if t.startswith('#') and t[1:].strip('"').upper() in consts and text[end:end + 1] not in ('.', '['):

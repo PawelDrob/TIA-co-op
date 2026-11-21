@@ -462,7 +462,7 @@ def nothing_changed(repo, rev, files=None):
 
 
 def _colour_causes(out, across):
-    """out with every network whose SCL lines are the same in both formats and coloured otherwise
+    """out with every network where a line of the same text in both formats is coloured otherwise
     (scl_colours_differ): its object listed, or the cause added to its entry."""
     for d in across:
         nets = scl_colours_differ(d)
@@ -779,8 +779,7 @@ def _net_part(n, dx, fs, fx):
         out.add('unknown: network tag %s' % tag)
     out |= _mark_causes(ms, mx, 'rung order' in out)
     if Counter(ls) != Counter(lx):
-        same_text = Counter(x[:2] for x in ls) == Counter(x[:2] for x in lx)
-        out.add('unknown: SCL colours' if same_text else 'unknown: lines')
+        out |= _line_causes(ls, lx)
     for part in ('network title', 'network comment'):
         if {k for k in ns if k[1] == part} != {k for k in nx if k[1] == part}:
             out.add('unknown: %s' % part)
@@ -790,6 +789,20 @@ def _net_part(n, dx, fs, fx):
     elif st_s != st_x and not out:                        # listed by one alone: follows from what the causes name
         out.add('unknown: network listed by one report alone')
     return out or {'unknown: network'}
+
+
+def _line_causes(ls, lx):
+    """The causes of a network's changed lines that differ, line by line ((sign, line, tokens) of each report): a line
+    of one sign and text in both reports with other tokens, 'unknown: SCL colours'; a line one report has more often
+    than the other, 'unknown: lines'. Both can stand."""
+    out = set()
+    ts, tx = Counter(x[:2] for x in ls), Counter(x[:2] for x in lx)
+    if ts != tx:
+        out.add('unknown: lines')
+    for key in set(ts) & set(tx):
+        if {x[2] for x in ls if x[:2] == key} != {x[2] for x in lx if x[:2] == key}:
+            out.add('unknown: SCL colours')
+    return out
 
 
 def _xml_note(n, dx, shown):

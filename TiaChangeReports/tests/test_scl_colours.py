@@ -6,6 +6,7 @@ character or a change mark; what stays in one colour.
 The test over every SCL network runs on the fixtures, and also on the project repos TIA_CR_SCL_REPOS names (paths
 apart by the system's separator, ';' on Windows), such as the benchmark repo, when that is set."""
 import contextlib
+from collections import Counter
 import difflib
 import io
 import json
@@ -202,16 +203,25 @@ class TheKindsAsReadFromTia(unittest.TestCase):
         self.assertEqual(self.line('PT := T#5s,')[0], ('parameter', 'PT'))
         self.assertEqual(kinds(scl_colours.lines(['x := 1;'])[0])[0], (None, 'x'))
 
-    def test_what_the_maintainer_chose_where_tia_differs(self):
-        """TIA colours a data type after TypeOf as a constant and the called TON of #statTimer.TON( as a block call;
-        the maintainer chose to keep them black and an operand."""
+    def test_a_data_type_after_typeof_as_tia_colours_it(self):
+        """TIA colours what a type test compares with as a constant: a system type and a PLC data type alike, told by
+        where it stands, in quotes or not (the SimaticML reader writes the PLC data type bare)."""
         self.assertEqual(self.line('IF TypeOf(#ioVar) = Int THEN')[1:],
                          [('instruction', 'TypeOf'), ('operator', '('), ('operand', '#ioVar'), ('operator', ')'),
-                          ('operator', '='), (None, 'Int'), ('keyword', 'THEN')])
-        self.assertIn(('operand', '"zzBenSclColType"'), self.line('ELSIF TypeOf(#ioVar) = "zzBenSclColType" THEN'))
+                          ('operator', '='), ('constant', 'Int'), ('keyword', 'THEN')])
+        self.assertIn(('constant', '"zzBenSclColType"'), self.line('ELSIF TypeOf(#ioVar) = "zzBenSclColType" THEN'))
+        for line in ('ELSIF TypeOf(#ioVar) = zzBenSclColType THEN', 'IF TypeOfDB(#tmpDb) <> IEC_TIMER THEN'):
+            self.assertEqual(kinds(scl_colours.lines([line])[0])[-2][0], 'constant')
+        self.assertEqual(kinds(scl_colours.lines(['#a := #b = "Tag";'])[0])[-2], ('operand', '"Tag"'))
+
+    def test_a_call_after_a_dot_as_tia_colours_it(self):
+        """TIA colours the instance before the dot as an operand and the called name in a called block's colour."""
         self.assertEqual(self.line('#statTimer.TON(IN := #inEnable, PT := T#2s);')[:5],
-                         [('operand', '#statTimer'), ('operator', '.'), ('operand', 'TON'), ('operator', '('),
+                         [('operand', '#statTimer'), ('operator', '.'), ('block call', 'TON'), ('operator', '('),
                           ('parameter', 'IN')])
+        self.assertEqual(kinds(scl_colours.lines(['#x := "Db".motor.speed;'])[0])[2:], [
+            ('operand', '"Db"'), ('operator', '.'), ('operand', 'motor'), ('operator', '.'), ('operand', 'speed'),
+            ('semicolon', ';')])
 
     def test_names_in_other_letters(self):
         self.assertEqual(self.line('#statÜbung := #statÄnderung + 1;')[:3],
@@ -252,6 +262,17 @@ class BothFormatsAlike(unittest.TestCase):
             if ls[k] == lx[k]:
                 with self.subTest(line=k + 1):
                     self.assertEqual(ks[k], kx[k])
+
+    def test_the_same_change_names_a_line_coloured_otherwise_beside_a_line_read_otherwise(self):
+        """The bed's second check, line by line: a line of the same text coloured otherwise is SCL colours, also
+        where another line of the network differs in its text between the formats."""
+        n = (1, 1, '')
+        line = ('o', 'line', n, '+', '#a := 1;')
+        fs = Counter({line + ((('operand', '#a'),),): 1, ('o', 'line', n, '+', 'ENO := FALSE;', ()): 1})
+        fx = Counter({line + ((('label', '#a'),),): 1, ('o', 'line', n, '+', ' := FALSE;', ()): 1})
+        self.assertEqual(twoformats._net_part(n, None, fs, fx), {'unknown: SCL colours', 'unknown: lines'})
+        fx = Counter({line + ((('operand', '#a'),),): 1, ('o', 'line', n, '+', ' := FALSE;', ()): 1})
+        self.assertEqual(twoformats._net_part(n, None, fs, fx), {'unknown: lines'})
 
     def test_the_bed_names_a_network_coloured_otherwise(self):
         sd, xml = colour_block('.s7dcl'), colour_block('.xml')
