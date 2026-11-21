@@ -102,7 +102,8 @@ class Case(unittest.TestCase):
         self.terminal = FakeTerminal()
         pause = (lambda s: time.sleep(self.PAUSE)) if self.ends_real_processes else (lambda s: None)
         self.projects = self.top / 'projects'    # Claude Code's transcripts: the user's own are never read
-        self.sessions = Sessions(self.main, terminal_for=lambda kind: self.terminal, sleep=pause, projects=self.projects)
+        self.home = self.top / 'claude-home'    # the user's settings and synced skills: the user's own are never read
+        self.sessions = Sessions(self.main, terminal_for=lambda kind: self.terminal, sleep=pause, projects=self.projects, home=self.home)
         self.commands = []
         real = self.sessions.git
         self.sessions.git = lambda *a, **k: (self.commands.append(a), real(*a, **k))[1]
@@ -515,6 +516,98 @@ class AuditTests(Case):
         self.sessions.audit('wk03', terminal='fake', extra=['--model', 'x'])
         self.assertEqual(self.terminal.opened[-1][1][-2:], ['--model', 'x'])
         self.assertNotIn('--permission-mode', self.terminal.opened[-1][1])
+
+
+class LeftOutTests(Case):
+    """What a session starts without, through start and audit; what each name means is test_left_out's."""
+
+    def setUp(self):
+        super().setUp()
+        self.home.mkdir()
+        (self.home / 'settings.json').write_text(json.dumps({'enabledPlugins': {'feature-dev@m': True, 'mattpocock-skills@m': True}}),
+                                                 encoding='utf-8')
+        (self.home / 'skills' / 'synced' / 'a' / 'docx').mkdir(parents=True)
+        (self.home / 'skills' / 'synced' / 'a' / 'docx' / 'SKILL.md').write_text('x', encoding='utf-8')
+
+    def args(self):
+        return self.terminal.opened[-1][1]
+
+    def denied(self):
+        args = self.args()
+        return args[args.index('--disallowedTools') + 1:]
+
+    def settings(self):
+        args = self.args()
+        return json.loads(Path(args[args.index('--settings') + 1]).read_text('utf-8'))
+
+    def test_a_session_starts_without_the_tools_plugins_and_skills_it_never_uses(self):
+        said = self.started()
+        for tool in ('Artifact', 'Workflow', 'SendFeedback', 'ScheduleWakeup', 'ReportFindings', 'ListAgents'):
+            self.assertIn(tool, self.denied())
+        self.assertNotIn('Agent', self.denied())
+        settings = self.settings()
+        self.assertEqual(settings['enabledPlugins'], {'feature-dev@m': False})
+        self.assertEqual(settings['skillOverrides'], {'docx': 'off', 'plugin-authoring': 'off'})
+        self.assertTrue(settings['disableBundledSkills'])
+        self.assertIn('Stop', settings['hooks'])
+        self.assertIn('left out: 6 tools, 1 plugin, 2 skills, the bundled skills. --keep <name> brings one back', said)
+
+    def test_the_guards_still_come_after_the_tools_and_the_arguments_after_the_two_dashes_last(self):
+        self.started(extra=['--permission-mode', 'auto'])
+        self.assertEqual(self.denied()[:2], ['AskUserQuestion', 'Artifact'])
+        self.assertIn('Bash(git push:*)', self.denied())
+        self.assertEqual(self.args()[-2:], ['--permission-mode', 'auto'])
+
+    def test_keep_brings_them_back_and_the_record_holds_it(self):
+        self.started(keep=['Artifact', 'feature-dev', 'docx', 'bundled'])
+        self.assertNotIn('Artifact', self.denied())
+        self.assertIn('Workflow', self.denied())
+        self.assertEqual(self.settings().keys() & {'enabledPlugins', 'disableBundledSkills'}, set())
+        self.assertEqual(self.settings()['skillOverrides'], {'plugin-authoring': 'off'})
+        self.assertEqual(self.sessions.store.load('wk03')['keep'], ['Artifact', 'feature-dev', 'docx', 'bundled'])
+
+    def test_keep_all_starts_it_as_before(self):
+        self.started(keep=['all'])
+        self.assertEqual(self.denied(), ['AskUserQuestion', 'mcp__tia__*', *PUSH_RULES])
+        self.assertEqual(set(self.settings()), {'hooks'})
+
+    def test_a_name_it_cannot_keep_makes_nothing(self):
+        with self.assertRaisesRegex(SessionError, '--keep Artifacts: not among'):
+            self.started(keep=['Artifacts'])
+        self.assertFalse(self.tree.exists())
+        self.assertEqual(self.terminal.opened, [])
+
+    def test_the_users_settings_are_not_changed(self):
+        before = (self.home / 'settings.json').read_bytes()
+        self.started()
+        self.assertEqual((self.home / 'settings.json').read_bytes(), before)
+
+    def test_an_audit_leaves_them_out_and_keeps_only_what_it_asks_for(self):
+        self.started(keep=['Artifact'])
+        said = self.sessions.audit('wk03', terminal='fake')
+        self.assertIn('Artifact', self.denied())
+        self.assertIn('left out: 6 tools', said)
+        self.sessions.close('auditwk03', session_only=True)
+        self.sessions.audit('wk03', terminal='fake', keep=['ReportFindings'])
+        self.assertNotIn('ReportFindings', self.denied())
+        self.assertIn('Artifact', self.denied())
+
+    def test_an_audit_refuses_a_name_it_cannot_keep_and_opens_nothing(self):
+        self.started()
+        with self.assertRaisesRegex(SessionError, '--keep nothing-such'):
+            self.sessions.audit('wk03', terminal='fake', keep=['nothing-such'])
+        self.assertEqual(len(self.terminal.opened), 1)
+
+    def test_the_command_line_reaches_both_commands(self):
+        with mock.patch.object(session, 'main_tree', return_value=self.main), mock.patch.object(session, 'Sessions') as sessions, \
+                mock.patch('builtins.print'):
+            sessions.return_value.start.return_value = sessions.return_value.audit.return_value = ''
+            session.main(['start', 't', '--coordinator', 'c', '--keep', 'Artifact', '--keep', 'docx', '--', '--keep', 'x'])
+            session.main(['audit', 'wk03', '--keep', 'all'])
+            session.main(['audit', 'wk04'])
+        calls = [c.kwargs for c in (sessions.return_value.start.call_args, *sessions.return_value.audit.call_args_list)]
+        self.assertEqual([c['keep'] for c in calls], [['Artifact', 'docx'], ['all'], []])
+        self.assertEqual(calls[0]['extra'], ['--keep', 'x'])
 
 
 class PromptTests(Case):

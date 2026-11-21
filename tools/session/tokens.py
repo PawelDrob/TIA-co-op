@@ -19,9 +19,14 @@ SHOWN_KINDS = 10
 SHOWN_TOOLS = 8
 
 
+def claude_home(env=os.environ):
+    """Claude Code's folder of the user's settings and transcripts: CLAUDE_CONFIG_DIR when that is set, otherwise ~\\.claude."""
+    return Path(env.get('CLAUDE_CONFIG_DIR') or Path.home() / '.claude')
+
+
 def projects_root(env=os.environ):
-    """Where Claude Code keeps its transcripts: under CLAUDE_CONFIG_DIR when that is set, otherwise ~\\.claude."""
-    return Path(env.get('CLAUDE_CONFIG_DIR') or Path.home() / '.claude') / 'projects'
+    """Where Claude Code keeps its transcripts."""
+    return claude_home(env) / 'projects'
 
 
 def folder_name(path):

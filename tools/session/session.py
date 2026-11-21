@@ -1,7 +1,7 @@
 """Start, watch and close the agent sessions that work on tickets. Needs git and claude; herdr when you run inside it.
 
-    python -X utf8 tools/session/session.py start <ticket file> --coordinator <who> [--beside <text>] [--allow-tia] [--allow-browser] [-- <claude args>]
-    python -X utf8 tools/session/session.py audit <name> [--allow-tia] [--allow-browser] [-- <claude args>]
+    python -X utf8 tools/session/session.py start <ticket file> --coordinator <who> [--beside <text>] [--allow-tia] [--allow-browser] [--keep <name>] [-- <claude args>]
+    python -X utf8 tools/session/session.py audit <name> [--allow-tia] [--allow-browser] [--keep <name>] [-- <claude args>]
     python -X utf8 tools/session/session.py watch [--effort <folder>] [--first] [--timeout <seconds>]
     python -X utf8 tools/session/session.py prompt <name> <text> | --file <file> | --implement
     python -X utf8 tools/session/session.py read <name> [--lines <n>]
@@ -31,9 +31,10 @@ sys.path.insert(0, str(HERE.parent / 'dashboard'))    # the board reads a ticket
 
 from board import read_ticket
 from control_chars import describe, scan
+from left_out import left_out
 from store import SessionError, Store, record_hook, record_in, write_json, write_state, write_text
 from terminals import ADAPTERS, NOT_READ, choose, report_resume
-from tokens import find_transcripts, folder_name, full_text, measure, projects_root, short_text
+from tokens import claude_home, find_transcripts, folder_name, full_text, measure, projects_root, short_text
 from watching import NO_GUARDS_TEXT, Watcher, not_asked, status_of
 
 CLOSED = {'done', 'resolved', 'wontfix'}
@@ -179,9 +180,10 @@ def mangled_by_git_bash(text, env=os.environ):
 
 
 class Sessions:
-    def __init__(self, main_tree, terminal_for=None, sleep=time.sleep, projects=None):
+    def __init__(self, main_tree, terminal_for=None, sleep=time.sleep, projects=None, home=None):
         self.main = Path(main_tree)
         self.projects = Path(projects) if projects else projects_root()    # Claude Code's transcripts
+        self.home = Path(home) if home else claude_home()    # the user's settings and synced skills, only read
         self.scratch = self.main / '.scratch'
         self.store = Store(self.scratch)
         self.terminal_for = terminal_for or (lambda kind: ADAPTERS[kind]())
@@ -247,18 +249,23 @@ class Sessions:
                   'args': ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', str(self.main / 'TiaBridge' / 'TiaBridge.ps1')]}
         return {**({'tia': bridge} if allow_tia else {}), **({'playwright': BROWSER_SERVER} if allow_browser else {})}
 
-    def agent_args(self, folder, servers, extra):
+    def left_out(self, tree, keep):
+        return left_out(self.home, tree, self.main, keep)
+
+    def agent_args(self, folder, tree, servers, extra, keep=()):
         """With --strict-mcp-config, only what --mcp-config names starts: tried with a real claude, for a server of a plugin, of the user
         and of claude.ai. Only Claude in Chrome stays listed in a session with a terminal, with no process of its own, so --no-chrome.
-        The servers go in a file, as settings do: a restart repeats these arguments, so they stay short and need no quoting."""
+        The servers go in a file, as settings do: a restart repeats these arguments, so they stay short and need no quoting.
+        What the session never uses stays out, less what keep names (left_out.py)."""
+        left = self.left_out(tree, keep)
         settings = Path(folder) / 'settings.json'
-        write_json(settings, hook_settings(folder))
+        write_json(settings, {**hook_settings(folder), **left.settings()})
         mcp_args = ['--strict-mcp-config', '--no-chrome']
         if servers:
             config = Path(folder) / 'mcp.json'
             write_json(config, {'mcpServers': servers})
             mcp_args += ['--mcp-config', str(config)]
-        denied = [ASK_BY_TURN_END, *([] if 'tia' in servers else [BRIDGE]), *PUSH_RULES]
+        denied = [ASK_BY_TURN_END, *left.tools, *([] if 'tia' in servers else [BRIDGE]), *PUSH_RULES]
         return ['--add-dir', str(self.main), *mcp_args, '--settings', str(settings), '--disallowedTools', *denied, *extra]
 
     def open_session(self, record, prompt, servers, extra):
@@ -267,7 +274,7 @@ class Sessions:
         folder = self.store.folder(record['name'])
         record['folder'] = str(folder)
         write_state(folder, 'sent')
-        args = self.agent_args(folder, servers, extra)
+        args = self.agent_args(folder, record['worktree'], servers, extra, record.get('keep', []))
         record['args'] = args    # its first prompt's hook reads them, while the terminal is still opening
         self.store.save({**record, 'closed': 'did not start'})
         record.update(self.terminal(record).open(record, args, prompt) or {})
@@ -288,7 +295,7 @@ class Sessions:
             raise SessionError(f'{name} is open: `prompt` it, or `close` it first')
 
     def start(self, ticket, coordinator, terminal=None, name=None, branch=None, worktree=None, beside=None,
-              allow_tia=False, allow_browser=False, extra=(), implement=True, timeout=READY_SECONDS):
+              allow_tia=False, allow_browser=False, extra=(), implement=True, timeout=READY_SECONDS, keep=()):
         ticket = Path(os.path.abspath(ticket))
         effort, number, slug = self.ticket_parts(ticket)
         status = ticket_status(ticket)
@@ -302,6 +309,7 @@ class Sessions:
         tree = Path(worktree or self.main.parent / f'{self.main.name}-worktrees' / f'{effort}-{number}')
         if inside(tree, self.main):
             raise SessionError(f'{tree} is inside the clone: nothing started')
+        self.left_out(tree, keep)    # a --keep it cannot keep is refused before the tree is made
         made_tree, made_branch = self.ensure_tree(tree, branch)
         if self.store.exists(name):    # the same session again: what it made earlier stays its own
             earlier = self.store.load(name)
@@ -313,9 +321,9 @@ class Sessions:
             prompt += f' beside {beside}'
         record = self.open_session({
             'name': name, 'ticket': str(ticket), 'effort': effort, 'worktree': str(tree), 'branch': branch,
-            'terminal': terminal, 'made_tree': made_tree, 'made_branch': made_branch, 'extra': list(extra), 'started': stamp_now()},
-            prompt, self.mcp_servers(allow_tia, allow_browser), list(extra))
-        said = [f'{name}: {terminal}, in {tree}, on {branch}', *self.restore_said(record)]
+            'terminal': terminal, 'made_tree': made_tree, 'made_branch': made_branch, 'extra': list(extra), 'keep': list(keep),
+            'started': stamp_now()}, prompt, self.mcp_servers(allow_tia, allow_browser), list(extra))
+        said = [f'{name}: {terminal}, in {tree}, on {branch}', self.left_out(tree, keep).summary(), *self.restore_said(record)]
         if terminal == 'print':
             said.append(f'Once it reports ready, type: {self.implement_prompt(record)}')
         elif implement:
@@ -355,19 +363,20 @@ class Sessions:
             raise SessionError(f'{name} is closed: nothing sent')
         return record
 
-    def audit(self, name, terminal=None, extra=(), allow_tia=False, allow_browser=False):
+    def audit(self, name, terminal=None, extra=(), allow_tia=False, allow_browser=False, keep=()):
         """A fresh session in the ticket's tree, with what came after -- for the ticket session unless given its own, and only the servers
-        it asks for. Works from a closed record too: only its session has ended."""
+        and the --keep it asks for. Works from a closed record too: only its session has ended."""
         ticket_session = self.store.load(name)
         audit_name = 'audit' + name
         self.check_free(audit_name)
+        left = self.left_out(ticket_session['worktree'], keep)
         extra = list(extra) or ticket_session.get('extra', [])
         terminal = terminal or choose()
         prompt = f'/audit {ticket_session["ticket"]} {ticket_session["branch"]} {ticket_session["worktree"]}'
         record = {k: ticket_session[k] for k in ('ticket', 'effort', 'worktree', 'branch', 'made_tree', 'made_branch')}
-        record.update(name=audit_name, terminal=terminal, extra=extra, started=stamp_now())
+        record.update(name=audit_name, terminal=terminal, extra=extra, keep=list(keep), started=stamp_now())
         self.open_session(record, prompt, self.mcp_servers(allow_tia, allow_browser), extra)
-        return '\n'.join([f'{audit_name}: {terminal}, in {record["worktree"]}', *self.restore_said(record)])
+        return '\n'.join([f'{audit_name}: {terminal}, in {record["worktree"]}', left.summary(), *self.restore_said(record)])
 
     def prompt(self, name, text):
         record = self.open_record(name)
@@ -812,6 +821,8 @@ def parser():
     start.add_argument('--terminal', choices=sorted(ADAPTERS), help='default: herdr inside a herdr pane, otherwise headless')
     start.add_argument('--allow-tia', action='store_true', help='start the bridge: only for a ticket that grants a background session')
     start.add_argument('--allow-browser', action='store_true', help='start Playwright: for a ticket that needs a browser')
+    start.add_argument('--keep', action='append', default=[], metavar='NAME',
+                       help='keep a tool, plugin or skill a session leaves out, or bundled, or all; repeat for more')
     start.add_argument('--no-implement', action='store_true', help='send /ticket only, do not wait')
     start.add_argument('--timeout', type=int, default=READY_SECONDS, help='seconds to wait for it to report ready')
 
@@ -820,6 +831,7 @@ def parser():
     audit.add_argument('--terminal', choices=sorted(ADAPTERS))
     audit.add_argument('--allow-tia', action='store_true', help='start the bridge; the ticket session having it gives the audit nothing')
     audit.add_argument('--allow-browser', action='store_true', help='start Playwright; the ticket session having it gives the audit nothing')
+    audit.add_argument('--keep', action='append', default=[], metavar='NAME', help='as for start; the ticket session having one gives the audit nothing')
 
     watching = commands.add_parser('watch', help='one line per event; keeps its baseline, so re-arming loses nothing')
     watching.add_argument('--effort', action='append', help='only this effort, with all its tickets; repeat for more')
@@ -887,9 +899,10 @@ def main(argv=None):
         if args.command == 'start':
             print(sessions.start(args.ticket, args.coordinator, terminal=args.terminal, name=args.name, branch=args.branch,
                                  worktree=args.worktree, beside=args.beside, allow_tia=args.allow_tia, allow_browser=args.allow_browser, extra=extra,
-                                 implement=not args.no_implement, timeout=args.timeout))
+                                 implement=not args.no_implement, timeout=args.timeout, keep=args.keep))
         elif args.command == 'audit':
-            print(sessions.audit(args.name, terminal=args.terminal, extra=extra, allow_tia=args.allow_tia, allow_browser=args.allow_browser))
+            print(sessions.audit(args.name, terminal=args.terminal, extra=extra, allow_tia=args.allow_tia, allow_browser=args.allow_browser,
+                                 keep=args.keep))
         elif args.command == 'watch':
             return watch(sessions, args)
         elif args.command == 'prompt':
