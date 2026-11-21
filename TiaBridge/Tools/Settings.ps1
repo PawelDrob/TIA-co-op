@@ -5,7 +5,7 @@
 # These four parts go back through import, a kind each, over the project's own: each kind lists one object as always
 # there, so a file of another name is refused before TIA sees it. Project texts and alarm classes TIA imports only outside
 # a transaction (noUndo); system diagnostics settings and supervisions inside one. Tried on a real TIA V20: an unchanged
-# round trip of each, and an edit of each but the supervisions (docs\agent\openness-v20.md, Settings parts through import). Supervision
+# round trip of each, and an edit of each but the supervisions (docs\agent\openness-settings.md, Settings parts through import). Supervision
 # settings and PLC alarm texts are no kind: their import was not tried.
 
 # The XML of a settings .dat: its one entry, as text, or @{ refused }.
@@ -100,7 +100,7 @@ Register-ObjectKind 'project_texts' @{
         foreach ($t in $languages.targets) { @{ obj = $p; name = (Get-ProjectTextsName $languages.ref $t); folder = '' } } }
     precheck = { param($file, $cache, $entries) Test-SettingsPartFile $file $entries 'project texts, a file per active language besides the reference language' }
     # the second argument is updateSourceLanguage: true takes the reference language's texts of the file too, as both
-    # probes did (docs\agent\openness-v20.md). compileWhy: the probe of 2026-11-18 there.
+    # probes did (docs\agent\openness-settings.md). compileWhy: the probe of 2026-11-18 there.
     import = { param($p, $folder, $file, $override) Invoke-SettingsImport { $p.ImportProjectTexts([System.IO.FileInfo]::new($file.file), $true) } 'project texts' }
 }
 
@@ -125,7 +125,7 @@ Register-ObjectKind 'diagnostics_settings' @{
     import = { param($p, $folder, $file, $override) Import-SettingsDat (Get-RequiredService $p ([Siemens.Engineering.HW.Systemdiagnostics.Settings.SystemdiagnosticsSettingsDataProvider])) $file 'system diagnostics settings' }
 }
 
-# What importing a supervisions sheet did to a project without ProDiag settings (docs\agent\openness-v20.md): said in the
+# What importing a supervisions sheet did to a project without ProDiag settings (docs\agent\openness-settings.md): said in the
 # import text before, and in the result when an import initialised them (Test-ProDiagSettings before and after).
 $script:SupervisionsFirstImport = 'On the one project tried, which had no ProDiag settings, importing its supervisions sheet (headers only) initialised them, and the project texts gained 230 rows of ProDiag categories; other projects and sheets were not tried. full_export''s part supervision_settings reads none on such a project. Tell the user before such an import. An import rolled back took both back when tried.'
 

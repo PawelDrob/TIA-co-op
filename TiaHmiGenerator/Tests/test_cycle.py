@@ -1,6 +1,6 @@
 """HMI cycles: TiaBridge imports a cycle from its export folder (hmi/cycles) after these rules. A minimal export
 leaves out StartAtStartingPoint when it is true, and TIA's import of such a file set it false on every cycle of a
-project; a full export goes back unchanged (docs/agent/openness-v20.md section 2, Cycles).
+project; a full export goes back unchanged (docs/agent/openness-hmi.md section 2, Cycles).
 """
 import unittest
 

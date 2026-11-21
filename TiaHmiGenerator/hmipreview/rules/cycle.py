@@ -1,5 +1,5 @@
 """HMI cycle rules. TiaBridge imports a cycle from its export folder, <hmi>/cycles, after these rules: they read each
-document there (docs/agent/openness-v20.md section 2, Cycles).
+document there (docs/agent/openness-hmi.md section 2, Cycles).
 
   cycle.not-full    error with for_import, else a warning: a cycle document that is no full export (DocumentInfo/
                     ExportSetting not 'WithDefaults, WithReadOnly'), or that lacks StartAtStartingPoint. A minimal

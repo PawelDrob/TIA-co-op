@@ -1,6 +1,14 @@
 # Log
 
 ## 2026-11-21
+* **Update**: [TIA Openness V20 facts for agents](agent/openness-v20.md) in parts: keeps the intro, a table of which file holds each section, and Sources; section 1 parted into four topic files, sections 2, 3, 4–5 and 6 moved to parts of their own; every section keeps its number.
+* **Move**: [TIA Openness V20 facts: PLC blocks, OBs and compile](agent/openness-plc-blocks.md): section 1 (blocks, OBs, F-blocks, compile and editing an OB's SimaticML) of the Openness V20 guide.
+* **Move**: [TIA Openness V20 facts: watch and force tables, technology objects and folders](agent/openness-plc-objects.md): section 1 (watch and force tables, technology objects and user folders) of the Openness V20 guide.
+* **Move**: [TIA Openness V20 facts: project texts and settings](agent/openness-settings.md): section 1 (texts edited through project texts and settings parts through import) of the Openness V20 guide.
+* **Move**: [TIA Openness V20 facts: HMI (WinCC Comfort)](agent/openness-hmi.md): section 2 of the Openness V20 guide.
+* **Move**: [TIA Openness V20 facts: libraries](agent/openness-libraries.md): section 3 of the Openness V20 guide.
+* **Move**: [TIA Openness V20 facts: failures, modal dialogs and project lifecycle](agent/openness-failures.md): sections 4 and 5 of the Openness V20 guide.
+* **Move**: [TIA Openness V20 facts: measurements, dates, software units and comparisons](agent/openness-measurements.md): section 1 (export timing, dates and software units) and section 6 of the Openness V20 guide.
 * **Update**: [SIMATIC SD (.s7dcl) authoring guide](agent/s7dcl-format.md) in parts: it keeps the core every PLC change reads (sections 0 to 7, 9, 12, 13) and a table of which file holds each section, 8.14b and 8.14c parted at their items; every section keeps its number, and the checklist says which part holds the rule of each item.
 * **Move**: [SIMATIC SD guide: LAD networks](agent/s7dcl-lad.md): sections 8 to 8.13, 8.13b, 8.14a, the LAD items of 8.14b, the branch shapes and LAD operands of 8.14c, 8.14 and Appendices A and B of the SD guide.
 * **Move**: [SIMATIC SD guide: comments and titles in the .s7res](agent/s7dcl-resources.md): the resource file items of 8.14b and of 8.14c of the SD guide.

@@ -47,7 +47,7 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   - In a TIA with a window, an export with 20 or more blocks, DBs and data types to export as `.s7dcl` minimizes TIA's
     main window once it knows what it exports, and restores it after: on one PC, a full export of a project of 473
     objects took 56 to 57 s with the window showing and 17 to 18 s with it minimized
-    ([the measurements](../docs/agent/openness-v20.md)). The agent tells you before. A window that was maximized comes
+    ([the measurements](../docs/agent/openness-measurements.md)). The agent tells you before. A window that was maximized comes
     back maximized. If you bring the window up during the export, it is yours from then on: the bridge does not touch it
     again, and the rest of the export is slower while it is up. If TIA does not answer, the window ends as it was once
     TIA answers. `export` of 20 or more of these objects or of library types does the same. Nothing of this in a
@@ -117,7 +117,7 @@ If TIA does not respond for more than a minute, look for an open message box in 
 that TIA can hang it, a bridge of release 0.1.0 among them: the agent's `tia_status` names other bridges. Save in TIA if it
 still answers, then stop that program or end its agent's session; with no other program, end this agent's session. Run
 one bridge per TIA. Why, and what is not explained yet:
-[the Openness facts](../docs/agent/openness-v20.md).
+[the Openness facts](../docs/agent/openness-failures.md).
 
 ### Settings
 

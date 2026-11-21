@@ -46,8 +46,10 @@ Describe 'Get-BridgeInstructions' {
 
 Describe 'Get-GuidePath' {
     It 'gives the absolute path of each guide' {
-        foreach ($g in 's7dcl-format.md', 's7dcl-lad.md', 's7dcl-resources.md', 's7dcl-data.md', 's7dcl-instructions.md', 's7dcl-import.md', 'wincc-comfort-openness.md', 'wincc-comfort-api.md',
-                     'wincc-comfort-faceplates.md', 'wincc-comfort-history.md', 'wincc-screen-objects.md', 'openness-v20.md') {
+        foreach ($g in 's7dcl-format.md', 's7dcl-lad.md', 's7dcl-resources.md', 's7dcl-data.md', 's7dcl-instructions.md', 's7dcl-import.md',
+                     'wincc-comfort-openness.md', 'wincc-comfort-api.md', 'wincc-comfort-faceplates.md', 'wincc-comfort-history.md',
+                     'wincc-screen-objects.md', 'openness-v20.md', 'openness-plc-blocks.md', 'openness-plc-objects.md', 'openness-settings.md',
+                     'openness-hmi.md', 'openness-libraries.md', 'openness-failures.md', 'openness-measurements.md') {
             $p = Get-GuidePath $g
             [System.IO.Path]::IsPathRooted($p) | Should Be $true
             Test-Path -LiteralPath $p | Should Be $true

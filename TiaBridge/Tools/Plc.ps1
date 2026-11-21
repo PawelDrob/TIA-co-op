@@ -205,7 +205,7 @@ Register-ObjectKind 'plc_tag_table' @{
 
 # The check of the watch or force tables Import returned: TIA answers OK to a row whose symbol the PLC does not have,
 # written without DisplayFormat (with one, a force table's row makes TIA throw), and leaves the table not consistent
-# (docs\agent\openness-v20.md, Watch and force tables), so a table not consistent is an error. What: the table in words
+# (docs\agent\openness-plc-objects.md, Watch and force tables), so a table not consistent is an error. What: the table in words
 # for the message ('watch table'). RowsLost: the message says TIA kept none of its rows, as seen of watch tables. Reads
 # IsConsistent only: counting Entries inside the transaction ended TIA.
 function Test-ImportedTables([object[]]$Tables, [string]$What, [switch]$RowsLost) {
@@ -213,7 +213,7 @@ function Test-ImportedTables([object[]]$Tables, [string]$What, [switch]$RowsLost
     if (-not $broken.Count) { return $null }
     $rows = if ($RowsLost) { ', with none of its rows' }
     @{ type = 'TiaBridge.NotConsistent'
-       message = "TIA took the file and left $What '$($broken -join "', '")' not consistent${rows}: a row names a symbol the PLC does not have (a tag or DB member, also a nested member written flat). TIA does not say which row. Check each row's Name against the PLC, fix the file and import it again ($(Get-GuidePath 'openness-v20.md') section 1, Watch and force tables)." }
+       message = "TIA took the file and left $What '$($broken -join "', '")' not consistent${rows}: a row names a symbol the PLC does not have (a tag or DB member, also a nested member written flat). TIA does not say which row. Check each row's Name against the PLC, fix the file and import it again ($(Get-GuidePath 'openness-plc-objects.md') section 1, Watch and force tables)." }
 }
 
 Register-ObjectKind 'watch_table' @{
@@ -231,7 +231,7 @@ Register-ObjectKind 'watch_table' @{
 # One force table per PLC, which TIA makes and has no Delete() for: Import over it takes its rows, and a file of another
 # name answers "'Create' is not supported by type '...PlcForceTableComposition'", so the bridge refuses that name first. A
 # row of a missing symbol throws, or with no DisplayFormat leaves the table not consistent, as a watch table's does.
-# ForceIntention is read-only, so no file arms a force (docs\agent\openness-v20.md, Watch and force tables).
+# ForceIntention is read-only, so no file arms a force (docs\agent\openness-plc-objects.md, Watch and force tables).
 $script:ForceTableOnline = 'A force table import changes the offline force table only, nothing in the CPU: a file cannot set a force mark (ForceIntention is read-only), and whether a row marked in TIA keeps its mark through an import was not tried. Forcing stays the user''s, online in TIA.'
 
 Register-ObjectKind 'force_table' @{
@@ -254,7 +254,7 @@ Register-ObjectKind 'force_table' @{
 
 # Technology objects go back through TechnologicalInstanceDBComposition.Import with Override. What a real TIA V20 was
 # tried with, by system library element and version ("<OfSystemLibElement> <OfSystemLibVersion>" of the document), and
-# how where it matters: each made new from a file and round tripped identically (docs\agent\openness-v20.md, Technology objects). After an import the object
+# how where it matters: each made new from a file and round tripped identically (docs\agent\openness-plc-objects.md, Technology objects). After an import the object
 # reads not consistent and TIA refuses its export until the PLC is compiled; a block that uses it was seen not consistent
 # until then too.
 $script:VirtualAxisTried = 'as a virtual axis only, without a drive'

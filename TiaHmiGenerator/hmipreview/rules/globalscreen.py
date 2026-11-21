@@ -1,5 +1,5 @@
 """Global screen rules. TiaBridge imports the global elements and the screen overview from <hmi>/global, their export
-folder, after these rules: they read each document there (docs/agent/openness-v20.md section 2, Slide-ins and global
+folder, after these rules: they read each document there (docs/agent/openness-hmi.md section 2, Slide-ins and global
 screens). HMI imports of objects TIA could not make ended TIA rather than refusing them: connections, an item in the
 global elements, a screen of a taken number [PROBE] (2026-11-12, V20 Update 7). A document of another object through
 these imports was not tried.

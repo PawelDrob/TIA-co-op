@@ -1,5 +1,5 @@
 """Slide-ins, the global elements and the screen overview: TiaBridge imports them from their export folders
-(hmi/slideins, hmi/global) after these rules (docs/agent/openness-v20.md section 2, Slide-ins and global screens).
+(hmi/slideins, hmi/global) after these rules (docs/agent/openness-hmi.md section 2, Slide-ins and global screens).
 """
 import unittest
 

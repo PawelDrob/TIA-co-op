@@ -406,7 +406,7 @@ function Test-TypeInstanceName($Type, [string]$Name) {
 # type's name made file-safe, so Ns_Block may be the type Ns_Block or the type Ns:Block. Importing over the wrong one must
 # not happen, so an exact match does not win: every type with that file-safe form counts, two are refused, and the
 # document must declare the one that is left or a project instance of it: a type's document can carry the instance's name
-# (TIA imported one, docs/agent/openness-v20.md section 3). No name written into .libinfo: it is TIA's own file, the
+# (TIA imported one, docs/agent/openness-libraries.md section 3). No name written into .libinfo: it is TIA's own file, the
 # next export replaces it and TIA may read it on import.
 function Resolve-LibraryTypeFile($File, [object[]]$Entries) {
     $format = Get-LibraryTypeImportFormat $File

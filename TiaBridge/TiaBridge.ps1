@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 
 # Openness keeps TIA's call-backs for a session attached from an STA thread in a queue that only that thread's own calls empty,
 # and TIA's UI thread waits for each one: a change TIA made to something a disposed or idle session had read hung TIA
-# (docs\agent\openness-v20.md). From an MTA thread a call-back runs at once. Started -STA, as first setup registers it, the
+# (docs\agent\openness-failures.md). From an MTA thread a call-back runs at once. Started -STA, as first setup registers it, the
 # script runs again, whole, on an MTA thread of its own; a window it shows gets an STA thread of its own (Invoke-OnStaThread).
 if ([Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA') {
     $rs = [runspacefactory]::CreateRunspace($Host)

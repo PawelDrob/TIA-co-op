@@ -475,7 +475,7 @@ Describe 'import the bridge refuses before TIA is asked, and the save' {
 }
 
 # A row naming a symbol the PLC does not have: TIA answers the import OK and leaves the table not consistent with no rows,
-# the good ones gone too (docs\agent\openness-v20.md). The kind reads IsConsistent of what Import returned and
+# the good ones gone too (docs\agent\openness-plc-objects.md). The kind reads IsConsistent of what Import returned and
 # fails the item, so the batch rolls back. It never reads Entries there: counting them inside the transaction ended TIA.
 Describe 'import of watch tables' {
     $repo = Join-Path $TestDrive 'W'
@@ -599,7 +599,7 @@ Describe 'import of watch tables' {
 }
 
 # A PLC has one force table, and TIA makes no other: a file of another name answers "'Create' is not supported by type
-# '...PlcForceTableComposition'" (docs\agent\openness-v20.md). ForceIntention is read-only, so no file arms a force: the
+# '...PlcForceTableComposition'" (docs\agent\openness-plc-objects.md). ForceIntention is read-only, so no file arms a force: the
 # import writes the offline table only. The kind checks the table TIA returns as watch tables do.
 Describe 'import of force tables' {
     $repo = Join-Path $TestDrive 'Fo'

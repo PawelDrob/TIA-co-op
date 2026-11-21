@@ -3,7 +3,7 @@ type: Guide
 title: SIMATIC SD (.s7dcl) authoring guide
 description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source; the core every PLC change reads, and which part holds LAD networks, comments, data, instructions and import diagnostics.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T19:16:55-05:00 }
+generated: { by: antigravity/gemini, at: 2026-11-21T19:41:00-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -252,7 +252,7 @@ The following cannot be specified from available documentation. Generating them 
 4. Run the section 9 checklist mechanically.
 5. Round-trip: import into a TIA workspace, compile, re-export, and diff the re-export against the generated file. Differences reveal formatting the exporter normalizes (semicolons, indentation, pragma spacing) — adopt the exporter's form as the canonical style from then on.
 6. Keep `.s7dcl`/`.s7res` pairs together in version control. Hand edits to a `.s7res` are fine when they follow 8.14b/8.14c: YAML, one entry with text per reference, no duplicate ids, no key of a language the project does not have.
-7. A new library type goes the same way, through `library_create_type` instead of `import`: the `.s7dcl` (with its `.s7res`) alone is enough, in a folder of its own, `library\types\<folder>\<name>\` where export will write it. A `.libinfo` beside it sets the first version; do not copy one from another type, its `Guid` is refused (openness-v20.md section 3). `[PROBE]`
+7. A new library type goes the same way, through `library_create_type` instead of `import`: the `.s7dcl` (with its `.s7res`) alone is enough, in a folder of its own, `library\types\<folder>\<name>\` where export will write it. A `.libinfo` beside it sets the first version; do not copy one from another type, its `Guid` is refused (openness-libraries.md section 3). `[PROBE]`
 
 ---
 

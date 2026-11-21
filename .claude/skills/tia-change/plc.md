@@ -14,14 +14,25 @@ The guide: s7dcl-format.md, the core every PLC change reads. Its section 9 check
 | An F-block (`safety: true`), the main safety block above all: its import needs a step of the user's after it | s7dcl-lad.md, s7dcl-instructions.md, s7dcl-import.md; s7dcl-data.md when it declares a multi-instance of an FB imported in this session |
 | An OB | s7dcl-instructions.md, s7dcl-import.md; s7dcl-lad.md when its networks are LAD; SimaticML only: see An OB below |
 | An FBD, STL or GRAPH network | Nothing more: the core's section 12 says what is blocked, and why |
-| A PLC tag table, watch or force table, technology object | Nothing more: a SimaticML document: openness-v20.md, section 1, its rows Formats, Watch and force tables and Technology objects, and the tag table in Editing an OB's SimaticML; the core's checklist item 20 names the kind it goes under |
+| A PLC tag table, watch or force table, technology object | Nothing more: a SimaticML document: openness-plc-blocks.md (section 1, Formats and the tag table in Editing an OB's SimaticML) and, for watch or force tables and technology objects, openness-plc-objects.md (section 1); the core's checklist item 20 names the kind it goes under |
 | A library type's document | s7dcl-import.md; library.md, and the rows above for what the document holds |
 | An import or an SD export that fails, or a log message to read | s7dcl-import.md; s7dcl-lad.md, s7dcl-resources.md, s7dcl-data.md when the log message's row names it |
 | The first change after a TIA Portal update | s7dcl-import.md |
 
 ## An OB
 
-SimaticML only. Edit it per openness-v20.md section 1, "Editing an OB's SimaticML": keep the declaration `encoding="utf-8"` and every namespace without a prefix, so no Python ElementTree round trip.
+SimaticML only. Edit it per openness-plc-blocks.md section 1, "Editing an OB's SimaticML": keep the declaration `encoding="utf-8"` and every namespace without a prefix, so no Python ElementTree round trip.
+
+## Openness facts
+
+Read only the part your change needs, in `docs\agent\`:
+
+| The change touches | Read |
+|---|---|
+| PLC blocks, OBs, know-how protected blocks, F-blocks, PLC tag tables, SimaticML calls, compile | openness-plc-blocks.md |
+| Watch or force tables, technology objects, deleting user folders | openness-plc-objects.md |
+| Master copies of PLC objects or folders | openness-libraries.md |
+| A failing or hanging call, modal dialogs, online mode, archive, opening or closing a project | openness-failures.md |
 
 ## The middle
 

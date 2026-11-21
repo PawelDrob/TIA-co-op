@@ -1,6 +1,6 @@
 # Project texts and settings
 
-Kinds `project_texts`, `alarm_classes`, `diagnostics_settings` and `supervisions`: the files `full_export` writes in `project\texts`, `project\alarmclasses`, `project\diagnostics` and `plc\[<device>\]supervisions`, each imported over the project's own (the PLC's for supervisions). What TIA does with them: openness-v20.md, "Settings parts through import". Supervision settings and PLC alarm texts are not imported: change them in TIA.
+Kinds `project_texts`, `alarm_classes`, `diagnostics_settings` and `supervisions`: the files `full_export` writes in `project\texts`, `project\alarmclasses`, `project\diagnostics` and `plc\[<device>\]supervisions`, each imported over the project's own (the PLC's for supervisions). What TIA does with them: openness-settings.md, section 1, "Settings parts through import". Supervision settings and PLC alarm texts are not imported: change them in TIA.
 
 ## The middle
 

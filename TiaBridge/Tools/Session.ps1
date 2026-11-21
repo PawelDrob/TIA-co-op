@@ -213,7 +213,7 @@ function Get-TiaAttachedPrograms([int]$ProcessId) {
 }
 
 # Why connect may not attach to the selected TIA for the repo folder RepoName, or $null: two programs on one TIA have
-# hung it (docs\agent\openness-v20.md). A report run of the TIA dashboard refuses a TIA another program is attached to;
+# hung it (docs\agent\openness-failures.md). A report run of the TIA dashboard refuses a TIA another program is attached to;
 # an agent's bridge refuses the TIA and the repo of a report run. Each first says which TIA it is about to attach to (the
 # bridge in its state file, the report run in its record), then looks for the other: two at once both refuse.
 function Get-OtherAttachRefusal($Selected, [string]$RepoName) {

@@ -1,6 +1,6 @@
 # Window.ps1 - TIA's main window minimized for an export of many .s7dcl documents, and restored after (decided 2026-11-19).
 # On one PC an ExportAsDocuments call took about seven times as long in a TIA with its window showing as with that window
-# minimized (docs\agent\openness-v20.md, Export time with a window).
+# minimized (docs\agent\openness-measurements.md, Export time with a window).
 # Only in a session with a window (connect); a background session has none. The window is the one top-level window of the
 # bound TIA process (by its id, not a title) that is visible, has no owner and has a minimize box, and every call that
 # changes it first checks that the handle still belongs to that process. The calls are posted (ShowWindowAsync): a busy

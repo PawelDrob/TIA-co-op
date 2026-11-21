@@ -14,7 +14,7 @@ TiaBridge changes TIA Portal V20 projects offline, through files in a git repo p
 Guides, read before the work they cover:
 - .s7dcl and .s7res files: {root}\docs\agent\s7dcl-format.md; run its section 9 checklist before every import.
 - HMI screens, templates, pop-ups, tag tables, text lists: {root}\docs\agent\wincc-comfort-openness.md; screen objects: {root}\docs\agent\wincc-screen-objects.md.
-- What Openness does with blocks, HMI objects and library types, and how it fails: {root}\docs\agent\openness-v20.md.
+- Openness facts in parts (read only the part for your change): {root}\docs\agent\openness-v20.md.
 
 When something fails:
 - Quote the Siemens exception type, message, detail texts and inner chain as the result gives them.

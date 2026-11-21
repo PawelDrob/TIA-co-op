@@ -29,7 +29,7 @@ function Test-S7dclImportAllowed([string]$Path) {
 # block document only: what other documents do with them has not been tried. A document that cannot be read past its
 # declaration is left to TIA.
 function Get-XmlDocumentRefusal([string]$Path) {
-    $how = "Write it as an export does: <?xml version=`"1.0`" encoding=`"utf-8`"?> and each namespace as the default (xmlns=`"...`") of the element that holds it, no prefix; $(Get-GuidePath 'openness-v20.md') section 1, Editing an OB's SimaticML."
+    $how = "Write it as an export does: <?xml version=`"1.0`" encoding=`"utf-8`"?> and each namespace as the default (xmlns=`"...`") of the element that holds it, no prefix; $(Get-GuidePath 'openness-plc-blocks.md') section 1, Editing an OB's SimaticML."
     # the declaration up to its ?>, which XML lets run over several lines: the head of the file is enough for it
     $reader = New-Object System.IO.StreamReader($Path, $true)
     $buffer = New-Object char[] 4096

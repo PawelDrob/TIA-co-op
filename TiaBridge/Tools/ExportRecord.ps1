@@ -2,7 +2,7 @@
 # since the last export (decided 2026-11-17). After an export the record (.tiabridge-export.json at the top of the project
 # repo, ignored by git) holds, per object, what TIA said of it and the files its export left. The next full_export reads
 # the same of TIA and exports an object when anything differs; everything else of those kinds is skipped and counted.
-# What it rests on: docs\agent\openness-v20.md, Dates [PROBE]; what was not tried (block properties edited in TIA's
+# What it rests on: docs\agent\openness-measurements.md, Dates [PROBE]; what was not tried (block properties edited in TIA's
 # dialogs): the README.
 #
 # Each entry stands on its own: the same values in TIA and the same file bytes mean its files are what an export gives
@@ -140,7 +140,7 @@ function Read-TiaAttribute($Obj, [string]$Name) {
 # Obj offers; $null when Obj has no GetAttributes (an object of PowerShell's own, a test's) or the read failed otherwise,
 # and the caller reads the names one at a time. GetAttributes refuses the whole call when the object lacks one of the
 # names (EngineeringNotSupportedException), not nulls as its documentation says: every DB and data type and the F-blocks
-# among them [PROBE] (2026-11-19, docs\agent\openness-v20.md, GetAttributes). Then GetAttributeInfos says which names the
+# among them [PROBE] (2026-11-19, docs\agent\openness-measurements.md, GetAttributes). Then GetAttributeInfos says which names the
 # object offers, and those are read in a second call. Kind: when the last object of it lacked a name, the next one asks
 # GetAttributeInfos first, which saves the refused call; one that offered them all turns that back.
 function Read-TiaAttributeValues($Obj, [string[]]$Names, [string]$Kind) {
@@ -182,7 +182,7 @@ function Read-ExportState($Kind, $Entry) {
 # property, or through GetAttribute where it has none and the object offers it: a name the call did not answer (the
 # object does not offer it, which then gives nothing), a name it answered null, and every name when the call failed. So a
 # value whose getter throws is named (unread) and the object exported, whether TIA refuses the call for it or answers
-# null: which of the two TIA does is not probed, as no object probed had such a getter (docs\agent\openness-v20.md,
+# null: which of the two TIA does is not probed, as no object probed had such a getter (docs\agent\openness-measurements.md,
 # GetAttributes).
 function Read-ExportStateValues($Kind, $Entry) {
     $names = [string[]]$script:ExportStateAttributes[$Kind.name]
@@ -304,7 +304,7 @@ function Get-TagTableDifference($Kind, $Entry, [string]$Device) {
 
 # Why every object of a PLC is exported, or $null. Old: its record entries (ConvertTo-EntryMap); Objects: key -> @{ kind; entry;
 # state }. A block names other blocks and tags in its code, and a renamed one moved no date of a block naming it until the
-# compile rewrote that block [PROBE] (2026-11-17, docs\agent\openness-v20.md, Dates): an object added, deleted or renamed,
+# compile rewrote that block [PROBE] (2026-11-17, docs\agent\openness-measurements.md, Dates): an object added, deleted or renamed,
 # or a tag table that exports differently, exports them all. So does a changed data type: its members and their defaults
 # show in the DBs and blocks that use it, and only a member added was tried, which left its users not consistent. Names
 # compare with case: a block renamed Fb1 -> FB1 is named so in its callers' files, and PowerShell's -contains and
@@ -329,7 +329,7 @@ function Get-PlcExportReason([hashtable]$Old, [hashtable]$Objects) {
 
 # Why the objects of a PLC that were exported as SimaticML are exported, or $null: a block or DB of it changed in TIA. A block
 # that calls or uses a changed block or DB turned not consistent, and the compile that rewrote it moved its own dates, so its
-# own values say so [PROBE] (2026-11-17, docs\agent\openness-v20.md, Dates; blocks exported as SD). A block exported as
+# own values say so [PROBE] (2026-11-17, docs\agent\openness-measurements.md, Dates; blocks exported as SD). A block exported as
 # SimaticML (an OB, a know-how protected block, one whose SD export TIA refused) holds the parameters and members of what it
 # calls in its file; whether that file follows the other one before its own compile was not tried, so these few are exported.
 function Get-SimaticMlReason([hashtable]$Old, [hashtable]$Objects) {

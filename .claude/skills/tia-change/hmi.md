@@ -1,6 +1,6 @@
 # HMI screens, tag tables, text lists
 
-The guides, read when the HMI part of the change starts, not at the start of the session: wincc-comfort-openness.md; for screen objects, wincc-screen-objects.md; for a faceplate, wincc-comfort-faceplates.md.
+The guides, read when the HMI part of the change starts, not at the start of the session: wincc-comfort-openness.md; for screen objects, wincc-screen-objects.md; for a faceplate, wincc-comfort-faceplates.md; for Openness HMI facts, openness-hmi.md (and openness-plc-objects.md when deleting a user folder).
 
 `<clone>` is the folder that holds `.claude`, and `<py>` is `<clone>\.venv\Scripts\python.exe -X utf8`.
 

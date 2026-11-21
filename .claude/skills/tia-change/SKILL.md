@@ -30,7 +30,7 @@ Git in a project repo goes by `git -C "C:/<projects root>/<repo>"`: the results 
 
 ## The full export
 
-- **Cost:** about minutes per thousand objects, longer in a TIA with a window (openness-v20.md, Modal dialogs). After a full export of every part, its `totalMs` goes in the notes of step 2.
+- **Cost:** about minutes per thousand objects, longer in a TIA with a window (openness-failures.md, section 4, Modal dialogs; also sections 4 and 5 for failing or hanging calls, `project_open` and `project_close`). After a full export of every part, its `totalMs` goes in the notes of step 2.
 - **`parts`:** where the notes say a full export takes over 10 minutes, `parts` may hold it to the kinds the change can touch: the PLC parts (`blocks` to `external_sources`) for a PLC change, with the `hmi_` parts when it renames what an HMI reads, and with `library_types` for a library change. `parts` picks kinds, never a device: every PLC exports. Each report of the session then names the kinds left out in its `title`, e.g. "Changes already in TIA; HMI, project and library not exported".
 - **The result:** before the commit, do what its `next` says, except under `removeErrors`. Where it is not `ok`:
   - `removeErrors`: files of objects TIA no longer has could not be removed, and a commit would keep them as if the objects stood. Fix what each line names and `full_export` again; when it stays, commit nothing and tell the user.
