@@ -78,10 +78,12 @@ IF( a keyword, TRUE: a constant.
 What SCL's grammar sets here and no picture of TIA has shown: a comment or a line end in a rule's gap; an ANY pointer
 as one constant, with a type word of the list DATA_TYPES; an absolute address of the lists as one operand; a pragma
 before REGION; a } inside a pragma's quoted value; a type test compared with a type test (the second called, so an
-instruction); a number, an address or a DB's data and a word written with no space between them as one token (1TO,
-%M1.0AND: TIA writes the space); a parameter named like a DB's data black, as a DB's data (#f(DBW2 := 1)).
-Not settled by any picture: a call on an array element of instances (#arr[1](, #arr an operand), an address after a
-quoted tag ("Tag":P, P black), NULL (black), a type test as a CASE selector (its labels black).
+instruction). Where the grammar reads otherwise, this tokenizer's own way, as accepted: a number, an address or a DB's
+data and a word written with no space between them one token (1TO, %M1.0AND; the grammar reads two, and TIA writes
+the space); a parameter named like a DB's data black, as a DB's data (#f(DBW2 := 1); the grammar reads a parameter).
+Not settled by any picture (NotSettledByAPicture): a call on an array element of instances (#arr[1](, #arr an
+operand), an address after a quoted tag ("Tag":P, P black), NULL (black), a type test as a CASE selector (its labels
+black).
 
 html(tokens, marks) writes one line: a span with the kind's class around a coloured word, none around a word whose kind
 has no class; a plain <span> around each range of marks (the changed words, page._word_marks) with the colours inside

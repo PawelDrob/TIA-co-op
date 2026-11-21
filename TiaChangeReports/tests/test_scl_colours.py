@@ -512,6 +512,14 @@ class TheRulesAsAGrid(unittest.TestCase):
         self.assertEqual(self.kinds_of('#x := #a; lbl2: #b := 1;', 'lbl2')[0], [None])
         self.assertEqual(self.kinds_of('lbl2: #b := 1;', 'lbl2')[0], ['label'])
 
+    def test_each_type_test_word_by_each_comparison_with_a_word_and_a_quoted_name(self):
+        for word in sorted(sc.TYPE_TESTS):
+            for op in ('=', '<>'):
+                for typ in ('Int', '"Udt"'):
+                    line = 'IF %s(#v) %s %s THEN' % (word.title(), op, typ)
+                    with self.subTest(line):
+                        self.assertIn(('constant', typ), scl_colours.lines([line])[0])
+
     def test_a_type_test_compared_with_a_type_test(self):
         """The second is called: an instruction, not a data type."""
         self.assertEqual(self.kinds_of('IF TypeOf(#a) = TypeOf(#b) THEN', 'TypeOf')[0], ['instruction', 'instruction'])
@@ -706,6 +714,11 @@ class WhereATokenEnds(unittest.TestCase):
             with self.subTest(o):
                 self.assertEqual(scl_colours._cut(o, {'end': None}), [('operator', o)])
 
+    def test_a_quoted_name_and_a_string_end_at_their_quote(self):
+        for tok in ('"x"', "'x'", "STRING#'x'"):
+            with self.subTest(tok):
+                self.assertEqual(self.cut(tok + 'b'), [tok, 'b'])
+
     def test_a_bracket_or_comment_followed_by_each_token(self):
         for tok in self.tokens():
             for before in ['(', ')', '[', ']', ','] + self.COMMENTS:
@@ -753,6 +766,13 @@ class WhichLineRuleGoesFirst(unittest.TestCase):
                                     ('semicolon', ';')])):
             with self.subTest(line):
                 self.assertEqual(kinds(scl_colours.lines([line])[0]), expected)
+
+    def test_region_after_a_comment_or_a_pragma_takes_its_name_and_after_code_is_the_word_alone(self):
+        for before in ('(* c *) ', '{ S7_x := "1" } ', '  '):
+            with self.subTest(before):
+                self.assertEqual(scl_colours.lines([before + 'REGION Calls'])[0][-1], ('constant', 'Calls'))
+        got = scl_colours.lines(['#a := 1; REGION Calls'])[0]
+        self.assertEqual(got[-3:], [('region', 'REGION'), (None, ' '), (None, 'Calls')])
 
     def test_region_with_nothing_but_spaces_after_it_is_the_word_alone(self):
         for line in ('REGION', 'REGION   ', '  REGION'):
@@ -869,6 +889,20 @@ class NamesOfAnyLetters(unittest.TestCase):
         self.assertIn(('local constant', '#GRÖSSE'), got)
         self.assertIn(('block call', '#Ölpumpe'), got)
         self.assertIn(('parameter', 'Ein'), got)
+
+
+class NotSettledByAPicture(unittest.TestCase):
+    """The cases scl_colours' doc names as settled by no picture, each held as it is cut and coloured today."""
+
+    def test_each_case_as_it_is_today(self):
+        for line, word, kind in (
+                ('#instArr[1](inStart := #statFlag);', '#instArr', 'operand'),
+                ('#statWord := "zzMcTag1":P;', 'P', None),
+                ('IF #ref = NULL THEN', 'NULL', None),
+                ('CASE TypeOf(#ioVar) OF Int: #a := 1; Real: #a := 2; END_CASE;', 'Int', None),
+                ('CASE TypeOf(#ioVar) OF Int: #a := 1; Real: #a := 2; END_CASE;', 'Real', None)):
+            with self.subTest(line=line, word=word):
+                self.assertEqual([k for k, t in scl_colours.lines([line])[0] if t == word], [kind])
 
 
 class WhatStaysInOneColour(unittest.TestCase):
