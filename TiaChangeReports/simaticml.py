@@ -74,20 +74,20 @@ def _no_text(item):
     return text is None or not (text.text or '').strip()
 
 
-def _expansion(sections):
+def _expansion(sections, values):
     """The Sections under a Member hold only what TIA writes when it expands a UDT member: members, a struct's nested,
-    with a name, a data type and a version, nothing a user set. A start value or comment there the reader may take
-    (unread_differs takes those out first) or not."""
-    return all(_bare_member(m) for section in _kids(sections, 'Section') for m in _kids(section))
+    with a name, a data type and a version, and, with values, the start values and comments set inside, which
+    unread_differs compares apart; nothing else a user set."""
+    return all(_bare_member(m, values) for section in _kids(sections, 'Section') for m in _kids(section))
 
 
-def _bare_member(m):
+def _bare_member(m, values):
     if _local(m.tag) != 'Member' or set(m.attrib) - {'Name', 'Datatype', 'Version'}:
         return False
     for c in m:
         tag = _local(c.tag)
-        if tag not in ('Member', 'Sections') or (tag == 'Member' and not _bare_member(c)) \
-                or (tag == 'Sections' and not _expansion(c)):
+        if tag not in (('StartValue', 'Comment', 'Member', 'Sections') if values else ('Member', 'Sections')) \
+                or (tag == 'Member' and not _bare_member(c, values)) or (tag == 'Sections' and not _expansion(c, values)):
             return False
     return True
 
@@ -99,7 +99,7 @@ def _other_language(el, lang):
     return tag == 'MultiLanguageText' and el.get('Lang') != lang
 
 
-def _plain(el, uids=None, lang=None, network_lang=None, expansions=False):
+def _plain(el, uids=None, lang=None, network_lang=None, expansions='out'):
     """An element without what TIA writes differently per export: the export time and how it was exported, the object
     numbers (ID left out; UId, which tells what a wire connects, numbered by first appearance in its network; a LAD or
     FBD network's not at all, nor the order of its operands and wires, _flgnet), the order of the languages and a
@@ -108,7 +108,8 @@ def _plain(el, uids=None, lang=None, network_lang=None, expansions=False):
     at the value its instruction fixes (_left_out).
     lang: only this language's texts (the others are compared apart, as texts); network_lang: the programming language
     of the network an element is in, taken from its CompileUnit (network_language); expansions: TIA's expansion of a UDT
-    member kept (_member_unread compares what is left of it once what the reader took there is out, unread_differs)."""
+    member 'out' (with the start values and comments set inside, which unread_differs compares), 'out bare' (out only
+    when it holds nothing but members: unread_differs's, on a file without what the reader took) or 'kept'."""
     tag = _local(el.tag)
     if tag == 'FlgNet':
         return _flgnet(el, lang, network_lang)
@@ -120,7 +121,8 @@ def _plain(el, uids=None, lang=None, network_lang=None, expansions=False):
     instr = _part_instr(el) if tag == 'Part' else None
     kids = [_plain(c, uids, lang, network_lang, expansions) for c in el
             if _local(c.tag) != 'DocumentInfo'
-            and not (not expansions and tag == 'Member' and _local(c.tag) == 'Sections' and _expansion(c))
+            and not (expansions != 'kept' and tag == 'Member' and _local(c.tag) == 'Sections'
+                     and _expansion(c, values=expansions == 'out'))
             and not (_local(c.tag) == 'MultilingualTextItem' and _no_text(c)) and not (lang and _other_language(c, lang))
             and not (auto and _local(c.tag) == 'Number') and not (instr and _left_out(instr, c))]
     if tag == 'ObjectList' and all(k[0] == 'MultilingualTextItem' for k in kids):
@@ -280,8 +282,7 @@ def _flgnet(el, lang, network_lang):
 
 
 def _member_sources(owner, path, lang, out, expansions):
-    """{path: a member's part of the file, without its struct members, which have their own}; expansions: TIA's
-    expansion of a UDT member kept (_plain's)."""
+    """{path: a member's part of the file, without its struct members, which have their own}; expansions: _plain's."""
     for m in _kids(owner, 'Member'):
         here = path + part_text(m.get('Name'))
         plain = _plain(m, lang=lang, expansions=expansions)
@@ -378,33 +379,40 @@ def unread_differs(bxml, axml, bblk, ablk, lang=None):
     field (_member_unread), an attribute whose property the report does not show differing. Language items aside: they
     are compared as texts.
     What counts as read is exactly what the reader reads and the report shows, and the note asks the reader for it:
-    the reader's own walk over the file (_interface) names each StartValue and Comment element it took a start value or
-    comment from, and everything else is compared. A start value or comment the reader skips is not read, wherever it
-    stands; no other function says what the reader takes."""
+    the reader's own walk over the file (_interface) names each element whose text it took as a start value or comment,
+    and everything else is compared, those elements' attributes too. A start value or comment the reader skips is not
+    read, wherever it stands; no other function says what the reader takes."""
     lang = lang or s7dcl.LANG
     b, a = _block_of(bxml), _block_of(axml)
     if b is None or a is None:
         return True
 
     def members(blk):
-        """The members' parts of the file, and the same with TIA's expansion kept once the elements the reader took
-        from it are taken out, with an array element left with nothing but its path (TIA writes one only to hold
-        them)."""
+        """The members' parts of the file without the texts the reader took from it, and an element that held nothing
+        but such a text with them (a StartValue, a comment's MultiLanguageText of no other language, a Comment left
+        with nothing): with TIA's expansion of a UDT member left out where nothing but members is left in it, and with
+        it kept and without an array element left with nothing but its path (TIA writes one only to hold them)."""
         al = _kid(blk, 'AttributeList')
         sections = [sec for itf in _kids(al, 'Interface') for secs in _kids(itf, 'Sections')
                     for sec in _kids(secs, 'Section') if sec.get('Name') != 'Return']     # the declaration shows it
         out, unread, taken = {}, {}, []
-        for sec in sections:
-            _member_sources(sec, '', lang, out, expansions=False)
         _interface(blk, lang, taken)
         parent = {c: p for p in blk.iter() for c in p}
+        holders = []
         for _, el in taken:
-            holder = parent[el]
-            holder.remove(el)
-            if _local(holder.tag) == 'Subelement' and not len(holder) and set(holder.attrib) <= {'Path'}:
-                parent[holder].remove(holder)
+            el.text = None
+            while _local(el.tag) in ('StartValue', 'MultiLanguageText', 'Comment') and not len(el) \
+                    and set(el.attrib) <= {'Lang'}:
+                parent[el].remove(el)
+                el = parent[el]
+            holders.append(el)
         for sec in sections:
-            _member_sources(sec, '', lang, unread, expansions=True)
+            _member_sources(sec, '', lang, out, expansions='out bare')
+        for el in holders:
+            if _local(el.tag) == 'Subelement' and not len(el) and set(el.attrib) <= {'Path'} and el in parent[el]:
+                parent[el].remove(el)
+        for sec in sections:
+            _member_sources(sec, '', lang, unread, expansions='kept')
         return out, unread
     (mb, unreadb), (ma, unreada) = members(b), members(a)
     if _local(b.tag) == _local(a.tag) == 'SW.Blocks.InstanceDB':
@@ -1166,11 +1174,14 @@ def _attrs(m, typ, section, safety=False):
 
 
 def _comment(m, lang):
+    """The comment the reader takes of an element: the text in lang, else the first text there is, of its Comment but an
+    informative one; and the MultiLanguageText it is the text of. (None, None) where it takes none."""
     c = _kid(m, 'Comment')
     if c is None or c.get('Informative') == 'true':
-        return None
-    texts = [(t.get('Lang'), t.text or '') for t in _kids(c, 'MultiLanguageText')]
-    return next((t for l, t in texts if l == lang), None) or next((t for _, t in texts if t), None)
+        return None, None
+    texts = [t for t in _kids(c, 'MultiLanguageText') if t.text]
+    t = next((t for t in texts if t.get('Lang') == lang), None) or next(iter(texts), None)
+    return (t.text, t) if t is not None else (None, None)
 
 
 def _set_inside(m, here):
@@ -1199,11 +1210,11 @@ def _instance_members(owner, path):
 
 
 def _take(el, lang):
-    """The start value and comment the reader takes of an element, each None where it takes none, and
-    [(field, element)] of the elements it took them from: its StartValue, and its Comment but an informative one."""
-    value, comment = _text(el, 'StartValue') or None, _comment(el, lang)
-    took = [(f, _kid(el, f)) for f, v in (('StartValue', value), ('Comment', comment)) if v is not None]
-    return value, comment, took
+    """The start value and comment the reader takes of an element, each None where it takes none, and the elements
+    whose text it took: its StartValue, and the MultiLanguageText of its comment (_comment). Their attributes it does
+    not take."""
+    value, (comment, text) = _text(el, 'StartValue') or None, _comment(el, lang)
+    return value, comment, [x for x, v in ((_kid(el, 'StartValue'), value), (text, comment)) if v is not None]
 
 
 def _members(owner, parent, section, lang, itf, db, taken, path='', safety=False):
@@ -1216,12 +1227,12 @@ def _members(owner, parent, section, lang, itf, db, taken, path='', safety=False
             if value is not None:
                 itf.start[here] = (value, None)
             value = None
-        taken.extend(('start' if db and f == 'StartValue' else 'member', x) for f, x in took)
+        taken.extend(('start' if db and _local(x.tag) == 'StartValue' else 'member', x) for x in took)
         for at, el in _set_inside(m, here):               # also in an FB or UDT, as its initializer
             v, c, took = _take(el, lang)
             if v is not None or c is not None:
                 itf.start[at] = (v or '()', c)
-                taken.extend(('start', x) for _, x in took)
+                taken.extend(('start', x) for x in took)
         mem = Member(name, typ, comment, value, section, attrs=_attrs(m, typ, section, safety),
                      retain={'Retain': True, 'SetInIDB': s7dcl.SET_IN_IDB}.get(m.get('Remanence'), False))
         parent.children[mem.name] = mem
@@ -1230,9 +1241,9 @@ def _members(owner, parent, section, lang, itf, db, taken, path='', safety=False
 
 
 def parse_interface(el, lang, db=False, safety=False, taken=None):
-    """The interface of a SimaticML element holding Sections. taken: gets (where, element) of each StartValue and
-    Comment element the reader took a start value or comment from, where being 'start' (itf.start) or 'member' (a
-    Member's value or comment): what the note leaves out as shown (unread_differs)."""
+    """The interface of a SimaticML element holding Sections. taken: gets (where, element) of each element whose text
+    the reader took as a start value or comment (_take), where being 'start' (itf.start) or 'member' (a Member's value
+    or comment): what the note leaves out as shown (unread_differs)."""
     itf = Interface()
     taken = [] if taken is None else taken
     secs = None
@@ -1251,9 +1262,8 @@ def parse_interface(el, lang, db=False, safety=False, taken=None):
 
 
 def _interface(blk, lang, taken):
-    """The interface the report reads of a block element (parse_block). taken: gets each StartValue and Comment
-    element of it the report shows (parse_interface's): of an instance DB or a DB of a UDT only those of its start
-    values."""
+    """The interface the report reads of a block element (parse_block). taken: parse_interface's, of the texts the
+    report shows: of an instance DB or a DB of a UDT only those of its start values."""
     al = _kid(blk, 'AttributeList')
     if _local(blk.tag) == 'SW.Blocks.InstanceDB':
         got = []

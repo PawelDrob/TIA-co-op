@@ -5475,6 +5475,12 @@ def _two_format_file(rel):
         return f.read()
 
 
+def _notes_file(name):
+    """A file of fixtures/notes: real exports, and files made by hand that say so in their head."""
+    with open(os.path.join(os.path.dirname(TWO_FORMATS), 'notes', name), encoding='utf-8-sig') as f:
+        return f.read()
+
+
 class InstanceDbStartValuesFromSimaticML(unittest.TestCase):
     """An instance DB's SimaticML holds the members TIA writes from its FB and the start values set in the DB; its
     .s7dcl only those start values. The real exports of zzE2eFbI_DB (repo zz-226-repo at 5b253ff, inV set to 5 in the
@@ -5607,6 +5613,16 @@ class NoteBesideAReadField(unittest.TestCase):
                 self.assertFalse(self.note(self.text(kind, start=None), self.text(kind)))
                 self.assertFalse(self.note(self.text(kind), self.text(kind, start=None)))
 
+    def test_tias_expansion_changed_beside_a_start_value_the_reader_reads(self):
+        """The real exports of the global DB zzE2eDb at the bed's commit c8fbe58 (row U003) and the one before it
+        (fixtures/notes): the UDT's m2 retyped from Bool to DInt, which TIA writes into the expansion of the DB's UDT
+        member dev1, where m1 has a start value the reader reads. The UDT shows the change; the DB reads as unchanged
+        with no note, as from its .s7dcl, which did not change."""
+        before, after = (_notes_file(f) for f in ('zzE2eDb-c8fbe58-before.xml', 'zzE2eDb-c8fbe58.xml'))
+        d = compare_blocks(BlockSource('zzE2eDb', '', None, 'zzE2eDb', xml=before),
+                           BlockSource('zzE2eDb', '', None, 'zzE2eDb', xml=after))
+        self.assertEqual(('same', False), (d.state, d.not_shown))
+
     # The element 1 of x, a member inside an array of struct, and inside an array of a UDT.
     IN_ARRAY = {'array of struct': '<Member Name="as" Datatype="Array[0..1] of Struct"><Member Name="x" Datatype="Int">'
                                    '<Subelement Path="1"><StartValue>%s</StartValue></Subelement></Member></Member>',
@@ -5643,16 +5659,19 @@ class NoteBesideAReadField(unittest.TestCase):
 class EveryStartValueAndComment(unittest.TestCase):
     """Every start value and every comment in the DB exports the tests hold, changed alone, as an instance DB and as a
     global DB: what the reader reads the report shows, with no note; what it does not read gives the note and no row.
-    Each falls in exactly one of the two. The real exports of zzE2eFbI_DB (twoformats/1-before and 3-D009) and two
-    files made by hand from the first (fixtures/notes, each says so in its head), for what no real export holds: start
-    values and comments in an array element, a struct of the block, a struct, an array of struct and an array of a UDT
-    inside a UDT member, an informative comment, and a UDT member's expansion bare but for a member inside an array of
-    struct."""
+    Each falls in exactly one of the two. And what the reader reads does not change the note on anything else: a
+    member of TIA's expansion of a UDT member retyped, as TIA writes it when the UDT changes, gives the same note with
+    and without the start values and comments the reader reads (the bed's commit c8fbe58, zzE2eDb).
+    The real exports of zzE2eFbI_DB (twoformats/1-before and 3-D009) and of zzE2eDb (fixtures/notes, before c8fbe58),
+    and two files made by hand from the first (fixtures/notes, each says so in its head), for what no real export
+    holds: start values and comments in an array element, a struct of the block, a struct, an array of struct and an
+    array of a UDT inside a UDT member, an informative comment, and a UDT member's expansion bare but for a member
+    inside an array of struct."""
 
     FILES = [os.path.join(TWO_FORMATS, v, 'simaticml', 'plc', 'blocks', 'zzE2e', 'zzE2eFbI_DB.xml')
              for v in ('1-before', '3-D009')] + \
             [os.path.join(os.path.dirname(TWO_FORMATS), 'notes', f)
-             for f in ('zzE2eFbI_DB-hand-made.xml', 'zzE2eFbI_DB-hand-made-bare.xml')]
+             for f in ('zzE2eDb-c8fbe58-before.xml', 'zzE2eFbI_DB-hand-made.xml', 'zzE2eFbI_DB-hand-made-bare.xml')]
 
     @staticmethod
     def changed(text, i):
@@ -5676,6 +5695,48 @@ class EveryStartValueAndComment(unittest.TestCase):
         where = '.'.join(reversed(names)).replace('.[', '[')
         return ET.tostring(root, encoding='unicode'), '%s %s' % (where, el.tag.rsplit('}', 1)[-1])
 
+    @staticmethod
+    def report(before, after):
+        """(rows that are not the same, the note) of the DB between two texts of its file."""
+        d = compare_blocks(BlockSource('DB', '', None, 'DB', xml=before), BlockSource('DB', '', None, 'DB', xml=after))
+        return [r for r in iface.block_rows(d.before, d.after) if r.state != 'same'] if d else [], bool(d and d.not_shown)
+
+    @staticmethod
+    def without(text, places):
+        """The file without the elements at places (indices in document order), nor an array element left empty."""
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(text)
+        els = list(root.iter())
+        parent = {c: q for q in els for c in q}
+        for i in places:
+            parent[els[i]].remove(els[i])
+            up = parent[els[i]]
+            if up.tag.endswith('Subelement') and not len(up) and up in parent[up]:
+                parent[up].remove(up)
+        return ET.tostring(root, encoding='unicode')
+
+    @staticmethod
+    def retyped(text, paths=None):
+        """{path: the file with that member of TIA's expansion of a UDT member retyped, Int to DInt and any other type
+        to Int}: of each member there with nothing under it, or of those at paths."""
+        import xml.etree.ElementTree as ET
+        out = {}
+        for i, el in enumerate(ET.fromstring(text).iter()):
+            root = ET.fromstring(text)
+            parent = {c: q for q in root.iter() for c in q}
+            x, names = list(root.iter())[i], []
+            if not x.tag.endswith('Member') or not parent[parent[x]].tag.endswith('Sections')                     or not parent[parent[parent[x]]].tag.endswith('Member'):
+                continue
+            y = x
+            while y is not None:
+                names += [y.get('Name')] if y.tag.endswith('Member') else []
+                y = parent.get(y)
+            path = '.'.join(reversed(names))
+            if (len(x) == 0) if paths is None else path in paths:
+                x.set('Datatype', 'DInt' if x.get('Datatype') == 'Int' else 'Int')
+                out[path] = ET.tostring(root, encoding='unicode')
+        return out
+
     def test_each_read_and_shown_or_not_read_and_the_note(self):
         import xml.etree.ElementTree as ET
         seen = Counter()
@@ -5686,16 +5747,25 @@ class EveryStartValueAndComment(unittest.TestCase):
                 base = ET.tostring(ET.fromstring(real.replace('SW.Blocks.InstanceDB', kind)), encoding='unicode')
                 places = [i for i, el in enumerate(ET.fromstring(base).iter())
                           if el.tag.rsplit('}', 1)[-1] in ('StartValue', 'Comment')]
+                read = []
                 for i in places:
                     after, where = self.changed(base, i)
                     with self.subTest(file=os.path.relpath(f, os.path.dirname(TWO_FORMATS)), kind=kind, where=where):
-                        d = compare_blocks(BlockSource('zzE2eFbI_DB', '', None, 'zzE2eFbI_DB', xml=base),
-                                           BlockSource('zzE2eFbI_DB', '', None, 'zzE2eFbI_DB', xml=after))
-                        rows = [r for r in iface.block_rows(d.before, d.after) if r.state != 'same'] if d else []
-                        note = bool(d and d.not_shown)
+                        rows, note = self.report(base, after)
                         self.assertNotEqual(bool(rows), note, 'shown with the note, or neither')
                         seen[bool(rows)] += 1
-        self.assertTrue(seen[True] and seen[False], 'both kinds of place are in the files: %s' % dict(seen))
+                        if rows:
+                            read.append(i)
+                plain = self.without(base, sorted(read, reverse=True))
+                retyped = self.retyped(base)
+                plain_retyped = self.retyped(plain, retyped)
+                for path, after in retyped.items():
+                    with self.subTest(file=os.path.relpath(f, os.path.dirname(TWO_FORMATS)), kind=kind, retyped=path):
+                        self.assertEqual(self.report(plain, plain_retyped[path])[1], self.report(base, after)[1],
+                                         'the note with the start values and comments the reader reads as without')
+                        seen['retyped'] += 1
+        self.assertTrue(seen[True] and seen[False] and seen['retyped'], 'all kinds of place are in the files: %s'
+                        % dict(seen))
 
 
 # ---------------------------------------------------------------- a moved network is one pair, tagged
