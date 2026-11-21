@@ -3,7 +3,7 @@ type: Guide
 title: SIMATIC SD (.s7dcl) authoring guide
 description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source; the core every PLC change reads, and which part holds LAD networks, comments, data, instructions and import diagnostics.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:57:49-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T18:22:43-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -196,7 +196,7 @@ Where the rule of each item is, so a run reads only the parts its items need (th
 | 13 to 15 | 8.14b, 8.14c | `s7dcl-resources.md` |
 | 17, 18 | 10 | `s7dcl-import.md` |
 | 19 | 3, 4, 6; a non-optimized DB 8.14b | this file; a non-optimized DB `s7dcl-data.md` |
-| 21 | 8.13a | this file; `s7dcl-instructions.md` |
+| 21 | 8.13a, Extended instructions | this file, the item; its section `s7dcl-instructions.md` |
 
 1. Every network has exactly one `{ S7_Language := "..." }` pragma directly before `NETWORK`, value one of STL/LAD/FBD/SCL.
 2. Every LAD rung starts with a wire operand (`RUNG wire#powerrail` or another wire) and, if compileable code is required, ends with a coil, box, jump, or return — never with a contact.
