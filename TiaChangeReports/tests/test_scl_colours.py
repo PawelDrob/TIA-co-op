@@ -24,6 +24,7 @@ from TiaChangeReports.viewer import view
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures')
 COLOURS = os.path.join(FIXTURES, 'scl-colours')
+NEWLINE = chr(10)
 COLOUR_SPAN = re.compile(r'<span class="s[a-z]">([^<]*)</span>')
 
 
@@ -379,13 +380,15 @@ class LocalConstants(unittest.TestCase):
 
 
 class TheRulesAsAGrid(unittest.TestCase):
-    """Each rule that goes by position (scl_colours' doc, pass 2), with nothing, a space, a comment, a string or a quoted
-    name in the gap it reads across: across nothing or spaces the rule holds, across any other token it does not, and
-    what the comment, string or quoted name holds (a call of its own) is never read. Each construct also twice on one
-    line, both alike."""
-    GAPS = {'nothing': '', 'space': ' ', 'comment': ' (* #b( *) ', 'string': " '#b(' ", 'quoted name': ' "#b(" '}
+    """Each rule that goes by position (scl_colours' doc, pass 2), with each kind of gap in the place it reads across:
+    nothing, a space, a comment, two comments and a line end, which SCL reads as a space, keep the rule; a string or a
+    quoted name, tokens of the statement, break it. What a comment, string or quoted name holds (a call of its own) is
+    never read. Each construct also twice on one line, both alike."""
+    HOLD = {'nothing': '', 'space': ' ', 'comment': ' (* #b( *) ', 'two comments': ' (* #b( *) (/* x( */) ',
+            'line end': NEWLINE}
+    BREAK = {'string': " '#b(' ", 'quoted name': ' "#b(" '}
     # rule: (line with {g} in the gap the rule reads across, the word it colours, its kind when the rule holds,
-    # its kind when another token stands in the gap, the line can hold the construct twice)
+    # its kind when a string or quoted name stands in the gap, the line can hold the construct twice)
     RULES = {
         'a call of an instruction': ('#x := MAX{g}(1, 2);', 'MAX', 'instruction', None, True),
         'a call of an instance': ('#i{g}(IN := 1);', '#i', 'block call', 'operand', True),
@@ -402,30 +405,33 @@ class TheRulesAsAGrid(unittest.TestCase):
         "a region's name": ('{g}REGION Calls', 'Calls', 'constant', None, False),
     }
 
-    def kinds_of(self, line, word):
+    def kinds_of(self, text, word):
+        """[the kinds of word], all the tokens: text's lines as one network."""
         itf = Interface()
         itf.root.children['LAST'] = Member('LAST', 'Int', value='9', section='CONSTANT')
-        toks = scl_colours.lines([line], itf)[0]
-        self.assertEqual(''.join(t for _, t in toks), line)
+        texts = text.split(NEWLINE)
+        got = scl_colours.lines(texts, itf)
+        for line, toks in zip(texts, got):
+            self.assertEqual(''.join(t for _, t in toks), line)
+        toks = [x for line in got for x in line]
         return [k for k, t in toks if t == word], toks
 
     def test_each_rule_across_each_gap(self):
         for rule, (line, word, holds, broken, twice) in self.RULES.items():
-            for gap, fill in self.GAPS.items():
+            for gap, fill in list(self.HOLD.items()) + list(self.BREAK.items()):
                 text = line.format(g=fill)
-                expected = holds if gap in ('nothing', 'space') else broken
+                expected = holds if gap in self.HOLD else broken
                 with self.subTest(rule=rule, gap=gap):
-                    if rule == "a region's name" and gap in ('nothing', 'space'):
-                        got, toks = self.kinds_of(text, 'Calls')
-                        self.assertEqual(toks[-1], ('constant', 'Calls'))
+                    if rule == "a region's name" and gap in self.HOLD:
+                        self.assertEqual(self.kinds_of(text, 'Calls')[1][-1], ('constant', 'Calls'))
                         continue
                     got, toks = self.kinds_of(text, word)
                     self.assertEqual(got, [expected])
-                    if gap == 'comment':
+                    if 'comment' in gap:
                         self.assertIn(('comment', '(* #b( *)'), toks)
                     elif gap == 'string':
                         self.assertIn(('constant', "'#b('"), toks)
-                if twice and gap in ('nothing', 'space', 'comment'):
+                if twice and gap in self.HOLD:
                     with self.subTest(rule=rule, gap=gap, twice=True):
                         self.assertEqual(self.kinds_of(text + ' ' + text, word)[0], [expected, expected])
 
@@ -444,6 +450,33 @@ class TheRulesAsAGrid(unittest.TestCase):
         self.assertEqual(self.kinds_of('#x := #s.a (* note *);', 'a')[0], ['operand'])
         self.assertEqual(self.kinds_of('#x := #a (* note *);', '#a')[0], ['operand'])
         self.assertEqual(self.kinds_of('#x := MAX (/* note */);', 'MAX')[0], [None])
+
+
+class TheLiteralsAsATable(unittest.TestCase):
+    """Every literal form of the S7DCL guide (docs/agent/s7dcl-format.md, section 5) and of zzBenSclColours, and the
+    IEC forms beside them: untyped and typed numbers of each base, sign and exponent form, times, dates and times of
+    day, strings of both kinds and typed: each one token in the constants' colour."""
+    FORMS = {
+        'untyped number': '42 3.0 3.14 1.5E-3 1.0E+10 1.0e10 2.5E3 1_000 16#100 16#00FF 2#1010_0101 8#17',
+        'Bool': 'TRUE FALSE BOOL#TRUE BOOL#1',
+        'typed integer': 'Int#256 DINT#-7 DINT#+7 W#16#100 WORD#16#0F0F DWORD#16#FFFF_FFFF BYTE#2#1010 UINT#8#17',
+        'typed real': 'REAL#1.5E-3 LREAL#1.0E+10 REAL#-1.5E+3 LREAL#-1.0e-10 REAL#2.0 LREAL#1e5 REAL#3',
+        'time': 'T#500MS t#5s T#10s T#1s_200ms T#-1d2h3m4s5ms T#1.5s LT#1ns LTIME#5us TIME#1h S5T#10s '
+                'S5TIME#2h_46m_30s C#100',
+        'date and time of day': 'D#2026-11-20 DATE#2026-11-20 TOD#12:30:00 TOD#12:30:00.500 TIME_OF_DAY#12:30:00 '
+                                'LTOD#12:30:00.123456789 DT#2026-11-20-12:30:00 '
+                                'DATE_AND_TIME#2026-11-20-12:30:00.000 LDT#2026-11-20-12:30:00.123 '
+                                'DTL#2026-11-20-12:30:00.250',
+    }
+    STRINGS = ["'A'", "''", "'a $'quote$' inside'", "'$N'", "'$$'", "'a string with // and (* inside'",
+               "WSTRING#'wide'", "STRING#'x'", "CHAR#'A'", "WCHAR#'A'"]
+
+    def test_each_form_is_one_constant(self):
+        forms = [(kind, lit) for kind, text in self.FORMS.items() for lit in text.split()]
+        for kind, lit in forms + [('string', s) for s in self.STRINGS]:
+            with self.subTest(kind=kind, literal=lit):
+                toks = kinds(scl_colours.lines(['#x := %s;' % lit])[0])
+                self.assertEqual(toks, [('operand', '#x'), ('operator', ':='), ('constant', lit), ('semicolon', ';')])
 
 
 class NamesOfAnyLetters(unittest.TestCase):
