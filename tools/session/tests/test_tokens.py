@@ -1,10 +1,11 @@
-"""What a session cost, from transcripts made up for these tests in the shape Claude Code writes: a real one holds paths and an
+"""How many tokens a session used, from transcripts made up for these tests in the shape Claude Code writes: a real one holds paths and an
 account, and none comes into the repo."""
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -70,40 +71,35 @@ class CountTests(Folder):
         self.assertEqual(data['tokens'], {'input': 3, 'write_5m': 0, 'write_1h': 1000, 'write_unknown': 0, 'read': 9000, 'output': 200,
                                           'thinking': 50})
 
-    def test_the_cost_is_at_list_prices_with_each_cache_lifetime_at_its_own(self):
-        self.transcript('one', [answer('r1', usage(fresh=1_000_000, write_5m=1_000_000, write_1h=1_000_000, read=1_000_000,
-                                                   out=1_000_000))])
-        money = self.measured()['dollars']
-        self.assertEqual(money['by_meter'], {'input': 4.0, 'write_5m': 5.0, 'write_1h': 8.0, 'write_unknown': 0.0, 'read': 0.2,
-                                             'output': 20.0})
-        self.assertAlmostEqual(money['total'], 37.2)
-        self.assertTrue(money['complete'])
-
-    def test_an_unknown_model_gets_tokens_and_no_dollars(self):
-        self.transcript('one', [answer('r1', usage(write_1h=5000, out=100), model='claude-new-9'),
-                                answer('r2', usage(read=5000, write_1h=10, out=100), model=OPUS)])
+    def test_the_four_meters_and_their_sum_first_with_the_numbers_of_the_ticket(self):
+        """The counts ticket 405 measured, on one made-up request: 230 + 269,072 + 22,238,640 + 60,174."""
+        self.transcript('one', [answer('r1', usage(fresh=230, write_1h=269_072, read=22_238_640, out=60_174, thinking=20_966))])
         data = self.measured()
-        self.assertEqual(data['tokens']['output'], 200)
-        self.assertEqual(data['dollars']['unpriced_requests'], {'claude-new-9': 1})
-        self.assertFalse(data['dollars']['complete'])
-        self.assertAlmostEqual(data['dollars']['total'], (5000 * 0.2 + 10 * 8 + 100 * 20) / 1e6, places=4)
+        self.assertEqual(data['tokens_in_all'], 22_568_116)
+        self.assertNotIn('dollars', data)
         text = short_text('wk03', data)
-        self.assertIn('1 requests of claude-new-9, whose price is not known', text)
-
-    def test_a_session_of_unknown_models_only_says_so_and_names_no_cost(self):
-        self.transcript('one', [answer('r1', usage(write_1h=5000, out=100), model='claude-new-9')])
-        text = short_text('wk03', self.measured())
-        self.assertIn('cost: no list price known for claude-new-9', text)
+        self.assertEqual(text.splitlines()[:6], [
+            'wk03: 22,568,116 tokens in all, 1 requests in 1 transcript, claude-opus-5-5',
+            '  uncached input                             230',
+            '  cache writes, 5 min                          0',
+            '  cache writes, 1 h                      269,072',
+            '  cache reads                         22,238,640',
+            '  output                                  60,174  thinking 20,966'])
         self.assertNotIn('$', text)
-        self.assertIn('output', text)
 
-    def test_a_cache_write_of_no_recorded_lifetime_is_counted_and_left_out_of_the_dollars(self):
+    def test_a_transcript_with_no_request_says_so(self):
+        self.transcript('one', [{'type': 'permission-mode', 'permissionMode': 'auto'}, hook_ran(self.hook_folder)])
+        data = self.measured()
+        self.assertEqual(short_text('wk03', data), 'wk03: no request to the model in 1 transcript, so no tokens')
+        self.assertEqual(full_text('wk03', data), 'wk03: no request to the model in 1 transcript, so no tokens')
+
+    def test_a_cache_write_of_no_recorded_lifetime_is_counted_on_its_own(self):
         used = {'input_tokens': 1, 'cache_creation_input_tokens': 700, 'cache_read_input_tokens': 0, 'output_tokens': 10}
         self.transcript('one', [answer('r1', used)])
         data = self.measured()
         self.assertEqual(data['tokens']['write_unknown'], 700)
-        self.assertFalse(data['dollars']['complete'])
-        self.assertIn('700 cache write tokens of no recorded lifetime', short_text('wk03', data))
+        self.assertEqual(data['tokens_in_all'], 711)
+        self.assertIn('cache writes, lifetime not recorded', short_text('wk03', data))
 
     def test_what_it_cannot_read_is_skipped_and_said(self):
         self.transcript('one', ['{"type": "assistant", "requestId": "r0", "mess', answer('r1', usage(read=10, out=1)),
@@ -119,7 +115,7 @@ class CountTests(Folder):
                                 answer('r3', usage(read=1500, write_1h=1500))])
         self.assertEqual(self.measured()['prompt'], {'first': 1000, 'last': 3000, 'mean': 1833})
 
-    def test_a_subagent_counts_in_the_cost_and_not_in_the_prompt(self):
+    def test_a_subagent_counts_in_the_tokens_and_not_in_the_prompt(self):
         self.transcript('one', [answer('r1', usage(write_1h=1000, out=10))])
         write_transcript(self.projects / folder_name(self.worktree) / 'one' / 'subagents' / 'agent-a1.jsonl',
                          [answer('s1', usage(write_1h=50000, out=1000))])
@@ -127,7 +123,8 @@ class CountTests(Folder):
         self.assertEqual((data['requests'], data['sessions']), (2, 1))
         self.assertEqual(data['subagents']['requests'], 1)
         self.assertEqual(data['prompt'], {'first': 1000, 'last': 1000, 'mean': 1000})
-        self.assertIn('of it 1 subagents: 1 requests, $0.42', short_text('wk03', data))
+        self.assertEqual(data['tokens_in_all'], 52_010)
+        self.assertIn('of it 1 subagents: 51,000 tokens, 1 requests', short_text('wk03', data))
 
 
 class FindTests(Folder):
@@ -252,8 +249,8 @@ class CommandTests(Case):
         self.started()
         self.give_transcript('wk03', 'id-1', 'r1')
         text = self.sessions.tokens('wk03')
-        self.assertIn('wk03: 1 requests in 1 transcript, claude-opus-5-5', text)
-        self.assertIn('cost $8.00', text)
+        self.assertIn('wk03: 1,000,100 tokens in all, 1 requests in 1 transcript, claude-opus-5-5', text)
+        self.assertNotIn('$', text)
         self.assertEqual(json.loads(self.sessions.tokens('wk03', as_json=True))['requests'], 1)
 
     def test_tokens_of_a_session_with_no_transcript_says_where_it_looked(self):
@@ -265,17 +262,26 @@ class CommandTests(Case):
         self.started()
         self.give_transcript('wk03', 'id-1', 'r1')
         said = self.sessions.close('wk03', session_only=True)
-        self.assertIn('wk03: 1 requests in 1 transcript', said)
+        self.assertIn('wk03: 1,000,100 tokens in all, 1 requests in 1 transcript', said)
         folder = self.sessions.store.folder('wk03')
-        self.assertIn('cost $8.00', (folder / 'tokens.txt').read_text(encoding='utf-8'))
-        self.assertEqual(json.loads((folder / 'tokens.json').read_text(encoding='utf-8'))['requests'], 1)
+        self.assertIn('1,000,100 tokens in all', (folder / 'tokens.txt').read_text(encoding='utf-8'))
+        self.assertEqual(json.loads((folder / 'tokens.json').read_text(encoding='utf-8'))['tokens_in_all'], 1_000_100)
 
     def test_what_close_kept_is_shown_once_the_transcript_is_gone(self):
         self.started()
         self.give_transcript('wk03', 'id-1', 'r1')
         self.sessions.close('wk03', session_only=True)
         (self.projects / folder_name(self.tree) / 'id-1.jsonl').unlink()
-        self.assertIn('no transcript of it found now. What its close kept:\nwk03: 1 requests', self.sessions.tokens('wk03'))
+        self.assertIn('no transcript of it found now. What its close kept:\nwk03: 1,000,100 tokens in all', self.sessions.tokens('wk03'))
+
+    def test_a_close_whose_transcript_cannot_be_measured_still_closes_and_says_why(self):
+        self.started()
+        self.give_transcript('wk03', 'id-1', 'r1')
+        with mock.patch('session.measure', side_effect=KeyError('usage')):
+            said = self.sessions.close('wk03', session_only=True)
+        self.assertIn("wk03: its tokens could not be read: KeyError('usage')", said)
+        self.assertTrue(self.sessions.store.load('wk03').get('closed'))
+        self.assertEqual(self.terminal.ended, ['wk03'])
 
     def test_a_close_with_no_transcript_says_so_and_still_closes(self):
         self.started()
@@ -293,10 +299,10 @@ class MergeTokensTests(MergeCase):
             write_transcript(self.projects / folder_name(self.tree) / f'{session_id}.jsonl', [answer(request, usage(write_1h=500_000))])
         said = self.sessions.merge('wk03')
         lines = said.splitlines()
-        self.assertEqual(lines.count('wk03: 1 requests in 1 transcript, claude-opus-5-5'), 1)
-        self.assertEqual(lines.count('auditwk03: 1 requests in 1 transcript, claude-opus-5-5'), 1)
+        self.assertEqual(lines.count('wk03: 500,000 tokens in all, 1 requests in 1 transcript, claude-opus-5-5'), 1)
+        self.assertEqual(lines.count('auditwk03: 500,000 tokens in all, 1 requests in 1 transcript, claude-opus-5-5'), 1)
         for name in ('wk03', 'auditwk03'):
-            self.assertIn('cost $4.00', (self.sessions.store.folder(name) / 'tokens.txt').read_text(encoding='utf-8'))
+            self.assertIn('500,000 tokens in all', (self.sessions.store.folder(name) / 'tokens.txt').read_text(encoding='utf-8'))
 
 
 if __name__ == '__main__':

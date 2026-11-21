@@ -546,7 +546,7 @@ class Sessions:
         return f'branch {branch} removed' if not code else f'branch {branch} kept: {(err or out).strip()}'
 
     def close(self, name, session_only=False, remove_tree=False, tokens=True):
-        """tokens: also show and keep what the session and its audit cost; merge does that once, for both."""
+        """tokens: also show and keep how many tokens the session and its audit used; merge does that once, for both."""
         record = self.store.load(name)
         stays = 'tree and branch kept, as asked' if session_only else self.plan_tree(record, remove_tree)
         session_stands_there = not record.get('closed') and self.terminal(record).holds_tree(record)
@@ -564,7 +564,7 @@ class Sessions:
     # --- tokens
 
     def measure_tokens(self, name):
-        """What the session cost, from every transcript of it: by the ids its record and hook hold, and in its worktree's folder."""
+        """The tokens the session used, from every transcript of it: by the ids its record and hook hold, and in its worktree's folder."""
         record = self.store.load(name)
         ids = list(dict.fromkeys([*self.store.session_ids(name), *([record['session_id']] if record.get('session_id') else [])]))
         found = find_transcripts(self.projects, record['worktree'], self.store.folder(name), ids)
@@ -839,7 +839,7 @@ def parser():
     listed = commands.add_parser('list', help='the open sessions')
     listed.add_argument('--resume', action='store_true', help='under each, the command that brings it back with its guards after a restart')
 
-    closing = commands.add_parser('close', help='end a session and keep what it cost; after the merge also remove its tree and branch')
+    closing = commands.add_parser('close', help='end a session and keep its token counts; after the merge also remove its tree and branch')
     closing.add_argument('name')
     closing.add_argument('--session-only', action='store_true', help='end the session, keep tree and branch')
     closing.add_argument('--remove-tree', action='store_true', help='also a tree and branch `start` did not make; never one with uncommitted changes')
@@ -848,7 +848,7 @@ def parser():
     merging.add_argument('name', help='the ticket session; its audit session is closed with it')
     merging.add_argument('--keep-tree', action='store_true', help='end the sessions, keep tree and branch: for a ticket that owes a real run')
 
-    counting = commands.add_parser('tokens', help='what a session cost, from its transcripts; close and merge keep the short form')
+    counting = commands.add_parser('tokens', help='how many tokens a session used, counted from its transcripts; close and merge keep the short form')
     counting.add_argument('name')
     counting.add_argument('--json', action='store_true', help='the same as data, with every kind and every tool')
 
