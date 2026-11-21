@@ -197,9 +197,9 @@ class TheKindsAsReadFromTia(unittest.TestCase):
         self.assertEqual(self.line('(/*A multilingual comment in code*/)'),
                          [('comment', '(/*A multilingual comment in code*/)')])
 
-    def test_eno_is_an_operand_and_a_parameter_only_inside_a_call(self):
-        """TIA colours ENO := FALSE; as an operand; a name before := is a parameter inside a call's parentheses only,
-        also on the call's next lines."""
+    def test_eno_is_an_operand_and_a_parameter_only_with_a_parenthesis_open(self):
+        """TIA colours ENO := FALSE; as an operand; a name before := is a parameter only with a parenthesis open, also
+        on the lines after the one that opened it."""
         self.assertEqual(self.line('ENO := FALSE;'), [('operand', 'ENO'), ('operator', ':='), ('constant', 'FALSE'),
                                                        ('semicolon', ';')])
         self.assertEqual(self.line('PT := T#5s,')[0], ('parameter', 'PT'))
@@ -454,34 +454,43 @@ class TheRulesAsAGrid(unittest.TestCase):
         self.assertEqual(self.kinds_of('#x := MAX (/* note */);', 'MAX')[0], [None])
 
 
-def addresses():
-    """Every absolute address form, from the tokenizer's own lists (scl_colours.ADDRESS_AREAS, PERIPHERAL_AREAS,
-    ADDRESS_SIZES): each area as a bit (with and without X) and in each size, each of a peripheral area also with :P;
-    a DB's data in each size; a timer and a counter; a slice of each size."""
+def locations():
+    """Where an address or an ANY pointer points, from the tokenizer's lists: each area of the list ADDRESS_AREAS as a
+    bit (with and without the first size of the list ADDRESS_SIZES, X) and in each other size of that list; a DB's
+    data as a bit and in each other size."""
+    bit, wide = sc.ADDRESS_SIZES[0], sc.ADDRESS_SIZES[1:]
     out = []
     for a in sc.ADDRESS_AREAS:
-        for form in ['%s1.0' % a, '%sX1.0' % a] + ['%s%s2' % (a, s) for s in sc.ADDRESS_SIZES if s != 'X']:
-            out += ['%' + form] + ['%' + form + ':P'] * (a in sc.PERIPHERAL_AREAS)
-    out += ['%DB1.DBX0.0', '%DB10.DBX2.7'] + ['%%DB10.DB%s2' % s for s in sc.ADDRESS_SIZES if s != 'X']
-    out += ['%T1', '%C2'] + ['%%%s3' % s for s in sc.ADDRESS_SIZES]
+        out += ['%s1.0' % a, '%s%s1.0' % (a, bit)] + ['%s%s2' % (a, s) for s in wide]
+    return out + ['DB1.DB%s0.0' % bit] + ['DB10.DB%s2' % s for s in wide]
+
+
+def addresses():
+    """Every absolute address form of the tokenizer's lists: each of locations() with %, those of an area of the list
+    PERIPHERAL_AREAS also with :P, each area of the list NUMBERED_AREAS with a number, a slice of each size of the list
+    ADDRESS_SIZES."""
+    out = ['%' + loc for loc in locations()]
+    out += ['%' + loc + ':P' for loc in locations() if loc[0] in sc.PERIPHERAL_AREAS]
+    out += ['%%%s3' % a for a in sc.NUMBERED_AREAS] + ['%%%s3' % s for s in sc.ADDRESS_SIZES]
     return out
 
 
 def pointers():
-    """Every ANY pointer form: an address of each area and of a DB's data, alone and with each data type of the
-    tokenizer's own list (scl_colours.DATA_TYPES) and a count."""
-    areas = ['P#M10.0', 'P#I1.0', 'P#QW2', 'P#MB4', 'P#DB1.DBX0.0', 'P#DB1.DBB2']
-    return (areas + ['P#DB1.DBX0.0 %s 10' % t for t in sc.DATA_TYPES]
-            + ['P#M10.0 %s 1' % t.lower() for t in sc.DATA_TYPES])
+    """Every ANY pointer form: P# and each of locations(), alone and with the type word BYTE and a count; and with each
+    data type of the list DATA_TYPES, in capitals and in small letters."""
+    out = []
+    for loc in locations():
+        out += ['P#' + loc, 'P#%s BYTE 1' % loc]
+    return out + ['P#DB1.DBX0.0 %s 10' % t for t in sc.DATA_TYPES] + ['P#M10.0 %s 1' % t.lower() for t in sc.DATA_TYPES]
 
 
 class TheLiteralsAsATable(unittest.TestCase):
     """The literal forms of the S7DCL guide, section 5 "Literals and constants" (docs/agent/s7dcl-format.md: T#,
-    reals, integers, Int#, 16#, W#16#, C#, TRUE and FALSE), each in every base, sign and exponent form SCL writes it,
-    and the forms SCL has and the guide lacks: the other bases (2#, 8#), exponents, the typed numbers of the other
-    data types, dates, times of day, dates and times (DT, LDT, DTL), LTIME, S5TIME, strings of both kinds with their $
-    escapes and typed, and the ANY pointers (pointers()). Each one token in the constants' colour, alone and before
-    +1 and -1."""
+    reals, integers, Int#, 16#, W#16#, C#, TRUE and FALSE), in the base, sign and exponent forms FORMS writes, and
+    the forms SCL has and the guide lacks: the other bases (2#, 8#), exponents, the typed numbers of the other data
+    types, dates, times of day, dates and times (DT, LDT, DTL), LTIME, S5TIME, strings of both kinds with their $
+    escapes and typed (STRINGS), and the ANY pointers (pointers()). Each one token in the constants' colour, alone and
+    before +1 and -1; each address of addresses() one operand."""
     FORMS = {
         'untyped number': '42 3.0 3.14 1.5E-3 1.0E+10 1.0e10 1e10 2.5E3 1_000 16#100 16#00FF 16#ff 2#1010_0101 8#17',
         'Bool': 'TRUE FALSE BOOL#TRUE BOOL#1',
@@ -516,6 +525,11 @@ class TheLiteralsAsATable(unittest.TestCase):
         for address in addresses():
             with self.subTest(address=address):
                 self.assertEqual(kinds(scl_colours.lines(['#x := %s;' % address])[0])[2], ('operand', address))
+
+    def test_the_older_peripheral_form_is_outside_the_lists(self):
+        """%PIW256, the peripheral form of the S7-300 and S7-400, is in no list (scl_colours' comment over the address
+        lists): no address, so a "%" and a name, both black."""
+        self.assertEqual(kinds(scl_colours.lines(['#x := %PIW256;'])[0])[2:4], [(None, '%'), (None, 'PIW256')])
 
     def test_without_the_percent_sign_an_address_is_a_name(self):
         """SCL in TIA V20 writes an absolute address with %; M10.0 is a name and a member."""
@@ -561,8 +575,8 @@ class WhereATokenEnds(unittest.TestCase):
 
 class WhichLineRuleGoesFirst(unittest.TestCase):
     """The rules about a whole line (scl_colours' doc, pass 1, its table): the pairs of them listed in test_each_pair
-    on one line, and each of LINE_RULES on the line after a comment left open, a string left open and a line comment,
-    which crosses two lines."""
+    on one line, and over two lines each of LINE_RULES on the line after a comment left open, after a string left open
+    and after a line comment."""
     LINE_RULES = ['REGION x', 'REGION // c', '// c', '(* c *) #a := 1;', '(/* c */) #a := 1;', "#s := 'a // b';",
                   '{ p := "1" } #a := 1;', '{ p := "}" } REGION x', '#a := 1;']
 
@@ -617,8 +631,8 @@ class WhichLineRuleGoesFirst(unittest.TestCase):
 class HalfWrittenNetworks(unittest.TestCase):
     """Something left open (a parenthesis, a comment, a string, a REGION, a type test): what stands after it is
     coloured as if the open one were not there, as far as the grammar allows. A call's or type test's parentheses end
-    at each stopper of the tokenizer's own list (scl_colours.STOPPERS: a ";", every statement keyword, REGION and
-    END_REGION); AND, OR, XOR, NOT and MOD stand inside parentheses and end nothing."""
+    at a ";" and at each word of the tokenizer's list scl_colours.STOPPERS; the words of its lists LOGIC_KEYWORDS and
+    WORD_OPERATORS stand inside parentheses and end nothing."""
     AFTER = ['x := 2;', 'IN2 := 3;', '#a := MAX(1, 2);', 'lbl: #b := 1;', '#c := #d = Int;']
 
     def test_each_thing_left_open(self):
@@ -683,7 +697,8 @@ class NamesOfAnyLetters(unittest.TestCase):
 
 
 class WhatStaysInOneColour(unittest.TestCase):
-    """STL, a LAD network shown as text and declarations: the report's output as before, byte for byte."""
+    """STL, a LAD or FBD network shown as text, and declarations: the report's output byte for byte the one main
+    wrote (one-colour.json)."""
 
     def test_stl_and_lad_as_text_get_no_tokens_and_their_table_as_before(self):
         body = '      L     #a\n      T     #b\n'
