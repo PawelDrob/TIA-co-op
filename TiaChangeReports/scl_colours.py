@@ -2,7 +2,7 @@
 one tokenizer over the text of the lines, so a block reads alike from .s7dcl and SimaticML (test BothFormatsAlike),
 with the block's interface for what the text does not tell, a local constant (LocalConstants).
 
-of_network(net, lines, block) -> the tokens of each line of an SCL network, None for another language
+of_network(net, texts, block) -> the tokens of each line of an SCL network, None for another language
 (WhatStaysInOneColour). lines(texts, itf=None) -> per line [(kind, text)], the texts in order joined giving the line
 back unchanged: colouring never adds, drops or moves a character (TextAndMarksUnchanged). kind is a key of KINDS, or
 None for what has no colour of its own: spaces, a pragma, a character no token takes, a word no rule names (row 13 of
@@ -18,26 +18,27 @@ the first that applies wins (WhichLineRuleGoesFirst; WhereATokenEnds for where e
     | 2     | REGION, the first token after spaces, | when anything but spaces follows: the rest of the line, as   |
     |       | comments and pragmas                  | the region's name                                            |
     | 3     | spaces                                |                                                              |
-    | 4     | a pragma {...}                        | up to its }; a } in quotes does not end it, a quote left     |
-    |       |                                       | open runs to the line's end                                  |
+    | 4     | a pragma {...}                        | up to its }; a } in double or single quotes does not end it, |
+    |       |                                       | a quote left open runs to the line's end                     |
     | 5     | a line comment //                     | to the line's end                                            |
     | 6     | a comment (* *) or (/* */)            | up to its close; left open, the line and the next ones       |
     | 7     | a string, plain or with a type prefix | up to its quote ($ escapes inside); left open, the line      |
     | 8     | a literal                             | the list LITERALS, one pattern per form                      |
     | 9     | a #name, a quoted name                |                                                              |
     | 10    | an address                            | the lists ADDRESS_AREAS, PERIPHERAL_AREAS, ADDRESS_SIZES,    |
-    |       |                                       | NUMBERED_AREAS (the comment over them says what they cover)  |
+    |       |                                       | NUMBERED_AREAS (the comment over them says what they cover); |
+    |       |                                       | a DB's data right after a "." ("Db".DBX0.0)                  |
     | 11    | a word, an operator of the list       |                                                              |
     |       | OPERATORS, a ";"                      |                                                              |
 
 So nothing inside a comment, a string, a quoted name or a region's name is looked at again.
 
 Pass 2, _kinds: each token's kind, from its own text and, for the rules that go by position, from its neighbours: the
-network's tokens in order, over its lines, that are no space, no comment, no pragma and no region's name
-(_NO_NEIGHBOUR). So a rule reads past spaces, comments, pragmas and line ends (TheRulesAsAGrid, its HOLD columns); a
-string, a quoted name and a ";" are neighbours, and a rule that wants another token there does not hold (its BREAK
-columns). What a rule carries ends at a ";" or a word of the list STOPPERS (_stops; HalfWrittenNetworks); the words
-of the lists LOGIC_KEYWORDS and WORD_OPERATORS end nothing. The network's end ends every rule
+network's tokens in order, over its lines, that are no space, no comment and no pragma (_NO_NEIGHBOUR). So a rule
+reads past spaces, comments, pragmas and line ends (TheRulesAsAGrid, its HOLD columns); a string, a quoted name and
+a ";" are neighbours, and a rule that wants another token there does not hold (its BREAK columns). What a rule
+carries ends at a ";" or a word of the list STOPPERS (_stops; HalfWrittenNetworks); the words of the lists
+LOGIC_KEYWORDS and WORD_OPERATORS end nothing. The network's end ends every rule
 (HalfWrittenNetworks.test_the_networks_end_ends_every_rule). The rules, what each reads, and what ends what it carries:
 
     | rule                         | reads                                       | carries, and what ends it        |
@@ -115,12 +116,17 @@ TYPE_TESTS = frozenset(('TYPEOF', 'TYPEOFELEMENTS', 'TYPEOFDB'))    # what they 
 # The words that end what a rule carries (a call's open parentheses, a type test's), with the ";" _stops adds: none
 # stands inside parentheses. The words of LOGIC_KEYWORDS and WORD_OPERATORS do, and are none of them.
 STOPPERS = STATEMENT_KEYWORDS | REGION_WORDS
-# The elementary data types: an ANY pointer's type word is one of them.
-DATA_TYPES = ('BOOL BYTE WORD DWORD LWORD SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME LTIME S5TIME DATE '
-              'TOD TIME_OF_DAY LTOD LTIME_OF_DAY DT DATE_AND_TIME LDT DTL CHAR WCHAR STRING WSTRING').split()
+# The elementary data types: an ANY pointer's type word is one of them. A typed number's type is a word of
+# INTEGER_TYPES (an integer, signed or based) or of REAL_TYPES (a real or an integer).
+INTEGER_TYPES = 'BYTE WORD DWORD LWORD SINT INT DINT LINT USINT UINT UDINT ULINT'.split()
+REAL_TYPES = 'REAL LREAL'.split()
+DATA_TYPES = (['BOOL'] + INTEGER_TYPES + REAL_TYPES + 'TIME LTIME S5TIME DATE TOD TIME_OF_DAY LTOD LTIME_OF_DAY DT '
+              'DATE_AND_TIME LDT DTL CHAR WCHAR STRING WSTRING'.split())
 # Absolute addresses as SCL of the S7-1200 and S7-1500 writes them, with "%": the process image, the peripheral access
-# with ":P", bit memory, timers and counters, a DB's data, a slice of an operand (#w.%X3). Not in these lists: the
-# peripheral form of the S7-300 and S7-400 (%PIW256, %PQW2, German %PEW256, %PAW2), which no V20 export here holds.
+# with ":P", bit memory, timers and counters, a DB's data (also after the DB's quoted name, "Db".DBX0.0), a slice of an
+# operand (#w.%X3). Not in these lists, as no V20 export here holds them and none is settled as V20 SCL: the peripheral
+# form of the S7-300 and S7-400 (%PIW256, %PQW2, German %PEW256, %PAW2), a DB's number alone (%DB1, a DB_ANY), and an
+# ANY pointer to local or instance data (P#L0.0 BYTE 4, P#DIX0.0 BYTE 4).
 ADDRESS_AREAS = ('I', 'Q', 'M', 'E', 'A')            # inputs, outputs, bit memory (E and A: the German mnemonics)
 PERIPHERAL_AREAS = ('I', 'Q', 'E', 'A')              # the areas read or written past the process image, with :P
 ADDRESS_SIZES = ('X', 'B', 'W', 'D')                 # a bit (X, or none: %M10.0), a byte, a word, a double word
@@ -138,11 +144,12 @@ def _chars(letters):
     return '[%s]' % ''.join(letters)
 
 
-# One piece for where an address points, made from the lists, for an address (%) and an ANY pointer (P#) alike: a bit
-# (X or none) or a byte, word or double word of the sizes.
+# One piece for where an address points, made from the lists, for an address (%) and an ANY pointer (P#) alike: an
+# area's bit (X or none) or byte, word or double word of the sizes; a DB's bit (X) or byte, word or double word.
 _BIT, _WIDE = _chars(ADDRESS_SIZES[:1]), _chars(ADDRESS_SIZES[1:])
 _OFFSET = r'(?:%s?\d+\.\d+|%s\d+)' % (_BIT, _WIDE)                                      # 1.0, X1.0, W2
-_DB_DATA = r'DB\d+\.DB(?:%s\d+\.\d+|%s\d+)' % (_BIT, _WIDE)                             # DB1.DBX0.0, DB1.DBW2
+_DB_PART = r'DB(?:%s\d+\.\d+|%s\d+)' % (_BIT, _WIDE)                                    # DBX0.0, DBW2
+_DB_DATA = r'DB\d+\.%s' % _DB_PART                                                       # DB1.DBX0.0, DB1.DBW2
 _LOCATION = r'(?:%s|%s%s)' % (_DB_DATA, _chars(ADDRESS_AREAS), _OFFSET)                  # DB1.DBX0.0, I1.0, QW2
 _ADDRESS = r'(?i:%%(?:%s:P|%s|%s\d+|%s\d+))' % (
     _chars(PERIPHERAL_AREAS) + _OFFSET, _LOCATION, _chars(NUMBERED_AREAS), _chars(ADDRESS_SIZES))
@@ -164,7 +171,6 @@ LITERALS = [
     ('date and time', r'(?i:LDATE_AND_TIME|DATE_AND_TIME|LDT|DTL|DT)\#%s-%s' % (_DATE, _CLOCK)),
     ('date', r'(?i:DATE|D)\#%s' % _DATE),
     ('time of day', r'(?i:LTIME_OF_DAY|TIME_OF_DAY|LTOD|TOD)\#%s' % _CLOCK),
-    ('counter', r'(?i:C)\#\d+'),
     ('pointer', r'(?i:P\#%s)(?:[ \t]+%s[ \t]+\d+)?' % (_LOCATION, _words(DATA_TYPES))),     # P#DB1.DBX0.0 BYTE 1
     ('typed Bool', r'%s(?i:TRUE|FALSE)\b' % _PREFIX),
     ('typed based number', r'%s[-+]?%s' % (_PREFIX, _BASED)),
@@ -177,7 +183,7 @@ LITERALS = [
 _STRING = r"(?:%s)?'(?:\$.|[^'$])*'" % _PREFIX
 _TOKEN = re.compile('|'.join([
     r'(?P<space>\s+)',
-    r'(?P<pragma>\{(?:"[^"]*"?|[^}"])*\}?)',             # a } in quotes does not end it; a quote left open runs on
+    r'(?P<pragma>\{(?:"[^"]*"?|' + r"'[^']*'?|[^}\"'])*\}?)",  # a } in quotes ends it not; a quote left open runs on
     r'(?P<line_comment>//.*)',
     r'(?P<open>\(/\*|\(\*)',
     r'(?P<string>%s)' % _STRING,
@@ -185,7 +191,7 @@ _TOKEN = re.compile('|'.join([
     r'(?P<literal>%s)' % '|'.join('(?:%s)' % p for _, p in LITERALS),
     r'(?P<local>\#(?:"(?:\$.|[^"$])*"|[^\W\d]\w*))',
     r'(?P<global>"(?:\$.|[^"$])*")',
-    r'(?P<address>%s)' % _ADDRESS,
+    r'(?P<address>%s|(?<=\.)(?i:%s))' % (_ADDRESS, _DB_PART),     # "Db".DBX0.0: a DB's data after its name
     r'(?P<word>[^\W\d]\w*)',
     r'(?P<operator>%s)' % '|'.join(re.escape(o) for o in sorted(OPERATORS, key=len, reverse=True)),
     r'(?P<semicolon>;)',
@@ -194,7 +200,7 @@ _TOKEN = re.compile('|'.join([
 _GROUP_KIND = {'space': None, 'pragma': None, 'comment': 'comment', 'string': 'constant', 'literal': 'constant',
                'address': 'operand', 'operator': 'operator', 'semicolon': 'semicolon', 'region name': 'constant',
                'other': None}
-_NO_NEIGHBOUR = ('space', 'comment', 'pragma', 'region name')
+_NO_NEIGHBOUR = ('space', 'comment', 'pragma')
 
 
 def of_network(net, texts, block):
@@ -325,7 +331,7 @@ def _name_kind(group, t, before, after, compared, first, depth, consts):
             return 'local constant'
         return 'operand'
     up = t.upper()
-    if up in ('REGION', 'END_REGION'):
+    if up in REGION_WORDS:
         return 'region'
     if up in BOOLS:
         return 'constant'

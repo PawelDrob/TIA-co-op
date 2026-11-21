@@ -364,6 +364,7 @@ class LocalConstants(unittest.TestCase):
         itf = Interface()
         itf.root.children['LIMIT'] = Member('LIMIT', 'Int', value='5', section='CONSTANT')
         itf.root.children['limit2'] = Member('limit2', 'Int', section='STAT')
+        itf.root.children['Grenze'] = Member('Grenze', 'Int', value='7', section='CONSTANT')
         return itf
 
     def test_told_from_the_interface_not_the_text(self):
@@ -375,6 +376,8 @@ class LocalConstants(unittest.TestCase):
     def test_in_any_case_and_in_quotes(self):
         got = kinds(scl_colours.lines(['#a := #limit + #"LIMIT" + #LIMIT.x;'], self.interface())[0])
         self.assertEqual([t for k, t in got if k == 'local constant'], ['#limit', '#"LIMIT"'])
+        got = kinds(scl_colours.lines(['#a := #GRENZE + #grenze + #Grenze;'], self.interface())[0])
+        self.assertEqual([t for k, t in got if k == 'local constant'], ['#GRENZE', '#grenze', '#Grenze'])
 
     def test_without_an_interface_every_name_is_an_operand(self):
         got = kinds(scl_colours.lines(['#a := #LIMIT;'])[0])
@@ -382,12 +385,13 @@ class LocalConstants(unittest.TestCase):
 
 
 class TheRulesAsAGrid(unittest.TestCase):
-    """Each rule that goes by position (scl_colours' doc, pass 2), with each kind of gap in the place it reads across:
-    nothing, a space, a comment, two comments and a line end, which SCL reads as a space, keep the rule (HOLD); a
-    string, a quoted name or a ";", tokens of the network, break it (BREAK). What a comment, string or quoted name
-    holds (a call of its own) is never read. Each construct also twice on one line, both alike."""
+    """Each rule that goes by position (scl_colours' doc, pass 2), and the region's name (pass 1, row 2), with each
+    kind of gap in the place it reads across: nothing, a space, a comment, two comments, a pragma and a line end keep
+    the rule (HOLD); a string, a quoted name or a ";", tokens of the network, break it (BREAK). What a comment, string
+    or quoted name holds (a call of its own) is never read. A construct that can stand twice on one line (twice in
+    RULES) also twice, both alike."""
     HOLD = {'nothing': '', 'space': ' ', 'comment': ' (* #b( *) ', 'two comments': ' (* #b( *) (/* x( */) ',
-            'line end': NEWLINE}
+            'pragma': ' { p := "#b(" } ', 'line end': NEWLINE}
     BREAK = {'string': " '#b(' ", 'quoted name': ' "#b(" ', 'semicolon': ' ; '}
     # rule: (line with {g} in the gap the rule reads across, the word it colours, its kind when the rule holds,
     # its kind when a string, quoted name or ";" stands in the gap, the line can hold the construct twice)
@@ -448,6 +452,20 @@ class TheRulesAsAGrid(unittest.TestCase):
                 self.assertEqual(self.kinds_of(line, word)[0], [kind])
                 self.assertEqual(self.kinds_of(line, 'Int')[0], ['constant'])
 
+    def test_a_word_before_a_colon_is_a_label_only_where_it_stands_first(self):
+        self.assertEqual(self.kinds_of('#x := #a; lbl2: #b := 1;', 'lbl2')[0], [None])
+        self.assertEqual(self.kinds_of('lbl2: #b := 1;', 'lbl2')[0], ['label'])
+
+    def test_a_type_test_compared_with_a_type_test(self):
+        """The second is called: an instruction, not a data type."""
+        self.assertEqual(self.kinds_of('IF TypeOf(#a) = TypeOf(#b) THEN', 'TypeOf')[0], ['instruction', 'instruction'])
+
+    def test_a_words_own_text_goes_before_the_call_rule(self):
+        self.assertEqual(self.kinds_of('#x := NOT(#a);', 'NOT')[0], ['operator'])
+        self.assertEqual(self.kinds_of('IF(#a) THEN', 'IF')[0], ['keyword'])
+        self.assertEqual(self.kinds_of('#x := TRUE(1);', 'TRUE')[0], ['constant'])
+        self.assertEqual(self.kinds_of('REGION(1)', 'REGION')[0], ['region'])
+
     def test_a_comment_after_a_name_is_no_call(self):
         self.assertEqual(self.kinds_of('#x := #s.a (* note *);', 'a')[0], ['operand'])
         self.assertEqual(self.kinds_of('#x := #a (* note *);', '#a')[0], ['operand'])
@@ -475,6 +493,24 @@ def addresses():
     return out
 
 
+def db_parts():
+    """A DB's data as it stands after the DB's quoted name ("Db".DBX0.0): a bit (the first size of the list
+    ADDRESS_SIZES) and each other size of that list."""
+    bit, wide = sc.ADDRESS_SIZES[0], sc.ADDRESS_SIZES[1:]
+    return ['DB%s0.0' % bit] + ['DB%s2' % s for s in wide]
+
+
+def typed_numbers():
+    """Every typed number: each type of the list INTEGER_TYPES with an integer, a signed one and one of each base;
+    each type of the list REAL_TYPES with a real of each exponent form, a signed one and an integer."""
+    out = []
+    for t in sc.INTEGER_TYPES:
+        out += ['%s#42' % t, '%s#-7' % t, '%s#+7' % t, '%s#16#FE' % t, '%s#2#1010' % t, '%s#8#17' % t]
+    for t in sc.REAL_TYPES:
+        out += ['%s#1.5' % t, '%s#1.5E-3' % t, '%s#1.0E+10' % t, '%s#-1.5e+3' % t, '%s#1e5' % t, '%s#3' % t]
+    return out
+
+
 def pointers():
     """Every ANY pointer form: P# and each of locations(), alone and with the type word BYTE and a count; and with each
     data type of the list DATA_TYPES, in capitals and in small letters."""
@@ -487,16 +523,15 @@ def pointers():
 class TheLiteralsAsATable(unittest.TestCase):
     """The literal forms of the S7DCL guide, section 5 "Literals and constants" (docs/agent/s7dcl-format.md: T#,
     reals, integers, Int#, 16#, W#16#, C#, TRUE and FALSE), in the base, sign and exponent forms FORMS writes, and
-    the forms SCL has and the guide lacks: the other bases (2#, 8#), exponents, the typed numbers of the other data
-    types, dates, times of day, dates and times (DT, LDT, DTL), LTIME, S5TIME, strings of both kinds with their $
-    escapes and typed (STRINGS), and the ANY pointers (pointers()). Each one token in the constants' colour, alone and
-    before +1 and -1; each address of addresses() one operand."""
+    the forms SCL has and the guide lacks: the other bases (2#, 8#), exponents, the typed numbers of every type of the
+    lists INTEGER_TYPES and REAL_TYPES (typed_numbers()), dates, times of day, dates and times (DT, LDT, DTL), LTIME,
+    S5TIME, strings of both kinds with their $ escapes and typed (STRINGS), and the ANY pointers (pointers()). Each
+    one token in the constants' colour, alone and before +1 and -1; each address of addresses() one operand."""
     FORMS = {
         'untyped number': '42 3.0 3.14 1.5E-3 1.0E+10 1.0e10 1e10 2.5E3 1_000 16#100 16#00FF 16#ff 2#1010_0101 8#17',
         'Bool': 'TRUE FALSE BOOL#TRUE BOOL#1',
-        'typed integer': 'Int#256 DINT#-7 DINT#+7 W#16#100 WORD#16#0F0F WORD#16#FE B#16#FF DW#16#FFFF_FFFF '
-                         'DWORD#16#FFFF_FFFF BYTE#2#1010 UINT#8#17 LINT#-9223372036854775808 CHAR#16#41',
-        'typed real': 'REAL#1.5E-3 LREAL#1.0E+10 REAL#-1.5E+3 LREAL#-1.0e-10 REAL#1.5e+3 REAL#2.0 LREAL#1e5 REAL#3',
+        'typed, the short type names and other forms': 'Int#256 W#16#100 B#16#FF DW#16#FFFF_FFFF '
+                                                       'LINT#-9223372036854775808 CHAR#16#41 LREAL#-1.0e-10',
         'time': 'T#500MS t#5s T#10s T#1s_200ms T#-1d2h3m4s5ms T#+5s T#1.5s T#-1.5s LT#1ns LTIME#5us '
                 'LTIME#1d2h3m4s5ms6us7ns TIME#1h S5T#10s S5TIME#2h_46m_30s C#100',
         'date and time of day': 'D#2026-11-20 DATE#2026-11-20 TOD#12:30 TOD#12:30:00 TOD#12:30:00.500 '
@@ -510,7 +545,8 @@ class TheLiteralsAsATable(unittest.TestCase):
 
     @classmethod
     def all(cls):
-        return [lit for text in cls.FORMS.values() for lit in text.split()] + cls.STRINGS + pointers()
+        return ([lit for text in cls.FORMS.values() for lit in text.split()] + typed_numbers() + cls.STRINGS
+                + pointers())
 
     def test_each_form_is_one_constant(self):
         for lit in self.all():
@@ -526,14 +562,39 @@ class TheLiteralsAsATable(unittest.TestCase):
             with self.subTest(address=address):
                 self.assertEqual(kinds(scl_colours.lines(['#x := %s;' % address])[0])[2], ('operand', address))
 
-    def test_the_older_peripheral_form_is_outside_the_lists(self):
-        """%PIW256, the peripheral form of the S7-300 and S7-400, is in no list (scl_colours' comment over the address
-        lists): no address, so a "%" and a name, both black."""
-        self.assertEqual(kinds(scl_colours.lines(['#x := %PIW256;'])[0])[2:4], [(None, '%'), (None, 'PIW256')])
+    def test_a_dbs_data_after_its_name_is_one_operand(self):
+        for part in db_parts():
+            with self.subTest(part=part):
+                self.assertEqual(kinds(scl_colours.lines(['#x := "Db".%s;' % part])[0])[2:5],
+                                 [('operand', '"Db"'), ('operator', '.'), ('operand', part)])
 
-    def test_without_the_percent_sign_an_address_is_a_name(self):
-        """SCL in TIA V20 writes an absolute address with %; M10.0 is a name and a member."""
-        self.assertEqual(kinds(scl_colours.lines(['#x := M10.0;'])[0])[2:4], [(None, 'M10'), ('operator', '.')])
+    def test_the_forms_outside_the_lists_stay_cut_as_they_are(self):
+        """The forms the comment over scl_colours' address lists names as outside them, cut apart, each piece in the
+        colour its own token takes."""
+        for text, expected in (
+                ('%PIW256', [(None, '%'), (None, 'PIW256')]),
+                ('%PEW256', [(None, '%'), (None, 'PEW256')]),
+                ('%DB1', [(None, '%'), (None, 'DB1')]),
+                ('P#L0.0 BYTE 4', [(None, 'P'), ('operand', '#L0'), ('operator', '.'), ('constant', '0'),
+                                   (None, 'BYTE'), ('constant', '4')]),
+                ('P#DIX0.0 BYTE 4', [(None, 'P'), ('operand', '#DIX0'), ('operator', '.'), ('constant', '0'),
+                                     (None, 'BYTE'), ('constant', '4')])):
+            with self.subTest(text):
+                self.assertEqual(kinds(scl_colours.lines(['#x := %s;' % text])[0])[2:-1], expected)
+
+    def test_without_the_percent_sign_an_address_is_a_name_a_dot_and_a_number(self):
+        """SCL in TIA V20 writes an absolute address with %; M10.0 is a word, a "." and a number."""
+        self.assertEqual(kinds(scl_colours.lines(['#x := M10.0;'])[0])[2:5],
+                         [(None, 'M10'), ('operator', '.'), ('constant', '0')])
+
+    def test_a_pragma_takes_a_brace_in_quotes_and_a_quote_left_open(self):
+        for line, pragma in (('{ a := "}" } #x := 1;', '{ a := "}" }'), ("{ a := '}' } #x := 1;", "{ a := '}' }"),
+                             ('{ a := "x', '{ a := "x'), ("{ a := 'x", "{ a := 'x")):
+            with self.subTest(line):
+                toks = scl_colours.lines([line])[0]
+                self.assertEqual(toks[0], (None, pragma))
+                if len(line) > len(pragma):
+                    self.assertEqual(kinds(toks[1:])[0], ('operand', '#x'))
 
 
 class WhereATokenEnds(unittest.TestCase):
@@ -541,7 +602,7 @@ class WhereATokenEnds(unittest.TestCase):
     (scl_colours.STATEMENT_KEYWORDS, LOGIC_KEYWORDS, WORD_OPERATORS, BOOLS, REGION_WORDS, TYPE_TESTS, DATA_TYPES), a
     name of each prefix and a comment of each kind, followed directly by each operator of scl_colours.OPERATORS, the
     ";" and each comment kind, and each bracket, "," or comment followed by it: the cut gives exactly the two tokens."""
-    NAMES = ['#a', '#Größe', '#"a b"', '"Q"', '"My.Db"', 'a', 'Übung']
+    NAMES = ['#a', '#Größe', '#"a b"', '"Q"', '"My.Db"', '"$"Pump$""', 'a', 'Übung']    # $": the guide, section 8
     COMMENTS = ['(* c *)', '(/* c */)']
 
     @classmethod
@@ -607,6 +668,12 @@ class WhichLineRuleGoesFirst(unittest.TestCase):
             with self.subTest(line):
                 self.assertEqual(kinds(scl_colours.lines([line])[0]), expected)
 
+    def test_region_with_nothing_but_spaces_after_it_is_the_word_alone(self):
+        for line in ('REGION', 'REGION   ', '  REGION'):
+            with self.subTest(line):
+                self.assertEqual([x for x in scl_colours.lines([line])[0] if x[1].strip()], [('region', 'REGION')])
+                self.assertNotIn('constant', [k for k, _ in scl_colours.lines([line])[0]])
+
     def test_each_line_rule_after_a_comment_left_open(self):
         """The comment open from the line before goes first: inside it nothing is read, after its close the line is
         read as it is alone."""
@@ -671,6 +738,10 @@ class HalfWrittenNetworks(unittest.TestCase):
                 got = [k for line in scl_colours.lines(lines_) for k, t in line if t == word]
                 self.assertEqual(got, [kind])
 
+    def test_a_stopper_forgets_a_type_tests_open_parenthesis(self):
+        got = scl_colours.lines(['IF TypeOf(#v THEN', '#a := 1) = Int;'])
+        self.assertIn((None, 'Int'), got[1])
+
     def test_inside_the_open_call_a_name_before_assign_is_a_parameter(self):
         got = scl_colours.lines(['#f(IN := 1,', 'ENO := FALSE;', 'x := 2;'])
         self.assertEqual(kinds(got[1])[0], ('parameter', 'ENO'))
@@ -711,7 +782,7 @@ class WhatStaysInOneColour(unittest.TestCase):
         self.assertIsNotNone(scl_colours.of_network(Network(1, 'SCL', '', '', body), scl_lines(body), None))
 
     def test_a_network_of_another_language_on_one_side(self):
-        """An SCL network that became STL: the SCL side coloured, the STL side and the line naming its language not."""
+        """An STL network that became SCL: the SCL side coloured, the STL side and the line naming its language not."""
         stl, scl = Network(1, 'STL', '', '', 'L #a\n'), Network(1, 'SCL', '', '', '#a := 1;\n')
         blk = mock.Mock(interface=None)
         pair = mock.Mock(before=stl, after=scl, lad=None, state='changed', moved=False, reordered=False,
@@ -720,6 +791,22 @@ class WhatStaysInOneColour(unittest.TestCase):
         before = [x for x in re.findall(r'<td class="b [^"]*">(.*?)</td>', html) if x != '&#8203;']
         self.assertEqual(before, ['(STL network)', 'L #a'])
         self.assertIn('<span class="so">#a</span>', html)
+
+    def test_an_scl_networks_title_and_comment_get_no_colours(self):
+        """The title and comment fields of an SCL network, changed and unchanged, hold no colour span; its lines do."""
+        for before, after in (('IF #a THEN', 'IF #b THEN'), ('#a := MAX(1, 2);', '#a := MAX(1, 2);')):
+            b = Network(1, 'SCL', before, '// ' + before, '#a := 1;\n')
+            a = Network(1, 'SCL', after, '// ' + after, '#a := 2;\n')
+            blk = mock.Mock(interface=None)
+            pair = mock.Mock(before=b, after=a, lad=None, state='changed', moved=False, reordered=False,
+                             not_shown=False)
+            html = page.network_html(pair, blk, blk)
+            with self.subTest(before):
+                fields = html[:html.index('<table')]
+                self.assertIn('class="ti', fields)
+                self.assertIn('class="cf', fields)
+                self.assertIsNone(COLOUR_SPAN.search(fields))
+                self.assertIsNotNone(COLOUR_SPAN.search(html[html.index('<table'):]))
 
     def test_byte_for_byte_as_before(self):
         """one-colour.json: the report's STL, LAD and FBD networks shown as text, the viewer's interface and Source
