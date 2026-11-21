@@ -857,7 +857,7 @@ def files_alike(bsrc, asrc):
     """Two versions' files differ at most in what the exports write differently, not in what a user can change."""
     from .simaticml import alike_exports
     if bsrc.xml is not None or asrc.xml is not None:
-        return bsrc.xml is not None and asrc.xml is not None and alike_exports(bsrc.xml, asrc.xml)
+        return bsrc.xml is not None and asrc.xml is not None and alike_exports(bsrc.xml, asrc.xml, read=True)
     return (bsrc.s7dcl == asrc.s7dcl and (bsrc.s7res or '') == (asrc.s7res or '')) or _resolved(bsrc) == _resolved(asrc)
 
 

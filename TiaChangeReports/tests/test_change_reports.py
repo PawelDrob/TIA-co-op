@@ -5628,6 +5628,26 @@ class NoteBesideAReadField(unittest.TestCase):
                            BlockSource('zzE2eDb', '', None, 'zzE2eDb', xml=after))
         self.assertEqual(('same', False), (d.state, d.not_shown))
 
+    def test_an_xml_changed_beside_an_unchanged_s7dcl_is_listed(self):
+        """A DB folder with both formats: the report reads the .s7dcl, and the .xml, which nothing of the report reads,
+        is named among the other files when only it changed, also in a start value or comment inside TIA's expansion of
+        a UDT member. zzE2eDb's real .s7dcl and SimaticML of the bed's commit c8fbe58, and the latter altered by hand
+        (fixtures/notes): an array element's start value and an expansion member's own start value inside dev1's
+        expansion, and the member's alone in an expansion with no array element."""
+        from TiaChangeReports.otherfiles import other_files
+        sd = _notes_file('zzE2eDb-c8fbe58.s7dcl')
+        for f, old, new in (('zzE2eDb-altered.xml', '<StartValue>4<', '<StartValue>5<'),
+                            ('zzE2eDb-altered.xml', '<StartValue>5<', '<StartValue>6<'),
+                            ('zzE2eDb-c8fbe58-before.xml', '<StartValue>5<', '<StartValue>6<')):
+            with self.subTest(file=f, change=new):
+                xml = _notes_file(f)
+                self.assertEqual(1, xml.count(old))
+                with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as a:
+                    _write(b, {'plc/blocks/zzE2eDb.s7dcl': sd, 'plc/blocks/zzE2eDb.xml': xml})
+                    _write(a, {'plc/blocks/zzE2eDb.s7dcl': sd, 'plc/blocks/zzE2eDb.xml': xml.replace(old, new)})
+                    self.assertEqual(['plc/blocks/zzE2eDb.xml'],
+                                     other_files(FolderSnapshot(b), FolderSnapshot(a), (), (), lambda p: True))
+
     # The element 1 of x, a member inside an array of struct, and inside an array of a UDT.
     IN_ARRAY = {'array of struct': '<Member Name="as" Datatype="Array[0..1] of Struct"><Member Name="x" Datatype="Int">'
                                    '<Subelement Path="1"><StartValue>%s</StartValue></Subelement></Member></Member>',
@@ -5672,7 +5692,9 @@ class EveryStartValueAndComment(unittest.TestCase):
     it can carry (ConstantName, IsBulkValue, Informative), its ConstantName changed, and changed beside a ConstantName;
     a comment set and changed. Each pair both ways, alone, and, at a place inside an expansion, beside TIA's retype of
     a member of that expansion (as TIA writes it when the UDT changes): then the rows are those of the pair alone, and
-    the note is the pair's or the retype's. Where the expansion counts as TIA's and the pair puts no attribute there, the
+    the note is the pair's or the retype's. And a third way of reading the DB: its .xml beside an .s7dcl the same on
+    both sides, which the report reads in its place: then the .xml is named among the other files at every pair, as
+    nothing reads its start values and comments. Where the expansion counts as TIA's and the pair puts no attribute there, the
     retype gives none, so a pair the reader reads stays a row and no note; an attribute the report does not read keeps
     the expansion compared, and the retype then gives the note, as in a file where the expansion is compared.
     The files: the expansion compared (fixtures/notes, made by hand: zzE2eFbI_DB-hand-made, -hand-made-bare) and
@@ -5711,6 +5733,20 @@ class EveryStartValueAndComment(unittest.TestCase):
                           for r in iface.block_rows(d.before, d.after) if r.state != 'same') if d else []
             self.reports[before, after] = rows, bool(d and d.not_shown)
         return self.reports[before, after]
+
+    @staticmethod
+    def listed(before, after):
+        """The DB's .xml, beside an .s7dcl the report reads in its place and the same on both sides, is named among the
+        other files: what otherfiles decides it by for a file that differs and that nothing of the report reads."""
+        from TiaChangeReports import otherfiles
+
+        class Texts:
+            def __init__(self, text):
+                self.text = text
+
+            def read(self, path):
+                return self.text
+        return not otherfiles._stays_silent(Texts(before), Texts(after), 'plc/blocks/DB.xml', (set(), set()), {})
 
     def places(self, root):
         """[(index path from root, Path of an element not written yet or None, where)] of the interface."""
@@ -5843,10 +5879,12 @@ class EveryStartValueAndComment(unittest.TestCase):
                                     self.assertNotEqual(x, y)
                                     rows, note = self.report(x, y)
                                     self.assertNotEqual(bool(rows), note, 'shown with the note, or neither')
+                                    self.assertTrue(self.listed(x, y), 'beside an unchanged .s7dcl, the .xml listed')
                                     seen[bool(rows)] += 1
                                     y2 = self.retype(y, place, base)
                                     if y2 is None:
                                         continue
+                                    self.assertTrue(self.listed(x, y2), 'beside an unchanged .s7dcl, the .xml listed')
                                     rows2, note2 = self.report(x, y2)
                                     self.assertEqual(rows, rows2, 'the retype adds no row')
                                     self.assertEqual(note or self.report(y, y2)[1], note2, "the pair's or the retype's")
@@ -8493,7 +8531,8 @@ class FileCheckSeesTheWiring(unittest.TestCase):
     def test_xml_uids_renumbered_are_alike(self):
         from TiaChangeReports.simaticml import alike_exports
         uid = re.compile(r'\bUId="(\d+)"')
-        self.assertTrue(alike_exports(_fixture(), uid.sub(lambda m: 'UId="%d"' % (int(m.group(1)) + 100), _fixture())))
+        self.assertTrue(alike_exports(_fixture(), uid.sub(lambda m: 'UId="%d"' % (int(m.group(1)) + 100), _fixture()),
+                                      read=False))
 
     def test_xml_wire_to_another_part_is_not_alike(self):
         from TiaChangeReports.simaticml import alike_exports
@@ -8501,7 +8540,7 @@ class FileCheckSeesTheWiring(unittest.TestCase):
         m = re.search(r'<NameCon UId="(\d+)" Name="[^"]*" />', text)
         other = next(x for x in re.findall(r'<NameCon UId="(\d+)"', text) if x != m.group(1))
         changed = text[:m.start()] + m.group(0).replace('UId="%s"' % m.group(1), 'UId="%s"' % other) + text[m.end():]
-        self.assertFalse(alike_exports(text, changed))
+        self.assertFalse(alike_exports(text, changed, read=False))
 
 
 class PairWithOtherPathsNeverVanishes(unittest.TestCase):
@@ -9053,7 +9092,7 @@ class WrittenInAnotherOrder(unittest.TestCase):
 
     def test_rewritten_reads_alike(self):
         self.assertNotEqual(self.rewritten(), self.text())
-        self.assertTrue(alike_exports(self.text(), self.rewritten()))
+        self.assertTrue(alike_exports(self.text(), self.rewritten(), read=False))
         self.assertEqual(self.listed(self.text(), self.rewritten()), [])
 
     @classmethod
@@ -9072,7 +9111,7 @@ class WrittenInAnotherOrder(unittest.TestCase):
         after = self.text(wires)
         self.assertEqual(xml_moved(ET.fromstring(self.text().encode()), ET.fromstring(after.encode())), [])
         for other in (after, self.rewritten(wires)):
-            self.assertFalse(alike_exports(self.text(), other))
+            self.assertFalse(alike_exports(self.text(), other, read=False))
             ((state, _, nets),) = self.listed(self.text(), other)
             self.assertEqual((state, [s for s, _ in nets]), ('changed', ['changed']))
 
@@ -9088,7 +9127,7 @@ class WrittenInAnotherOrder(unittest.TestCase):
         report lists the network in another order. alike: the two files are alike, as the order of the parts counts and
         the numbers of an O's inputs do not (TIA renumbered them in zzBenLarge networks 2 and 3, nobody changed them)."""
         self.assertNotEqual(before, after)
-        self.assertEqual(alike_exports(before, after), alike)
+        self.assertEqual(alike_exports(before, after, read=False), alike)
         self.assertEqual([[(p.state, p.reordered) for p in x.nets] for x in self.blocks(before, after)], [[('changed', True)]])
 
     def test_the_branches_of_an_or_swapped(self):
@@ -9125,7 +9164,7 @@ class WrittenInAnotherOrder(unittest.TestCase):
         wires = each_after_its_leg + self.LEG_WIRES
         after = self.text(wires, self.LEGS, operands=list(reversed(self.operands(wires))))
         self.assertNotEqual(before, after)
-        self.assertTrue(alike_exports(before, after))
+        self.assertTrue(alike_exports(before, after, read=False))
         self.assertEqual(self.listed(before, after), [])
 
     def test_the_legs_of_that_or_swapped(self):
@@ -9154,7 +9193,8 @@ class WrittenInAnotherOrder(unittest.TestCase):
         for ws, language, alike in ((wires, 'LAD', True), (rail + wires, 'LAD', True), (wires, 'FBD', False),
                                     (rail + wires, 'FBD', False)):
             again = swapped if ws is wires else rail + swapped
-            self.assertEqual(alike_exports(written(ws, language), written(again, language)), alike, (language, ws is wires))
+            self.assertEqual(alike_exports(written(ws, language), written(again, language), read=False), alike,
+                             (language, ws is wires))
 
     def test_a_wire_moved_to_another_pin(self):
         self.differs(self.edited((['b.out', 'add.en'], ['b.out', 'q.in']), (['or.out', 'q.in'], ['or.out', 'add.en'])))
@@ -9167,7 +9207,7 @@ class WrittenInAnotherOrder(unittest.TestCase):
         for old, new in (('<Wire UId="49">', '<Wire UId="49" Hint="x">'), ('Name="in2" />', 'Name="in2" Hint="x" />')):
             text = self.text().replace(old, new, 1)
             self.assertNotEqual(text, self.text())
-            self.assertFalse(alike_exports(self.text(), text))
+            self.assertFalse(alike_exports(self.text(), text, read=False))
             self.assertEqual([s for _, s in self.listed(self.text(), text)[0][2]], [True])
 
     def test_a_field_on_a_wire_beside_a_change_of_the_part_it_reaches(self):
@@ -9255,9 +9295,9 @@ class WrittenInAnotherOrder(unittest.TestCase):
         """A part's place is among the parts and calls alone: where the operands stand among them does not count."""
         before = self.text(slots={0, 2, 10, 11, 12, 13, 14})
         after = self.text(parts=[self.PARTS[k] for k in (0, 2, 1, 3, 4, 5, 6)], slots={0, 1, 2, 10, 11, 12, 13})
-        self.assertFalse(alike_exports(before, after))
+        self.assertFalse(alike_exports(before, after, read=False))
         self.assertEqual([[s for s, _ in nets] for _, _, nets in self.listed(before, after)], [['changed']])
-        self.assertTrue(alike_exports(before, self.text(slots={0, 1, 2, 3, 4, 5, 6})))
+        self.assertTrue(alike_exports(before, self.text(slots={0, 1, 2, 3, 4, 5, 6}), read=False))
 
     def test_two_of_twelve_parts_swapped(self):
         """Places counted as numbers: the tenth part and on."""
@@ -9268,7 +9308,7 @@ class WrittenInAnotherOrder(unittest.TestCase):
         for k, j in ((2, 10), (9, 10), (1, 11)):
             swapped = list(parts)
             swapped[k], swapped[j] = parts[j], parts[k]
-            self.assertFalse(alike_exports(self.text(wires, parts), self.text(wires, swapped)), (k, j))
+            self.assertFalse(alike_exports(self.text(wires, parts), self.text(wires, swapped), read=False), (k, j))
 
     SR = [('s', '<Part Name="Contact" UId="%d" />'),
           ('e', '<Part Name="Eq" UId="%d"><TemplateValue Name="SrcType" Type="Type">Int</TemplateValue></Part>'),

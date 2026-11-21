@@ -14,7 +14,8 @@ only the caller's keep leaves a file out: the generator's documents and the list
 Only what the report tells otherwise, what an export writes differently per export, or a release comment by the
 maintainer's word, stays silent:
 - a SimaticML .xml: simaticml.alike_exports, the export time and the object numbers, as of a block (with the order of a
-  LAD or FBD network's operands and wires, simaticml._flgnet).
+  LAD or FBD network's operands and wires, simaticml._flgnet); every start value and comment counts, also inside TIA's
+  expansion of a UDT member, as nothing reads them (a DB's .xml beside the .s7dcl the report reads).
 - another .xml: the CreationDate on its root (alarm classes, system diagnostics).
 - a .dat that is a zip of the same text files: the same, per file (those two again, as a full export writes them).
 - a library type's .libinfo and .libint, new or deleted with its block: that block is listed.
@@ -129,7 +130,7 @@ def _told_or_only_the_export(before, after, path, stems, moved_from):
     if b is None or a is None:
         return False
     if _SIMATICML.match(b) and _SIMATICML.match(a):
-        return alike_exports(b, a)
+        return alike_exports(b, a, read=False)              # beside an .s7dcl the report reads: nothing reads it
     return _only_the_root_date(b, a)
 
 

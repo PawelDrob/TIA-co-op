@@ -1,0 +1,15 @@
+﻿{
+    S7_Optimized := "TRUE";
+    S7_StandardRetain := "FALSE";
+    S7_Version := "0.1"
+}
+DATA_BLOCK zzE2eDb
+    VAR
+        speed : Int;
+        dev1 : _.zzE2eUdtA;
+    END_VAR
+
+    speed := 150;
+        dev1.m1 := 5;
+
+END_DATA_BLOCK

@@ -77,7 +77,7 @@ def _no_text(item):
 def _expansion(sections, values):
     """The Sections under a Member hold only what TIA writes when it expands a UDT member: members, a struct's nested,
     with a name, a data type and a version, and, with values, the start values and comments set inside, on a member or
-    an array element, which unread_differs compares apart; nothing else a user set."""
+    an array element, which something else shows (_plain); nothing else a user set."""
     return all(_bare_member(m, values) for section in _kids(sections, 'Section') for m in _kids(section))
 
 
@@ -88,7 +88,7 @@ def _bare_member(m, values):
         tag = _local(c.tag)
         if tag not in (('StartValue', 'Comment', 'Subelement', 'Member', 'Sections') if values else ('Member', 'Sections')) \
                 or (tag == 'Member' and not _bare_member(c, values)) or (tag == 'Sections' and not _expansion(c, values)) \
-                or (tag == 'Subelement' and (set(c.attrib) - {'Path'}
+                or (tag == 'Subelement' and (set(c.attrib) - _HOLDS['Subelement']
                                              or any(_local(x.tag) not in ('StartValue', 'Comment') for x in c))):
             return False
     return True
@@ -110,8 +110,9 @@ def _plain(el, uids=None, lang=None, network_lang=None, values=True):
     at the value its instruction fixes (_left_out).
     lang: only this language's texts (the others are compared apart, as texts); network_lang: the programming language
     of the network an element is in, taken from its CompileUnit (network_language); values: TIA's expansion of a UDT
-    member left out also with the start values and comments set inside, which unread_differs compares; without,
-    only one that holds nothing but members (unread_differs's, on a file without what the reader took)."""
+    member left out also with the start values and comments set inside, where something else shows them (alike_exports
+    of a file the report reads); without, only one that holds nothing but members (unread_differs's, on a file without
+    what the reader took, and alike_exports of a file nothing of the report reads)."""
     tag = _local(el.tag)
     if tag == 'FlgNet':
         return _flgnet(el, lang, network_lang)
@@ -496,12 +497,18 @@ def text_entries(xml, lang=None):
     return out
 
 
-def alike_exports(a, b):
-    """Two SimaticML texts that differ at most in what TIA writes differently per export."""
+def alike_exports(a, b, read):
+    """Two SimaticML texts that differ at most in what TIA writes differently per export. read: whether the report
+    reads these files and shows what it reads of them (a block it compares, compare.files_alike). Then the start values
+    and comments inside TIA's expansion of a UDT member are left out here, as the report shows those it reads and the
+    note (unread_differs) the rest. Else (a file nothing of the report reads, otherfiles) nothing reads them, and every
+    start value and comment counts, inside an expansion and outside: an expansion is left out only where it holds
+    nothing but members (_expansion). The file alone cannot tell which of the two it is."""
     if same_export(a, b):
         return True
     try:
-        return _plain(ET.fromstring(a.lstrip('\ufeff').encode('utf-8'))) == _plain(ET.fromstring(b.lstrip('\ufeff').encode('utf-8')))
+        return _plain(ET.fromstring(a.lstrip('\ufeff').encode('utf-8')), values=read) == \
+            _plain(ET.fromstring(b.lstrip('\ufeff').encode('utf-8')), values=read)
     except ET.ParseError:
         return False
 
