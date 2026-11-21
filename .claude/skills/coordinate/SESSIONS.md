@@ -70,7 +70,7 @@ Then it prints what the session and its audit cost, the short form of `tokens`, 
 - **Requests** are calls to the model, each counted once. **Uncached input**, **cache writes** (5 minute and 1 hour), **cache reads** and **output** (with its thinking part) are its four meters.
 - **Cost** is at list prices, from a table in `tools\session\tokens.py` with the date it was taken. A model the table does not know gets tokens and no dollars, and it says so.
 - **Prompt** is the context of a request: at the first, at the last, and its mean. Every request reads all of it again, so what comes in early costs most.
-- **What entered the context:** what each step added, `prompt(i) - prompt(i-1) - output(i-1)`, charged to the calls of the request before it, and the reads it caused, times the requests after it. **Fixed prefix:** the system text and each tool's definition, in characters.
+- **What entered the context:** what each step added, `prompt(i) - prompt(i-1) - output(i-1)`, charged to the calls of the request before it, and the reads it caused, times the requests after it: the request that adds it writes it to the cache and is not counted. A call is named by what it reads: a file by its path, a shell command by its program and the first file it names. **Fixed prefix:** the system text and each tool's definition, in characters.
 
 A line it cannot read it counts as skipped and says so. Done when it prints the session's requests, or that no transcript of it was found and where it looked.
 

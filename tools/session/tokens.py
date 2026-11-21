@@ -23,6 +23,7 @@ PRICES_TAKEN = ('2026-11-21, from the Claude API list prices in the model table 
 METERS = ('input', 'write_5m', 'write_1h', 'write_unknown', 'read', 'output')
 METER_NAMES = {'input': 'uncached input', 'write_5m': 'cache writes, 5 min', 'write_1h': 'cache writes, 1 h',
                'write_unknown': 'cache writes, lifetime not recorded', 'read': 'cache reads', 'output': 'output'}
+SAVED_OUTPUT = "a tool's output saved to a file"
 SESSION_ID = re.compile(r'^[A-Za-z0-9-]{1,100}$')
 SHOWN_KINDS = 10
 SHOWN_TOOLS = 8
@@ -182,12 +183,16 @@ def take_assistant(entry, chain, seen, skipped, roots):
 # --- what a call brings into the context
 
 def kind_of_call(name, given, roots):
-    """A name for what the call reads, so that calls reading the same kind of thing add up."""
+    """A name for what the call reads, so that calls reading the same thing add up: a file by its path, a shell command by its
+    program and the first file it names, a tool's output that Claude Code saved to a file as one kind."""
     given = given if isinstance(given, dict) else {}
     if name in ('Read', 'NotebookRead'):
-        return f'{name} {shown_path(given.get("file_path") or given.get("notebook_path") or given.get("path") or "?", roots)}'
+        path = str(given.get('file_path') or given.get('notebook_path') or given.get('path') or '?')
+        return f'{name} {SAVED_OUTPUT if saved_output(path) else shown_path(path, roots)}'
     if name in ('Bash', 'PowerShell'):
-        return f'{name} {program_of(str(given.get("command") or ""))}'
+        command = str(given.get('command') or '')
+        read = file_of(command)
+        return f'{name} {program_of(command)}' + (f' {shown_path(read, roots)}' if read else '')
     if name == 'Skill':
         return f'Skill {given.get("skill") or "?"}'
     if name in ('Agent', 'Task'):
@@ -206,6 +211,22 @@ def shown_path(path, roots):
             return path[len(root):]
     parts = [part for part in path.split('/') if part]
     return '/'.join(parts[-2:]) or '?'
+
+
+def saved_output(path):
+    """Whether a path is where Claude Code keeps a tool's output too long to show: <session>\\tool-results\\<id>.txt."""
+    return Path(str(path).replace('\\', '/')).parent.name == 'tool-results'
+
+
+def file_of(command):
+    """The first file a shell command names: a word with an extension that is no program, option, URL or variable."""
+    for word in re.findall(r'"([^"]+)"|\'([^\']+)\'|(\S+)', command):
+        word = next(part for part in word if part)
+        if (word.startswith(('-', '$', '<', '>', '|', '&')) or '://' in word or not re.search(r'\.[A-Za-z0-9]{1,6}$', word)
+                or re.search(r'(?i)\.exe$', word)):
+            continue
+        return word
+    return ''
 
 
 def program_of(command):
@@ -228,14 +249,14 @@ def prompt_of(request):
 
 
 def cost_of(request):
-    """Dollars of one request, and whether its model has a price. A cache write of no recorded lifetime is left out of them."""
+    """Dollars of one request by meter, or None when its model has no price. A cache write of no recorded lifetime has none."""
     prices = PRICES.get(request['model'])
     if not prices:
-        return 0.0, False
-    given, read, out = prices
-    dollars = (request['input'] * given + request['write_5m'] * given * WRITE_5M + request['write_1h'] * given * WRITE_1H
-               + request['read'] * read + request['output'] * out) / 1e6
-    return dollars, True
+        return None
+    input_price, read_price, output_price = prices
+    per_million = {'input': input_price, 'write_5m': input_price * WRITE_5M, 'write_1h': input_price * WRITE_1H, 'write_unknown': 0.0,
+                   'read': read_price, 'output': output_price}
+    return {meter: request[meter] * price / 1e6 for meter, price in per_million.items()}
 
 
 def steps_of(chain, kinds):
@@ -296,31 +317,27 @@ def measure(transcripts, roots=()):
         except OSError as error:
             unreadable.append(f'{path}: {error}')
     totals = dict.fromkeys(METERS + ('thinking',), 0)
-    dollars, by_meter = 0.0, dict.fromkeys(METERS, 0.0)
+    by_meter = dict.fromkeys(METERS, 0.0)
     models, unpriced = defaultdict(int), defaultdict(int)
-    sub = {'agents': 0, 'requests': 0, 'dollars': 0.0}
+    subagents = {'agents': 0, 'requests': 0, 'dollars': 0.0}
     for chain in chains:
         if chain.kind == 'subagent' and chain.requests:
-            sub['agents'] += 1
+            subagents['agents'] += 1
         for request in chain.requests:
             for meter in totals:
                 totals[meter] += request[meter]
             models[request['model']] += 1
-            cost, priced = cost_of(request)
-            dollars += cost
+            cost = cost_of(request)
             if chain.kind == 'subagent':
-                sub['requests'] += 1
-                sub['dollars'] += cost
-            if not priced:
+                subagents['requests'] += 1
+                subagents['dollars'] += sum(cost.values()) if cost else 0.0
+            if cost is None:
                 unpriced[request['model']] += 1
                 continue
-            given, read, out = PRICES[request['model']]
-            for meter, price in (('input', given), ('write_5m', given * WRITE_5M), ('write_1h', given * WRITE_1H), ('read', read),
-                                 ('output', out)):
-                by_meter[meter] += request[meter] * price / 1e6
-    own = [r for chain in chains if chain.kind == 'session' for r in chain.requests]
-    own.sort(key=lambda r: r['at'])
-    prompts = [prompt_of(r) for r in own]
+            for meter in METERS:
+                by_meter[meter] += cost[meter]
+    own_requests = sorted((r for chain in chains if chain.kind == 'session' for r in chain.requests), key=lambda r: r['at'])
+    prompts = [prompt_of(r) for r in own_requests]
     kinds = defaultdict(lambda: {'added': 0, 'calls': 0, 'read_again': 0})
     for chain in chains:
         steps_of(chain, kinds)
@@ -332,12 +349,13 @@ def measure(transcripts, roots=()):
         'requests': sum(len(chain.requests) for chain in chains),
         'models': dict(models),
         'tokens': totals,
-        'dollars': {'total': round(dollars, 4), 'by_meter': {m: round(v, 4) for m, v in by_meter.items()}, 'complete': priced_all,
+        'dollars': {'total': round(sum(by_meter.values()), 4), 'priced_requests': sum(models.values()) - sum(unpriced.values()),
+                    'by_meter': {m: round(v, 4) for m, v in by_meter.items()}, 'complete': priced_all,
                     'unpriced_requests': dict(unpriced), 'unpriced_writes': totals['write_unknown']},
         'prices': {'taken': PRICES_TAKEN, 'per_million': {m: dict(zip(('input', 'cache_read', 'output'), p)) for m, p in PRICES.items()},
                    'write_5m_times_input': WRITE_5M, 'write_1h_times_input': WRITE_1H},
         'prompt': {'first': prompts[0], 'last': prompts[-1], 'mean': round(sum(prompts) / len(prompts))} if prompts else None,
-        'subagents': {**sub, 'dollars': round(sub['dollars'], 4)},
+        'subagents': {**subagents, 'dollars': round(subagents['dollars'], 4)},
         'context': sorted(({'kind': k, 'added': round(v['added']), 'calls': v['calls'], 'read_again': round(v['read_again'])}
                            for k, v in kinds.items()), key=lambda row: -row['read_again']),
         'prefix': {**prefix_of(shapes[-1]), 'shapes_recorded': len(shapes)} if shapes else None,
@@ -357,13 +375,14 @@ def short_text(name, data):
     files = data['sessions']
     lines = [f'{name}: {data["requests"]:,} requests in {files} transcript{"s" if files != 1 else ""}, {models or "no model"}']
     width = max(len(f'{tokens[m]:,}') for m in METERS)
+    priced = money['priced_requests'] > 0
     for meter in METERS:
         if meter == 'write_unknown' and not tokens[meter]:
             continue
-        price = '' if meter == 'write_unknown' else f'  ${money["by_meter"][meter]:,.2f}'
+        price = f'  ${money["by_meter"][meter]:,.2f}' if priced and meter != 'write_unknown' else ''
         extra = f'  thinking {tokens["thinking"]:,}' if meter == 'output' else ''
         lines.append(f'  {METER_NAMES[meter]:<20} {tokens[meter]:>{width},}{price}{extra}')
-    if data['models'] and not any(model in PRICES for model in data['models']):
+    if not priced:
         lines.append('  cost: no list price known for ' + ', '.join(sorted(data['models'])))
     else:
         lines.append(f'  cost ${money["total"]:,.2f} at list prices taken {PRICES_TAKEN.split(",")[0]}' + ('' if money['complete'] else ', without:'))
@@ -372,8 +391,9 @@ def short_text(name, data):
         if money['unpriced_writes']:
             lines.append(f'    {money["unpriced_writes"]:,} cache write tokens of no recorded lifetime')
     if data['subagents']['requests']:
-        sub = data['subagents']
-        lines.append(f'  of it {sub["agents"]} subagents: {sub["requests"]:,} requests, ${sub["dollars"]:,.2f}')
+        subagents = data['subagents']
+        lines.append(f'  of it {subagents["agents"]} subagents: {subagents["requests"]:,} requests'
+                     + (f', ${subagents["dollars"]:,.2f}' if priced else ''))
     if data['prompt']:
         prompt = data['prompt']
         lines.append(f'  prompt: first {prompt["first"]:,}, last {prompt["last"]:,}, mean {prompt["mean"]:,}')

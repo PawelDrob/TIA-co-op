@@ -94,7 +94,8 @@ class CountTests(Folder):
         self.transcript('one', [answer('r1', usage(write_1h=5000, out=100), model='claude-new-9')])
         text = short_text('wk03', self.measured())
         self.assertIn('cost: no list price known for claude-new-9', text)
-        self.assertNotIn('$', text.split('cost:')[1])
+        self.assertNotIn('$', text)
+        self.assertIn('output', text)
 
     def test_a_cache_write_of_no_recorded_lifetime_is_counted_and_left_out_of_the_dollars(self):
         used = {'input_tokens': 1, 'cache_creation_input_tokens': 700, 'cache_read_input_tokens': 0, 'output_tokens': 10}
@@ -183,7 +184,7 @@ class ContextTests(Folder):
         self.assertEqual(rows['first prompt: system text, tools, instructions'], (1000, 0, 3000))
         self.assertEqual(rows['Read docs/agent/guide.md'], (5000, 1, 10000))    # 6100 - 1000 - 100, read by r3 and r4
         self.assertEqual(rows['Bash git'], (200, 1, 200))    # 6550 - 6100 - 50, shared by the two calls of r2
-        self.assertEqual(rows['Bash sed'], (200, 1, 200))
+        self.assertEqual(rows['Bash sed a.txt'], (200, 1, 200))
         self.assertEqual(rows['prompts and reminders, no call before'], (30, 0, 0))
         self.assertEqual(rows["the model's own output, fed back"], (160, 0, 250))
 
@@ -197,11 +198,14 @@ class ContextTests(Folder):
     def test_kinds_are_named_from_what_a_call_reads(self):
         roots = [r'C:\tree']
         self.assertEqual(tokens.kind_of_call('Read', {'file_path': r'C:\tree\docs\a.md'}, roots), 'Read docs/a.md')
-        self.assertEqual(tokens.kind_of_call('Read', {'file_path': r'C:\Temp\x\tool-results\b.txt'}, roots), 'Read tool-results/b.txt')
+        self.assertEqual(tokens.kind_of_call('Read', {'file_path': r'C:\Temp\x\tool-results\b.txt'}, roots),
+                         "Read a tool's output saved to a file")
+        self.assertEqual(tokens.kind_of_call('Bash', {'command': r'cd /c/x && sed -n 1,20p "C:\tree\docs\agent\guide.md"'}, roots),
+                         'Bash sed docs/agent/guide.md')
         self.assertEqual(tokens.kind_of_call('PowerShell', {'command': '& "C:\\Program Files\\Git\\bin\\git.exe" log'}, roots),
                          'PowerShell git')
         self.assertEqual(tokens.kind_of_call('Bash', {'command': 'X=1 .venv/Scripts/python.exe -X utf8 t.py | head'}, roots),
-                         'Bash python')
+                         'Bash python t.py')
         self.assertEqual(tokens.kind_of_call('Skill', {'skill': 'tia-change'}, roots), 'Skill tia-change')
         self.assertEqual(tokens.kind_of_call('mcp__tia__import', {'path': 'x'}, roots), 'mcp__tia__import')
 
