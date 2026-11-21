@@ -8,5 +8,8 @@
 * [WinCC Comfort screen generation with TIA Portal Openness](wincc-comfort-openness.md) - How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 * [WinCC Comfort screen objects](wincc-screen-objects.md) - Every object of the WinCC Comfort toolbox with every option, its TIA display name and group, export name, default, allowed values and what the HMI preview draws; generated from TiaHmiGenerator/catalogue/catalogue.json.
 * [WinCC Comfort: faceplates](wincc-comfort-faceplates.md) - What TIA Portal V20 Openness can and cannot do with WinCC Comfort faceplate types, and how a faceplate is built from a generated staging screen.
-* [WinCC Comfort: history of the first runs](wincc-comfort-history.md) - The first WinCC Comfort generation and import runs on project B, 2026-10-01 to 2026-10-06, in order, with what each changed.
 * [WinCC Comfort: the Openness API from PowerShell](wincc-comfort-api.md) - How the TIA Portal V20 Openness API loads in PowerShell 5.1 and where the HMI objects of a WinCC Comfort device are in it, as found by probes.
+
+# Rationales
+
+* [WinCC Comfort: history of the first runs](wincc-comfort-history.md) - The first WinCC Comfort generation and import runs on project B, 2026-10-01 to 2026-10-06, in order, with what each changed.

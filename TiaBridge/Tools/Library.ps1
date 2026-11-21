@@ -369,7 +369,7 @@ function Export-LibraryTypeDocuments($Entry, [string]$Dir, [switch]$Released, [s
     if ($format -eq 'SimaticSD' -and -not $Released) {
         $sd = Join-Path $target "$folder.s7dcl"
         $n = if (Test-Path -LiteralPath $sd) { Get-MultiIndexLadNetworks ([System.IO.File]::ReadAllText($sd)) } else { 0 }
-        if ($n) { $note += " $n LAD/FBD networks use operands indexed in several dimensions (a[i, j]): an import of this .s7dcl keeps only their last index ($(Get-GuidePath 's7dcl-exports.md') 8.14c). To change the type, export it with options.format xml and edit the SimaticML." }
+        if ($n) { $note += " $n LAD/FBD networks use operands indexed in several dimensions (a[i, j]): an import of this .s7dcl keeps only their last index ($(Get-GuidePath 's7dcl-exports.md') 8.14c; s7dcl-format.md, checklist 17a). To change the type, export it with options.format xml and edit the SimaticML." }
     }
     $step = [TiaBridgeTimes]::Enter('result')
     try { $messages = ConvertTo-ResultTree $r }

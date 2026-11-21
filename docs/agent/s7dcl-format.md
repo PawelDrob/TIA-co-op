@@ -3,7 +3,7 @@ type: Guide
 title: SIMATIC SD (.s7dcl) authoring guide
 description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source; the core every PLC change reads, and which part holds LAD networks, what exports showed and import diagnostics.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:19:37-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:34:52-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -190,7 +190,7 @@ Where the rule of each item is, so a run reads only the parts its items need (th
 |---|---|---|
 | 1, 11, 12, 20 | 2, 3, 4, 6 | this file |
 | 10 | 2, 5, 7; the line ends 10 | this file; the line ends `s7dcl-import.md` |
-| 2 to 9, 16a | 8.2 to 8.13; 8.4, with the shapes tried in 8.13b and 8.14c | `s7dcl-lad.md`; the shapes tried `s7dcl-exports.md` |
+| 2 to 9, 16a | 8.2 to 8.13; 8.4, with the shapes tried in 8.13b and 8.14c | `s7dcl-lad.md`; `s7dcl-exports.md` for 8.14c |
 | 13 to 16, 17a | 8.14b, 8.14c | `s7dcl-exports.md` |
 | 17, 18 | 10 | `s7dcl-import.md` |
 | 19 | 3, 4, 6; a non-optimized DB 8.14b | this file; a non-optimized DB `s7dcl-exports.md` |

@@ -1,5 +1,5 @@
 """The generator's calls in the WinCC Comfort guide (docs/agent/wincc-comfort-openness.md, 5.1 and 5.2): every public
-function of hmixml is named there and no other, and the worked screen runs as written.
+function of hmixml is named there with what it takes, and no other, and the worked screen runs as written.
 """
 import inspect
 import os
@@ -40,6 +40,12 @@ class CallsTest(unittest.TestCase):
         calls = public_calls()
         self.assertEqual(set(), calls - named, 'public in hmixml, not named in the guide, 5.1')
         self.assertEqual(set(), named - calls, 'named in the guide, 5.1, not in hmixml')
+
+    def test_each_call_takes_what_the_guide_writes(self):
+        written = dict(re.findall(r'^\| `(\w+)(\(.*?\))` \|', section('5.1'), re.M))
+        self.assertEqual({n for n in public_calls() if inspect.isfunction(getattr(hmixml, n))}, set(written))
+        for name, args in written.items():
+            self.assertEqual(str(inspect.signature(getattr(hmixml, name))), args, name)
 
 
 def ml(comp, text):

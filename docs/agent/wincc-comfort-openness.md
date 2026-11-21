@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:19:37-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:34:52-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -449,16 +449,17 @@ tag works with a range list 0/1.
 
 Every public function of `hmixml`, by what a generator does with it; enough to write a generator without opening
 `hmixml.py`, whose docstrings say more. A test holds this list to the module
-(`TiaHmiGenerator\Tests\test_guide_calls.py`). `doc` is a `<Document>` element, `e` a screen item or other element;
-the colour keys are those of `set_colours`.
+(`TiaHmiGenerator\Tests\test_guide_calls.py`): the names and what each takes. `doc` is a `<Document>` element, `e` a
+screen item or other element, both of Python's `xml.etree.ElementTree`: what no call does, a generator does on them
+directly, as 5.2 does twice. The colour keys are those of `set_colours`.
 
 **The run.** Documents reach the disk only through it.
 
 | Call | Takes | Gives |
 |---|---|---|
-| `begin(repo, panel=None, device=None)` | The project repo; `panel` declares the target panel with the run (name, order number or `WxH`); `device` with several HMI devices | The declared panel's resolution. Reads the project's languages and tag tables. `ValueError` without a declared panel, or one that differs from the device in TIA |
-| `plan(kind, name, note='')` | Something the run needs that TIA does not hold yet: a style preset, text list, template, picture, faceplate type version, screen | Nothing; `planned.json`. The bridge refuses an import while an item stays open |
-| `add(kind, doc, folder='')` | `kind` `screen`, `template`, `popup`, `textlist` or `tagtable`; `folder` the TIA folder under the kind | The path it will write, repo-relative, under `hmi\[<device>\]generated\<kind dir>\` |
+| `begin(repo, panel=None, device=None)` | The project repo; `panel` declares the target panel with the run (name, order number or `WxH`) where `hmi\[<device>\]panel.json` does not; `device` with several HMI devices | The declared panel's resolution. Reads the project's languages and tag tables. `ValueError` without a declared panel, or one that differs from the device in TIA |
+| `plan(kind, name, note='')` | Something the run needs that TIA does not hold yet: a style preset, text list, template, picture, faceplate type version, screen | Nothing; `planned.json`. The bridge refuses the import of a document that links an item still open (`links.planned`) |
+| `add(kind, doc, folder='')` | `kind` `screen`, `template`, `popup`, `textlist` or `tagtable`; `folder` the TIA folder under the kind | The path it will write, repo-relative with `/`: `hmi/[<device>/]generated/<kind dir>/<folder>/<Name>.xml` |
 | `finish()` | | The run's findings, printed too. On an error `GenerationRefused`, and nothing written |
 | `GenerationRefused` | | The exception of a refused run; `.findings` |
 | `size()` | | `(width, height)` of the run's panel; `RuntimeError` outside a run |
@@ -468,7 +469,7 @@ the colour keys are those of `set_colours`.
 
 | Call | Takes | Gives |
 |---|---|---|
-| `load_templates(path, aliases=None)` | A full export of a screen; `aliases` `{key: ObjectName}` or `{key: (ObjectName, {attribute: value})}` (section 5, Preset names) | The presets: every screen item named `S-...`, and the aliases. Its roots, layers and groups become shapes |
+| `load_templates(path, aliases=None)` | A full export of a screen; `aliases` `{key: ObjectName}` or `{key: (ObjectName, {attribute: value})}` (section 5, Preset names) | The presets: every screen item named `S-...`, and the aliases. The first object of each type in it becomes that type's shape. It starts the presets, shapes and loaded languages anew: call it before `load_shapes` |
 | `load_shapes(path)` | Another full export: a template, a pop-up | Its objects as shapes for `blank` |
 | `set_colours(d)` | `{key: (r, g, b)}`: `screen` for a screen's `BackColor`, and the keys the animations name | Nothing |
 | `generated_cultures()` | | The languages every text and font gets (section 5, Languages) |
@@ -490,10 +491,10 @@ the colour keys are those of `set_colours`.
 
 | Call | Takes | Gives |
 |---|---|---|
-| `item(o)` | One object dict (section 5) | A copy of its preset without the preset's animations, events and properties; geometry, name, `m.text`, `m.fmt` (and `FieldLength`), `m.mode`, `m.anim`, `m.vis` set; `m.tl` a text list link, beside one the preset has; a button gets the `Press` event `SetBitWhileKeyPressed`, its tag open |
+| `item(o)` | One object dict (section 5) | A copy of its preset without the preset's animations, events and properties; geometry and name set, `m.anim` and `m.vis` on any; `m.text` on a text field or button; `m.fmt` (and `FieldLength`) on an I/O field; on a symbolic I/O field `m.mode`, and `m.tl`, which it needs, a text list link beside one the preset has; a button gets the `Press` event `SetBitWhileKeyPressed`, its tag open |
 | `template(style)` | A preset's key | A whole copy of the preset, its animations and events with it, in the project's languages |
 | `shape_item(tag, name, x, y, w, h, cultures=None)` | An element type (`Hmi.Screen.Gauge`) | A whole object of that type from the exports loaded, else from the screen object catalogue's fixture, without links, animations, events and properties |
-| `blank(tag, composition=None)` | An element type | A new element with the attributes of the first such object loaded, no children |
+| `blank(tag, composition=None)` | An element type | A new element with the attributes of the first such object loaded, else of the screen object catalogue's fixture; no children |
 | `group(name, members)` | Screen items | A group |
 | `graphic_view(name, x, y, w, h, picture)` | A project graphic's name | A graphic view linking it |
 
@@ -528,7 +529,8 @@ the colour keys are those of `set_colours`.
 
 A pump screen in the style of the screen `Motors`, whose export holds the presets `S-Panel`, `S-Title`, `S-Value`,
 `S-State` and `S-Button`; its tags and text list are made in the same run. In the project repo as `gen\pump.py`, run
-as section 2 says: `<py> -I gen\pump.py <tool repo>\TiaHmiGenerator <project repo>`.
+as section 2 says: `<py> -I gen\pump.py <tool repo>\TiaHmiGenerator <project repo>`. The target panel is declared
+already (`hmi\panel.json`; without it `begin` says how).
 
 ```python
 import os

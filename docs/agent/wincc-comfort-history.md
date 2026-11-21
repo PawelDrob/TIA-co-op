@@ -1,9 +1,9 @@
 ---
-type: Guide
+type: Rationale
 title: "WinCC Comfort: history of the first runs"
 description: The first WinCC Comfort generation and import runs on project B, 2026-10-01 to 2026-10-06, in order, with what each changed.
 tags: [tia-portal, hmi, wincc-comfort, history, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:19:37-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:34:52-05:00 }
 ---
 
 # WinCC Comfort: history of the first runs
