@@ -5574,14 +5574,14 @@ class NoteBesideAReadField(unittest.TestCase):
     STU = '<Member Name="stU" Datatype="&quot;zzE2eUdtA&quot;" Remanence="NonRetain" Accessibility="Public">'
     WRITABLE = '<BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>'
 
-    def text(self, kind, start='4', added=False, stu=''):
+    def text(self, kind, start='4', added=False, stu='', extra=''):
         """kind: the block's tag; start: arr[1]'s start value (None: arr without one); added: m9 in stU's members;
-        stu: in front of stU's own attributes."""
+        stu: in front of stU's own attributes; extra: more members of stU, after arr."""
         x = _two_format_file('simaticml/plc/blocks/zzE2e/zzE2eFbI_DB.xml').replace('SW.Blocks.InstanceDB', kind)
         arr = ('<Member Name="arr" Datatype="Array[0..1] of Int" />' if start is None else
                '<Member Name="arr" Datatype="Array[0..1] of Int"><Subelement Path="1"><StartValue>%s</StartValue>'
                '</Subelement></Member>' % start)
-        x = x.replace(self.M1, self.M1 + arr + ('<Member Name="m9" Datatype="Int" />' if added else ''))
+        x = x.replace(self.M1, self.M1 + arr + extra + ('<Member Name="m9" Datatype="Int" />' if added else ''))
         i = x.index(self.STU) + len(self.STU)
         j = x.index(self.WRITABLE, i)
         return x[:j] + stu + x[j:]
@@ -5606,6 +5606,26 @@ class NoteBesideAReadField(unittest.TestCase):
             with self.subTest(kind=kind):
                 self.assertFalse(self.note(self.text(kind, start=None), self.text(kind)))
                 self.assertFalse(self.note(self.text(kind), self.text(kind, start=None)))
+
+    # The element 1 of x, a member inside an array of struct, and inside an array of a UDT.
+    IN_ARRAY = {'array of struct': '<Member Name="as" Datatype="Array[0..1] of Struct"><Member Name="x" Datatype="Int">'
+                                   '<Subelement Path="1"><StartValue>%s</StartValue></Subelement></Member></Member>',
+                'array of a UDT': '<Member Name="au" Datatype="Array[0..1] of &quot;UdtB&quot;"><Sections><Section '
+                                  'Name="None"><Member Name="x" Datatype="Int"><Subelement Path="1"><StartValue>%s'
+                                  '</StartValue></Subelement></Member></Section></Sections></Member>'}
+
+    def test_a_start_value_the_reader_does_not_read_beside_one_it_reads(self):
+        """The reader reads no start value of a member inside an array of struct or of a UDT: one moved there is not read,
+        also in the commit that moves arr[1]'s, which it reads."""
+        for kind in ('SW.Blocks.InstanceDB', 'SW.Blocks.GlobalDB'):
+            for where, inner in self.IN_ARRAY.items():
+                with self.subTest(kind=kind, where=where):
+                    base = self.text(kind, extra=inner % 1)
+                    both = self.text(kind, start='5', extra=inner % 2)
+                    self.assertFalse(self.note(base, self.text(kind, start='5', extra=inner % 1)), 'arr[1] alone')
+                    self.assertTrue(self.note(base, self.text(kind, extra=inner % 2)), 'the element alone')
+                    self.assertTrue(self.note(base, both), 'both in one commit')
+                    self.assertTrue(self.note(both, base), 'both in one commit, back')
 
     def test_an_attribute_read_and_one_not_in_one_commit(self):
         """A global DB reads ExternalWritable (S7_Access); the AT overlay TIA writes as StringAttribute At it does not."""

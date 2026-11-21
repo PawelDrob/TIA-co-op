@@ -16,6 +16,7 @@ varies, does not count). A negated pin reads NOT: 'in2 := NOT #x', 'in1 := NOT w
 pin the rung runs through; an AND gate's rung-in and output as TIA's FBD text, 'NOT A( in2 := #b ) NOT' after 'RUNG #a';
 a negated contact or coil operand is I_Contact / I_Coil.
 """
+import copy
 import re
 import xml.etree.ElementTree as ET
 
@@ -108,7 +109,7 @@ def _plain(el, uids=None, lang=None, network_lang=None, expansions=False):
     at the value its instruction fixes (_left_out).
     lang: only this language's texts (the others are compared apart, as texts); network_lang: the programming language
     of the network an element is in, taken from its CompileUnit (network_language); expansions: TIA's expansion of a UDT
-    member kept (_member_unread compares what is left of it once its start values are taken out)."""
+    member kept (_member_unread compares what is left of it once what the reader reads there is taken out, _unread_of)."""
     tag = _local(el.tag)
     if tag == 'FlgNet':
         return _flgnet(el, lang, network_lang)
@@ -279,16 +280,33 @@ def _flgnet(el, lang, network_lang):
     return 'FlgNet', _unnumbered(el), 'as written' if written else '', tuple(kids)
 
 
-def _member_sources(owner, path, lang, out, full=None):
-    """{path: a member's part of the file, without its struct members, which have their own}; full: the same with TIA's
-    expansion of a UDT member kept (_plain's expansions)."""
+def _member_sources(owner, path, lang, out, expansions):
+    """{path: a member's part of the file, without its struct members, which have their own}; expansions: TIA's
+    expansion of a UDT member kept (_plain's)."""
     for m in _kids(owner, 'Member'):
         here = path + part_text(m.get('Name'))
-        for into, keep in ((out, False), (full, True)):
-            if into is not None:
-                plain = _plain(m, lang=lang, expansions=keep)
-                into[here] = plain[:3] + ([k for k in plain[3] if k[0] != 'Member'],)
-        _member_sources(m, here + '.', lang, out, full)
+        plain = _plain(m, lang=lang, expansions=expansions)
+        out[here] = plain[:3] + ([k for k in plain[3] if k[0] != 'Member'],)
+        _member_sources(m, here + '.', lang, out, expansions)
+
+
+def _unread_of(section):
+    """A copy of a section without what the reader takes inside its members, at the places of _set_inside (_taken), nor
+    an array element left with nothing else (TIA writes one only to hold them): what is left of their Sections and
+    Subelements is what the report does not read there."""
+    section = copy.deepcopy(section)
+    parent = {c: p for p in section.iter() for c in p}
+
+    def strip(owner):
+        for m in _kids(owner, 'Member'):
+            for _, el in list(_set_inside(m, '')):
+                for c in _taken(el):
+                    el.remove(c)
+                if _local(el.tag) == 'Subelement' and not len(el) and set(el.attrib) <= {'Path'}:
+                    parent[el].remove(el)
+            strip(m)                                        # its struct members, as the reader goes (_members)
+    strip(section)
+    return section
 
 
 def _block_of(xml):
@@ -343,42 +361,25 @@ def _fields(plain):
     return out
 
 
-# The attributes of a member the report reads (_attrs); TIA writes others there, such as the AT overlay (At).
-_READ_ATTRIBUTES = {'ExternalWritable', 'ExternalAccessible', 'ExternalVisible', 'SetPoint'}
-
-
 def _unread_part(field, kids):
     """What the report does not read of a field it reads only in part, None for one it reads whole or not at all. Of a
-    member's AttributeList, the attributes but _READ_ATTRIBUTES. Of its Sections and Subelements (in _plain's form with
-    TIA's expansion of a UDT member kept), all but the start values and comments a member or element inside sets
-    (_overrides, _subelements); an element that held nothing else goes with them."""
+    member's AttributeList, the attributes but _READ_ATTRIBUTES. Of its Sections and Subelements, kids as they are: they
+    come from _unread_of, which took out what the reader reads there."""
     if field == 'AttributeList':
         return [(t, attrs, '', [x for x in sub if dict(x[1]).get('Name') not in _READ_ATTRIBUTES])
                 for t, attrs, _, sub in kids or ()]
-    if field not in ('Sections', 'Subelement'):
-        return None
-
-    def inside(kids):
-        out = []
-        for tag, attrs, text, sub in kids:
-            if tag == 'StartValue' or (tag == 'Comment' and ('Informative', 'true') not in attrs):
-                continue
-            sub = inside(sub)
-            if tag == 'Subelement' and not sub and {k for k, _ in attrs} <= {'Path'}:
-                continue
-            out.append((tag, attrs, text, sub))
-        return out
-    return inside(kids or ())
+    return kids if field in ('Sections', 'Subelement') else None
 
 
-def _member_unread(b, a, rb, ra, full=(None, None)):
+def _member_unread(b, a, rb, ra, unread):
     """A member's field differs and what the report reads of it does not: told apart field by field, so also on a member
     whose row is changed for another field, and within a field the report reads only in part (_unread_part, of the
-    field in full: the member's part of the file with TIA's expansion kept). A member gone to another section, which
-    the report shows, gets that section's defaults: no difference of its own. rb, ra: _read's values, None where the
-    report does not read the member."""
+    member's part of _unread_of with TIA's expansion kept: unread, before and after). What counts as read is exactly
+    what the reader reads and the report shows; a start value the reader skips is not read, wherever it stands. A
+    member gone to another section, which the report shows, gets that section's defaults: no difference of its own.
+    rb, ra: _read's values, None where the report does not read the member."""
     fb, fa = _fields(b), _fields(a)
-    gb, ga = (_fields(x) if x is not None else f for x, f in zip(full, (fb, fa)))
+    gb, ga = _fields(unread[0]), _fields(unread[1])
     other_section = rb is not None and ra is not None and rb[5] != ra[5]
     for field in set(fb) | set(fa):
         if fb.get(field) != fa.get(field):
@@ -402,15 +403,16 @@ def unread_differs(bxml, axml, bblk, ablk, lang=None):
         return True
 
     def members(blk):
-        out, full = {}, {}
+        out, unread = {}, {}
         al = _kid(blk, 'AttributeList')
         for itf in _kids(al, 'Interface'):
             for secs in _kids(itf, 'Sections'):
                 for sec in _kids(secs, 'Section'):
                     if sec.get('Name') != 'Return':              # the declaration shows it
-                        _member_sources(sec, '', lang, out, full)
-        return out, full
-    (mb, fullb), (ma, fulla) = members(b), members(a)
+                        _member_sources(sec, '', lang, out, False)
+                        _member_sources(_unread_of(sec), '', lang, unread, True)
+        return out, unread
+    (mb, unreadb), (ma, unreada) = members(b), members(a)
     if _local(b.tag) == _local(a.tag) == 'SW.Blocks.InstanceDB':
         if set(mb) != set(ma):                                   # a member of its FB or UDT, which is not read here
             return True
@@ -421,7 +423,7 @@ def unread_differs(bxml, axml, bblk, ablk, lang=None):
             return True                         # another kind with none: a member one file has is read nowhere else
     for path in set(mb) & set(ma):
         if mb[path] != ma[path] and _member_unread(mb[path], ma[path], rb.get(path), ra.get(path),
-                                                   (fullb[path], fulla[path])):
+                                                   (unreadb[path], unreada[path])):
             return True
 
     def attributes(blk):
@@ -1145,11 +1147,17 @@ def _type(dt):
     return re.sub(r'\bStruct$', 'STRUCT', re.sub(r'"([^"]+)"', r'_.\1', dt or ''))
 
 
+# The attributes of a member the reader reads (_attrs), and no other: TIA writes others there, such as the AT
+# overlay (At), which the note compares (_unread_part).
+_READ_ATTRIBUTES = {'ExternalWritable', 'ExternalAccessible', 'ExternalVisible', 'SetPoint'}
+
+
 def _attrs(m, typ, section, safety=False):
     """The member attributes as the pragmas the SD export writes: only where they differ from what TIA shows without
     one (Setpoint: iface.setpoint_default)."""
     al = _kid(m, 'AttributeList')
-    a = {x.get('Name'): x.text for x in _kids(al if al is not None else m, 'BooleanAttribute')}
+    a = {x.get('Name'): x.text for x in _kids(al if al is not None else m, 'BooleanAttribute')
+         if x.get('Name') in _READ_ATTRIBUTES}
     out = {}
     if a.get('ExternalWritable') == 'false':
         out['S7_Access'] = 'ReadOnly := External'
@@ -1171,33 +1179,44 @@ def _comment(m, lang):
     return next((t for l, t in texts if l == lang), None) or next((t for _, t in texts if t), None)
 
 
-def _subelements(m, here, lang, itf):
-    """The elements of an array with their own start value or comment: Subelement Path="1" -> 'x[1]', as the SD
-    export's start values and initializers name them. Not those of a member inside an array of struct:
-    no real export holds one, so their path is not settled."""
-    if not re.match(r'Array\s*\[', m.get('Datatype') or ''):
-        return
-    for sub in _kids(m, 'Subelement'):
-        value, comment = _text(sub, 'StartValue') or None, _comment(sub, lang)
-        if value is not None or comment:
-            itf.start['%s[%s]' % (here, sub.get('Path'))] = (value or '()', comment)
+def _set_inside(m, here):
+    """(path, element) of each place inside member m where the reader takes a start value or comment the DB or
+    instance sets (_set_value), beside m's own and its struct members': the elements of an array (Subelement Path="1"
+    -> 'x[1]', as the SD export's start values and initializers name them) and the members inside a UDT or FB instance,
+    where the export writes a start value or comment only as the instance sets its own ('"x".q := ();' with its
+    comment), the members of a struct in the UDT being Member elements of the struct. Not the elements of a member
+    inside an array of struct or of a UDT: no real export holds one, so their path is not settled. The one walk of
+    both the reader (_members) and the note (unread_differs): what it does not name is not read."""
+    if re.match(r'Array\s*\[', m.get('Datatype') or ''):
+        for sub in _kids(m, 'Subelement'):
+            yield '%s[%s]' % (here, sub.get('Path')), sub
+    for sec in _kids(m, 'Sections'):
+        for s in _kids(sec, 'Section'):
+            yield from _instance_members(s, here + '.')
 
 
-def _overrides(section, path, lang, itf):
-    """The members inside a UDT or FB instance of a global DB: the export writes a start value or comment only
-    where the instance sets its own; these become start values, as the SD export lists them ('"x".q := ();' with
-    its comment). The members of a struct in the UDT are Member elements of the struct."""
-    for m in _kids(section, 'Member'):
+def _instance_members(owner, path):
+    for m in _kids(owner, 'Member'):
         here = path + part_text(m.get('Name'))
-        value, comment = _text(m, 'StartValue') or None, _comment(m, lang)
-        if value is not None or comment:
-            itf.start[here] = (value or '()', comment)
-        _subelements(m, here, lang, itf)
-        for sec in _kids(m, 'Sections'):
-            for s in _kids(sec, 'Section'):
-                _overrides(s, here + '.', lang, itf)
+        yield here, m
+        yield from _set_inside(m, here)
         if m.get('Datatype') == 'Struct':
-            _overrides(m, here + '.', lang, itf)
+            yield from _instance_members(m, here + '.')
+
+
+def _taken(el):
+    """The children of a place of _set_inside the reader takes its start value and comment from (_set_value): its
+    StartValue, and its Comment but an informative one, which _comment skips."""
+    return [c for c in (_kid(el, 'StartValue'), _kid(el, 'Comment')) if c is not None and c.get('Informative') != 'true']
+
+
+def _set_value(el, lang):
+    """The start value and comment the reader takes from a place of _set_inside, of its children of _taken; None where
+    it takes neither."""
+    taken = {_local(c.tag) for c in _taken(el)}
+    value = _text(el, 'StartValue') or None if 'StartValue' in taken else None
+    comment = _comment(el, lang) if 'Comment' in taken else None
+    return (value or '()', comment) if value is not None or comment else None
 
 
 def _members(owner, parent, section, lang, itf, db, path='', safety=False):
@@ -1211,10 +1230,10 @@ def _members(owner, parent, section, lang, itf, db, path='', safety=False):
             if value is not None:
                 itf.start[here] = (value, None)
             value = None
-        _subelements(m, here, lang, itf)                  # also in an FB or UDT, as its initializer
-        for sec in _kids(m, 'Sections'):
-            for s in _kids(sec, 'Section'):
-                _overrides(s, here + '.', lang, itf)
+        for at, el in _set_inside(m, here):               # also in an FB or UDT, as its initializer
+            got = _set_value(el, lang)
+            if got:
+                itf.start[at] = got
         mem = Member(name, typ, comment or None, value, section, attrs=_attrs(m, typ, section, safety),
                      retain={'Retain': True, 'SetInIDB': s7dcl.SET_IN_IDB}.get(m.get('Remanence'), False))
         parent.children[mem.name] = mem
