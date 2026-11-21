@@ -14,8 +14,9 @@
 #      TiaAgentStatus/, TiaBridge/ (it reads the bridge's state files), tools/dashboard/ (its page runs on that core) or
 #      .claude/skills/tia-dashboard/ (a test holds its page to the string the skill looks for)
 #   6. TiaHmiGenerator unit tests (about 5 min, run from the folder) and the catalogue check (build.py --check), when
-#      the commit touches TiaHmiGenerator/, with the bridge's validator guard tests (HmiImport.Tests.ps1, about 8 s)
-#      when step 2 does not run. A TiaBridge/ change alone does not need them: the generator tests use no bridge
+#      the commit touches TiaHmiGenerator/ or docs/agent/wincc-comfort-openness.md (a test holds its list of the
+#      generator's calls, 5.1, to the module and runs its worked screen, 5.2), with the bridge's validator guard
+#      tests (HmiImport.Tests.ps1, about 8 s) when step 2 does not run. A TiaBridge/ change alone does not need them: the generator tests use no bridge
 #      code, and step 2 runs the guard tests on the real validator
 #   7. OKF check of docs/ (check only, tools/okf/), when the commit touches docs/ or tools/okf/, and the checker's
 #      own tests (about 8 s) when it touches tools/okf/. A document added, moved, removed or deprecated needs a line in
@@ -109,7 +110,7 @@ if [ -n "$ref" ]; then
 fi
 
 py="$(pwd)/.venv/Scripts/python.exe"
-if [ "$mode" != --groups ] && echo "$staged" | grep -qE '^(TiaBridge|TiaChangeReports|TiaArchiveCompare|TiaAgentStatus|TiaHmiGenerator|tools/dashboard|tools/pointers|tools/session|tools/hooks|tools/setup|\.githooks|\.claude/skills)/|^(AGENTS|CODING_STANDARDS|CONTRIBUTING)\.md$' && [ ! -x "$py" ]; then
+if [ "$mode" != --groups ] && echo "$staged" | grep -qE '^(TiaBridge|TiaChangeReports|TiaArchiveCompare|TiaAgentStatus|TiaHmiGenerator|tools/dashboard|tools/pointers|tools/session|tools/hooks|tools/setup|\.githooks|\.claude/skills)/|^(AGENTS|CODING_STANDARDS|CONTRIBUTING)\.md$|^docs/agent/wincc-comfort-openness\.md$' && [ ! -x "$py" ]; then
     echo "pre-commit: no .venv in this tree: run uv sync here (once per clone and per worktree). Commit refused."
     exit 1
 fi
@@ -175,7 +176,7 @@ if echo "$staged" | grep -qE '^(TiaAgentStatus|TiaBridge|tools/dashboard|\.claud
     suite tiaagentstatus_unittest unittest "TiaAgentStatus unit tests" "TiaAgentStatus tests failed"
 fi
 
-if echo "$staged" | grep -q '^TiaHmiGenerator/'; then
+if echo "$staged" | grep -qE '^TiaHmiGenerator/|^docs/agent/wincc-comfort-openness\.md$'; then
     run_tiahmigenerator_unittest() { (cd TiaHmiGenerator && unittest discover -s Tests -t .); }
     suite tiahmigenerator_unittest unittest "TiaHmiGenerator unit tests" "TiaHmiGenerator tests failed" long
     run_tiahmigenerator_catalogue() {

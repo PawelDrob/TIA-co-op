@@ -114,6 +114,39 @@ class ACommitOfTheBridgeAlone(HookRepo):
         self.assertIn("the report reads the bridge's export folders", result.stderr)
 
 
+class ACommitOfTheGeneratorsGuideAlone(HookRepo):
+    """The guide whose calls and worked screen a generator test holds (5.1, 5.2) runs the generator's suite."""
+    PASSES = 'import unittest\n\nclass T(unittest.TestCase):\n    def test(self):\n        pass\n'
+    DOC = '---\ntype: Guide\ntitle: A\n---\n\nText.\n'
+
+    def setUp(self):
+        super().setUp()
+        self.put('TiaBridge/Tests/run.ps1', '')
+        self.put('TiaHmiGenerator/Tests/__init__.py', '')
+        self.put('TiaHmiGenerator/Tests/test_stub.py', self.PASSES)
+        self.put('TiaHmiGenerator/catalogue/build.py', '')
+        self.put('tools/okf/Test-OkfBundle.ps1', '')
+        self.put('docs/log.md', '# Log\n')
+        self.put('docs/index.md', '# Index\n')
+        self.put('docs/agent/wincc-comfort-openness.md', self.DOC)
+        self.put('docs/agent/s7dcl-format.md', self.DOC)
+        self.git('add', '-A')
+        self.commit_past_the_hooks('stubs')
+
+    def commit_a_change_of(self, name):
+        self.put(name, self.DOC + 'More.\n')
+        self.git('add', name)
+        result = self.commit()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result.stdout + result.stderr
+
+    def test_the_guide_runs_it(self):
+        self.assertIn('TiaHmiGenerator unit tests', self.commit_a_change_of('docs/agent/wincc-comfort-openness.md'))
+
+    def test_another_guide_does_not(self):
+        self.assertNotIn('TiaHmiGenerator unit tests', self.commit_a_change_of('docs/agent/s7dcl-format.md'))
+
+
 class DocumentsAndTheirLog(HookRepo):
     """A document added, moved, removed or deprecated takes a line in docs/log.md."""
     HEADER = '---\ntype: Guide\ntitle: A\n---\n\nSome text of this document, long enough for git to see a move.\n'
