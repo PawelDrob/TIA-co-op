@@ -3,7 +3,7 @@ type: Guide
 title: SIMATIC SD (.s7dcl) authoring guide
 description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source; the core every PLC change reads, and which part holds LAD networks, comments, data, instructions and import diagnostics.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T18:22:43-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T18:44:35-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -197,6 +197,7 @@ Where the rule of each item is, so a run reads only the parts its items need (th
 | 17, 18 | 10 | `s7dcl-import.md` |
 | 19 | 3, 4, 6; a non-optimized DB 8.14b | this file; a non-optimized DB `s7dcl-data.md` |
 | 21 | 8.13a, Extended instructions | this file, the item; its section `s7dcl-instructions.md` |
+| 22 | 11 | this file, the item; its section `s7dcl-import.md` |
 
 1. Every network has exactly one `{ S7_Language := "..." }` pragma directly before `NETWORK`, value one of STL/LAD/FBD/SCL.
 2. Every LAD rung starts with a wire operand (`RUNG wire#powerrail` or another wire) and, if compileable code is required, ends with a coil, box, jump, or return — never with a contact.
@@ -223,6 +224,7 @@ Where the rule of each item is, so a run reads only the parts its items need (th
 19. Language attribute: `S7_EditorMode := "SCL"` only on a block with one SCL network; any other block `S7_PreferredLanguage := "LAD"`, never `"SCL"` (3, 6). No `:= value` on a `DATA_BLOCK` declaration: start values after `END_VAR` (4). A non-optimized DB: `S7_StandardRetain := "TRUE"` with only `VAR RETAIN`, `"FALSE"` with only `VAR` (8.14b).
 20. One object per document, as an export writes it, and the kind that fits it (3). `import` and `library_create_type` refuse a document declaring a second object, also a second type listed in one `TYPE`, a head whose object they cannot read (keep to comments and one pragma block in front of the keyword), and as a library type a DB, OB, tag table, watch table, force table, technology object or HMI document. `import` also refuses a DB under kind `block`, an FB, FC or OB under `db`, a data type under either, a block or DB under `type`, a block, DB or data type under `plc_tag_table`, `watch_table` or `force_table`, a tag table, watch table, force table, technology object or HMI document under `block`, `db` or `type`, a watch table, force table, technology object or HMI document under `plc_tag_table`, a tag table, force table, technology object or HMI document under `watch_table`, a tag table, watch table, technology object or HMI document under `force_table`, any other document under `technology_object`, and a new object of a name another of `block`, `db` and `technology_object` holds: those kinds list their own objects only, so the guards would not see the object. TIA itself refuses two FCs in one document (*The import failed. The source file contains multiple object definitions.*), but it takes a `TYPE` listing two data types and makes the first only, with no message: the second is gone `[PROBE]`. Keywords are case-insensitive (2), and the bridge reads them so: a document with a keyword in another case meets the guards under the name it declares.
 21. SCL names: `T_CONV` is `TIME_TO_DINT`, `T_COMBINE` is `CONCAT_DATE_TOD`, `S_CONV` is `STRING_TO_INT`; the bare names are refused: *Tag 'T_CONV' is not declared.* (8.13a, Extended instructions)
+22. Not exported: know-how-protected blocks, read-only blocks, PLC supervisions/alarms, SiVArc definitions (11).
 
 ## 12. Gaps — blocked without a reference export `[GAP]`
 
