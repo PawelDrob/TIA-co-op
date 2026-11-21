@@ -5640,6 +5640,64 @@ class NoteBesideAReadField(unittest.TestCase):
                                                           at + self.WRITABLE.replace('true<', 'false<'), 1)), 'both')
 
 
+class EveryStartValueAndComment(unittest.TestCase):
+    """Every start value and every comment in the DB exports the tests hold, changed alone, as an instance DB and as a
+    global DB: what the reader reads the report shows, with no note; what it does not read gives the note and no row.
+    Each falls in exactly one of the two. The real exports of zzE2eFbI_DB (twoformats/1-before and 3-D009) and two
+    files made by hand from the first (fixtures/notes, each says so in its head), for what no real export holds: start
+    values and comments in an array element, a struct of the block, a struct, an array of struct and an array of a UDT
+    inside a UDT member, an informative comment, and a UDT member's expansion bare but for a member inside an array of
+    struct."""
+
+    FILES = [os.path.join(TWO_FORMATS, v, 'simaticml', 'plc', 'blocks', 'zzE2e', 'zzE2eFbI_DB.xml')
+             for v in ('1-before', '3-D009')] + \
+            [os.path.join(os.path.dirname(TWO_FORMATS), 'notes', f)
+             for f in ('zzE2eFbI_DB-hand-made.xml', 'zzE2eFbI_DB-hand-made-bare.xml')]
+
+    @staticmethod
+    def changed(text, i):
+        """The file with its i-th element (in document order) changed, a start value or a comment in every language,
+        and where it is: the names of the members and elements it is under."""
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(text)
+        els = list(root.iter())
+        el = els[i]
+        if el.tag.endswith('StartValue'):
+            el.text = (el.text or '') + '9'
+        else:
+            for t in el:
+                t.text = (t.text or '') + ' changed'
+        parent = {c: q for q in els for c in q}
+        names, x = [], el
+        while x is not None:
+            if x.tag.rsplit('}', 1)[-1] in ('Member', 'Subelement'):
+                names.append(x.get('Name') or '[%s]' % x.get('Path'))
+            x = parent.get(x)
+        where = '.'.join(reversed(names)).replace('.[', '[')
+        return ET.tostring(root, encoding='unicode'), '%s %s' % (where, el.tag.rsplit('}', 1)[-1])
+
+    def test_each_read_and_shown_or_not_read_and_the_note(self):
+        import xml.etree.ElementTree as ET
+        seen = Counter()
+        for f in self.FILES:
+            with open(f, encoding='utf-8-sig') as h:
+                real = h.read()
+            for kind in ('SW.Blocks.InstanceDB', 'SW.Blocks.GlobalDB'):
+                base = ET.tostring(ET.fromstring(real.replace('SW.Blocks.InstanceDB', kind)), encoding='unicode')
+                places = [i for i, el in enumerate(ET.fromstring(base).iter())
+                          if el.tag.rsplit('}', 1)[-1] in ('StartValue', 'Comment')]
+                for i in places:
+                    after, where = self.changed(base, i)
+                    with self.subTest(file=os.path.relpath(f, os.path.dirname(TWO_FORMATS)), kind=kind, where=where):
+                        d = compare_blocks(BlockSource('zzE2eFbI_DB', '', None, 'zzE2eFbI_DB', xml=base),
+                                           BlockSource('zzE2eFbI_DB', '', None, 'zzE2eFbI_DB', xml=after))
+                        rows = [r for r in iface.block_rows(d.before, d.after) if r.state != 'same'] if d else []
+                        note = bool(d and d.not_shown)
+                        self.assertNotEqual(bool(rows), note, 'shown with the note, or neither')
+                        seen[bool(rows)] += 1
+        self.assertTrue(seen[True] and seen[False], 'both kinds of place are in the files: %s' % dict(seen))
+
+
 # ---------------------------------------------------------------- a moved network is one pair, tagged
 
 MOVE = ('SCL', 'Network to move', ['#m := #a;'])

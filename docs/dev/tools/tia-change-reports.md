@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T20:45:52-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T22:39:35-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -33,7 +33,7 @@ Both block formats read into one model, so an OB compares and draws like any oth
 |---|---|
 | Block properties | Apart from the interface: TIA raises the version on every edit, and that should not read as an interface change |
 | Interface | One table as TIA's editor shows it. Members pair by name under their parent, then as a rename by comment or by place. Only a real one-to-one pairs: otherwise removed and added. A move between sections or structs reads "moved" |
-| DB start values | Members of the same tree, also inside a UDT or array. An instance DB or a DB of a UDT: the start values it sets, read alike from `.s7dcl` and SimaticML; the members TIA writes into its SimaticML from the FB or UDT are not read, and a change of them is the note. From SimaticML not those of a member inside an array of struct or of a UDT, whose path no real export shows: a change of them is the note, also beside a start value read under the same member |
+| DB start values | Members of the same tree, also inside a UDT or array. An instance DB or a DB of a UDT: the start values it sets, read alike from `.s7dcl` and SimaticML; the members TIA writes into its SimaticML from the FB or UDT are not read, and a change of them is the note. From SimaticML not those of a member inside an array of struct, nor of an element under an array of a UDT, whose path no real export shows (ticket 402): a change of them is the note, also beside a start value read under the same member |
 | Networks | Paired by title in sequence, then by content or the same logic. Untitled ones also by their content where that reads better: fewer networks listed, then fewer new or deleted, then pairs the same or alike rather than not alike, and fewer moved (an edit in place costs no more than a network deleted and another changed). At a tie the pairing by title stands |
 | LAD | The logic diff below |
 | SCL | A side-by-side line diff |
