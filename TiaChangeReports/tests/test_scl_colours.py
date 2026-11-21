@@ -675,7 +675,7 @@ class WhereATokenEnds(unittest.TestCase):
     (scl_colours.STATEMENT_KEYWORDS, LOGIC_KEYWORDS, WORD_OPERATORS, BOOLS, REGION_WORDS, TYPE_TESTS, DATA_TYPES), a
     name of each prefix and a comment of each kind, followed directly by each operator of scl_colours.OPERATORS, the
     ";" and each comment kind, and each bracket, "," or comment followed by it: the cut gives exactly the two tokens."""
-    NAMES = ['#a', '#Größe', '#"a b"', '#"a$"b"', '"Q"', '"My.Db"', '"$"Pump$""', 'a', 'Übung']  # $": guide, sect. 8
+    NAMES = ['#a', '#Größe', '#"a b"', '#"a$"b"', '"Q"', '"My.Db"', '"$"Pump$""', 'a', 'Übung']  # $": docs/agent/s7dcl-data.md 8.14b
     COMMENTS = ['(* c *)', '(/* c */)']
 
     @classmethod

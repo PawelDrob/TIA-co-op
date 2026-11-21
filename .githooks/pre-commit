@@ -16,8 +16,8 @@
 #   6. TiaHmiGenerator unit tests (about 5 min, run from the folder) and the catalogue check (build.py --check), when
 #      the commit touches TiaHmiGenerator/ or docs/agent/wincc-comfort-openness.md (a test holds its list of the
 #      generator's calls, 5.1, to the module and runs its worked screen, 5.2), with the bridge's validator guard
-#      tests (HmiImport.Tests.ps1, about 8 s) when step 2 does not run. A TiaBridge/ change alone does not need them: the generator tests use no bridge
-#      code, and step 2 runs the guard tests on the real validator
+#      tests (HmiImport.Tests.ps1, about 8 s) when step 2 does not run. A TiaBridge/ change alone does not need them:
+#      the generator tests use no bridge code, and step 2 runs the guard tests on the real validator
 #   7. OKF check of docs/ (check only, tools/okf/), when the commit touches docs/ or tools/okf/, and the checker's
 #      own tests (about 8 s) when it touches tools/okf/. A document added, moved, removed or deprecated needs a line in
 #      docs/log.md in the same commit

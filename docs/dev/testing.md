@@ -4,7 +4,7 @@ title: Testing
 description: What each test suite covers and what it fakes, what the commit hook runs across tools, and what only a real TIA can show.
 tags: [dev, testing]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-20T18:13:46-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:12:29-05:00 }
 ---
 
 # Testing
@@ -30,11 +30,12 @@ No suite the hook runs needs TIA, a window or a person, so anyone can run them a
 
 ## What the hook adds
 
-`.githooks\pre-commit` picks suites by the paths a commit touches. Four suites run for a change elsewhere, because a contract crosses there:
+`.githooks\pre-commit` picks suites by the paths a commit touches. Five suites run for a change elsewhere, because a contract crosses there:
 
 - The report's test of its export folders against the bridge's, on a change to the bridge alone.
 - The status suite, on a change to the bridge or `tools\dashboard\`: it reads the state files and runs on that core.
 - The bridge's validator guard tests, on a change to the generator.
+- The generator's suite, on a change to `docs\agent\wincc-comfort-openness.md`: a test holds its list of the generator's calls (5.1) to the code and runs its worked screen (5.2).
 - The Archive Compare package tests, on a change to `TiaBridge\Mcp.ps1`: the download's version must equal the bridge's.
 
 ## By hand

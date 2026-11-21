@@ -1,9 +1,9 @@
 ---
 type: Guide
 title: SIMATIC SD (.s7dcl) authoring guide
-description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source; the core every PLC change reads, and which part holds LAD networks, what exports showed and import diagnostics.
+description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source; the core every PLC change reads, and which part holds LAD networks, comments, data, instructions and import diagnostics.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:34:52-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:16:20-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -25,14 +25,16 @@ sources:
 
 Target platform: Siemens TIA Portal V20 (Update 4 or later; projects are kept on the latest V20 update) / V21, SIMATIC Source Documents (SIMATIC SD) format.
 
-**This guide in parts.** A section keeps its number in the file that holds it, so a section cited by number, here or elsewhere, is in the file this table names. Read this file for every PLC change, and a part when the change needs it.
+**This guide in parts.** A section keeps its number in the file that holds it, so a section cited by number, here or elsewhere, is in the file this table names; 8.14b and 8.14c are parted at their items, each piece under the section's heading and a name. Read this file for every PLC change, and a part when the change needs it.
 
 | File | Sections | Read for |
 |---|---|---|
 | `s7dcl-format.md`, this file | 0 to 7, 9, 12, 13 | Every PLC change: what a file is, encoding, block structure, interface, literals, networks, SCL networks, the checklist, the gaps, the workflow |
-| [s7dcl-lad.md](s7dcl-lad.md) | 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14, Appendices A and B | A LAD network written or changed |
-| [s7dcl-exports.md](s7dcl-exports.md) | 8.13a, 8.14b, 8.14c, 8.14d | What exports showed: instruction names that differ from TIA's screen, library and F-LAD instructions; DB bodies, start values and retain, UDTs, member attributes, the `.s7res`; the import failures of resource files and LAD branch shapes; a classic SCL source ported to SD |
-| [s7dcl-import.md](s7dcl-import.md) | 10, 11 | An import that fails, or does more than it was asked, and its log messages; the platform notes: OBs, the add-in SimaticSdEnabler, a TIA update |
+| [s7dcl-lad.md](s7dcl-lad.md) | 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14b: LAD, 8.14c: branch shapes and LAD operands, 8.14, Appendices A and B | A LAD network written or changed |
+| [s7dcl-resources.md](s7dcl-resources.md) | 8.14b: resource files, 8.14c: resource files | A comment or title, new or changed: the `.s7res` and its import failures |
+| [s7dcl-data.md](s7dcl-data.md) | 8.14b: blocks, interfaces and data, 8.14d | A DB's body, start values or retain, a data type, a member's attributes, block headers as exported; a classic SCL source ported to SD |
+| [s7dcl-instructions.md](s7dcl-instructions.md) | 8.13a | A call of a library, communication, Technology or F instruction; instruction names that differ from TIA's screen |
+| [s7dcl-import.md](s7dcl-import.md) | 10, 11 | An import that fails, or does more than it was asked, and its log messages; the import of a main safety block; the platform notes: OBs, the add-in SimaticSdEnabler, a TIA update |
 
 ## 0. Source basis and confidence tags
 
@@ -189,11 +191,11 @@ Where the rule of each item is, so a run reads only the parts its items need (th
 | Items | Sections | File |
 |---|---|---|
 | 1, 11, 12, 20 | 2, 3, 4, 6 | this file |
-| 10 | 2, 5, 7; the line ends 10 | this file; the line ends `s7dcl-import.md` |
-| 2 to 9, 16a | 8.2 to 8.13; 8.4, with the shapes tried in 8.13b and 8.14c | `s7dcl-lad.md`; `s7dcl-exports.md` for 8.14c |
-| 13 to 16, 17a | 8.14b, 8.14c | `s7dcl-exports.md` |
+| 10, 10a | 2, 5, 7; the line ends and the indent 10 | this file; the line ends and the indent `s7dcl-import.md` |
+| 2 to 9, 16, 16a, 17a | 8.2 to 8.13; 8.4, with the shapes tried in 8.13b and 8.14c | `s7dcl-lad.md` |
+| 13 to 15 | 8.14b, 8.14c | `s7dcl-resources.md` |
 | 17, 18 | 10 | `s7dcl-import.md` |
-| 19 | 3, 4, 6; a non-optimized DB 8.14b | this file; a non-optimized DB `s7dcl-exports.md` |
+| 19 | 3, 4, 6; a non-optimized DB 8.14b | this file; a non-optimized DB `s7dcl-data.md` |
 
 1. Every network has exactly one `{ S7_Language := "..." }` pragma directly before `NETWORK`, value one of STL/LAD/FBD/SCL.
 2. Every LAD rung starts with a wire operand (`RUNG wire#powerrail` or another wire) and, if compileable code is required, ends with a coil, box, jump, or return — never with a contact.
@@ -205,6 +207,7 @@ Where the rule of each item is, so a run reads only the parts its items need (th
 8. `S7_Templates` / `S7_GenerateENO` / `S7_Expression` / `CASE<n>` pragmas sit immediately before the instruction they modify.
 9. Timers, counters, flip-flops, FB calls have an instance; a bare FB block name imports but will not compile.
 10. Local variables carry `#`; constants and literals use IEC syntax; identifiers restricted to the allowed Unicode set; file saved UTF-8 (+BOM preferred), with CRLF line ends (section 10; the TiaBridge import writes them).
+10a. Keep your own indent at 8 or deeper. A body that has already gone deeper stays there (24 stays 24): take the surplus off by hand once, in the file, with the lines still at 8 or deeper (10, Line ends decide the indent of an SCL body).
 11. No AT constructs, no USTRING/UCHAR, no OOP features.
 12. Interface prefixes and naming per the project's own guidelines where it owns the code — the format itself does not enforce naming.
 13. `.s7res` parses as YAML; MLC references in the `.s7dcl` and entries in the `.s7res` are equal as sets and in count (8.14b).

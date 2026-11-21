@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: LAD networks"
 description: "How LAD networks are written in SIMATIC SD (.s7dcl) files for TIA Portal V20: rungs, wires, contacts, coils, boxes, calls, program control and the Calculate box, with a complete example block and the instruction set."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:19:37-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:14:22-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -16,7 +16,7 @@ sources:
 
 # SIMATIC SD guide: LAD networks
 
-Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8 to 8.13, 8.13b, 8.14a, 8.14 and Appendices A and B, what a LAD network written or changed needs. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
+Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8 to 8.13, 8.13b, 8.14a, the LAD items of 8.14b, the branch shapes and LAD operands of 8.14c, 8.14 and Appendices A and B, what a LAD network written or changed needs. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
 
 ## 8. LAD networks (fully specified) `[LAD-DOC §3, §4]`
 
@@ -396,6 +396,107 @@ END_NETWORK
 ```
 
 - A branch rung that ends in a wire (`END_RUNG wire#w1`) and starts at a wire (`RUNG wire#w1 ... END_RUNG wire#w2`) is fine as long as its first element is a contact.
+
+### 8.14b Shapes seen in exports `[EXPORT]`: LAD
+
+Its other items: [resource files](s7dcl-resources.md), [blocks, interfaces and data](s7dcl-data.md).
+
+- Timers: instance role, template pragma is `{ S7_Templates := "time_type := Time" }` (not `timeType`); unconnected `et` written as `et =>  ` with trailing spaces: `#statTimer.x.TON( pt := #CONST, et =>  )`.
+- Comparators: `EQ_Contact`, `NE_Contact`, `LT_Contact`, `GT_Contact`, `GE_Contact` with `{ S7_Templates := "SrcType := DInt" }` (or `Time`, `LReal`) and `in1 :=`, `in2 :=`.
+- Flip-flop: `S_SR( operand := #statLatch, r1 := wire#w3 )` with the rung-in as set; `S_RS` mirrored.
+- `Move( in := ..., out1 => ..., out2 => ... )`, `Add( in1 :=, in2 :=, out => )`.
+- Empty separator network: `RUNG wire#powerrail` / `END_RUNG` with nothing in between imports.
+- Call boxes come back with their parameters in the order inputs, in-outs, outputs, whatever order the import had (`inEnable`, `inValue`, `outActive`, `outValue`, `ioState` written; `ioState` exported before `outActive`).
+
+### 8.14c Import failures from resource files and branch shapes `[EXPORT]`: branch shapes and LAD operands
+
+Its other part: [resource files](s7dcl-resources.md).
+
+**Branch that starts at a merge node and encloses a nested OR ending at the same node.** Fails with *"Syntax Error during import of TextLad file, Message: Creation of OR gate failed with RUNG 'Wire#w3' and END_RUNG 'Wire#w5'"*. The failing shape, from the *Command - Lower table* network, exported by TIA:
+
+```
+RUNG wire#powerrail
+    Contact( #req )
+    wire#w1
+    ...
+    wire#w2
+    Contact( #sensorClear )
+    wire#w3                               // closes the w2-w3 OR ...
+    Contact( #auto )
+    wire#w4
+    EQ_Contact( ...STEP_A )
+    wire#w5
+    Coil( #out )
+END_RUNG
+RUNG wire#w2  Contact( #aboveLimit )  END_RUNG wire#w3
+RUNG wire#w4  EQ_Contact( ...STEP_B ) END_RUNG wire#w5   // inner OR, ends at w5
+RUNG wire#w3  Contact( #manual )      END_RUNG wire#w5   // ... and opens one that encloses it
+RUNG wire#w1  Contact( #maint )       END_RUNG wire#w5
+```
+
+Fix, same logic: flatten the nested OR into sibling branches with the same start and end node, repeating the shared contact:
+
+```
+    wire#w3
+    Contact( #auto )
+    EQ_Contact( ...STEP_A )
+    wire#w4
+    Coil( #out )
+END_RUNG
+RUNG wire#w2  Contact( #aboveLimit )               END_RUNG wire#w3
+RUNG wire#w3  Contact( #auto )  EQ_Contact( ...STEP_B )  END_RUNG wire#w4
+RUNG wire#w3  Contact( #manual )                   END_RUNG wire#w4
+RUNG wire#w1  Contact( #maint )                    END_RUNG wire#w4
+```
+
+**Branch from a merge node that ends inside a sibling branch from the same node** (repo A `Trolley` NW49/NW50, TIA's own export, V20 Update 7, 2026-10-24). Fails with *"Error during import of TextLad file, Message: Instruction 'Contact' : Pin 'in' connection is missing."*. `wire#w1` is a merge node (the main rung and another branch end there), and two branches start at it, the second ending at a node inside the first:
+
+```
+RUNG wire#w1
+    I_Contact( #statHead.AtNeck )
+    wire#w9
+    Move( in := #FLOW_OFF, out1 => #statFlow.Pump )
+END_RUNG
+RUNG wire#w1
+    I_Contact( #tmpModeSelect )
+END_RUNG wire#w9
+```
+
+Fix, same result: give each branch its own `Move` and drop `wire#w9`. Found by bisecting test blocks down to single rungs: the network without these two rungs imported. Lint rule: no branch that starts at a merge node may end at a node inlined in a sibling branch that starts at the same merge node.
+
+**A branch that ends at a node, written after a rung that starts at that node** `[PROBE]` (a network of a test block, TIA Portal V20 through TiaBridge, 2026-11-06, the Update not recorded; the text below without its two comments, as an FC of its own with Bool inputs, V20 Update 7, 2026-11-07). Fails with the message of the `Trolley` entry (Branch from a merge node that ends inside a sibling branch from the same node); here the message goes on with the network: *Error during import of TextLad file, Message: "Instruction 'Contact' : Pin 'in' connection is missing. Error in Network: ..."*, then *1 errors, 0 warnings : Import of block(s) failed. please check the s7dcl file.* The batch is rolled back. A new branch from the rail into `wire#w1`, beside the first contact, written last:
+
+```
+RUNG wire#powerrail
+    Contact( #a )
+    wire#w1
+    Contact( #b )
+    wire#w2
+    Contact( #c )
+    wire#w3
+    Coil( #q )
+END_RUNG
+RUNG wire#w2
+    Contact( #d )
+END_RUNG wire#w3
+RUNG wire#w1                  // starts at w1 ...
+    Contact( #e )
+END_RUNG wire#w3
+RUNG wire#powerrail           // ... and the new branch, after it, ends at w1
+    Contact( #f )
+    I_Contact( #g )
+END_RUNG wire#w1
+```
+
+Fix, same logic: write the new branch after the main rung and before `RUNG wire#w1`. Right after the main rung (both runs), and between `RUNG wire#w2` and `RUNG wire#w1` (2026-11-07), the same rungs imported and compiled with 0 errors, and TIA's export wrote the new branch right after the main rung in both.
+
+The rule, for every node: a rung that ends at a node goes before every rung that starts at that node. Tried for two shapes `[PROBE]`: at `wire#w1` a branch from the power rail (above), at `wire#w2` a branch from `wire#w1` (below); other nodes and shapes `[INFERRED]`. At `wire#w2`, with the same main rung and `RUNG wire#w2 Contact( #d ) END_RUNG wire#w3`, a branch `RUNG wire#w1 Contact( #f ) I_Contact( #g ) END_RUNG wire#w2` written after that rung fails with another text: *Error during import of TextLad file, Message: " The output pin connecting to the instruction 'Contact' is missing.. Error in Network: ..."*, then the same *1 errors, 0 warnings*. Written before it, the branch imported and compiled with 0 errors. A branch also goes after the rungs that hold its start and its end node, tried for one shape `[PROBE]`, a branch with both nodes in the main rung: `RUNG wire#w2 Contact( #d ) END_RUNG wire#w3` written before the main rung fails with *Syntax Error during import of TextLad file, Message: "Creation of OR gate failed with RUNG 'Wire#w2'. Error in Network: ..."*, the text 8.13b gives for a box output on a wire. Its nodes in two rungs: `[INFERRED]`. These tries ran on 2026-11-07, V20 Update 7, each network as an FC of its own.
+
+The rule does not explain the shape of the `Trolley` entry, where no rung starts at `wire#w9`. On *Pin 'in' connection is missing*, check a file for both causes.
+
+**Multi-dimensional array index in LAD operands** (repo A, `ImportFromDocuments` into the version in work of the library types `Trolley` and `ChargeStation`, V20 Update 7, 2026-10-24). The import succeeds, but every LAD operand with a multi-dimensional index keeps only its last index: `#ioTrolleyData[#iLevel, #iColumn, #iLine].Status.Mode` comes back from the next export as `#ioTrolleyData[#iLine].Status.Mode`. The compile then fails with *Tag #ioTrolleyData[#iLine].Status.Mode not defined.* (151 errors). `ChargeStation` was imported unchanged, and none of its three-index accesses survived; in SCL networks they did. Do not round-trip a LAD network that uses multi-dimensional array operands through SIMATIC SD. SimaticML keeps them (`Trolley` on a copy of project A, 2026-10-29: SimaticML export of the version in work, edit, `CreateFromDocuments` with Override, compile 0 errors, all 114 three-index operands intact, the project instance still linked; side effects: new text ids, trailing spaces of two comments dropped). With TiaBridge: `export` kind `library_type` with `format: xml` once (later exports keep it; the SD export of such a type says so in its note), edit the `.xml`, `import` it (bridge run on a project A copy the same day: import 14 s, compile 0 errors, all 300 three-index references unchanged). Whether a plain project block (not a library type document) loses its indices the same way is unverified; exchange it as SimaticML too (`export` kind `block` with `format: xml`).
+
+What does import: a branch starting at a merge node when nothing nested inside it closes at the same end (`w2→w3`, `w3→w4`, `w1→w4`, the *Conveyor east* network); several branches closing at one node when they are nested only by start (`w2→w3`, `w1→w3`); several sibling branches with identical start and end. Lint rule: for every branch `(s, e)` where `s` is also the end of another branch, no other branch may start strictly between `s` and `e` on the main rung and also end at `e`.
 
 ### 8.14 Calculate box
 
