@@ -5565,6 +5565,61 @@ class InstanceDbStartValuesFromSimaticML(unittest.TestCase):
         self.assertTrue(dx.not_shown)
 
 
+class NoteBesideAReadField(unittest.TestCase):
+    """A field of a member the report reads only in part: what it reads moving makes that part read, never the rest
+    of the field. The real SimaticML of zzE2eFbI_DB, as the instance DB it is and as a global DB, its UDT member stU
+    given an array arr whose element 1 has a start value (the shape the audit of this rule found, and ticket 401)."""
+
+    M1 = '<Member Name="m1" Datatype="Int" />'
+    STU = '<Member Name="stU" Datatype="&quot;zzE2eUdtA&quot;" Remanence="NonRetain" Accessibility="Public">'
+    WRITABLE = '<BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>'
+
+    def text(self, kind, start='4', added=False, stu=''):
+        """kind: the block's tag; start: arr[1]'s start value (None: arr without one); added: m9 in stU's members;
+        stu: in front of stU's own attributes."""
+        x = _two_format_file('simaticml/plc/blocks/zzE2e/zzE2eFbI_DB.xml').replace('SW.Blocks.InstanceDB', kind)
+        arr = ('<Member Name="arr" Datatype="Array[0..1] of Int" />' if start is None else
+               '<Member Name="arr" Datatype="Array[0..1] of Int"><Subelement Path="1"><StartValue>%s</StartValue>'
+               '</Subelement></Member>' % start)
+        x = x.replace(self.M1, self.M1 + arr + ('<Member Name="m9" Datatype="Int" />' if added else ''))
+        i = x.index(self.STU) + len(self.STU)
+        j = x.index(self.WRITABLE, i)
+        return x[:j] + stu + x[j:]
+
+    def note(self, before, after):
+        from TiaChangeReports.simaticml import unread_differs
+        def blk(t):
+            return parse_block(BlockSource('zzE2eFbI_DB', '', None, 'zzE2eFbI_DB', xml=t))
+        return unread_differs(before, after, blk(before), blk(after))
+
+    def test_a_start_value_and_another_change_under_one_member(self):
+        for kind in ('SW.Blocks.InstanceDB', 'SW.Blocks.GlobalDB'):
+            with self.subTest(kind=kind):
+                base = self.text(kind)
+                self.assertFalse(self.note(base, self.text(kind, start='5')), 'the start value alone is read')
+                self.assertTrue(self.note(base, self.text(kind, added=True)), 'a member TIA writes, alone')
+                self.assertTrue(self.note(base, self.text(kind, start='5', added=True)), 'both in one commit')
+
+    def test_a_start_value_first_set_inside_tias_expansion_of_a_udt_member(self):
+        """Without it, stU's members are TIA's expansion, which the report leaves out; with it they are written out."""
+        for kind in ('SW.Blocks.InstanceDB', 'SW.Blocks.GlobalDB'):
+            with self.subTest(kind=kind):
+                self.assertFalse(self.note(self.text(kind, start=None), self.text(kind)))
+                self.assertFalse(self.note(self.text(kind), self.text(kind, start=None)))
+
+    def test_an_attribute_read_and_one_not_in_one_commit(self):
+        """A global DB reads ExternalWritable (S7_Access); the AT overlay TIA writes as StringAttribute At it does not."""
+        kind = 'SW.Blocks.GlobalDB'
+        at = '<StringAttribute Name="At" SystemDefined="true">TEMP_DATA</StringAttribute>'
+        base = self.text(kind)
+        read_only = self.text(kind, stu=self.WRITABLE.replace('true<', 'false<')).replace(
+            self.WRITABLE.replace('true<', 'false<') + self.WRITABLE, self.WRITABLE.replace('true<', 'false<'))
+        self.assertFalse(self.note(base, read_only), 'ExternalWritable alone is read')
+        self.assertTrue(self.note(base, self.text(kind, stu=at)), 'At alone')
+        self.assertTrue(self.note(base, read_only.replace(self.WRITABLE.replace('true<', 'false<'),
+                                                          at + self.WRITABLE.replace('true<', 'false<'), 1)), 'both')
+
+
 # ---------------------------------------------------------------- a moved network is one pair, tagged
 
 MOVE = ('SCL', 'Network to move', ['#m := #a;'])

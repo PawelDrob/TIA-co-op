@@ -99,7 +99,7 @@ def _other_language(el, lang):
     return tag == 'MultiLanguageText' and el.get('Lang') != lang
 
 
-def _plain(el, uids=None, lang=None, network_lang=None):
+def _plain(el, uids=None, lang=None, network_lang=None, expansions=False):
     """An element without what TIA writes differently per export: the export time and how it was exported, the object
     numbers (ID left out; UId, which tells what a wire connects, numbered by first appearance in its network; a LAD or
     FBD network's not at all, nor the order of its operands and wires, _flgnet), the order of the languages and a
@@ -107,7 +107,8 @@ def _plain(el, uids=None, lang=None, network_lang=None):
     automatic numbering is on (TIA's; a user cannot set it then, and an .s7dcl does not write it), and a part's template
     at the value its instruction fixes (_left_out).
     lang: only this language's texts (the others are compared apart, as texts); network_lang: the programming language
-    of the network an element is in, taken from its CompileUnit (network_language)."""
+    of the network an element is in, taken from its CompileUnit (network_language); expansions: TIA's expansion of a UDT
+    member kept (_member_unread compares what is left of it once its start values are taken out)."""
     tag = _local(el.tag)
     if tag == 'FlgNet':
         return _flgnet(el, lang, network_lang)
@@ -117,8 +118,9 @@ def _plain(el, uids=None, lang=None, network_lang=None):
         network_lang = network_language(el)
     auto = tag == 'AttributeList' and _text(el, 'AutoNumber') == 'true'
     instr = _part_instr(el) if tag == 'Part' else None
-    kids = [_plain(c, uids, lang, network_lang) for c in el
-            if _local(c.tag) != 'DocumentInfo' and not (tag == 'Member' and _local(c.tag) == 'Sections' and _expansion(c))
+    kids = [_plain(c, uids, lang, network_lang, expansions) for c in el
+            if _local(c.tag) != 'DocumentInfo'
+            and not (not expansions and tag == 'Member' and _local(c.tag) == 'Sections' and _expansion(c))
             and not (_local(c.tag) == 'MultilingualTextItem' and _no_text(c)) and not (lang and _other_language(c, lang))
             and not (auto and _local(c.tag) == 'Number') and not (instr and _left_out(instr, c))]
     if tag == 'ObjectList' and all(k[0] == 'MultilingualTextItem' for k in kids):
@@ -277,13 +279,16 @@ def _flgnet(el, lang, network_lang):
     return 'FlgNet', _unnumbered(el), 'as written' if written else '', tuple(kids)
 
 
-def _member_sources(owner, path, lang, out):
-    """{path: a member's part of the file, without its struct members, which have their own}."""
+def _member_sources(owner, path, lang, out, full=None):
+    """{path: a member's part of the file, without its struct members, which have their own}; full: the same with TIA's
+    expansion of a UDT member kept (_plain's expansions)."""
     for m in _kids(owner, 'Member'):
         here = path + part_text(m.get('Name'))
-        plain = _plain(m, lang=lang)
-        out[here] = plain[:3] + ([k for k in plain[3] if k[0] != 'Member'],)
-        _member_sources(m, here + '.', lang, out)
+        for into, keep in ((out, False), (full, True)):
+            if into is not None:
+                plain = _plain(m, lang=lang, expansions=keep)
+                into[here] = plain[:3] + ([k for k in plain[3] if k[0] != 'Member'],)
+        _member_sources(m, here + '.', lang, out, full)
 
 
 def _block_of(xml):
@@ -338,16 +343,49 @@ def _fields(plain):
     return out
 
 
-def _member_unread(b, a, rb, ra):
+# The attributes of a member the report reads (_attrs); TIA writes others there, such as the AT overlay (At).
+_READ_ATTRIBUTES = {'ExternalWritable', 'ExternalAccessible', 'ExternalVisible', 'SetPoint'}
+
+
+def _unread_part(field, kids):
+    """What the report does not read of a field it reads only in part, None for one it reads whole or not at all. Of a
+    member's AttributeList, the attributes but _READ_ATTRIBUTES. Of its Sections and Subelements (in _plain's form with
+    TIA's expansion of a UDT member kept), all but the start values and comments a member or element inside sets
+    (_overrides, _subelements); an element that held nothing else goes with them."""
+    if field == 'AttributeList':
+        return [(t, attrs, '', [x for x in sub if dict(x[1]).get('Name') not in _READ_ATTRIBUTES])
+                for t, attrs, _, sub in kids or ()]
+    if field not in ('Sections', 'Subelement'):
+        return None
+
+    def inside(kids):
+        out = []
+        for tag, attrs, text, sub in kids:
+            if tag == 'StartValue' or (tag == 'Comment' and ('Informative', 'true') not in attrs):
+                continue
+            sub = inside(sub)
+            if tag == 'Subelement' and not sub and {k for k, _ in attrs} <= {'Path'}:
+                continue
+            out.append((tag, attrs, text, sub))
+        return out
+    return inside(kids or ())
+
+
+def _member_unread(b, a, rb, ra, full=(None, None)):
     """A member's field differs and what the report reads of it does not: told apart field by field, so also on a member
-    whose row is changed for another field. A member gone to another section, which the report shows, gets that section's
-    defaults: no difference of its own. rb, ra: _read's values, None where the report does not read the member."""
+    whose row is changed for another field, and within a field the report reads only in part (_unread_part, of the
+    field in full: the member's part of the file with TIA's expansion kept). A member gone to another section, which
+    the report shows, gets that section's defaults: no difference of its own. rb, ra: _read's values, None where the
+    report does not read the member."""
     fb, fa = _fields(b), _fields(a)
+    gb, ga = (_fields(x) if x is not None else f for x, f in zip(full, (fb, fa)))
     other_section = rb is not None and ra is not None and rb[5] != ra[5]
     for field in set(fb) | set(fa):
         if fb.get(field) != fa.get(field):
             if other_section and field in _SECTION_DEFAULTS and {fb.get(field), fa.get(field)} <= _SECTION_DEFAULTS[field]:
                 continue
+            if _unread_part(field, gb.get(field)) != _unread_part(field, ga.get(field)):
+                return True
             reads = _MEMBER_READS.get(field, ())
             if rb is None or ra is None or not any(rb[k] != ra[k] for k in reads):
                 return True
@@ -364,25 +402,26 @@ def unread_differs(bxml, axml, bblk, ablk, lang=None):
         return True
 
     def members(blk):
-        out = {}
+        out, full = {}, {}
         al = _kid(blk, 'AttributeList')
         for itf in _kids(al, 'Interface'):
             for secs in _kids(itf, 'Sections'):
                 for sec in _kids(secs, 'Section'):
                     if sec.get('Name') != 'Return':              # the declaration shows it
-                        _member_sources(sec, '', lang, out)
-        return out
-    mb, ma = members(b), members(a)
+                        _member_sources(sec, '', lang, out, full)
+        return out, full
+    (mb, fullb), (ma, fulla) = members(b), members(a)
     if _local(b.tag) == _local(a.tag) == 'SW.Blocks.InstanceDB':
         if set(mb) != set(ma):                                   # a member of its FB or UDT, which is not read here
             return True
         rb, ra = _read_typed_db(bblk.interface, mb), _read_typed_db(ablk.interface, ma)
     else:
         rb, ra = _read(bblk.interface), _read(ablk.interface)
-        if not rb and not ra and mb != ma:
-            return True
+        if not rb and not ra and mb != ma:      # no member read on either side, as of an instance DB become a block of
+            return True                         # another kind with none: a member one file has is read nowhere else
     for path in set(mb) & set(ma):
-        if mb[path] != ma[path] and _member_unread(mb[path], ma[path], rb.get(path), ra.get(path)):
+        if mb[path] != ma[path] and _member_unread(mb[path], ma[path], rb.get(path), ra.get(path),
+                                                   (fullb[path], fulla[path])):
             return True
 
     def attributes(blk):
