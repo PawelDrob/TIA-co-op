@@ -5483,9 +5483,9 @@ def _notes_file(name):
 
 class InstanceDbStartValuesFromSimaticML(unittest.TestCase):
     """An instance DB's SimaticML holds the members TIA writes from its FB and the start values set in the DB; its
-    .s7dcl only those start values. The real exports of zzE2eFbI_DB (repo zz-226-repo at 5b253ff, inV set to 5 in the
-    DB, row D006) with their FB and its UDT: the report reads the start values from both formats alike, and none of
-    the members TIA spells out from the FB."""
+    .s7dcl only those start values. The real exports of zzE2eFbI_DB (twoformats/1-before: repo zz-226-repo at 5b253ff,
+    row D008, where inV is 5 in the DB since row D006) with their FB and its UDT: the report reads the start values
+    from both formats alike, and none of the members TIA spells out from the FB."""
 
     DIR, TYPES = 'plc/blocks/zzE2e/', 'plc/types/zzE2e/'
     SD_IDB = _two_format_file('plc/blocks/zzE2e/zzE2eFbI_DB.s7dcl')
@@ -5557,7 +5557,8 @@ class InstanceDbStartValuesFromSimaticML(unittest.TestCase):
         """TIA writes the FB's new input into the instance DB's SimaticML; the .s7dcl of the DB does not move. From
         SimaticML the DB gets no row of it either: the member is the FB's, shown on the FB. But its file moved in what
         the report does not read, so the DB keeps the note it had before, which the .s7dcl does not give it (the
-        two-format bed's cause "type members"; whether to drop it is the maintainer's to say)."""
+        two-format bed's cause "type members"; kept by the maintainer's word, until the rows that follow from the FB
+        take its place)."""
         def with_inx(xml):                  # inX after inW, as TIA writes inW in the FB and in its instance DB
             start = xml.index('    <Member Name="inW"')
             end = xml.index('    </Member>\n', start) + len('    </Member>\n')
@@ -5631,9 +5632,11 @@ class NoteBesideAReadField(unittest.TestCase):
     def test_an_xml_changed_beside_an_unchanged_s7dcl_is_listed(self):
         """A DB folder with both formats: the report reads the .s7dcl, and the .xml, which nothing of the report reads,
         is named among the other files when only it changed, also in a start value or comment inside TIA's expansion of
-        a UDT member. zzE2eDb's real .s7dcl and SimaticML of the bed's commit c8fbe58, and the latter altered by hand
-        (fixtures/notes): an array element's start value and an expansion member's own start value inside dev1's
-        expansion, and the member's alone in an expansion with no array element."""
+        a UDT member. Beside it on both sides zzE2eDb's real .s7dcl of the bed's commit c8fbe58 (zzE2eDb-c8fbe58.s7dcl,
+        the same as the commit before); the .xml is the real SimaticML of the commit before c8fbe58
+        (zzE2eDb-c8fbe58-before.xml) and that file altered by hand (zzE2eDb-altered.xml), all in fixtures/notes.
+        Changed: in the altered file an array element's start value (dev1.arr[1]) and an expansion member's own
+        (dev1.m1) inside dev1's expansion; in the real one the member's alone, in an expansion with no array element."""
         from TiaChangeReports.otherfiles import other_files
         sd = _notes_file('zzE2eDb-c8fbe58.s7dcl')
         for f, old, new in (('zzE2eDb-altered.xml', '<StartValue>4<', '<StartValue>5<'),
@@ -5656,8 +5659,8 @@ class NoteBesideAReadField(unittest.TestCase):
                                   '</StartValue></Subelement></Member></Section></Sections></Member>'}
 
     def test_a_start_value_the_reader_does_not_read_beside_one_it_reads(self):
-        """The reader reads no start value of a member inside an array of struct or of a UDT: one moved there is not read,
-        also in the commit that moves arr[1]'s, which it reads."""
+        """The reader reads no start value of an element of x, a member inside an array of struct or of a UDT: one moved
+        there is not read, also in the commit that moves arr[1]'s, which it reads."""
         for kind in ('SW.Blocks.InstanceDB', 'SW.Blocks.GlobalDB'):
             for where, inner in self.IN_ARRAY.items():
                 with self.subTest(kind=kind, where=where):
@@ -5692,11 +5695,12 @@ class EveryStartValueAndComment(unittest.TestCase):
     it can carry (ConstantName, IsBulkValue, Informative), its ConstantName changed, and changed beside a ConstantName;
     a comment set and changed. Each pair both ways, alone, and, at a place inside an expansion, beside TIA's retype of
     a member of that expansion (as TIA writes it when the UDT changes): then the rows are those of the pair alone, and
-    the note is the pair's or the retype's. And a third way of reading the DB: its .xml beside an .s7dcl the same on
-    both sides, which the report reads in its place: then the .xml is named among the other files at every pair, as
-    nothing reads its start values and comments. Where the expansion counts as TIA's and the pair puts no attribute there, the
-    retype gives none, so a pair the reader reads stays a row and no note; an attribute the report does not read keeps
-    the expansion compared, and the retype then gives the note, as in a file where the expansion is compared.
+    the note is the pair's or the retype's. Where the expansion counts as TIA's and the pair puts no attribute there,
+    the retype gives none, so a pair the reader reads stays a row and no note; an attribute the report does not read
+    keeps the expansion compared, and the retype then gives the note, as in a file where the expansion is compared.
+    And a third way of reading the DB: its .xml beside an .s7dcl the same on both sides, which the report reads in its
+    place. Then the .xml is named among the other files at every pair, alone and beside the retype, as nothing reads
+    its start values and comments (listed: otherfiles._stays_silent, by which other_files decides it).
     The files: the expansion compared (fixtures/notes, made by hand: zzE2eFbI_DB-hand-made, -hand-made-bare) and
     counting as TIA's (the real exports of zzE2eFbI_DB in twoformats/1-before and 3-D009 and of zzE2eDb before the bed's
     commit c8fbe58, and zzE2eDb-altered, that export with an array element's start value and a struct put in dev1's
