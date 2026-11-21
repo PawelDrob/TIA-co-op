@@ -51,6 +51,7 @@ On a wake, read the ticket's `Status:` with the newest entry under `## Comments`
 4. It sets `Status: done` in the ticket, and adds the commit `main` points at as the newest entry under `## Comments`.
 5. It takes down the review page the ticket's `Review page:` line names, and any page titled with the name of one of its sessions.
 6. It closes the ticket's sessions in the tree, `audit<name>` among them, as `close` does: the last one takes the tree and the branch.
+7. It prints what `<name>` and `audit<name>` cost, as [`tokens`](#tokens) gives it in short, and keeps it in their folders.
 
 Before step 1 it refuses unless the ticket is `in-review`, the main working tree is on `main`, the tree holds no uncommitted change and the command does not run from the tree. It cannot tell an audit's pass from a ticket waiting for its audit: run it only after the pass. It forces nothing and never pushes. At the first step that fails it stops with `merge <name> stopped: ...` and leaves tree, branch, sessions and ticket as they are. A rebase that conflicts is undone, and the files are named: the audit session rebases by its step 2. A failed hook shows its last lines and keeps its output in the session's folder. A step after the merge that fails says what was done and lists what is left to do, as commands to run from the main working tree: a second `merge` refuses, as the ticket is `done`. A page comes down with its answers, which `--done` keeps beside it. `--keep-tree` ends the sessions with `--session-only`, for a ticket that still owes a real run. Done when it prints `merged <name>: <commit> on main` and `git worktree list` no longer shows the tree, or the command has said why it stays.
 
@@ -60,7 +61,18 @@ Before step 1 it refuses unless the ticket is `in-review`, the main working tree
 
 It refuses before ending anything when the branch or the tree's `HEAD` is not merged, the tree holds uncommitted changes or ignored files, other than `.venv`, `__pycache__`, an ignored `*.stackdump` (a Git Bash program that crashed) and what a session's tools leave, or a process other than its own session stands in the tree, and it never forces. What its tools leave, a browser's `.playwright-mcp\` and the window's old build, `bin\` in `TiaArchiveCompare\window\`, it deletes itself before it removes the tree, and nothing else. A process that shows only after the session has ended leaves the tree whole and the session ended; close again once it has gone. A close that says what is left can be run again to finish. Standing in the tree means what Windows shows: a process started there, holding a file there or running a program from there, such as the tree's `.venv`. A Git Bash shell that went there with `cd`, or a PowerShell with `Set-Location`, holds nothing, so the tree goes whole from under it. A process this user may not read, such as an elevated one, can go unseen: the remove then stops half way and says what is left. `--session-only` ends the session and keeps both, for a ticket that still owes a real run. A tree or branch `start` did not make stays, and it says so, unless you add `--remove-tree`. A `ticket ... in-review` event can come before the turn ended, and close stops a running turn: wait for `turn ended`.
 
-Done when `git worktree list` no longer shows the tree, or the command has said why it stays.
+Then it prints what the session and its audit cost, the short form of `tokens`, and keeps it in each one's folder under `.scratch\sessions\` as `tokens.txt` and `tokens.json`. Done when `git worktree list` no longer shows the tree, or the command has said why it stays.
+
+## Tokens
+
+`<session> tokens <name>` says what a session cost, open or closed, from Claude Code's transcripts of it under `~\.claude\projects\`: the ids its hook kept, and any transcript in its worktree's folder whose hooks ran with its folder, as one started again leaves. Its subagents count in. `--json` gives the same as data.
+
+- **Requests** are calls to the model, each counted once. **Uncached input**, **cache writes** (5 minute and 1 hour), **cache reads** and **output** (with its thinking part) are its four meters.
+- **Cost** is at list prices, from a table in `tools\session\tokens.py` with the date it was taken. A model the table does not know gets tokens and no dollars, and it says so.
+- **Prompt** is the context of a request: at the first, at the last, and its mean. Every request reads all of it again, so what comes in early costs most.
+- **What entered the context:** what each step added, `prompt(i) - prompt(i-1) - output(i-1)`, charged to the calls of the request before it, and the reads it caused, times the requests after it. **Fixed prefix:** the system text and each tool's definition, in characters.
+
+A line it cannot read it counts as skipped and says so. Done when it prints the session's requests, or that no transcript of it was found and where it looked.
 
 ## Check
 

@@ -8,6 +8,7 @@
     python -X utf8 tools/session/session.py list [--resume]
     python -X utf8 tools/session/session.py close <name> [--session-only] [--remove-tree]
     python -X utf8 tools/session/session.py merge <name> [--keep-tree]
+    python -X utf8 tools/session/session.py tokens <name> [--json]
     python -X utf8 tools/session/session.py check [file ...]
 
 Run the main working tree's tool with its .venv, from there. `<name>` is <prefix><NN> by the `Sessions:` line of the effort's map, or <effort><NN>. Each
@@ -30,8 +31,9 @@ sys.path.insert(0, str(HERE.parent / 'dashboard'))    # the board reads a ticket
 
 from board import read_ticket
 from control_chars import describe, scan
-from store import SessionError, Store, record_hook, record_in, write_json, write_state
+from store import SessionError, Store, record_hook, record_in, write_json, write_state, write_text
 from terminals import ADAPTERS, NOT_READ, choose, report_resume
+from tokens import find_transcripts, folder_name, full_text, measure, projects_root, short_text
 from watching import NO_GUARDS_TEXT, Watcher, not_asked, status_of
 
 CLOSED = {'done', 'resolved', 'wontfix'}
@@ -177,8 +179,9 @@ def mangled_by_git_bash(text, env=os.environ):
 
 
 class Sessions:
-    def __init__(self, main_tree, terminal_for=None, sleep=time.sleep):
+    def __init__(self, main_tree, terminal_for=None, sleep=time.sleep, projects=None):
         self.main = Path(main_tree)
+        self.projects = Path(projects) if projects else projects_root()    # Claude Code's transcripts
         self.scratch = self.main / '.scratch'
         self.store = Store(self.scratch)
         self.terminal_for = terminal_for or (lambda kind: ADAPTERS[kind]())
@@ -542,7 +545,8 @@ class Sessions:
         code, out, err = self.git('branch', '-d', branch)
         return f'branch {branch} removed' if not code else f'branch {branch} kept: {(err or out).strip()}'
 
-    def close(self, name, session_only=False, remove_tree=False):
+    def close(self, name, session_only=False, remove_tree=False, tokens=True):
+        """tokens: also show and keep what the session and its audit cost; merge does that once, for both."""
         record = self.store.load(name)
         stays = 'tree and branch kept, as asked' if session_only else self.plan_tree(record, remove_tree)
         session_stands_there = not record.get('closed') and self.terminal(record).holds_tree(record)
@@ -553,7 +557,51 @@ class Sessions:
         record['closed'] = stamp_now()
         self.store.save(record)
         said.append(stays or self.remove_tree(record, remove_tree))
+        if tokens:
+            said += self.keep_tokens([name, 'audit' + name])
         return '\n'.join(said)
+
+    # --- tokens
+
+    def measure_tokens(self, name):
+        """What the session cost, from every transcript of it: by the ids its record and hook hold, and in its worktree's folder."""
+        record = self.store.load(name)
+        ids = list(dict.fromkeys([*self.store.session_ids(name), *([record['session_id']] if record.get('session_id') else [])]))
+        found = find_transcripts(self.projects, record['worktree'], self.store.folder(name), ids)
+        return measure(found, roots=[record['worktree'], self.main]), ids, record
+
+    def tokens(self, name, as_json=False):
+        """The session's numbers; with no transcript, what its close kept, or where it looked."""
+        data, ids, record = self.measure_tokens(name)
+        if data['transcripts']:
+            return json.dumps(data, indent=1) if as_json else full_text(name, data)
+        kept = self.store.folder(name) / ('tokens.json' if as_json else 'tokens.txt')
+        if kept.is_file():
+            text = kept.read_text(encoding='utf-8').rstrip()
+            return text if as_json else f'{name}: no transcript of it found now. What its close kept:\n{text}'
+        looked = f'the ids {", ".join(ids)} under {self.projects}, and ' if ids else ''
+        raise SessionError(f'{name}: no transcript of it found. Looked for {looked}transcripts whose hooks name '
+                           f'{self.store.folder(name)} in {self.projects / folder_name(record["worktree"])}')
+
+    def keep_tokens(self, names):
+        """The short form of each of these sessions that has a record, kept in its folder as tokens.txt and tokens.json. It never
+        stops a close or a merge: what goes wrong is said instead."""
+        said = []
+        for name in names:
+            try:
+                if not self.store.exists(name):
+                    continue
+                data, _, _ = self.measure_tokens(name)
+                if not data['transcripts']:
+                    said.append(f'{name}: no transcript of it found, no tokens kept')
+                    continue
+                text = short_text(name, data)
+                write_text(self.store.folder(name) / 'tokens.txt', text + '\n')
+                write_json(self.store.folder(name) / 'tokens.json', data)
+                said.append(text)
+            except Exception as error:    # a transcript is Claude Code's, of any shape: by now the session has ended
+                said.append(f'{name}: its tokens could not be read: {error!r}')
+        return said
 
     # --- merge
 
@@ -585,7 +633,8 @@ class Sessions:
                   lambda: record_merge(ticket, merged) or f'{ticket.name}: done')]
         steps += [(f'review_page.py --done "{title}"', lambda title=title: self.take_down(title))
                   for title in pages_of(ticket, [*closing, 'audit' + name])]
-        steps += [(f'session.py close {other}{flag}', lambda other=other: self.close(other, session_only=keep_tree)) for other in closing]
+        steps += [(f'session.py close {other}{flag}', lambda other=other: self.close(other, session_only=keep_tree, tokens=False))
+                  for other in closing]
         for index, (step, run) in enumerate(steps):
             try:
                 done = run()
@@ -595,7 +644,7 @@ class Sessions:
                                    f'tree:\n{left}') from None
             if done:
                 said.append(done)
-        return '\n'.join(said)
+        return '\n'.join(said + self.keep_tokens([name, 'audit' + name]))
 
     def take_down(self, title):
         """review_page.py --done: what it says when a page of that title was up, '' when there is none."""
@@ -790,7 +839,7 @@ def parser():
     listed = commands.add_parser('list', help='the open sessions')
     listed.add_argument('--resume', action='store_true', help='under each, the command that brings it back with its guards after a restart')
 
-    closing = commands.add_parser('close', help='end a session; after the merge also remove its tree and branch')
+    closing = commands.add_parser('close', help='end a session and keep what it cost; after the merge also remove its tree and branch')
     closing.add_argument('name')
     closing.add_argument('--session-only', action='store_true', help='end the session, keep tree and branch')
     closing.add_argument('--remove-tree', action='store_true', help='also a tree and branch `start` did not make; never one with uncommitted changes')
@@ -798,6 +847,10 @@ def parser():
     merging = commands.add_parser('merge', help='after the audit passed: rebase, hook, fast-forward main, ticket done, page down, close')
     merging.add_argument('name', help='the ticket session; its audit session is closed with it')
     merging.add_argument('--keep-tree', action='store_true', help='end the sessions, keep tree and branch: for a ticket that owes a real run')
+
+    counting = commands.add_parser('tokens', help='what a session cost, from its transcripts; close and merge keep the short form')
+    counting.add_argument('name')
+    counting.add_argument('--json', action='store_true', help='the same as data, with every kind and every tool')
 
     checking = commands.add_parser('check', help='control characters in tickets and notes; only reports')
     checking.add_argument('files', nargs='*', help='default: every .md under .scratch')
@@ -849,6 +902,8 @@ def main(argv=None):
             print(sessions.close(args.name, session_only=args.session_only, remove_tree=args.remove_tree))
         elif args.command == 'merge':
             print(sessions.merge(args.name, keep_tree=args.keep_tree))
+        elif args.command == 'tokens':
+            print(sessions.tokens(args.name, as_json=args.json))
         elif args.command == 'check':
             return check(sessions, args)
     except NotReady as error:

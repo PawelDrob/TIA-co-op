@@ -101,7 +101,8 @@ class Case(unittest.TestCase):
         (self.scratch / 'work' / 'map.md').write_text('# Map\n\n## Notes\n\nSessions: wk\n', encoding='utf-8')
         self.terminal = FakeTerminal()
         pause = (lambda s: time.sleep(self.PAUSE)) if self.ends_real_processes else (lambda s: None)
-        self.sessions = Sessions(self.main, terminal_for=lambda kind: self.terminal, sleep=pause)
+        self.projects = self.top / 'projects'    # Claude Code's transcripts: the user's own are never read
+        self.sessions = Sessions(self.main, terminal_for=lambda kind: self.terminal, sleep=pause, projects=self.projects)
         self.commands = []
         real = self.sessions.git
         self.sessions.git = lambda *a, **k: (self.commands.append(a), real(*a, **k))[1]

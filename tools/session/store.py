@@ -1,5 +1,6 @@
 """What is known of each session, on disk under <.scratch>\\sessions\\<name>\\: session.json from `session start`, state.json and
-session-id.json from the session's own hooks. Closing a session marks its record and keeps it, so a later close can still remove the tree."""
+session-id.json from the session's own hooks, tokens.txt and tokens.json from its close. Closing a session marks its record and
+keeps it, so a later close can still remove the tree."""
 import json
 import os
 import re
@@ -26,11 +27,15 @@ def read_json(path):
 
 def write_json(path, data):
     """Whole or not at all: a watcher reads these while they are written."""
+    write_text(path, json.dumps(data, indent=1))
+
+
+def write_text(path, text):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix='.tmp')
     with os.fdopen(handle, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=1)
+        f.write(text)
     for attempt in range(20):
         try:
             os.replace(temporary, path)
@@ -46,12 +51,22 @@ def write_state(folder, state, message='', background=0):
                                              'mark': time.time_ns()})
 
 
+def ids_in(known):
+    """Every id a session-id.json holds, oldest first: one written before it kept them all holds only the newest."""
+    known = known if isinstance(known, dict) else {}
+    ids = known.get('ids') if isinstance(known.get('ids'), list) else []
+    return list(dict.fromkeys(i for i in [*ids, known.get('session_id')] if isinstance(i, str) and i))
+
+
 def record_hook(folder, payload):
-    """Writes down what a hook of the session reports, and the id it runs under: `list --resume` needs it with herdr down. Anything
-    else it fires for changes nothing."""
+    """Writes down what a hook of the session reports, and the id it runs under: `list --resume` needs the newest with herdr down,
+    `tokens` every one, as a /clear or a start again gives a new one. Anything else it fires for changes nothing."""
     session_id = payload.get('session_id')
-    if session_id and read_json(Path(folder) / SESSION_ID) != {'session_id': session_id}:
-        write_json(Path(folder) / SESSION_ID, {'session_id': session_id})
+    if session_id:
+        known = read_json(Path(folder) / SESSION_ID)
+        ids = [i for i in ids_in(known) if i != session_id] + [session_id]
+        if known != {'session_id': session_id, 'ids': ids}:
+            write_json(Path(folder) / SESSION_ID, {'session_id': session_id, 'ids': ids})
     event = payload.get('hook_event_name')
     if event == 'UserPromptSubmit':
         write_state(folder, 'working')
@@ -101,6 +116,10 @@ class Store:
     def session_id(self, name):
         """The id the session's hook last reported, which a /clear changes; None before its first hook."""
         return (read_json(self.folder(name) / SESSION_ID) or {}).get('session_id')
+
+    def session_ids(self, name):
+        """Every id the session's hook has reported, oldest first."""
+        return ids_in(read_json(self.folder(name) / SESSION_ID))
 
     def state(self, name):
         return read_json(self.folder(name) / 'state.json') or {'state': 'unknown', 'message': '', 'mark': 0}
