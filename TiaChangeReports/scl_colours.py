@@ -6,33 +6,55 @@ of_network(net, lines, block) -> the tokens of each line of an SCL network, None
 lines(texts, itf=None) -> per line [(kind, text)], the texts in order joined giving the line back unchanged: colouring
 never adds, drops or moves a character. kind is a key of KINDS, or None for what has no colour of its own: spaces, a
 pragma in braces, a character no token takes, a word no rule names (a data type's name outside a type test, NULL);
-those stay in the text's black.
+those stay in the text's black. The lines are one side's whole network as it stands, never the rows of a diff.
 
-Two passes, in this order:
-1. _cut cuts each line into whole tokens: spaces, a comment of each kind ((* *), (/* */), //, one left open going on
-   over the next lines until it closes), a pragma in braces, a string (with its type prefix), a typed constant, a
-   number, a #name, a quoted name, an absolute address, a word, an operator or punctuation (a parenthesis among them),
-   the semicolon. A string left open runs to the end of its line. Nothing inside a comment, a string or a quoted name
-   is looked at again.
-2. _kinds gives each token its kind, over the network's lines together: the lines given, each side's text as it
-   stands, never the rows of a diff. A token's kind follows from its own text, and for the rules that go by position
-   from its neighbours: the tokens before and after it in the statement, past spaces, comments and line ends, which
-   SCL reads alike. A string or a quoted name is a neighbour, as it is a token of the statement. The rules that read
-   neighbours, and what each reads:
-   - a call: the neighbour after is "(". A word is then an instruction (MAX(), a #name or quoted name a block call
-     (#inst(, "Fc"(); a word after "." a block call too (#timer.TON().
-   - a member: the neighbour before is "." (a word or #name after it is an operand, unless it is called).
-   - a parameter name: a word whose neighbour after is ":=" or "=>", inside a call's parentheses (their depth counted
-     over the network's lines).
-   - a data type a type test compares with: a word or quoted name whose neighbour before is "=" or "<>", and the one
-     before that the ")" closing the parentheses right after TypeOf, TypeOfElements or TypeOfDB (TypeOf(#x) = Int):
-     a constant. Two neighbours back, the parentheses paired over the network's lines.
-   - a jump label: a word that is the first neighbour of its line with ":" after it, or a word whose neighbour before
-     is GOTO.
-   - a region's name: what follows REGION as the first neighbour of its line, to the end of that line, // and all, is
-     one constant and no neighbour of anything.
-   - a local constant: a #name the interface declares in VAR CONSTANT whose neighbour after is no "." or "[".
-What SCL's grammar sets here and no picture of TIA has shown: a comment or a line end in a rule's gap. Not settled by
+Pass 1, _cut: each line into whole tokens. What is decided for a whole line comes first, then the tokens one by one;
+the first that applies wins:
+
+    | order | what                                  | takes                                                        |
+    |-------|---------------------------------------|--------------------------------------------------------------|
+    | 1     | a comment open from the line before   | up to its close, or the whole line                           |
+    | 2     | REGION, the first token after spaces  | when anything but spaces follows: the rest of the line, as   |
+    |       | and comments                          | the region's name (a //, a comment, a string in it too)      |
+    | 3     | spaces                                |                                                              |
+    | 4     | a pragma {...}                        | up to its }, or the line's end                               |
+    | 5     | a line comment //                     | to the line's end                                            |
+    | 6     | a comment (* *) or (/* */)            | up to its close; left open, the line and the next ones       |
+    | 7     | a string, plain or typed (WSTRING#)   | up to its quote ($' and $$ inside); left open, the line      |
+    | 8     | a literal, one pattern per form       | LITERALS: the form decides which characters it holds         |
+    | 9     | a #name, a quoted name, an address    |                                                              |
+    | 10    | a word, an operator, a semicolon      |                                                              |
+
+So nothing inside a comment, a string, a quoted name or a region's name is looked at again, and a line rule (2, 5) is
+settled before any token rule of pass 2 sees the line.
+
+Pass 2, _kinds: each token's kind, from its own text and, for the rules that go by position, from its neighbours: the
+network's tokens in order, over its lines, that are no space, no comment, no pragma and no region's name. So a rule
+reads past spaces, comments, pragmas and line ends, which SCL reads alike; a string, a quoted name, an operator and a
+keyword are neighbours, and a rule that wants another token there does not hold. The rules, what each reads, and what
+ends what it carries:
+
+    | rule                          | reads                                        | carries, and what ends it          |
+    |-------------------------------|----------------------------------------------|------------------------------------|
+    | a call                        | the neighbour after is "("                   |                                    |
+    | a member, a call after a dot  | the neighbour before is "."                  |                                    |
+    | a parameter name              | the neighbour after is ":=" or "=>", inside  | the depth of open parentheses,     |
+    |                               | a call's parentheses                         | over lines; a ";" sets it to 0     |
+    | a data type of a type test    | the neighbour before is "=" or "<>", the one | the open "(" of TypeOf,            |
+    |                               | before that the ")" of TypeOf(,             | TypeOfElements, TypeOfDB; a ";"     |
+    |                               | TypeOfElements( or TypeOfDB(                 | forgets them                       |
+    | a jump label                  | the first neighbour of its line with ":"     |                                    |
+    |                               | after it, or a word after GOTO               |                                    |
+    | a local constant              | the neighbour after is no "." or "["         |                                    |
+
+A word, a #name or a quoted name is then a call (an instruction, MAX(; a block call, #inst(, "Fc"(, #timer.TON(), a
+member (an operand), a parameter name, a data type of a type test (a constant, in quotes or not), a jump label or a
+local constant (a #name the interface declares in VAR CONSTANT); else by its text: a keyword, REGION, TRUE or FALSE,
+NOT or MOD (an operator), ENO (an operand), a #name or quoted name an operand, another word black. The network's end
+ends every rule.
+
+What SCL's grammar sets here and no picture of TIA has shown: a comment or a line end in a rule's gap, an ANY pointer
+(P#DB1.DBX0.0 BYTE 1) as one constant. Not settled by
 any picture: a call on an array element of instances (#arr[1](, #arr an operand), an address after a quoted tag
 ("Tag":P, P black), NULL (black).
 
@@ -65,26 +87,53 @@ BOOLS = frozenset(('TRUE', 'FALSE'))
 TYPE_TESTS = frozenset(('TYPEOF', 'TYPEOFELEMENTS', 'TYPEOFDB'))    # what they are compared with is a data type
 _END = {'(*': '*)', '(/*': '*/)'}
 
-_TOKEN = re.compile(r"""
-    (?P<space>\s+)
-  | (?P<pragma>\{[^}]*\}?)
-  | (?P<line_comment>//.*)
-  | (?P<open>\(/\*|\(\*)
-  | (?P<string>(?:[^\W\d]\w*\#)?'(?:\$.|[^'$])*')
-  | (?P<open_string>(?:[^\W\d]\w*\#)?'.*)
-  | (?P<typed>[^\W\d]\w*\#[-+]?\w+(?:\.\w+)?(?:[-\#:]\w+(?:\.\w+)?|(?<=[eE])\+\d+)*)
-  | (?P<number>\d+\#[\w]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][-+]?\d+)?)
-  | (?P<local>\#(?:"(?:\$.|[^"$])*"|[^\W\d]\w*))
-  | (?P<global>"(?:\$.|[^"$])*")
-  | (?P<address>%[A-Za-z]+[\d.]*)
-  | (?P<word>[^\W\d]\w*)
-  | (?P<operator>:=|\?=|\+=|-=|\*=|/=|=>|<=|>=|<>|\*\*|\.\.|[-+*/<>=:,.()\[\]&^])
-  | (?P<semicolon>;)
-""", re.X)
+# The number forms: the base decides the digits; only a decimal real has an exponent, and only it a sign there.
+_BASED = r'(?:2\#[01_]+|8\#[0-7_]+|16\#[0-9A-Fa-f_]+)'
+_REAL = r'(?:\d[\d_]*\.\d[\d_]*(?:[eE][-+]?\d[\d_]*)?|\d[\d_]*[eE][-+]?\d[\d_]*)'
+_INT = r'\d[\d_]*'
+_DURATION = r'(?:\d[\d_]*(?:\.\d+)?(?:ms|us|ns|d|h|m|s)_?)+'                   # 1d2h3m4s5ms, 1s_200ms, 1.5s
+_DATE = r'\d+-\d+-\d+'
+_CLOCK = r'\d+:\d+(?::\d+(?:\.\d+)?)?'                                          # 12:30, 12:30:00.500
+_PREFIX = r'[^\W\d]\w*\#'                                                       # a typed constant's type and #
+# Each literal form one pattern: (form, pattern). Only the date and time-of-day forms hold a "-" or ":"; only a typed
+# number a sign after its #; a typed string is a string (pass 1, order 7).
+LITERALS = [
+    ('time', r'(?i:LTIME|LT|TIME|T|S5TIME|S5T)\#[-+]?(?i:%s)' % _DURATION),
+    ('date and time', r'(?i:LDATE_AND_TIME|DATE_AND_TIME|LDT|DTL|DT)\#%s-%s' % (_DATE, _CLOCK)),
+    ('date', r'(?i:DATE|D)\#%s' % _DATE),
+    ('time of day', r'(?i:LTIME_OF_DAY|TIME_OF_DAY|LTOD|TOD)\#%s' % _CLOCK),
+    ('counter', r'(?i:C)\#\d+'),
+    ('pointer', r'(?i:P)\#(?:(?i:DB)\d+\.(?i:DB)[XBWDxbwd]\d+(?:\.\d+)?|[IQMEALiqmeal][XBWDxbwd]?\d+(?:\.\d+)?)'
+                r'(?:[ \t]+(?i:BOOL|BYTE|WORD|DWORD|INT|DINT|REAL|CHAR)[ \t]+\d+)?'),     # P#DB1.DBX0.0 BYTE 1
+    ('typed Bool', r'%s(?i:TRUE|FALSE)\b' % _PREFIX),
+    ('typed based number', r'%s[-+]?%s' % (_PREFIX, _BASED)),
+    ('typed real', r'%s[-+]?%s' % (_PREFIX, _REAL)),
+    ('typed integer', r'%s[-+]?%s' % (_PREFIX, _INT)),
+    ('based number', _BASED),
+    ('real', _REAL),
+    ('integer', _INT),
+]
+_STRING = r"(?:%s)?'(?:\$.|[^'$])*'" % _PREFIX
+_TOKEN = re.compile('|'.join([
+    r'(?P<space>\s+)',
+    r'(?P<pragma>\{[^}]*\}?)',
+    r'(?P<line_comment>//.*)',
+    r'(?P<open>\(/\*|\(\*)',
+    r'(?P<string>%s)' % _STRING,
+    r"(?P<open_string>(?:%s)?'.*)" % _PREFIX,
+    r'(?P<literal>%s)' % '|'.join('(?:%s)' % p for _, p in LITERALS),
+    r'(?P<local>\#(?:"(?:\$.|[^"$])*"|[^\W\d]\w*))',
+    r'(?P<global>"(?:\$.|[^"$])*")',
+    r'(?P<address>%[A-Za-z]+\d+(?:\.\d+)?)',
+    r'(?P<word>[^\W\d]\w*)',
+    r'(?P<operator>:=|\?=|\+=|-=|\*=|/=|=>|<=|>=|<>|\*\*|\.\.|[-+*/<>=:,.()\[\]&^])',
+    r'(?P<semicolon>;)',
+]))
 # the kind of a token by its group alone; word, local and global go by their text and neighbours
-_GROUP_KIND = {'space': None, 'pragma': None, 'comment': 'comment', 'string': 'constant', 'typed': 'constant',
-               'number': 'constant', 'address': 'operand', 'operator': 'operator', 'semicolon': 'semicolon',
+_GROUP_KIND = {'space': None, 'pragma': None, 'comment': 'comment', 'string': 'constant', 'literal': 'constant',
+               'address': 'operand', 'operator': 'operator', 'semicolon': 'semicolon', 'region name': 'constant',
                'other': None}
+_NO_NEIGHBOUR = ('space', 'comment', 'pragma', 'region name')
 
 
 def of_network(net, texts, block):
@@ -110,10 +159,10 @@ def _constants(itf):
 
 
 def _cut(text, state):
-    """Pass 1: [(group, text)] of whole tokens, the texts joined giving the line back. state['end']: the end of a
-    comment still open from the line before, and after this line."""
+    """Pass 1 (module doc, its table): [(group, text)] of whole tokens, the texts joined giving the line back.
+    state['end']: the end of a comment still open from the line before, and after this line."""
     out, i = [], 0
-    if state['end']:                            # a comment going on from the line before
+    if state['end']:                            # order 1: a comment going on from the line before
         k = text.find(state['end'])
         stop = len(text) if k < 0 else k + len(state['end'])
         out.append(('comment', text[:stop]))
@@ -139,29 +188,23 @@ def _cut(text, state):
             group = {'line_comment': 'comment', 'open_string': 'string'}[group]
         out.append((group, t))
         i += len(t)
+        if group == 'word' and t.upper() == 'REGION' and all(g in ('space', 'comment') for g, _ in out[:-1]):
+            rest = text[i:]                     # order 2: the rest of a REGION line is its name
+            lead = len(rest) - len(rest.lstrip())
+            if rest.strip():
+                out += [('space', rest[:lead])] * bool(lead) + [('region name', rest[lead:])]
+                return out
     return out
 
 
 def _kinds(cuts, consts):
-    """Pass 2: per line [(kind, text)] of the tokens of _cut, each kind from its token and the neighbours the rules in
-    the module doc name. The neighbours are the stream of the network's tokens that are no space and no comment, over
-    its lines; a region's name is none."""
+    """Pass 2 (module doc, its table): per line [(kind, text)] of the tokens of _cut."""
     out = [[(_GROUP_KIND.get(g), t) for g, t in cut] for cut in cuts]
-    stream, firsts, regions = [], set(), set()          # stream: (line, index in its cut)
+    stream, firsts = [], set()                  # stream: (line, index in its cut) of the neighbours, in order
     for n, cut in enumerate(cuts):
-        real = [k for k, (g, _) in enumerate(cut) if g not in ('space', 'comment')]
-        if not real:
-            continue
-        r = real[0]
-        firsts.add((n, r))
-        if cut[r][0] == 'word' and cut[r][1].upper() == 'REGION' and len(real) > 1:
-            start = next(k for k in range(r + 1, len(cut)) if cut[k][0] != 'space')
-            name = ''.join(t for _, t in cut[start:])                   # the region's name, to the end of the line
-            out[n] = out[n][:r] + [('region', cut[r][1])] + out[n][r + 1:start] + [('constant', name)]
-            regions.add(n)
-            stream.append((n, r))
-            continue
-        stream += [(n, k) for k in real]
+        real = [(n, k) for k, (g, _) in enumerate(cut) if g not in _NO_NEIGHBOUR]
+        firsts.update(real[:1])
+        stream += real
 
     def tok(i):
         return cuts[stream[i][0]][stream[i][1]] if 0 <= i < len(stream) else (None, None)
@@ -170,7 +213,7 @@ def _kinds(cuts, consts):
     depth = 0
     for i, (n, k) in enumerate(stream):
         group, t = cuts[n][k]
-        if group in ('word', 'local', 'global') and n not in regions:
+        if group in ('word', 'local', 'global'):
             before = tok(i - 1)
             compared = before in (('operator', '='), ('operator', '<>')) and i - 2 in closes
             out[n][k] = (_name_kind(group, t, before, tok(i + 1), compared, (n, k) in firsts, depth, consts), t)
@@ -178,12 +221,14 @@ def _kinds(cuts, consts):
             depth += 1
         elif (group, t) == ('operator', ')'):
             depth = max(0, depth - 1)
+        elif group == 'semicolon':
+            depth = 0                           # no ";" stands inside parentheses: a call left open ends here
     return out
 
 
 def _type_test_closes(toks):
-    """The places in toks (the network's stream) of the ")" that close the parentheses right after a type test
-    (TypeOf( ... ))."""
+    """The places in toks (the network's neighbours) of the ")" that close the parentheses right after a type test
+    (TypeOf( ... )); a ";" forgets the parentheses still open."""
     out, opened = set(), []                     # opened: per "(" still open, whether it follows a type test
     for i, (g, t) in enumerate(toks):
         if (g, t) == ('operator', '('):
@@ -192,6 +237,8 @@ def _type_test_closes(toks):
         elif (g, t) == ('operator', ')') and opened:
             if opened.pop():
                 out.add(i)
+        elif g == 'semicolon':
+            opened = []
     return out
 
 
