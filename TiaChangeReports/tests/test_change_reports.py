@@ -5557,8 +5557,8 @@ class InstanceDbStartValuesFromSimaticML(unittest.TestCase):
         """TIA writes the FB's new input into the instance DB's SimaticML; the .s7dcl of the DB does not move. From
         SimaticML the DB gets no row of it either: the member is the FB's, shown on the FB. But its file moved in what
         the report does not read, so the DB keeps the note it had before, which the .s7dcl does not give it (the
-        two-format bed's cause "type members"; kept by the maintainer's word, until the rows that follow from the FB
-        take its place)."""
+        two-format bed's cause "type members"). The note stays, as the report shows no row of the DB for what changed in
+        its FB."""
         def with_inx(xml):                  # inX after inW, as TIA writes inW in the FB and in its instance DB
             start = xml.index('    <Member Name="inW"')
             end = xml.index('    </Member>\n', start) + len('    </Member>\n')
@@ -5651,7 +5651,7 @@ class NoteBesideAReadField(unittest.TestCase):
                     self.assertEqual(['plc/blocks/zzE2eDb.xml'],
                                      other_files(FolderSnapshot(b), FolderSnapshot(a), (), (), lambda p: True))
 
-    # The element 1 of x, a member inside an array of struct, and inside an array of a UDT.
+    # The start value of x at element 1 of an array of struct (as[1].x) and of an array of a UDT (au[1].x).
     IN_ARRAY = {'array of struct': '<Member Name="as" Datatype="Array[0..1] of Struct"><Member Name="x" Datatype="Int">'
                                    '<Subelement Path="1"><StartValue>%s</StartValue></Subelement></Member></Member>',
                 'array of a UDT': '<Member Name="au" Datatype="Array[0..1] of &quot;UdtB&quot;"><Sections><Section '
@@ -5659,8 +5659,8 @@ class NoteBesideAReadField(unittest.TestCase):
                                   '</StartValue></Subelement></Member></Section></Sections></Member>'}
 
     def test_a_start_value_the_reader_does_not_read_beside_one_it_reads(self):
-        """The reader reads no start value of an element of x, a member inside an array of struct or of a UDT: one moved
-        there is not read, also in the commit that moves arr[1]'s, which it reads."""
+        """The reader reads no start value of x at an element of an array of struct or of a UDT (as[1].x, au[1].x): one
+        moved there is not read, also in the commit that moves arr[1]'s, which it reads."""
         for kind in ('SW.Blocks.InstanceDB', 'SW.Blocks.GlobalDB'):
             for where, inner in self.IN_ARRAY.items():
                 with self.subTest(kind=kind, where=where):
