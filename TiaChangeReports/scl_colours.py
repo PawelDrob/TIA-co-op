@@ -5,9 +5,9 @@ with the block's interface for what the text does not tell, a local constant (Lo
 of_network(net, texts, block) -> the tokens of each line of an SCL network, None for another language
 (WhatStaysInOneColour). lines(texts, itf=None) -> per line [(kind, text)], the texts in order joined giving the line
 back unchanged: colouring never adds, drops or moves a character (TextAndMarksUnchanged). kind is a key of KINDS, or
-None for what has no colour of its own: spaces, a pragma, a character no token takes, a word no rule names (the last
-row of the rules' table below). The lines are one side's whole network as it stands; page and view give each side its
-own lines.
+None for what has no colour of its own: spaces, a pragma, a character no token takes, a DB's data not after a dot, a
+word no rule names (the last row of the rules' table below). The lines are one side's whole network as it stands;
+page and view give each side its own lines.
 
 Pass 1, _cut: each line into whole tokens. What is decided for a whole line comes first, then the tokens one by one;
 the first that applies wins (WhichLineRuleGoesFirst; WhereATokenEnds for where each token ends). A token of WORD_LIKE
@@ -54,7 +54,8 @@ position has rows in TheRulesAsAGrid (test_the_grid_holds_every_rule_that_goes_b
     | a DB's data not after a dot  | no   | a DB's data (after a dot the rule above holds)        | black              |
     | a data type of a type test   | yes  | not called; the neighbour before is "=" or "<>", the  | constant           |
     |                              |      | one before that the ")" closing the "(" after a word  |                    |
-    |                              |      | of TYPE_TESTS (a stopper forgets that "(")            |                    |
+    |                              |      | of TYPE_TESTS (a stopper forgets that "("); a word or |                    |
+    |                              |      | quoted name, never a #name                            |                    |
     | a block call by its name     | yes  | a #name or quoted name before "("                     | block call         |
     | a local constant             | yes  | a #name of the interface's constants, before no "."   | local constant     |
     |                              |      | or "["                                                |                    |
@@ -77,8 +78,10 @@ IF( a keyword, TRUE: a constant.
 What SCL's grammar sets here and no picture of TIA has shown: a comment or a line end in a rule's gap; an ANY pointer
 as one constant, with a type word of the list DATA_TYPES; an absolute address of the lists as one operand; a pragma
 before REGION; a } inside a pragma's quoted value; a type test compared with a type test (the second called, so an
-instruction). Not settled by any picture: a call on an array element of instances (#arr[1](, #arr an operand), an
-address after a quoted tag ("Tag":P, P black), NULL (black), a type test as a CASE selector (its labels black).
+instruction); a number, an address or a DB's data and a word written with no space between them as one token (1TO,
+%M1.0AND: TIA writes the space); a parameter named like a DB's data black, as a DB's data (#f(DBW2 := 1)).
+Not settled by any picture: a call on an array element of instances (#arr[1](, #arr an operand), an address after a
+quoted tag ("Tag":P, P black), NULL (black), a type test as a CASE selector (its labels black).
 
 html(tokens, marks) writes one line: a span with the kind's class around a coloured word, none around a word whose kind
 has no class; a plain <span> around each range of marks (the changed words, page._word_marks) with the colours inside
@@ -156,18 +159,19 @@ _ADDRESS = r'(?i:%%(?:%s:P|%s|%s\d+|%s\d+))' % (
     _chars(PERIPHERAL_AREAS) + _OFFSET, _LOCATION, _chars(NUMBERED_AREAS), _chars(ADDRESS_SIZES))
 # the last two: %T1, %C2, %Z3; a slice %X3, %B0
 
-# The number forms, one pattern per base; only a decimal real has an exponent, and only it a sign there.
+# The number forms: the base decides the digits; only a decimal real has an exponent, and only it a sign there.
 _BASED = r'(?:2\#[01_]+|8\#[0-7_]+|16\#[0-9A-Fa-f_]+)'
 _REAL = r'(?:\d[\d_]*\.\d[\d_]*(?:[eE][-+]?\d[\d_]*)?|\d[\d_]*[eE][-+]?\d[\d_]*)'
 _INT = r'\d[\d_]*'
 _DATE = r'\d+-\d+-\d+'
 _CLOCK = r'\d+:\d+(?::\d+(?:\.\d+)?)?'                                          # 12:30, 12:30:00.500
+_DURATION = r'(?:\d[\d_]*(?:\.\d+)?(?:ms|us|ns|d|h|m|s)_?)+'                   # 1d2h3m4s5ms, 1s_200ms, 1.5s
 _PREFIX = r'[^\W\d]\w*\#'                                                       # a typed constant's type and #
 # Each literal form one pattern: (form, pattern). A "-" or ":" between digits stands only in the date and time-of-day
-# forms; a sign only right after the # of a typed integer or real, and in a real's exponent; a typed string is a
-# string (pass 1, order 7). A time (T#5s, LTIME#1d2h, S5T#2h_46m_30s) is a typed number that the word end in _cut
-# carries on to the end of its word: no form of its own.
+# forms; a sign only right after the # of a time, a typed integer or a typed real, and in a real's exponent; a typed
+# string is a string (pass 1, order 7).
 LITERALS = [
+    ('time', r'(?i:LTIME|LT|TIME|T|S5TIME|S5T)\#[-+]?(?i:%s)' % _DURATION),
     ('date and time', r'(?i:LDATE_AND_TIME|DATE_AND_TIME|LDT|DTL|DT)\#%s-%s' % (_DATE, _CLOCK)),
     ('date', r'(?i:DATE|D)\#%s' % _DATE),
     ('time of day', r'(?i:LTIME_OF_DAY|TIME_OF_DAY|LTOD|TOD)\#%s' % _CLOCK),

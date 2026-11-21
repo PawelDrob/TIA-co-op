@@ -329,6 +329,10 @@ class TextAndMarksUnchanged(unittest.TestCase):
         self.assertNotIn('.ldiff table.scl td.del span{', page.CSS)
         self.assertRegex(page.CSS, r'@media print\{[^}]*\.ldiff table\.scl td[^}]*\{print-color-adjust:exact')
 
+    def test_a_semicolon_and_a_label_get_no_span(self):
+        self.assertEqual(scl_colours.html([('label', 'lbl'), ('operator', ':'), ('semicolon', ';')]),
+                         'lbl<span class="sx">:</span>;')
+
     def test_a_whole_report_reads_as_before_with_the_colours_taken_out(self):
         with tempfile.TemporaryDirectory() as d:
             v1, v2 = (os.path.join(FIXTURES, 'plant', v) for v in ('v1', 'v2'))
@@ -499,6 +503,11 @@ class TheRulesAsAGrid(unittest.TestCase):
                 self.assertEqual(self.kinds_of(line, word)[0], [kind])
                 self.assertEqual(self.kinds_of(line, 'Int')[0], ['constant'])
 
+    def test_a_parameter_named_like_a_dbs_data_is_black(self):
+        for part in db_parts():
+            with self.subTest(part):
+                self.assertIn((None, part), scl_colours.lines(['#f(%s := 1);' % part])[0])
+
     def test_a_word_before_a_colon_is_a_label_only_where_it_stands_first(self):
         self.assertEqual(self.kinds_of('#x := #a; lbl2: #b := 1;', 'lbl2')[0], [None])
         self.assertEqual(self.kinds_of('lbl2: #b := 1;', 'lbl2')[0], ['label'])
@@ -581,7 +590,9 @@ class TheLiteralsAsATable(unittest.TestCase):
         'typed, the short type names and other forms': 'Int#256 W#16#100 B#16#FF DW#16#FFFF_FFFF '
                                                        'LINT#-9223372036854775808 CHAR#16#41 LREAL#-1.0e-10',
         'time': 'T#500MS t#5s T#10s T#1s_200ms T#-1d2h3m4s5ms T#+5s T#1.5s T#-1.5s LT#1ns LTIME#5us '
-                'LTIME#1d2h3m4s5ms6us7ns TIME#1h S5T#10s S5TIME#2h_46m_30s C#100',
+                'LTIME#1d2h3m4s5ms6us7ns TIME#1h S5T#10s S5TIME#2h_46m_30s C#100 '
+                'T#2.5d T#2.5h T#2.5m T#2.5s T#2.5ms LT#2.5us LT#2.5ns T#2.5d3h T#1d2.5h3m T#1h2.5m3s T#1m30.5s200ms '
+                'LT#1s2.5ms3us LT#1ms2.5us3ns LT#1us2.5ns T#1h_30.5m T#1d2h3m4s5.5ms LT#1s500.25us T#-1m30.5s',
         'date and time of day': 'D#2026-11-20 DATE#2026-11-20 TOD#12:30 TOD#12:30:00 TOD#12:30:00.500 '
                                 'TIME_OF_DAY#12:30:00 LTOD#12:30:00.123456789 LTIME_OF_DAY#12:30:00 '
                                 'DT#2026-11-20-12:30:00 DT#2026-11-20-12:30:00.123456789 '
@@ -604,6 +615,10 @@ class TheLiteralsAsATable(unittest.TestCase):
                     rest = [('operator', after[0]), ('constant', '1')] if after else []
                     self.assertEqual(toks, [('operand', '#x'), ('operator', ':='), ('constant', lit)] + rest
                                      + [('semicolon', ';')])
+
+    def test_the_base_decides_the_digits(self):
+        self.assertEqual(scl_colours.lines(['2#FE'])[0], [('constant', '2'), ('operand', '#FE')])
+        self.assertEqual(scl_colours.lines(['8#9'])[0], [('constant', '8'), (None, '#'), ('constant', '9')])
 
     def test_each_address_is_one_operand(self):
         for address in addresses():
@@ -652,7 +667,7 @@ class WhereATokenEnds(unittest.TestCase):
     (scl_colours.STATEMENT_KEYWORDS, LOGIC_KEYWORDS, WORD_OPERATORS, BOOLS, REGION_WORDS, TYPE_TESTS, DATA_TYPES), a
     name of each prefix and a comment of each kind, followed directly by each operator of scl_colours.OPERATORS, the
     ";" and each comment kind, and each bracket, "," or comment followed by it: the cut gives exactly the two tokens."""
-    NAMES = ['#a', '#Größe', '#"a b"', '"Q"', '"My.Db"', '"$"Pump$""', 'a', 'Übung']    # $": the guide, section 8
+    NAMES = ['#a', '#Größe', '#"a b"', '#"a$"b"', '"Q"', '"My.Db"', '"$"Pump$""', 'a', 'Übung']  # $": guide, sect. 8
     COMMENTS = ['(* c *)', '(/* c */)']
 
     @classmethod
@@ -671,15 +686,25 @@ class WhereATokenEnds(unittest.TestCase):
                     self.assertEqual(self.cut(tok + nxt), [tok, nxt])
 
     def test_a_word_like_token_followed_by_a_word_character_is_whole(self):
-        """Each token of the tables that ends in a letter or digit (scl_colours.WORD_LIKE: a literal other than a
-        string, an address, a DB's data, a word, a #name not quoted) followed directly by "_", a letter or a digit is
-        one token, the character in it: never a token with a black tail."""
+        """Each token of the tables of scl_colours.WORD_LIKE (a literal other than a string, an address, a DB's data,
+        a word, a #name quoted or not) followed directly by "_", a letter or a digit is one token, the character in it:
+        never a token with a black tail."""
         for tok in self.tokens():
-            if tok[-1] in '"\')' or tok.startswith('('):
+            if (tok[-1] in '"\')' and not tok.startswith('#')) or tok.startswith('('):
                 continue                         # a string, a quoted name, a comment: no word goes on after them
             for c in '_a0':
                 with self.subTest(token=tok, then=c):
                     self.assertEqual(self.cut(tok + c), [tok + c])
+
+    def test_a_number_or_an_address_and_a_word_with_no_space_are_one_token(self):
+        for text in ('1TO', '%M1.0AND', 'DBX0.0AND', '16#FFOR'):
+            with self.subTest(text):
+                self.assertEqual([t for _, t in scl_colours._cut(text, {'end': None})], [text])
+
+    def test_each_operator_is_one_operator_token(self):
+        for o in sc.OPERATORS:
+            with self.subTest(o):
+                self.assertEqual(scl_colours._cut(o, {'end': None}), [('operator', o)])
 
     def test_a_bracket_or_comment_followed_by_each_token(self):
         for tok in self.tokens():
@@ -806,10 +831,12 @@ class HalfWrittenNetworks(unittest.TestCase):
                 self.assertIn((None, 'Int'), got[1])
 
     def test_a_dbs_data_not_after_a_dot_is_black(self):
-        """No rule but the member's makes a DB's data an operand: elsewhere it is black, called or after GOTO too."""
-        for line in ('#x := DBX0.0;', '#x := DBW2(1);', 'GOTO DBX0.0;'):
-            with self.subTest(line):
-                self.assertEqual([k for k, t in scl_colours.lines([line])[0] if t.startswith('DB')], [None])
+        """No rule but the member's makes a DB's data (each of db_parts()) an operand: elsewhere it is black, called or
+        after GOTO too."""
+        for part in db_parts():
+            for line in ('#x := %s;', '#x := %s(1);', 'GOTO %s;'):
+                with self.subTest(line % part):
+                    self.assertEqual([k for k, t in scl_colours.lines([line % part])[0] if t == part], [None])
 
     def test_a_name_like_a_dbs_wide_data_is_a_name(self):
         """DBW2x is no DB's data: a name, so a parameter before := in a call."""
