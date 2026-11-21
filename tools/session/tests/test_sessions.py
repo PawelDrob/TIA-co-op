@@ -577,6 +577,17 @@ class LeftOutTests(Case):
         self.assertFalse(self.tree.exists())
         self.assertEqual(self.terminal.opened, [])
 
+    def test_the_tree_start_makes_is_read_for_its_own_skills_and_the_main_trees_copies(self):
+        skill = self.main / '.claude' / 'skills' / 'review-page' / 'SKILL.md'
+        skill.parent.mkdir(parents=True)
+        skill.write_text('x', encoding='utf-8')
+        git(self.main, 'add', '.claude')
+        git(self.main, 'commit', '-q', '-m', 'a skill')
+        (self.home / 'skills' / 'synced' / 'a' / 'review-page').mkdir()
+        (self.home / 'skills' / 'synced' / 'a' / 'review-page' / 'SKILL.md').write_text('x', encoding='utf-8')
+        self.started()
+        self.assertEqual(self.settings()['skillOverrides'], {'docx': 'off', 'plugin-authoring': 'off', 'clone:review-page': 'off'})
+
     def test_the_users_settings_are_not_changed(self):
         before = (self.home / 'settings.json').read_bytes()
         self.started()

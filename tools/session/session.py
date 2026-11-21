@@ -249,15 +249,11 @@ class Sessions:
                   'args': ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', str(self.main / 'TiaBridge' / 'TiaBridge.ps1')]}
         return {**({'tia': bridge} if allow_tia else {}), **({'playwright': BROWSER_SERVER} if allow_browser else {})}
 
-    def left_out(self, tree, keep):
-        return left_out(self.home, tree, self.main, keep)
-
-    def agent_args(self, folder, tree, servers, extra, keep=()):
+    def agent_args(self, folder, servers, extra, left):
         """With --strict-mcp-config, only what --mcp-config names starts: tried with a real claude, for a server of a plugin, of the user
         and of claude.ai. Only Claude in Chrome stays listed in a session with a terminal, with no process of its own, so --no-chrome.
         The servers go in a file, as settings do: a restart repeats these arguments, so they stay short and need no quoting.
-        What the session never uses stays out, less what keep names (left_out.py)."""
-        left = self.left_out(tree, keep)
+        left: what the session never uses and leaves out (left_out.py)."""
         settings = Path(folder) / 'settings.json'
         write_json(settings, {**hook_settings(folder), **left.settings()})
         mcp_args = ['--strict-mcp-config', '--no-chrome']
@@ -268,13 +264,13 @@ class Sessions:
         denied = [ASK_BY_TURN_END, *left.tools, *([] if 'tia' in servers else [BRIDGE]), *PUSH_RULES]
         return ['--add-dir', str(self.main), *mcp_args, '--settings', str(settings), '--disallowedTools', *denied, *extra]
 
-    def open_session(self, record, prompt, servers, extra):
+    def open_session(self, record, prompt, servers, extra, left):
         """Opens the terminal, and only then does the record count as open: a watcher has nothing to look at before. Until then it
         reads closed, which is also what a start that fails or dies leaves. The tree stays, and the record knows who made it."""
         folder = self.store.folder(record['name'])
         record['folder'] = str(folder)
         write_state(folder, 'sent')
-        args = self.agent_args(folder, record['worktree'], servers, extra, record.get('keep', []))
+        args = self.agent_args(folder, servers, extra, left)
         record['args'] = args    # its first prompt's hook reads them, while the terminal is still opening
         self.store.save({**record, 'closed': 'did not start'})
         record.update(self.terminal(record).open(record, args, prompt) or {})
@@ -309,8 +305,9 @@ class Sessions:
         tree = Path(worktree or self.main.parent / f'{self.main.name}-worktrees' / f'{effort}-{number}')
         if inside(tree, self.main):
             raise SessionError(f'{tree} is inside the clone: nothing started')
-        self.left_out(tree, keep)    # a --keep it cannot keep is refused before the tree is made
+        left_out(self.home, tree, self.main, keep)    # a --keep it cannot keep is refused before the tree is made
         made_tree, made_branch = self.ensure_tree(tree, branch)
+        left = left_out(self.home, tree, self.main, keep)    # now with the tree's own skills and settings
         if self.store.exists(name):    # the same session again: what it made earlier stays its own
             earlier = self.store.load(name)
             made_tree = made_tree or bool(earlier.get('made_tree') and folder_key(earlier['worktree']) == folder_key(tree))
@@ -322,8 +319,8 @@ class Sessions:
         record = self.open_session({
             'name': name, 'ticket': str(ticket), 'effort': effort, 'worktree': str(tree), 'branch': branch,
             'terminal': terminal, 'made_tree': made_tree, 'made_branch': made_branch, 'extra': list(extra), 'keep': list(keep),
-            'started': stamp_now()}, prompt, self.mcp_servers(allow_tia, allow_browser), list(extra))
-        said = [f'{name}: {terminal}, in {tree}, on {branch}', self.left_out(tree, keep).summary(), *self.restore_said(record)]
+            'started': stamp_now()}, prompt, self.mcp_servers(allow_tia, allow_browser), list(extra), left)
+        said = [f'{name}: {terminal}, in {tree}, on {branch}', left.summary(), *self.restore_said(record)]
         if terminal == 'print':
             said.append(f'Once it reports ready, type: {self.implement_prompt(record)}')
         elif implement:
@@ -369,13 +366,13 @@ class Sessions:
         ticket_session = self.store.load(name)
         audit_name = 'audit' + name
         self.check_free(audit_name)
-        left = self.left_out(ticket_session['worktree'], keep)
+        left = left_out(self.home, ticket_session['worktree'], self.main, keep)
         extra = list(extra) or ticket_session.get('extra', [])
         terminal = terminal or choose()
         prompt = f'/audit {ticket_session["ticket"]} {ticket_session["branch"]} {ticket_session["worktree"]}'
         record = {k: ticket_session[k] for k in ('ticket', 'effort', 'worktree', 'branch', 'made_tree', 'made_branch')}
         record.update(name=audit_name, terminal=terminal, extra=extra, keep=list(keep), started=stamp_now())
-        self.open_session(record, prompt, self.mcp_servers(allow_tia, allow_browser), extra)
+        self.open_session(record, prompt, self.mcp_servers(allow_tia, allow_browser), extra, left)
         return '\n'.join([f'{audit_name}: {terminal}, in {record["worktree"]}', left.summary(), *self.restore_said(record)])
 
     def prompt(self, name, text):

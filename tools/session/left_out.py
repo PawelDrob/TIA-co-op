@@ -28,14 +28,14 @@ class LeftOut:
 
     def settings(self):
         """What goes into the session's own settings file for it."""
-        found = {}
+        settings = {}
         if self.plugins:
-            found['enabledPlugins'] = dict.fromkeys(self.plugins, False)
+            settings['enabledPlugins'] = dict.fromkeys(self.plugins, False)
         if self.bundled:
-            found['disableBundledSkills'] = True
+            settings['disableBundledSkills'] = True
         if self.skills:
-            found['skillOverrides'] = dict.fromkeys(self.skills, 'off')
-        return found
+            settings['skillOverrides'] = dict.fromkeys(self.skills, 'off')
+        return settings
 
     def summary(self):
         parts = [counted(len(self.tools), 'tool'), counted(len(self.plugins), 'plugin'), counted(len(self.skills), 'skill')]
