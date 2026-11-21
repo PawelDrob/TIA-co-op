@@ -4,7 +4,7 @@ title: Testing
 description: What each test suite covers and what it fakes, what the commit hook runs across tools, and what only a real TIA can show.
 tags: [dev, testing]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:12:29-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:57:49-05:00 }
 ---
 
 # Testing
@@ -30,7 +30,7 @@ No suite the hook runs needs TIA, a window or a person, so anyone can run them a
 
 ## What the hook adds
 
-`.githooks\pre-commit` picks suites by the paths a commit touches. Five suites run for a change elsewhere, because a contract crosses there:
+`.githooks\pre-commit` picks suites by the paths a commit touches. Some run for a change elsewhere, because a contract crosses there; the hook's head names, step by step, every path that starts each suite. Among them:
 
 - The report's test of its export folders against the bridge's, on a change to the bridge alone.
 - The status suite, on a change to the bridge or `tools\dashboard\`: it reads the state files and runs on that core.

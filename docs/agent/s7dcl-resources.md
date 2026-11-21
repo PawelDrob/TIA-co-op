@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: comments and titles in the .s7res"
 description: "How TIA Portal V20 writes the comments and titles of a SIMATIC SD block in its .s7res, and the import failures a resource file gave."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:14:22-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:57:49-05:00 }
 sources:
   - id: export
     resource: TIA Portal V20 workspace exports of project F (2026-08), project B (2026-09), project C (2026-10) and project A (2026-10), with re-imports where stated; a test program with every basic LAD and SCL, every extended, Communication, Technology, Optional packages and F-LAD instruction this CPU takes, on a CPU 1515F, V20 Update 7 (2026-11)
@@ -24,7 +24,7 @@ Its other items: [LAD](s7dcl-lad.md), [blocks, interfaces and data](s7dcl-data.m
 
 ### 8.14c Import failures from resource files and branch shapes `[EXPORT]`: resource files
 
-Its other part: [branch shapes and LAD operands](s7dcl-lad.md).
+Its other part: [branch shapes and LAD operands](s7dcl-lad.md). The section's first paragraph, the source of both parts, stands in both.
 
 Verified by four failed syncs and their fixes (project B, 2026-09-23, TIA Portal V20). Every defect of those four was in a file **written by TIA's own export** (possibly after the ID add-in had run), not by hand; a file that exported cleanly is not proof that it re-imports.
 

@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: LAD networks"
 description: "How LAD networks are written in SIMATIC SD (.s7dcl) files for TIA Portal V20: rungs, wires, contacts, coils, boxes, calls, program control and the Calculate box, with a complete example block and the instruction set."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:14:22-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:57:49-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -410,7 +410,9 @@ Its other items: [resource files](s7dcl-resources.md), [blocks, interfaces and d
 
 ### 8.14c Import failures from resource files and branch shapes `[EXPORT]`: branch shapes and LAD operands
 
-Its other part: [resource files](s7dcl-resources.md).
+Its other part: [resource files](s7dcl-resources.md). The section's first paragraph, the source of both parts, stands in both.
+
+Verified by four failed syncs and their fixes (project B, 2026-09-23, TIA Portal V20). Every defect of those four was in a file **written by TIA's own export** (possibly after the ID add-in had run), not by hand; a file that exported cleanly is not proof that it re-imports.
 
 **Branch that starts at a merge node and encloses a nested OR ending at the same node.** Fails with *"Syntax Error during import of TextLad file, Message: Creation of OR gate failed with RUNG 'Wire#w3' and END_RUNG 'Wire#w5'"*. The failing shape, from the *Command - Lower table* network, exported by TIA:
 
