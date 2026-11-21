@@ -31,7 +31,7 @@ sys.path.insert(0, str(HERE.parent / 'dashboard'))    # the board reads a ticket
 
 from board import read_ticket
 from control_chars import describe, scan
-from left_out import left_out
+from left_out import TreeFiles, left_out, tree_on_disk
 from store import SessionError, Store, record_hook, record_in, write_json, write_state, write_text
 from terminals import ADAPTERS, NOT_READ, choose, report_resume
 from tokens import claude_home, find_transcripts, folder_name, full_text, measure, projects_root, short_text
@@ -242,6 +242,21 @@ class Sessions:
 
     # --- start
 
+    def tree_files(self, tree, branch):
+        """What of the tree decides what its session leaves out, as the tree holds it or will hold it once ensure_tree has made it:
+        the branch's tracked files, or BASE's for a new branch. A tree not made yet has no settings.local.json, which git ignores."""
+        if Path(tree).is_dir():
+            return tree_on_disk(tree)
+        ref = branch if self.git('rev-parse', '--verify', '--quiet', f'refs/heads/{branch}')[0] == 0 else BASE
+        paths = [path.split('/') for path in self.must_git('ls-tree', '-r', '--name-only', ref, '--', '.claude/skills').splitlines()]
+        skills = sorted({parts[2] for parts in paths if len(parts) == 4 and parts[3] == 'SKILL.md'})
+        code, text, _ = self.git('show', f'{ref}:.claude/settings.json')
+        try:
+            settings = json.loads(text) if not code else None
+        except ValueError:
+            settings = None
+        return TreeFiles(Path(tree), skills, [settings])
+
     def mcp_servers(self, allow_tia, allow_browser):
         """The MCP servers a session asked for, by name. The bridge is always this clone's, started as first setup registers it
         (tools/setup/setup.py); a plain claude may have another clone's registered."""
@@ -305,9 +320,8 @@ class Sessions:
         tree = Path(worktree or self.main.parent / f'{self.main.name}-worktrees' / f'{effort}-{number}')
         if inside(tree, self.main):
             raise SessionError(f'{tree} is inside the clone: nothing started')
-        left_out(self.home, tree, self.main, keep)    # a --keep it cannot keep is refused before the tree is made
+        left = left_out(self.home, self.tree_files(tree, branch), self.main, keep)    # refused before anything is made
         made_tree, made_branch = self.ensure_tree(tree, branch)
-        left = left_out(self.home, tree, self.main, keep)    # now with the tree's own skills and settings
         if self.store.exists(name):    # the same session again: what it made earlier stays its own
             earlier = self.store.load(name)
             made_tree = made_tree or bool(earlier.get('made_tree') and folder_key(earlier['worktree']) == folder_key(tree))

@@ -42,11 +42,26 @@ class LeftOut:
         return 'left out: ' + ', '.join(parts) + (', the bundled skills' if self.bundled else '') + '. --keep <name> brings one back'
 
 
-def enabled_plugins(home, tree):
+@dataclass
+class TreeFiles:
+    """What of a tree decides what its session leaves out: its folder, the names of its skills and its settings files' contents,
+    in the order Claude Code reads them. From the tree on disk, or from git for a tree not made yet (session.py)."""
+    path: Path
+    skills: list
+    settings: list
+
+
+def tree_on_disk(tree):
+    tree = Path(tree)
+    return TreeFiles(tree, skill_names(tree / '.claude' / 'skills'),
+                     [read_json(tree / '.claude' / name) for name in ('settings.json', 'settings.local.json')])
+
+
+def enabled_plugins(home, tree_files):
     """The plugins a plain claude in the tree has on: the user's settings, then the tree's own, a later file deciding."""
     found = {}
-    for path in (home / 'settings.json', tree / '.claude' / 'settings.json', tree / '.claude' / 'settings.local.json'):
-        plugins = (read_json(path) or {}).get('enabledPlugins')
+    for settings in (read_json(home / 'settings.json'), *tree_files.settings):
+        plugins = settings.get('enabledPlugins') if isinstance(settings, dict) else None
         if isinstance(plugins, dict):
             found.update(plugins)
     return sorted(name for name, on in found.items() if on is True)
@@ -67,13 +82,15 @@ def plugin_of(key):
     return key.split('@', 1)[0]
 
 
-def left_out(home, tree, main, keep=()):
+def left_out(home, tree_files, main, keep=()):
     """What the session leaves out, less what keep names. The repo's own skills always stay; the main tree's copies of them,
     listed again under <main folder>:<skill> by --add-dir, always go: the tree's own are the branch's. A name in keep that is
-    none of these is refused, with what can be kept."""
-    home, tree, main = Path(home), Path(tree), Path(main)
-    own = skill_names(tree / '.claude' / 'skills')
-    plugins = [key for key in enabled_plugins(home, tree) if plugin_of(key) not in KEPT_PLUGINS]
+    none of these is refused, with what can be kept. tree_files: a TreeFiles, or the tree's folder to read it from."""
+    home, main = Path(home), Path(main)
+    if not isinstance(tree_files, TreeFiles):
+        tree_files = tree_on_disk(tree_files)
+    tree, own = tree_files.path, tree_files.skills
+    plugins = [key for key in enabled_plugins(home, tree_files) if plugin_of(key) not in KEPT_PLUGINS]
     skills = [name for name in [*synced_skills(home), *BUILT_IN_SKILLS] if name not in own]
     keep = list(dict.fromkeys(keep))
     known = {ALL, BUNDLED, *TOOLS, *plugins, *map(plugin_of, plugins), *skills}

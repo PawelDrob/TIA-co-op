@@ -588,6 +588,44 @@ class LeftOutTests(Case):
         self.started()
         self.assertEqual(self.settings()['skillOverrides'], {'docx': 'off', 'plugin-authoring': 'off', 'clone:review-page': 'off'})
 
+    def commit_on_main(self, path, text):
+        (self.main / path).parent.mkdir(parents=True, exist_ok=True)
+        (self.main / path).write_text(text, encoding='utf-8')
+        git(self.main, 'add', path)
+        git(self.main, 'commit', '-q', '-m', path)
+
+    def test_a_synced_skill_named_as_a_repo_skill_kept_by_name_is_refused_before_anything_is_made(self):
+        self.commit_on_main('.claude/skills/review-page/SKILL.md', 'x')
+        (self.home / 'skills' / 'synced' / 'a' / 'review-page').mkdir()
+        (self.home / 'skills' / 'synced' / 'a' / 'review-page' / 'SKILL.md').write_text('x', encoding='utf-8')
+        with self.assertRaisesRegex(SessionError, '--keep review-page: not among'):
+            self.started(keep=['review-page'])
+        self.assertFalse(self.tree.exists())
+        self.assertNotIn('feat/work-03-some-thing', self.branches())
+        self.assertFalse(self.sessions.store.exists('wk03'))
+
+    def test_a_plugin_only_the_trees_tracked_settings_turn_on_can_be_kept(self):
+        self.commit_on_main('.claude/settings.json', json.dumps({'enabledPlugins': {'tree-only@m': True}}))
+        self.started(keep=['tree-only'])
+        self.assertEqual(self.settings()['enabledPlugins'], {'feature-dev@m': False})
+
+    def test_an_existing_branch_is_read_for_what_its_tree_will_hold(self):
+        git(self.main, 'branch', 'feat/work-03-some-thing')
+        git(self.main, 'checkout', '-q', 'feat/work-03-some-thing')
+        self.commit_on_main('.claude/settings.json', json.dumps({'enabledPlugins': {'branch-only@m': True}}))
+        git(self.main, 'checkout', '-q', 'main')
+        self.started()
+        self.assertEqual(self.settings()['enabledPlugins'], {'branch-only@m': False, 'feature-dev@m': False})
+
+    def test_what_is_left_out_is_worked_out_once_and_before_the_tree_is_made(self):
+        real, seen = session.left_out, []
+        def watched(*args, **kwargs):
+            seen.append(self.tree.exists())
+            return real(*args, **kwargs)
+        with mock.patch.object(session, 'left_out', watched):
+            self.started()
+        self.assertEqual(seen, [False])
+
     def test_the_users_settings_are_not_changed(self):
         before = (self.home / 'settings.json').read_bytes()
         self.started()
@@ -997,6 +1035,7 @@ class CloseTests(Case):
     def test_it_never_forces_and_never_touches_plugins(self):
         self.started()
         self.merged()
+        self.commands.clear()    # close's own: start reads .claude/ of a tree not made yet with git
         self.sessions.close('wk03')
         run = self.commands_run()
         self.assertTrue(any('worktree remove' in c for c in run))
