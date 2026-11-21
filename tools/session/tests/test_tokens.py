@@ -79,7 +79,7 @@ class CountTests(Folder):
         self.assertNotIn('dollars', data)
         text = short_text('wk03', data)
         self.assertEqual(text.splitlines()[:6], [
-            'wk03: 22,568,116 tokens in all, 1 requests in 1 transcript, claude-opus-5-5',
+            'wk03: 22,568,116 tokens in all, 1 request in 1 transcript, claude-opus-5-5',
             '  uncached input                             230',
             '  cache writes, 5 min                          0',
             '  cache writes, 1 h                      269,072',
@@ -90,8 +90,30 @@ class CountTests(Folder):
     def test_a_transcript_with_no_request_says_so(self):
         self.transcript('one', [{'type': 'permission-mode', 'permissionMode': 'auto'}, hook_ran(self.hook_folder)])
         data = self.measured()
-        self.assertEqual(short_text('wk03', data), 'wk03: no request to the model in 1 transcript, so no tokens')
-        self.assertEqual(full_text('wk03', data), 'wk03: no request to the model in 1 transcript, so no tokens')
+        self.assertEqual(short_text('wk03', data), 'wk03: no request to the model counted in 1 transcript, so no tokens')
+        self.assertEqual(full_text('wk03', data).splitlines()[:3], [
+            'wk03: no request to the model counted in 1 transcript, so no tokens',
+            'What entered the context: nothing, as no request was counted',
+            'Fixed prefix: the transcripts record no request shape'])
+        self.assertTrue(full_text('wk03', data).splitlines()[3].startswith('Transcripts: '))
+
+    def test_a_transcript_whose_usage_it_does_not_know_says_what_it_skipped(self):
+        """As a new Claude Code release could write it: every request skipped, and said so in each form."""
+        self.transcript('one', [answer('r1', {'tokens': {'in': 5}}), answer('r2', {'tokens': {'in': 9}})])
+        data = self.measured()
+        for text in (short_text('wk03', data), full_text('wk03', data)):
+            self.assertIn('wk03: no request to the model counted in 1 transcript, so no tokens', text)
+            self.assertIn('  skipped, requests whose usage has a shape this does not know: 2', text)
+
+    def test_a_transcript_that_cannot_be_opened_says_so(self):
+        folder = self.projects / folder_name(self.worktree) / 'one.jsonl'
+        folder.mkdir(parents=True)    # found as a transcript, opened as none
+        data = self.measured()
+        self.assertEqual(data['skipped'], {'transcripts that could not be read': 1})
+        for text in (short_text('wk03', data), full_text('wk03', data)):
+            self.assertIn('wk03: no request to the model counted in 1 transcript, so no tokens', text)
+            self.assertIn('  skipped, transcripts that could not be read: 1', text)
+            self.assertIn(f'  could not be read: {folder}: ', text)
 
     def test_a_cache_write_of_no_recorded_lifetime_is_counted_on_its_own(self):
         used = {'input_tokens': 1, 'cache_creation_input_tokens': 700, 'cache_read_input_tokens': 0, 'output_tokens': 10}
@@ -108,7 +130,7 @@ class CountTests(Folder):
         self.assertEqual(data['requests'], 1)
         self.assertEqual(data['skipped'], {'lines that are not JSON': 1, 'requests whose usage has a shape this does not know': 1,
                                            'model lines without a request id or usage': 1})
-        self.assertIn('skipped: 1 lines that are not JSON', short_text('wk03', data))
+        self.assertIn('skipped, lines that are not JSON: 1', short_text('wk03', data))
 
     def test_the_prompt_at_the_first_and_last_request_and_its_mean(self):
         self.transcript('one', [answer('r1', usage(fresh=1, write_1h=999)), answer('r2', usage(read=1000, write_1h=500)),
@@ -124,7 +146,8 @@ class CountTests(Folder):
         self.assertEqual(data['subagents']['requests'], 1)
         self.assertEqual(data['prompt'], {'first': 1000, 'last': 1000, 'mean': 1000})
         self.assertEqual(data['tokens_in_all'], 52_010)
-        self.assertIn('of it 1 subagents: 51,000 tokens, 1 requests', short_text('wk03', data))
+        self.assertIn('of it 1 subagent: 51,000 tokens, 1 request', short_text('wk03', data))
+        self.assertIn('2 requests in 1 transcript and 1 subagent transcript', short_text('wk03', data))
 
 
 class FindTests(Folder):
@@ -249,7 +272,7 @@ class CommandTests(Case):
         self.started()
         self.give_transcript('wk03', 'id-1', 'r1')
         text = self.sessions.tokens('wk03')
-        self.assertIn('wk03: 1,000,100 tokens in all, 1 requests in 1 transcript, claude-opus-5-5', text)
+        self.assertIn('wk03: 1,000,100 tokens in all, 1 request in 1 transcript, claude-opus-5-5', text)
         self.assertNotIn('$', text)
         self.assertEqual(json.loads(self.sessions.tokens('wk03', as_json=True))['requests'], 1)
 
@@ -262,7 +285,7 @@ class CommandTests(Case):
         self.started()
         self.give_transcript('wk03', 'id-1', 'r1')
         said = self.sessions.close('wk03', session_only=True)
-        self.assertIn('wk03: 1,000,100 tokens in all, 1 requests in 1 transcript', said)
+        self.assertIn('wk03: 1,000,100 tokens in all, 1 request in 1 transcript', said)
         folder = self.sessions.store.folder('wk03')
         self.assertIn('1,000,100 tokens in all', (folder / 'tokens.txt').read_text(encoding='utf-8'))
         self.assertEqual(json.loads((folder / 'tokens.json').read_text(encoding='utf-8'))['tokens_in_all'], 1_000_100)
@@ -299,8 +322,8 @@ class MergeTokensTests(MergeCase):
             write_transcript(self.projects / folder_name(self.tree) / f'{session_id}.jsonl', [answer(request, usage(write_1h=500_000))])
         said = self.sessions.merge('wk03')
         lines = said.splitlines()
-        self.assertEqual(lines.count('wk03: 500,000 tokens in all, 1 requests in 1 transcript, claude-opus-5-5'), 1)
-        self.assertEqual(lines.count('auditwk03: 500,000 tokens in all, 1 requests in 1 transcript, claude-opus-5-5'), 1)
+        self.assertEqual(lines.count('wk03: 500,000 tokens in all, 1 request in 1 transcript, claude-opus-5-5'), 1)
+        self.assertEqual(lines.count('auditwk03: 500,000 tokens in all, 1 request in 1 transcript, claude-opus-5-5'), 1)
         for name in ('wk03', 'auditwk03'):
             self.assertIn('500,000 tokens in all', (self.sessions.store.folder(name) / 'tokens.txt').read_text(encoding='utf-8'))
 

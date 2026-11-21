@@ -10,7 +10,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-METERS =('input', 'write_5m', 'write_1h', 'write_unknown', 'read', 'output')
+METERS = ('input', 'write_5m', 'write_1h', 'write_unknown', 'read', 'output')
 METER_NAMES = {'input': 'uncached input', 'write_5m': 'cache writes, 5 min', 'write_1h': 'cache writes, 1 h',
                'write_unknown': 'cache writes, lifetime not recorded', 'read': 'cache reads', 'output': 'output'}
 SAVED_OUTPUT = "a tool's output saved to a file"
@@ -333,63 +333,75 @@ def measure(transcripts, roots=()):
 
 # --- as text
 
+def counted(n, word):
+    """1 request, 2 requests."""
+    return f'{n:,} {word}' + ('' if n == 1 else 's')
+
+
 def short_text(name, data):
-    """A few lines: the tokens in all first, the requests, the four meters, the prompt."""
+    """A few lines: the tokens in all first, the requests, the four meters, the prompt, and what was skipped, whatever was counted."""
     if not data['transcripts']:
         return f'{name}: no transcript of it found'
-    files = data['sessions']
-    in_files = f'in {files} transcript{"s" if files != 1 else ""}'
-    if not data['requests']:
-        return f'{name}: no request to the model {in_files}, so no tokens'
-    tokens = data['tokens']
-    models = ', '.join(f'{model} {n}' if len(data['models']) > 1 else model for model, n in sorted(data['models'].items()))
-    lines = [f'{name}: {data["tokens_in_all"]:,} tokens in all, {data["requests"]:,} requests {in_files}, {models}']
-    width = max(len(f'{tokens[m]:,}') for m in METERS)
-    for meter in METERS:
-        if meter == 'write_unknown' and not tokens[meter]:
-            continue
-        extra = f'  thinking {tokens["thinking"]:,}' if meter == 'output' else ''
-        lines.append(f'  {METER_NAMES[meter]:<35} {tokens[meter]:>{width},}{extra}')
+    of_subagents = len(data['transcripts']) - data['sessions']
+    in_files = 'in ' + counted(data['sessions'], 'transcript') + (f' and {counted(of_subagents, "subagent transcript")}'
+                                                                   if of_subagents else '')
+    if data['requests']:
+        tokens = data['tokens']
+        models = ', '.join(f'{model} {n}' if len(data['models']) > 1 else model for model, n in sorted(data['models'].items()))
+        lines = [f'{name}: {data["tokens_in_all"]:,} tokens in all, {counted(data["requests"], "request")} {in_files}, {models}']
+        name_width = max(len(METER_NAMES[m]) for m in METERS)
+        width = max(len(f'{tokens[m]:,}') for m in METERS)
+        for meter in METERS:
+            if meter == 'write_unknown' and not tokens[meter]:
+                continue
+            extra = f'  thinking {tokens["thinking"]:,}' if meter == 'output' else ''
+            lines.append(f'  {METER_NAMES[meter]:<{name_width}} {tokens[meter]:>{width},}{extra}')
+    else:
+        lines = [f'{name}: no request to the model counted {in_files}, so no tokens']
     if data['subagents']['requests']:
         subagents = data['subagents']
-        lines.append(f'  of it {subagents["agents"]} subagents: {subagents["tokens_in_all"]:,} tokens, {subagents["requests"]:,} requests')
+        lines.append(f'  of it {counted(subagents["agents"], "subagent")}: {subagents["tokens_in_all"]:,} tokens, '
+                     f'{counted(subagents["requests"], "request")}')
     if data['prompt']:
         prompt = data['prompt']
         lines.append(f'  prompt: first {prompt["first"]:,}, last {prompt["last"]:,}, mean {prompt["mean"]:,}')
     for what, n in sorted(data['skipped'].items()):
-        lines.append(f'  skipped: {n:,} {what}')
+        lines.append(f'  skipped, {what}: {n:,}')
+    lines += [f'  could not be read: {line}' for line in data['unreadable']]
     return '\n'.join(lines)
 
 
 def full_text(name, data):
-    """The short form, then what entered the context and the fixed prefix."""
+    """The short form, then what entered the context, the fixed prefix and the transcripts."""
     lines = [short_text(name, data)]
-    if not data['requests']:
+    if not data['transcripts']:
         return lines[0]
     rows = data['context']
     if rows:
         total = sum(row['read_again'] for row in rows) or 1
         lines.append('What entered the context, by kind: tokens added, calls, tokens read again by the requests after it')
         for row in rows[:SHOWN_KINDS]:
-            calls = f'{row["calls"]:>4} calls' if row['calls'] else ' ' * 10
-            lines.append(f'  {row["kind"][:58]:<58} {row["added"]:>9,} {calls} {row["read_again"]:>13,}  {100 * row["read_again"] / total:4.1f} %')
+            calls = counted(row['calls'], 'call') if row['calls'] else ''
+            lines.append(f'  {row["kind"][:58]:<58} {row["added"]:>9,} {calls:>10} {row["read_again"]:>13,}  '
+                         f'{100 * row["read_again"] / total:4.1f} %')
         rest = rows[SHOWN_KINDS:]
         if rest:
             read = sum(row['read_again'] for row in rest)
-            lines.append(f'  {f"the {len(rest)} other kinds":<58} {sum(row["added"] for row in rest):>9,} '
-                         f'{sum(row["calls"] for row in rest):>4} calls {read:>13,}  {100 * read / total:4.1f} %')
+            lines.append(f'  {"the " + counted(len(rest), "other kind"):<58} {sum(row["added"] for row in rest):>9,} '
+                         f'{counted(sum(row["calls"] for row in rest), "call"):>10} {read:>13,}  {100 * read / total:4.1f} %')
+    else:
+        lines.append('What entered the context: nothing, as no request was counted')
     prefix = data['prefix']
     if prefix:
-        lines.append(f'Fixed prefix, in characters, from the last of {prefix["shapes_recorded"]} recorded request shapes: system text '
-                     f'{prefix["system_characters"]:,} in {len(prefix["system_parts"])} parts, {len(prefix["tools"])} tools '
-                     f'{prefix["tool_characters"]:,}')
+        lines.append(f'Fixed prefix, in characters, from the last of {counted(prefix["shapes_recorded"], "recorded request shape")}: '
+                     f'system text {prefix["system_characters"]:,} in {counted(len(prefix["system_parts"]), "part")}, '
+                     f'{counted(len(prefix["tools"]), "tool")} {prefix["tool_characters"]:,}')
         for tool in prefix['tools'][:SHOWN_TOOLS]:
             lines.append(f'  {tool["name"]:<40} {tool["characters"]:>8,}')
         rest = prefix['tools'][SHOWN_TOOLS:]
         if rest:
-            lines.append(f'  {f"the {len(rest)} other tools":<40} {sum(t["characters"] for t in rest):>8,}')
+            lines.append(f'  {"the " + counted(len(rest), "other tool"):<40} {sum(t["characters"] for t in rest):>8,}')
     else:
-        lines.append('Fixed prefix: the transcript records no request shape')
-    lines += [f'  could not be read: {line}' for line in data['unreadable']]
+        lines.append('Fixed prefix: the transcripts record no request shape')
     lines.append('Transcripts: ' + ', '.join(data['transcripts']))
     return '\n'.join(lines)
