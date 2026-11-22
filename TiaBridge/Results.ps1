@@ -14,7 +14,7 @@ $script:WholeResultClients = @('TiaArchiveCompare')
 $script:SlowStepMs = 60000
 
 # The tools that give project and repo: their result says them always, every other one when they changed. tia_status is
-# the tool an agent asks when it is unsure where it stands, and a log's path in any answer is relative to the repo.
+# the tool an agent asks when it is unsure where it stands, and a log's path is relative to the repo when there is one.
 $script:GivesProject = @('connect', 'background_open', 'project_open', 'tia_status')
 
 # Where the answer leaves a value out: the field, by its path in the result (items[].folder: the folder of each item), and
@@ -22,7 +22,8 @@ $script:GivesProject = @('connect', 'background_open', 'project_open', 'tia_stat
 # a false, an empty list or a zero that is the news is said. A change report never hides a change: of it only what has no
 # value, a network's or tag's side it is not on, a title, comment or device it has not. '*': every tool. Why each:
 # - prompts: the bridge writes "" for a text TIA's dialog did not have.
-# - full_export removed, keptUncommitted, keptRepos, failed: their counts (removedCount, keptCount, failedCount) stay.
+# - full_export removed, keptUncommitted, failed: their counts (removedCount, keptCount, failedCount) stay. keptRepos has
+#   no count: absent, it reads as no repo kept, and next names keptRepos when there are some.
 # - import findings[].object: null for a finding about the document as a whole, not one object of it.
 # - change_report before, after: null on the side a new or removed network or tag is not on; its state says which. A
 #   network's title emptied keeps the old one in was, a tag's comment added or removed is in its changes: both stay.

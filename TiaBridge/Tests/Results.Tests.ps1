@@ -300,7 +300,7 @@ Describe 'The short result of a tool' {
         ($a.text | ConvertFrom-Json).PSObject.Properties['repo'] | Should BeNullOrEmpty
         ($a.text | ConvertFrom-Json).log | Should Match '^logs\\'
         (Read-CallLog $a).project | Should Be 'P1'
-        # tia_status, asked by an agent unsure where it stands, says them always: a log's path is relative to the repo
+        # tia_status, asked by an agent unsure where it stands, says them always: a log's path is relative to the repo when there is one
         $st = (Invoke-Short 'tia_status').text | ConvertFrom-Json
         $st.project | Should Be 'P1'
         $st.repo | Should Be $script:TestRepo
