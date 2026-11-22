@@ -68,6 +68,7 @@ try {
     Write-Host 'connect: confirm the Openness access dialog in TIA if it appears; the session archive follows.' -ForegroundColor Cyan
     $c = Call 'connect' $(if ($Project) { @{ project = $Project } } else { @{} })
     if (-not $c.ok) { throw 'connect failed' }
+    [void]$script:summary.Add("   languages: $(if ($c.languages.notKnown) { "NOT KNOWN: $($c.languages.notKnown)" } else { "active $(@($c.languages.active) -join ', '); editing $($c.languages.editing); reference $($c.languages.reference)" })")
     $script:repo = $c.repo
     if (-not $c.archive.ok) { $null = Call 'archive' @{ reason = 'smoke'; skip = $false } }
 

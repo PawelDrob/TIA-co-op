@@ -289,6 +289,45 @@ Describe 'connect stores the HMI type identifier' {
         $cfg.hmiTypeIdentifier.HMI_2 | Should Be 'OrderNumber:6AV2 124-0GC01-0AX0/17.0.0.0//Portrait'
     }
 
+    It 'gives the project''s active, editing and reference languages' {
+        Set-FakeTia @($plc)
+        $script:fakeTiaProject | Add-Member NoteProperty LanguageSettings (New-FakeLanguageSettings @('en-US', 'de-DE') 'de-DE' 'en-US')
+        $r = Invoke-ConnectTool ('{}' | ConvertFrom-Json)
+        @($r.languages.active) -join ',' | Should Be 'en-US,de-DE'
+        $r.languages.editing | Should Be 'de-DE'
+        $r.languages.reference | Should Be 'en-US'
+        $r.languages.Contains('notKnown') | Should Be $false
+    }
+
+    It 'connects when the languages cannot be read, and says they are not known' {
+        $ErrorActionPreference = 'Stop'   # as in TiaBridge.ps1
+        Set-FakeTia @($plc)
+        $r = Invoke-ConnectTool ('{}' | ConvertFrom-Json)
+        $r.ok | Should Be $true
+        $r.languages.notKnown | Should Be 'TIA gave the project no LanguageSettings.'
+        $r.languages.Contains('active') | Should Be $false
+        $r.archive.ok | Should Be $true
+        # a getter that throws reads as null in PowerShell 5.1: that language is missing, not an empty one
+        Set-FakeTia @($plc)
+        $ls = New-FakeLanguageSettings @('en-US') 'en-US' 'en-US'
+        $ls.EditingLanguage = $null
+        $script:fakeTiaProject | Add-Member NoteProperty LanguageSettings $ls
+        (Invoke-ConnectTool ('{}' | ConvertFrom-Json)).languages.notKnown | Should Be 'TIA gave no EditingLanguage in LanguageSettings.'
+        Set-FakeTia @($plc)
+        $script:fakeTiaProject | Add-Member NoteProperty LanguageSettings (New-Object TiaBridgeTest.UnreadableLanguages $false)
+        $r = Invoke-ConnectTool ('{}' | ConvertFrom-Json)
+        $r.ok | Should Be $true
+        $r.languages.notKnown | Should Be 'LanguageSettings could not be read: System.InvalidOperationException: Access to a disposed object'
+    }
+
+    It 'fails the connect when TIA ends at the read of the languages, and binds nothing' {
+        Set-FakeTia @($plc)
+        $script:fakeTiaProject | Add-Member NoteProperty LanguageSettings (New-Object TiaBridgeTest.UnreadableLanguages $true)
+        { Invoke-ConnectTool ('{}' | ConvertFrom-Json) } | Should Throw 'Unexpected exception'
+        $script:Bridge.projectName | Should BeNullOrEmpty
+        $script:Bridge.repo | Should BeNullOrEmpty
+    }
+
     It 'refuses without git on PATH, before it attaches to TIA' {
         Set-FakeTia @($plc)
         $script:attached = 0

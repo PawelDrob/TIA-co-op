@@ -253,6 +253,19 @@ Describe 'The short result of a tool' {
         $a.stepsLog | Should Be 'C:\P1\logs\x_background_steps.json'
     }
 
+    It 'connect and background_open: the languages always said, one active language as a list, not known as it is' {
+        foreach ($tool in 'connect', 'background_open') {
+            $script:TestResult = [ordered]@{ ok = $true; languages = [ordered]@{ active = @('en-US'); editing = 'en-US'; reference = 'en-US' } }
+            $a = (Invoke-Short $tool).text | ConvertFrom-Json
+            $a.languages.active -is [array] | Should Be $true
+            @($a.languages.active) -join ',' | Should Be 'en-US'
+            $a.languages.editing | Should Be 'en-US'
+            $a.languages.reference | Should Be 'en-US'
+            $script:TestResult = [ordered]@{ ok = $true; languages = [ordered]@{ notKnown = 'TIA gave the project no LanguageSettings.' } }
+            ((Invoke-Short $tool).text | ConvertFrom-Json).languages.notKnown | Should Be 'TIA gave the project no LanguageSettings.'
+        }
+    }
+
     It 'change_report: a value is left out only where its absence says the same, every fact of a change stays, rows as JSON gives them' {
         # Invoke-ChangeReports returns what ConvertFrom-Json makes of TiaChangeReports' output: its rows are no dictionaries
         $res = @'

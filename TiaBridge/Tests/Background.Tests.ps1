@@ -246,6 +246,33 @@ Describe 'background_open and background_close' {
         Test-Path (Join-Path (Split-Path $ap) 'PEData.plf') | Should Be $true
     }
 
+    It 'gives the project''s languages, and opens when they cannot be read, saying they are not known' {
+        Reset-Fakes
+        $script:fakePortal.Projects.project | Add-Member NoteProperty LanguageSettings (New-FakeLanguageSettings @('en-US', 'es-ES') 'en-US' 'en-US')
+        $r = Invoke-BackgroundOpenTool ("{`"path`":`"$($zap -replace '\\', '\\')`"}" | ConvertFrom-Json)
+        @($r.languages.active) -join ',' | Should Be 'en-US,es-ES'
+        $r.languages.editing | Should Be 'en-US'
+        $r.languages.reference | Should Be 'en-US'
+        $null = Invoke-BackgroundCloseTool (New-Object psobject)
+        Reset-Fakes
+        $script:fakePortal.Projects.project | Add-Member NoteProperty LanguageSettings (New-Object TiaBridgeTest.UnreadableLanguages $false)
+        $r = Invoke-BackgroundOpenTool ("{`"path`":`"$($zap -replace '\\', '\\')`"}" | ConvertFrom-Json)
+        $r.ok | Should Be $true
+        $r.languages.notKnown | Should Match 'could not be read: .*Access to a disposed object'
+        $null = Invoke-BackgroundCloseTool (New-Object psobject)
+    }
+
+    It 'fails at bind when TIA ends at the read of the languages, and ends its TIA' {
+        Reset-Fakes
+        $script:fakePortal.Projects.project | Add-Member NoteProperty LanguageSettings (New-Object TiaBridgeTest.UnreadableLanguages $true)
+        $r = Invoke-BackgroundOpenTool ("{`"path`":`"$($zap -replace '\\', '\\')`"}" | ConvertFrom-Json)
+        $r.ok | Should Be $false
+        $r.step | Should Be 'bind'
+        $r.error.tiaEnded | Should Be $true
+        $script:fakePortal.disposed | Should Be $true
+        $script:Bridge.background | Should BeNullOrEmpty
+    }
+
     It 'refuses a project open in a TIA, before starting one' {
         Reset-Fakes
         $ap = Join-Path $TestDrive 'orig\Bg\Bg.ap20'

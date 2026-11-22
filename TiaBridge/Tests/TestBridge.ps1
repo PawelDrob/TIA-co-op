@@ -23,3 +23,31 @@ function Set-TestBridgeProject([string]$Repo) {
 # A tool call's first read of the project, as the first path of a call makes it: TIA answers and its yes is kept for the
 # call. A test of TIA ending in the call makes it before the tool, so that only where the bridge asks again sees the end.
 function Read-CallFirstProject { $null = Get-TiaProject }
+
+# A project's LanguageSettings as Openness gives it: each language a Culture. Active: culture names, in TIA's order.
+function New-FakeLanguageSettings([string[]]$Active, [string]$Editing, [string]$Reference) {
+    $l = { param($n) [pscustomobject]@{ Culture = [System.Globalization.CultureInfo]::GetCultureInfo($n) } }
+    [pscustomobject]@{ ActiveLanguages = @($Active | ForEach-Object { & $l $_ }); EditingLanguage = (& $l $Editing); ReferenceLanguage = (& $l $Reference) }
+}
+
+# LanguageSettings whose ActiveLanguages throws when enumerated, as a list of Openness does: with a NonRecoverable
+# exception (TIA ended) or another one.
+if (-not ('TiaBridgeTest.UnreadableLanguages' -as [type])) {
+    Add-Type -TypeDefinition @'
+namespace TiaBridgeTest {
+    public class NonRecoverableException : System.Exception { public NonRecoverableException(string m) : base(m) { } }
+    public class UnreadableLanguages {
+        bool ended;
+        public UnreadableLanguages(bool ended) { this.ended = ended; }
+        public System.Collections.Generic.IEnumerable<object> ActiveLanguages { get { return Items(); } }
+        System.Collections.Generic.IEnumerable<object> Items() {
+            if (ended) { throw new NonRecoverableException("Unexpected exception"); }
+            throw new System.InvalidOperationException("Access to a disposed object");
+#pragma warning disable 162
+            yield break;
+#pragma warning restore 162
+        }
+    }
+}
+'@
+}

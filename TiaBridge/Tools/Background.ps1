@@ -448,6 +448,7 @@ function Invoke-BackgroundOpenTool($a) {
         $script:Bridge.background = @{ source = $src.path; kind = $src.kind; write = $write; plain = $plain; upgraded = $src.upgrade; scratch = $scratch; processId = $tiaPid
                                        openedAt = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss'); steps = $steps; session = (New-SessionState) }
         $software = @(Get-TiaSoftwareList)
+        $languages = Get-ProjectLanguages $project
         $typeIds = @{}
         foreach ($h in @($software | Where-Object { $_.kind -eq 'hmi' })) { $typeIds[$h.device] = Get-DeviceTypeIdentifier $h.deviceObject }
         $map = Initialize-ProjectRepo -Root $script:Bridge.settings.projectsRoot -ProjectName $project.Name -ProjectPath $project.Path.FullName `
@@ -487,7 +488,7 @@ function Invoke-BackgroundOpenTool($a) {
         return $r
     }
     $r = @{ ok = $true; source = $src.path; kind = $src.kind; write = $write; upgraded = $src.upgrade; processId = $tiaPid
-            repoCreated = $map.created; devices = @($software | ForEach-Object { @{ device = $_.device; kind = $_.kind } })
+            repoCreated = $map.created; devices = @($software | ForEach-Object { @{ device = $_.device; kind = $_.kind } }); languages = $languages
             readFirst = (Join-Path $map.repo 'docs\project.md') }
     # asked: how often TIA called for the login (0: the project is not protected)
     if ($login) { $r.umcLogin = @{ userType = $login.UserType; asked = $login.Calls }; $login.Dispose() }

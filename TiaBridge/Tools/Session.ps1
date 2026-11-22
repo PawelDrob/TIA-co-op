@@ -136,6 +136,7 @@ function Invoke-ConnectTool($a) {
         $script:Bridge.projectPath = $project.Path.FullName   # Get-TiaSoftwareList needs the binding
         $script:Bridge.software = $null
         $sw = @(Get-TiaSoftwareList)
+        $languages = Get-ProjectLanguages $project
         $typeIds = @{}
         foreach ($h in @($sw | Where-Object { $_.kind -eq 'hmi' })) { $typeIds[$h.device] = Get-DeviceTypeIdentifier $h.deviceObject }
         $map = Initialize-ProjectRepo -Root $script:Bridge.settings.projectsRoot -ProjectName $project.Name -ProjectPath $project.Path.FullName `
@@ -150,7 +151,7 @@ function Invoke-ConnectTool($a) {
         throw
     }
     $r = @{ ok = $true; projectPath = $project.Path.FullName; repoCreated = $map.created
-            devices = @(Get-DeviceStates $sw)
+            devices = @(Get-DeviceStates $sw); languages = $languages
             readFirst = (Join-Path $map.repo 'docs\project.md'); unsavedChanges = [bool]$project.IsModified }
     if ($previousPath -and $previousPath -ne $project.Path.FullName) { $r.switchedFrom = $(if ($previous -ne $project.Name) { $previous } else { $previousPath }) }
     $warning = Get-SecondTiaWarning $previousTia $previousPath $sel.processId
@@ -235,6 +236,28 @@ function Set-StandardsResult($Result, $Map) {
     $standards = Get-StandardsResult $Map.repo
     if ($standards) { $Result.standards = $standards }
     if ($Map.standardsNote) { $Result.standardsNote = $Map.standardsNote }
+}
+
+# The project's languages for the result of connect and background_open, by culture name: the active ones in TIA's
+# order, the editing and the reference language. A getter that throws reads as null in PowerShell 5.1, so a language
+# missing makes them not known as an error does (notKnown says which or why); TIA ended is thrown on.
+function Get-ProjectLanguages($Project) {
+    try {
+        $ls = $Project.LanguageSettings
+        if (-not $ls) { return [ordered]@{ notKnown = 'TIA gave the project no LanguageSettings.' } }
+        $active = @(foreach ($l in @($ls.ActiveLanguages)) { [string]$l.Culture.Name })
+        $languages = [ordered]@{ active = $active; editing = [string]$ls.EditingLanguage.Culture.Name; reference = [string]$ls.ReferenceLanguage.Culture.Name }
+    }
+    catch {
+        if (Test-TiaEndedError $_) { throw }
+        $e = ConvertTo-BridgeError $_
+        return [ordered]@{ notKnown = "LanguageSettings could not be read: $($e.type): $($e.message)" }
+    }
+    $missing = @(if (-not $active.Count -or $active -contains '') { 'ActiveLanguages' }
+                 if (-not $languages.editing) { 'EditingLanguage' }
+                 if (-not $languages.reference) { 'ReferenceLanguage' })
+    if ($missing.Count) { return [ordered]@{ notKnown = "TIA gave no $($missing -join ', ') in LanguageSettings." } }
+    $languages
 }
 
 # A switch to a project in another TIA process, with the one before still open: the user looks at one TIA and the writes go to

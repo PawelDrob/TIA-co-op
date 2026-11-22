@@ -28,6 +28,8 @@ $script:GivesProject = @('connect', 'background_open', 'project_open', 'tia_stat
 # - change_report before, after: null on the side a new or removed network or tag is not on; its state says which. A
 #   network's title emptied keeps the old one in was, a tag's comment added or removed is in its changes: both stay.
 #   hmi[].device: "" for an HMI folder of no device.
+# - connect, background_open languages: in no entry, so never left out; languages.notKnown, when they could not be
+#   read, is said too.
 $script:UsualValues = @{
     '*'           = @{ 'prompts[].caption' = ''; 'prompts[].text' = ''; 'prompts[].detail' = ''; 'prompts[].choices' = ''; 'prompts[].answer' = ''; 'prompts[].icon' = '' }
     full_export   = @{ removed = @(); keptUncommitted = @(); keptRepos = @(); failed = @() }
