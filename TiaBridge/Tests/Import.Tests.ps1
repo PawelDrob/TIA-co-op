@@ -324,6 +324,7 @@ Describe 'import of F-blocks and know-how protected blocks' {
         $r = Invoke-Guarded @('plc\guard\Khp.s7dcl')
         $r.items[0].refused | Should Match 'know-how protected'
         (Invoke-Guarded @('plc\guard\Khp.s7dcl') @{ safety = $true }).items[0].refused | Should Match 'know-how protected'
+        $r.items[0].refused | Should Match 'an override replaced such a block unprotected when tried'
         @($script:imported).Count | Should Be 0
     }
 
@@ -851,6 +852,7 @@ Describe 'import of technology objects' {
             $r = Invoke-ToImport @('plc\technology\Pid1Other.xml')
             $r.ok | Should Be $false
             $r.items[0].refused | Should Match "technology object 'Pid1' is a PID_Compact 2\.4 in the project, and the document $($case[2]): an import over an object of another element or version was not tried"
+            $r.items[0].refused | Should Match 'was not tried on a real TIA\. Nothing imported: change it in TIA, or give the document another name\.'
             @($script:imported).Count | Should Be 0
         }
     }
@@ -1239,6 +1241,7 @@ Describe 'import of the settings parts' {
             $r.refused | Should Match "^$($case[0]) imports outside a transaction \(TIA refuses it inside one"
             $r.refused | Should Match 'this one has none: its archive was skipped\. Nothing imported\. Make one with archive\(reason\)'
             $r.refused | Should Match 'A call stops at the first file that fails, and the files before it stay in; whether TIA keeps part of the file that failed was not tried\.'
+            $r.refused | Should Match 'its archive was skipped\. Nothing imported\. Make one with archive\(reason\)'
             @($script:imported).Count | Should Be 0
         }
     }
@@ -1250,6 +1253,7 @@ Describe 'import of the settings parts' {
             $r.refused | Should Match 'TIA has no undo of it'
             $r.refused | Should Match 'The way back is archives\\tia-co-op-P-2026-11-19_101010\.zap20, the archive this session made at 2026-11-19 10:10:10, which holds the project as it was then, not as just before this import'
             $r.refused | Should Match 'pass no_undo: true only when they say to import it\.$'
+            $r.refused | Should Match 'Tell the user this and pass no_undo: true only when they say to import it\.'
             @($script:imported).Count | Should Be 0
         }
     }
@@ -1417,12 +1421,14 @@ Describe 'import of the settings parts' {
             $r = Invoke-DeleteTool ([pscustomobject]@{ kind = $kind; names = @('x') })
             $r.ok | Should Be $false
             $r.refused | Should Match "^Kind $kind is not deleted by the bridge\."
+            if ($kind -ne 'project_texts') { $r.refused | Should Match 'change them by importing it\.' }
         }
     }
 
     It 'names supervision settings and PLC alarm texts as not tried when a call names them' {
         foreach ($part in 'supervision_settings', 'plc_alarm_texts') {
             { Invoke-SettingsImportTool $part @('x.dat') } | Should Throw 'was not tried on a real TIA'
+            { Invoke-SettingsImportTool $part @('x.dat') } | Should Throw 'is a part of full_export, not a kind'
         }
     }
 }

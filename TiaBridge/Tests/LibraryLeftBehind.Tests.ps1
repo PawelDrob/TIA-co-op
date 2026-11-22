@@ -419,6 +419,7 @@ Describe 'library_left_behind' {
             $script:typeFolders = @('Mine')
             $x = Invoke-LibraryLeftBehindTool ([pscustomobject]@{ answer = 'yes'; folder = 'Mine' })
             $x.refused | Should Match "The name 'Mine' is taken"
+            $x.refused | Should Match 'Name another, or leave folder out for a free name\.'
             @($script:makes).Count | Should Be 0
         }
         It 'takes no name of an object, as TIA refuses an object named as its folder' {
@@ -1042,6 +1043,7 @@ Describe 'Get-EditYesRefusal, a type a yes in work contains' {
         $t | Should Match "Type 'G' is contained by X"
         $t | Should Match 'yes in work'
         $t | Should Match 'library_discard_type'
+        $t | Should Match 'A second change on it now would stop their release, with no reason from TIA\.'
     }
     It 'is refused also when a newer open change has nothing to do with it' {
         Reset-Fake

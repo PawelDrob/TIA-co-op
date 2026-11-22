@@ -110,6 +110,7 @@ Describe 'import of generated HMI documents (validator guard)' {
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match 'planned item is still open'
         $r.items[0].refused | Should Match 'Fix the document or its generator, then import again\.'
+        $r.items[0].refused | Should Match 'a planned item is still open; build it in TIA and export it first\.'
         @($r.items[0].findings | Where-Object { $_.rule -eq 'links.planned' -and $_.severity -eq 'error' }).Count | Should Be 1
     }
 
@@ -127,6 +128,7 @@ Describe 'import of generated HMI documents (validator guard)' {
             @($script:imported).Count | Should Be 0
             $r.items[0].refused | Should Match 'import with override true'
             $r.items[0].refused | Should Not Match 'override_stale'
+            $r.items[0].refused | Should Match 'the TIA export is newer than the generated document; regenerate it, or import with override true to overwrite the TIA edits\.'
             $r.items[0].findings[0].rule | Should Be 'staleness.export-newer'
         }
 
@@ -349,6 +351,7 @@ Describe 'import of a generated HMI tag table (validator guard)' {
         $r.items[0].refused | Should Match 'tagtable.length'
         $f = @($r.items[0].findings)
         $f[0].rule | Should Be 'tagtable.length'
+        $f[0].message | Should Match 'TIA ended its process on such an import \(NonRecoverableException\)'
         $f[0].object | Should Be 'zzSpeed'
         $f[0].document | Should Be 'hmi/generated/tags/Plant.xml'
     }
@@ -449,6 +452,7 @@ Describe 'import of an HMI cycle (validator guard)' {
         $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'hmi_cycle'; names = @('Fast') })
         $r.ok | Should Be $false
         $r.refused | Should Match '^Kind hmi_cycle is not deleted by the bridge'
+        $r.refused | Should Match 'Deleting a cycle was not tried on a real TIA'
     }
 }
 
@@ -641,6 +645,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match 'globalscreen.screen-item'
+        $r.items[0].findings[0].message | Should Match 'other items were not tried, so none goes in: remove it'
         $r.items[0].findings[0].object | Should Be 'Text_1'
     }
 
@@ -652,6 +657,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match 'handbuilt\.override'
+        $r.items[0].findings[0].message | Should Match 'cannot carry them, so they are taken to be lost'
     }
 
     It 'refuses a slide-in file outside hmi\slideins, where the validator does not look' {
@@ -670,6 +676,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match "no slide-in 'Bottom'"
+        $r.items[0].refused | Should Match "The bridge imports over the device's own only: a new one was not tried\."
     }
 
     It 'refuses a slide-in document that names no edge' {
@@ -687,6 +694,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match 'globalscreen.not-global'
+        $r.items[0].findings[0].message | Should Match 'HMI imports of objects TIA could not make ended its process'
     }
 
     It 'does not delete <kind>' -TestCases @(@{ kind = 'hmi_slidein'; name = 'Top' }, @{ kind = 'hmi_screen_global'; name = 'ScreenOverview' }) {

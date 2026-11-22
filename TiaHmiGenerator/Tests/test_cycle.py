@@ -54,6 +54,8 @@ class CycleRuleTest(unittest.TestCase):
     def test_another_object_in_the_cycles_folder_is_refused(self):
         self.assertEqual([('error', 'hmi/cycles/Fast.xml', None, 'cycle.not-cycle')],
                          self.found(cycle('Fast', root='Hmi.TextGraphicList.TextList')))
+        message = [f.message for f in validate(self.repo.path, for_import=True) if f.rule == 'cycle.not-cycle'][0]
+        self.assertIn('an HMI document it could not make. Move it to the folder of its kind.', message)
 
     def test_a_document_that_is_no_xml_is_refused(self):
         self.repo.write('hmi/cycles/Fast.xml', '<Document>')

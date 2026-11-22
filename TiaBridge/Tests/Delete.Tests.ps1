@@ -188,6 +188,7 @@ Describe 'delete of know-how protected blocks' {
         $r.items[0].refused | Should Not Match 'only the session archive'
         $r.items[0].refused | Should Match 'knowhow: true'
         $r.items[0].refused | Should Match 'user asked'
+        $r.items[0].refused | Should Match 'only a project archive can \(the session archive, unless it was skipped\)'
         $r.items[1].ok | Should Be $true
         $script:deleted -join ',' | Should Be 'Std'
     }

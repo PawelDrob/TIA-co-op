@@ -221,6 +221,7 @@ Describe 'Export-LibraryTypeDocuments for a type of a global library' {
         $t = [pscustomobject]@{ Versions = @($v) }
         $t | Add-Member ScriptMethod GetSupportedExportFormats { @('SimaticSD') }
         { Export-LibraryTypeDocuments @{ name = 'typeR'; obj = $t } $dir } | Should Throw 'git repo'
+        { Export-LibraryTypeDocuments @{ name = 'typeR'; obj = $t } $dir } | Should Throw 'The previous version is kept. Move the repo out of the folder and export again.'
         [System.IO.File]::ReadAllText("$dir\typeR\typeR.s7dcl") | Should Be 'old'
         Test-Path -LiteralPath "$dir\typeR\.git" | Should Be $true
         @(Get-ChildItem -LiteralPath $dir -Force | ForEach-Object { $_.Name }) -join ',' | Should Be 'typeR'

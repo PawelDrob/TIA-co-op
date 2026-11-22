@@ -100,16 +100,16 @@ Describe 'TiaBridge.ps1 with the bridge tools, without a connected project' {
 
     # A client that loads every tool reads tools/list with every request. Before the tool texts were cut to what a tool
     # does and the rules code cannot hold (2026-11-21), the tools came to 67,217 characters as Python writes them and
-    # the import description alone to 13,282. After the cut and its audit this line came to 45,201 with the clone's
+    # the import description alone to 13,282. After the cut and its audits this line came to 45,320, with the clone's
     # path, which depends on where the clone lies, counted as <clone>, and the largest description to 2,979
-    # (full_export). The line's limit leaves room for a sentence or two, the description's a little more. A text that
+    # (full_export). Each limit leaves about 300 characters above that, a sentence or two: 45,650 and 3,300. A text that
     # grows past them is cut, not the limit raised: what a tool refuses goes in its refusal, how to work well in the
     # guides.
     It 'keeps tools/list and its largest description under their limits' {
         $clone = (Resolve-Path (Join-Path $here '..\..')).Path
         $tools = @(($out[0] | ConvertFrom-Json).result.tools)
-        $out[0].Replace($clone.Replace('\', '\\'), '<clone>').Length | Should BeLessThan 45500
-        ($tools | ForEach-Object { $_.description.Replace($clone, '<clone>').Length } | Measure-Object -Maximum).Maximum | Should BeLessThan 3100
+        $out[0].Replace($clone.Replace('\', '\\'), '<clone>').Length | Should BeLessThan 45650
+        ($tools | ForEach-Object { $_.description.Replace($clone, '<clone>').Length } | Measure-Object -Maximum).Maximum | Should BeLessThan 3300
     }
 
     It 'lists the login arguments the archive compare tool looks for (TiaArchiveCompare\runner\bridge.py)' {

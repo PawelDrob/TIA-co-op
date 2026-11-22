@@ -254,6 +254,7 @@ Describe 'background_open and background_close' {
         $r.ok | Should Be $false
         $r.refused | Should Match 'open in TIA \(process 4711\) and locked'
         $r.refused | Should Match 'and locked there; the background session does not take it over\.'
+        $r.refused | Should Match 'Use connect to work on it in that TIA, or ask the user to close it there\.'
         $script:started | Should Be 0
     }
 

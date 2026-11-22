@@ -354,6 +354,7 @@ Describe 'import of a project object: the name the document declares is the obje
         $r.items[0].name | Should Be 'FreshF'
         $r.items[0].refused | Should Match "type 'FreshF' is an F-compliant PLC data type"
         $r.items[0].refused | Should Match 'safety: true'
+        $r.items[0].refused | Should Match 'Pass safety: true only when the user asked for this safety change'
         @($script:imported).Count | Should Be 0
     }
 
@@ -645,6 +646,7 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
             $r = Invoke-KindImport 'block' $path @(New-Block 'Fb1')
             $r.ok | Should Be $false
             $r.items[0].refused | Should Match "declares 'Fb1' and also 'FFb'"
+            $r.items[0].refused | Should Match 'put each object in its own file\.'
             @($script:imported).Count | Should Be 0
         }
     }
@@ -652,6 +654,7 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
     It 'refuses a file that is no document, which TIA would read as SimaticML' {
         $r = Invoke-KindImport 'db' 'plc\blocks\Fb1.txt' @(New-Block 'Fb1' 'FB' $inWork)
         $r.items[0].refused | Should Match 'is no document'
+        $r.items[0].refused | Should Match 'PLC objects are imported from a \.s7dcl or an \.xml\.'
         @($script:imported).Count | Should Be 0
     }
 
@@ -723,6 +726,7 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
     It 'refuses the .s7dcl of an OB whose keyword stands after a comment on its line' {
         $r = Invoke-KindImport 'block' 'plc\blocks\OneLineOb.s7dcl' @()
         $r.items[0].refused | Should Match 'event class'
+        $r.items[0].refused | Should Match 'OBs are exchanged as SimaticML only'
         @($script:imported).Count | Should Be 0
     }
 
