@@ -310,7 +310,12 @@ function Invoke-BridgeToolCall($Name, $Handler, $Arguments, [object[]]$Secrets) 
     # the times of a full_export are for whoever reads the log after it, not for the answer (Times.ps1)
     if ($r -is [System.Collections.IDictionary] -and $r.Contains('times')) { $r.times = 'in the log file: per part and step, Openness apart, and the slowest objects' }
     # the agent gets the short result (Results.ps1), a program of this repo the whole one; the log has both
-    $answer = if ($r -is [System.Collections.IDictionary] -and -not (Test-WholeResultClient)) { Get-ShortResult $Name $r $script:Bridge.said } else { $r }
+    # A short result that cannot be made costs its length, never the result: the whole one goes instead.
+    $answer = $r
+    if ($r -is [System.Collections.IDictionary] -and -not (Test-WholeResultClient)) {
+        try { $answer = Get-ShortResult $Name $r $script:Bridge.said }
+        catch { Write-BridgeLog "Short result of $Name not made, the whole one given: $($_.Exception.Message)" }
+    }
     @{ result = $r; text = (Limit-ToolResponse $answer $script:Bridge.settings.maxResponseChars) }
 }
 

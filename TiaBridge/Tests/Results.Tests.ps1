@@ -226,6 +226,14 @@ Describe 'The short result of a tool' {
         ((Invoke-Short 'full_export').text | ConvertFrom-Json).PSObject.Properties['details'] | Should BeNullOrEmpty
     }
 
+    It 'gives the whole result when the short one cannot be made' {
+        $script:TestResult = [ordered]@{ ok = $true; items = @([ordered]@{ name = 'A'; ok = $true }) }
+        Mock Get-ShortResult { throw 'a shape it does not know' }
+        $a = (Invoke-Short 'export').text | ConvertFrom-Json
+        $a.items[0].name | Should Be 'A'
+        $a.project | Should Be 'P1'
+    }
+
     It 'names the clients that read the whole result as their code does' {
         $client = [System.IO.File]::ReadAllText((Join-Path $here '..\..\TiaArchiveCompare\runner\bridge.py'))
         foreach ($n in $script:WholeResultClients) { $client | Should Match ([regex]::Escape("'clientInfo': {'name': '$n'")) }
