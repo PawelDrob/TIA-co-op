@@ -331,8 +331,7 @@ Describe 'connect stores the HMI type identifier' {
         Set-FakeTia @($plc)
         $script:fakeTiaProject | Add-Member NoteProperty LanguageSettings (New-Object TiaBridgeTest.UnreadableLanguages $true)
         { Invoke-ConnectTool ('{}' | ConvertFrom-Json) } | Should Throw 'Unexpected exception'
-        $script:Bridge.projectName | Should BeNullOrEmpty
-        $script:Bridge.repo | Should BeNullOrEmpty
+        $script:Bridge.projectPath | Should BeNullOrEmpty   # set before the read; only the catch clears it
     }
 
     It 'refuses without git on PATH, before it attaches to TIA' {
