@@ -596,6 +596,7 @@ Describe 'import of watch tables' {
     It 'refuses a file that is no SimaticML, and a block document, before TIA is asked' {
         $r = Invoke-WatchImport @('plc\watchtables\Good.s7dcl')
         $r.items[0].refused | Should Match 'SimaticML'
+        $r.items[0].refused | Should Match 'Watch tables are SimaticML \(\.xml\) only\.'
         $r = Invoke-WatchImport @('plc\watchtables\Fb1.xml')
         $r.items[0].refused | Should Match 'holds an FB or FC: import it with kind block, not watch_table'
         @($script:imported).Count | Should Be 0
@@ -681,6 +682,7 @@ Describe 'import of force tables' {
         $r.ok | Should Be $false
         $r.items[0].refused | Should Match "'Other' is not it"
         $r.items[0].refused | Should Match "'Force table'"
+        $r.items[0].refused | Should Match 'A PLC has one force table, and TIA makes no other'
         @($script:imported).Count | Should Be 0
     }
 
@@ -747,6 +749,7 @@ Describe 'import of force tables' {
         $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'force_table'; names = @('Force table') })
         $r.ok | Should Be $false
         $r.refused | Should Match 'one force table'
+        $r.refused | Should Match 'A PLC has one force table, which TIA makes and keeps: it has no Delete\.'
         @($script:deleted).Count | Should Be 0
     }
 }

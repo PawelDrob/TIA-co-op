@@ -128,6 +128,7 @@ Describe 'Faceplate guard' {
         $problems.Count | Should Be 2
         $problems[0].type | Should Be 'faceplatePump20Operate'
         $problems[0].reason | Should Match 'V 0.0.2'
+        $problems[0].reason | Should Match 'is not in the project library \(importing it crashed TIA on 2026-10-02\)\.'
         ($problems[0].available -join ',') | Should Be '0.0.1,0.0.3'
         $problems[1].type | Should Be 'faceplateMissing'
         $problems[1].reason | Should Match 'not in the project library'

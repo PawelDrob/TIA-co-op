@@ -61,6 +61,7 @@ Describe 'Select-TiaProject with two open projects of one name' {
     It 'refuses the name and names both paths' {
         { Select-TiaProject -Open $open -Requested 'Same' } | Should Throw 'C:\P\Same\Same.ap20'
         { Select-TiaProject -Open $open -Requested 'same' } | Should Throw 'D:\Copy\Same\Same.ap20'
+        { Select-TiaProject -Open $open -Requested 'Same' } | Should Throw 'Call connect with the .ap20 path of one.'
     }
 
     It 'takes either by its path, and a name only one project has' {
@@ -192,6 +193,7 @@ Describe 'connect: a repo belongs to one project path' {
         $r.ok | Should Be $false
         $r.refused | Should Match ([regex]::Escape($first))
         $r.refused | Should Match ([regex]::Escape($copy))
+        $r.refused | Should Match 'exports and commits of the two would mix\.'
         $script:attached | Should Be 0
         Get-Content (Join-Path $root 'Hp\tiabridge.json') -Raw | Should Be $before
         $script:Bridge.projectPath | Should Be $first

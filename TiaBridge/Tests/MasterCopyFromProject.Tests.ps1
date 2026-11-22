@@ -216,6 +216,7 @@ Describe 'master_copy_from_project refuses, asking nothing of TIA' {
         $r.ok | Should Be $false
         $r.refused | Should MatchExactly 'HMI folder'
         $r.refused | Should Match 'block, db, plc_tag_table, type'
+        $r.refused | Should Match 'Openness offers no way to place one'
         $script:writes | Should Be 0
     }
 

@@ -175,6 +175,7 @@ Describe 'export: two names on one file' {
             $i.error.message | Should Match "'Ns:S' and 'Ns_S'"
             $i.error.message | Should Match 'Ns_S'
             $i.error.message | Should Match 'Rename one'
+            $i.error.message | Should Match 'neither is exported and the files there stay as they are\. Rename one in TIA, then export again\.'
             @($i.collision) -join ',' | Should Be 'Ns:S,Ns_S'
         }
     }
@@ -261,6 +262,7 @@ Describe 'full_export: two names on one file' {
         $r.failedCount | Should Be 2
         ($r.failed -join '|') | Should Match "Ns:S: TiaBridge.NameCollision: .*'Ns:S' and 'Ns_S'"
         ($r.failed -join '|') | Should Match "Ns_S: TiaBridge.NameCollision"
+        ($r.failed -join '|') | Should Match 'neither is exported and the files there stay as they are\. Rename one in TIA, then export again\.'
         Read-Repo $repo 'hmi\screens\Ns_S.xml' | Should BeExactly 'old'
         @($r.removed) -join '|' | Should Be 'hmi\screens\Gone.xml'
         @($script:exportCalls) -join ',' | Should Be 'Other'
@@ -813,7 +815,10 @@ Describe 'a library type beside a folder of its name' {
             $d = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
             foreach ($p in $git, 'T\sub\work.txt', 'T\old.txt', 'new\new.txt') { Write-TextFile (Join-Path $d $p) 'x' }
             if ($git -eq 'T\sub\HEAD') { foreach ($p in 'T\sub\objects', 'T\sub\refs') { New-Item -ItemType Directory -Force -Path (Join-Path $d $p) | Out-Null } }
-            { Move-ExportIntoPlace (Join-Path $d 'new') (Join-Path $d 'T') } | Should Throw 'git repo'
+            $why = $null
+            try { Move-ExportIntoPlace (Join-Path $d 'new') (Join-Path $d 'T') } catch { $why = $_.Exception.Message }
+            $why | Should Match 'git repo'
+            $why | Should Match 'Move the repo out of the folder and export again\.'
             Test-Path -LiteralPath (Join-Path $d $git) | Should Be $true
             Test-Path -LiteralPath (Join-Path $d 'T\sub\work.txt') | Should Be $true
             Test-Path -LiteralPath (Join-Path $d 'T\old.txt') | Should Be $true
@@ -1150,6 +1155,7 @@ Describe 'two software items under one device name in full_export' {
         @($r.failed).Count | Should Be 1
         $r.failed[0] | Should Match "^Station: TiaBridge.DeviceNameCollision: .*'Station'"
         $r.failed[0] | Should Not Match 'Rename'
+        $r.failed[0] | Should Match 'nothing of the device is exported and its files stay as they are'
         Read-Repo $repo 'plc\Station\tags\Tags.xml' | Should BeExactly 'old'
         Read-Repo $repo 'plc\Other\tags\OtherTags.xml' | Should BeExactly 'written by OtherTags'
         @($r.removed) -join ',' | Should Be 'plc\Other\tags\Gone.xml'

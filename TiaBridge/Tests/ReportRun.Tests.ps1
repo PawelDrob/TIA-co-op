@@ -101,6 +101,7 @@ Describe 'connect beside a report run' {
         $r.ok | Should Be $false
         $r.refused | Should Match 'The TIA dashboard is making a change report of zzLine'
         $r.refused | Should Match 'connect after it ends'
+        $r.refused | Should Match 'on this TIA, since \d\d:\d\d: connect after it ends'
         $script:attached | Should Be 0
     }
 

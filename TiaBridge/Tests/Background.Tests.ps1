@@ -253,6 +253,7 @@ Describe 'background_open and background_close' {
         $r = Invoke-BackgroundOpenTool ("{`"path`":`"$($ap -replace '\\', '\\')`"}" | ConvertFrom-Json)
         $r.ok | Should Be $false
         $r.refused | Should Match 'open in TIA \(process 4711\) and locked'
+        $r.refused | Should Match 'and locked there; the background session does not take it over\.'
         $script:started | Should Be 0
     }
 
@@ -371,6 +372,7 @@ Describe 'background session: progress lines and the plain export folder' {
         $script:Bridge.repo | Should Be $repo
         @(Get-ChildItem -LiteralPath $repo -Force | ForEach-Object Name) -join ',' | Should Be 'tiabridge.json'
         (Get-BackgroundRefusal 'change_report' (New-Object psobject)) | Should Match 'plain export folder'
+        (Get-BackgroundRefusal 'change_report' (New-Object psobject)) | Should Match 'it has no git history'
         Get-BackgroundRefusal 'full_export' (New-Object psobject) | Should BeNullOrEmpty
         $d = Invoke-BridgeTool 'export' { param($a) @{ ok = $true; items = @() } } (New-Object psobject)
         Test-Path (Join-Path $repo $d.result.log) | Should Be $true
@@ -481,6 +483,8 @@ Describe 'background_open export only: a repo that records another path' {
         $r.refused | Should Match ([regex]::Escape('C:\P\Bg.ap20'))
         $r.refused | Should Match ([regex]::Escape($zap))
         $r.refused | Should Match 'repo: '
+        $r.refused | Should Match 'an export committed there would read as a change to that project\.'
+        $r.refused | Should Match ([regex]::Escape('repo: "<other name>", a repo of its own for this source'))
         $script:started | Should Be 0
         Get-Content (Join-Path $script:root 'Bg\tiabridge.json') -Raw | Should Be $before
     }
@@ -679,6 +683,7 @@ Describe 'background session: the login of a protected project' {
         $p = $zap -replace '\\', '\\'
         (Invoke-BackgroundOpenTool ("{`"path`":`"$p`",`"umc_user`":`"a`",`"umc_password`":`"b`"}" | ConvertFrom-Json)).refused | Should Match 'plain session'
         (Invoke-BackgroundOpenTool ("{`"path`":`"$p`",`"umc_global`":true}" | ConvertFrom-Json)).refused | Should Match 'umc_global are for a tool'
+        (Invoke-BackgroundOpenTool ("{`"path`":`"$p`",`"umc_global`":true}" | ConvertFrom-Json)).refused | Should Match 'are for a tool in a plain session \(plain=true\) that asks the user itself'
         (Invoke-BackgroundOpenTool ("{`"path`":`"$p`",`"plain`":true,`"repo`":`"c`",`"umc_password`":`"b`"}" | ConvertFrom-Json)).refused | Should Match 'needs umc_user'
         (Invoke-BackgroundOpenTool ("{`"path`":`"$p`",`"plain`":true,`"repo`":`"c`",`"umc_user`":`"a`"}" | ConvertFrom-Json)).refused | Should Match 'needs umc_password'
         $script:started | Should Be 0
@@ -713,6 +718,7 @@ Describe 'background session: write mode' {
             Get-BackgroundRefusal $t (New-Object psobject) | Should BeNullOrEmpty
         }
         foreach ($t in 'connect', 'some_new_tool') { Get-BackgroundRefusal $t (New-Object psobject) | Should Match 'write mode' }
+        Get-BackgroundRefusal 'connect' (New-Object psobject) | Should Match 'is refused in a background session in write mode\. Call background_close first'
         Get-BackgroundRefusal 'library_open' ('{"path":"x.al20","writable":true}' | ConvertFrom-Json) | Should Match 'read-only'
     }
 
@@ -763,6 +769,7 @@ Describe 'background session: write mode' {
         $r.ok | Should Be $false
         $r.refused | Should Match ([regex]::Escape('C:\P\Other.ap20'))
         $r.refused | Should Match ([regex]::Escape($file))
+        $r.refused | Should Match 'exports and commits of the two would mix\.'
         $script:started | Should Be 0
         Get-Content (Join-Path $root 'Other\tiabridge.json') -Raw | Should Be $before
     }
@@ -824,6 +831,7 @@ Describe 'background session: write mode' {
         $c = Invoke-BackgroundCloseTool (New-Object psobject)
         $c.ok | Should Be $false
         $c.refused | Should Match 'never saves'
+        $c.refused | Should Match 'The project has unsaved changes, and background_close never saves\.'
         @($c.saveBlockers).Count | Should Be 0
         $c.refused | Should Match 'Save them \(save\)'
         @(@($c.saveStanding)[0].notCompiled) -join ' ' | Should Match 'zzTest'
@@ -952,6 +960,7 @@ Describe 'background session: an archive opened for changes' {
         $r = Open-Archive
         $r.refused | Should Match ([regex]::Escape($retrieved))
         $r.refused | Should Match ([regex]::Escape($file))
+        $r.refused | Should Match 'exists, so this archive was opened before'
         $script:started | Should Be 0
     }
 

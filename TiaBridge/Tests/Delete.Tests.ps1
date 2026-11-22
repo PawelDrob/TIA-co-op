@@ -62,6 +62,7 @@ Describe 'delete of the test instance of a library type in work' {
         $r.items[0].refused | Should Match 'test instance of library type Library_Notes V 0.0.2, which is in work'
         $r.items[0].refused | Should Match 'cannot delete it'
         $r.items[0].refused | Should Not Match 'by import'
+        $r.items[0].refused | Should Match 'Release the version in work first, or discard it \(library_discard_type\)\.'
         @($script:deleted).Count | Should Be 0
     }
 
@@ -146,6 +147,7 @@ Describe 'delete of F-blocks' {
         $r.ok | Should Be $false
         $r.items[0].refused | Should Match 'F-block'
         $r.items[0].refused | Should Match 'safety: true'
+        $r.items[0].refused | Should Match 'Pass safety: true only when the user asked for this safety change'
         $r.items[1].ok | Should Be $true
         $script:deleted -join ',' | Should Be 'Std'
     }

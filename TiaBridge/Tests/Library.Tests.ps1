@@ -427,6 +427,7 @@ Describe 'Library type documents as SimaticSD or SimaticML' {
         $r = Import-LibraryTypeDocuments $null $file
         $r.ok | Should Be $false
         $r.refused | Should Match 'Keep one format'
+        $r.refused | Should Match 'Keep one format: export the type again with options\.format xml or s7dcl\.'
 
         Remove-Item "$dir\Trolley.xml"
         Get-LibraryTypeImportFormat @{ file = "$dir\Trolley.s7dcl"; name = 'Trolley' } | Should Be 's7dcl'

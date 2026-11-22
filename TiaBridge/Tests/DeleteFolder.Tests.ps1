@@ -90,6 +90,7 @@ Describe 'delete_folder of a folder that is not empty' {
         $r = Invoke-FakeDeleteFolder 'zzHolds'
         $r.ok | Should Be $false
         $r.refused | Should Match 'not empty'
+        $r.refused | Should Match 'delete_folder never clears a folder: delete the objects by name with delete and the subfolders with delete_folder, then call it again\.'
         (@($r.holds.Types) -join ',') | Should Be 'A,B'
         @($script:deleted).Count | Should Be 0
     }
@@ -185,6 +186,7 @@ Describe 'delete_folder path' {
             $r = Invoke-FakeDeleteFolder $p
             $r.ok | Should Be $false
             $r.refused | Should Match 'root'
+            $r.refused | Should Match 'A root folder cannot be deleted: name a user folder\.'
         }
         $script:writes | Should Be 0
     }
@@ -195,6 +197,7 @@ Describe 'delete_folder path' {
             $r = Invoke-FakeDeleteFolder $p
             $r.ok | Should Be $false
             $r.refused | Should Match 'wildcard'
+            $r.refused | Should Match 'takes one exact path, no wildcards\.'
         }
         $script:writes | Should Be 0
     }
@@ -233,6 +236,7 @@ Describe 'delete_folder kinds' {
         $r = Invoke-FakeDeleteFolder 'zzEmpty' -Kind 'fakeFlat'
         $r.ok | Should Be $false
         $r.refused | Should Match 'no folders'
+        $r.refused | Should Match 'has no folders delete_folder works on\.'
         $script:writes | Should Be 0
     }
 
@@ -248,6 +252,7 @@ Describe 'delete_folder gates' {
         $r = Invoke-FakeDeleteFolder 'zzEmpty' -NoArchive
         $r.ok | Should Be $false
         $r.refused | Should Match 'archive'
+        $r.refused | Should Match 'Writes are refused until the session archive exists: call archive\(reason\)'
         $script:writes | Should Be 0
     }
 

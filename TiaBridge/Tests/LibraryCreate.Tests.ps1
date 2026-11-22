@@ -65,13 +65,16 @@ Describe 'Get-NewTypeDocument' {
     It 'refuses an OB and a DB, naming what the file holds' {
         (Get-NewTypeDocument (New-FileEntry (Write-Doc (Join-Path $TestDrive 'o\A.s7dcl') "ORGANIZATION_BLOCK `"A`"`r`nEND_ORGANIZATION_BLOCK`r`n")) $false).refused | Should Match 'holds an OB'
         (Get-NewTypeDocument (New-FileEntry (Write-Doc (Join-Path $TestDrive 'd\A.s7dcl') "DATA_BLOCK `"A`"`r`nEND_DATA_BLOCK`r`n")) $false).refused | Should Match 'holds a DB'
+        (Get-NewTypeDocument (New-FileEntry (Write-Doc (Join-Path $TestDrive 'd\A.s7dcl') "DATA_BLOCK `"A`"`r`nEND_DATA_BLOCK`r`n")) $false).refused | Should Match 'a library type is a PLC data type, an FB or an FC\.'
     }
     It 'refuses a document it cannot read a name from' {
         (Get-NewTypeDocument (New-FileEntry (Write-Doc (Join-Path $TestDrive 'u\A.s7dcl') 'nothing')) $false).refused | Should Match 'declares no object'
+        (Get-NewTypeDocument (New-FileEntry (Write-Doc (Join-Path $TestDrive 'u\A.s7dcl') 'nothing')) $false).refused | Should Match 'declares no object the bridge can read, so it cannot say what the type would be\.'
     }
     It 'refuses the document of an F-block or F-compliant data type without safety, and takes it with' {
         $fb = New-FileEntry (Write-Doc (Join-Path $TestDrive 'f\A.s7dcl') "{`r`n    S7_Safety := `"True`"`r`n}`r`nFUNCTION `"A`" : Void`r`nEND_FUNCTION`r`n")
         (Get-NewTypeDocument $fb $false).refused | Should Match 'safety program'
+        (Get-NewTypeDocument $fb $false).refused | Should Match 'Pass safety: true only when the user asked for this safety change'
         (Get-NewTypeDocument $fb $true).name | Should Be 'A'
         $ft = New-FileEntry (Write-Doc (Join-Path $TestDrive 'g\B.s7dcl') "TYPE`r`n    { S7_Safety := `"True`" }`r`n    B : STRUCT`r`n    END_STRUCT;`r`nEND_TYPE`r`n")
         (Get-NewTypeDocument $ft $false).refused | Should Match 'safety program'
@@ -124,6 +127,7 @@ Describe 'Invoke-LibraryCreateTool' {
         Reset-Fake
         $script:state = New-SessionState
         (Invoke-LibraryCreateTool (Args-Of @{ path = $udt })).refused | Should Match 'session archive'
+        (Invoke-LibraryCreateTool (Args-Of @{ path = $udt })).refused | Should Match 'Writes are refused until the session archive exists: call archive\(reason\)'
         $script:createCall | Should Be $null
     }
     It 'needs a path' {
@@ -155,6 +159,7 @@ Describe 'Invoke-LibraryCreateTool' {
         Reset-Fake
         $null = $script:libTypes.Add((New-Type 'a'))
         (Invoke-LibraryCreateTool (Args-Of @{ path = $udt })).refused | Should Match "Library type 'a' exists"
+        (Invoke-LibraryCreateTool (Args-Of @{ path = $udt })).refused | Should Match 'library_edit_type puts it in work; nothing was created\.'
         $script:createCall | Should Be $null
     }
     It 'holds the new type for the compile until a compile by its name' {
@@ -259,12 +264,14 @@ Describe 'Invoke-LibraryDiscardTool' {
         Set-Fake $true
         $script:instances = @(Instance 'F_LAD' $false)
         (Invoke-LibraryDiscardTool (Args-Of @{ name = 'A' })).refused | Should Match 'safety program'
+        (Invoke-LibraryDiscardTool (Args-Of @{ name = 'A' })).refused | Should Match 'Pass safety: true only when the user asked for this safety change'
         (Invoke-LibraryDiscardTool (Args-Of @{ name = 'A'; safety = $true })).ok | Should Be $true
     }
     It 'refuses a know-how protected instance without knowhow, and takes it with' {
         Set-Fake $true
         $script:instances = @(Instance 'LAD' $true)
         (Invoke-LibraryDiscardTool (Args-Of @{ name = 'A' })).refused | Should Match 'know-how'
+        (Invoke-LibraryDiscardTool (Args-Of @{ name = 'A' })).refused | Should Match 'only a project archive can \(the session archive, unless it was skipped\)'
         (Invoke-LibraryDiscardTool (Args-Of @{ name = 'A'; knowhow = $true })).ok | Should Be $true
     }
     It 'says the type is gone when it was its only version' {

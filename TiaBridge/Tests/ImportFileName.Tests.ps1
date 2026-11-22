@@ -218,6 +218,7 @@ Describe 'import of a library type whose name does not fit a file name' {
             $r = Invoke-LibraryImport @('Ns:Block', 'Ns_Block') @($file)
             $r.ok | Should Be $false
             $r.items[0].refused | Should Match "'Ns:Block' and 'Ns_Block'"
+            $r.items[0].refused | Should Match 'they share one file name and the bridge will not guess'
             @($script:created).Count | Should Be 0
         }
     }
@@ -607,6 +608,7 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
         @($script:imported).Count | Should Be 0
         $r = Invoke-KindImport 'block' 'plc\blocks\Db1AsFb.s7dcl' @(New-Block 'db1' 'InstanceDB')
         $r.items[0].refused | Should Match "'Db1'.*kind db"
+        $r.items[0].refused | Should Match 'delete that object first if it is to change kind, or give the document another name'
         @($script:imported).Count | Should Be 0
     }
 
@@ -690,6 +692,7 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
             $r = Invoke-KindImport $case[0] $case[1] @()
             $r.ok | Should Be $false
             $r.items[0].refused | Should Match $case[2]
+            $r.items[0].refused | Should Match 'looks only at its own objects, so the guards would not see the object'
             @($script:imported).Count | Should Be 0
         }
     }
@@ -744,5 +747,6 @@ Describe 'import under the wrong kind, or of a name another kind holds' {
     It 'refuses a second declaration for a new library type' {
         $file = @(Resolve-ImportFiles -Repo $script:repo -KindDir 'library\types' -Paths @('library\types\Two\Lib1.s7dcl'))[0]
         (Get-NewTypeDocument $file $false).refused | Should Match "declares 'Lib1' and also 'Lib2'"
+        (Get-NewTypeDocument $file $false).refused | Should Match 'put each object in its own file\.'
     }
 }

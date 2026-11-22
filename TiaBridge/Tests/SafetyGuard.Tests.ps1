@@ -97,6 +97,7 @@ foreach ($tool in 'library_update_usages', 'library_release_chain', 'master_copy
             $r.refused | Should Match 'PLC_1'
             $r.refused | Should Match 'safety: true'
             $r.refused | Should Match 'user asked'
+            $r.refused | Should Match 'can change F-blocks, and TIA would let it change the safety program of PLC_1 \(logged on, or no password\)'
             $script:touched | Should Be 0
             @((Get-BridgeSession).pending.Keys).Count | Should Be 0
         }

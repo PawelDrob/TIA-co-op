@@ -225,6 +225,7 @@ Describe 'master_copy_to_project with Replace over a know-how protected block' {
         $r.refused | Should Match "'Khp' is know-how protected"
         $r.refused | Should Match 'knowhow: true'
         $r.refused | Should Match 'user asked'
+        $r.refused | Should Match 'only a project archive can \(the session archive, unless it was skipped\)'
         $script:written | Should Be 0
     }
 
@@ -256,6 +257,7 @@ Describe 'master_copy_to_project with Replace over a know-how protected block' {
         $r.ok | Should Be $false
         $r.refused | Should Match 'master copy of a folder'
         $r.refused | Should Match 'Khp'
+        $r.refused | Should Match 'A master copy of a folder may replace any object of the PLC, and what it holds is not known before it is placed\.'
         $script:written | Should Be 0
     }
 

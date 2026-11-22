@@ -1049,8 +1049,8 @@ function Register-ObjectTools {
         'Before importing global elements or a slide-in, ask the user whether it holds any, and list it in hmi\[<device>\]handbuilt.json if so. hmi_screen_global goes in only with override true, which only the user''s yes to this import allows. ' +
         'project_texts and alarm_classes go in only with no_undo true, which only the user''s yes allows, once told what has no undo and that the way back is the archive this session made, which holds the project as it was when made. ' +
         'Importing supervisions into a project with no ProDiag settings initialises them and adds ProDiag categories to the project texts: tell the user before such an import. ' +
-        'An F-compliant PLC data type is recognised by its document only: with the mark taken out, nothing refuses it. ' +
-        'Forcing stays the user''s, online in TIA. Pass on to the user what the result''s noUndo, prodiag and overrideLoses say.') -Schema @{
+        'An F-block or F-compliant PLC data type needs safety: true, and a data type is recognised by its document only: with the mark taken out, nothing refuses it. ' +
+        'force_table: the import changes the offline table only, nothing in the CPU, and a file cannot set a force mark; forcing stays the user''s, online in TIA. Pass on to the user what the result''s noUndo, prodiag and overrideLoses say.') -Schema @{
         type = 'object'; required = @('kind', 'paths')
         properties = @{
             kind = @{ type = 'string'; enum = $kinds }
@@ -1063,7 +1063,7 @@ function Register-ObjectTools {
 
     Register-McpTool -Name 'delete' -Handler { param($a) Invoke-DeleteTool $a } -Description (
         'Delete objects by exact name (e.g. test blocks from bisecting, objects after a rename). Counts as a write: compile afterwards. ' +
-        'A name the bridge refuses, its refusal says why, and the other names go on. An F-compliant PLC data type is not recognised as an F-block here.') -Schema @{
+        'A name the bridge refuses, its refusal says why, and the other names go on. An F-block needs safety: true; an F-compliant PLC data type is not recognised as one here.') -Schema @{
         type = 'object'; required = @('kind', 'names')
         properties = @{ kind = @{ type = 'string'; enum = $kinds }; names = @{ type = 'array'; items = @{ type = 'string' } }; safety = $script:SafetyArgument
                         knowhow = @{ type = 'boolean'; description = 'allows the delete of know-how protected blocks. Only when the user asked for this delete; never to get past the refusal' }; device = $device } }

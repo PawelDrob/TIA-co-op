@@ -76,6 +76,7 @@ Describe 'import of generated HMI documents (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.refused | Should Match 'Main'
+        $r.items[0].refused | Should Match 'Fix the document or its generator, then import again\.'
         $f = @($r.items[0].findings)
         $f.Count | Should Be 1
         $f[0].rule | Should Be 'vocabulary.element-type'
@@ -88,6 +89,7 @@ Describe 'import of generated HMI documents (validator guard)' {
         Write-TextFile (Join-Path $repo 'hmi\panel.json') '{ "panel": "TP700 Comfort", "width": 800, "height": 480, "portrait": false }'
         $r = Invoke-HmiImport $repo
         $r.ok | Should Be $false
+        $r.items[0].refused | Should Match 'Fix the document or its generator, then import again\.'
         @($script:imported).Count | Should Be 0
         $f = @($r.items[0].findings | Where-Object { $_.rule -eq 'resolution.mismatch' })
         $f.Count | Should Be 1
@@ -107,6 +109,7 @@ Describe 'import of generated HMI documents (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match 'planned item is still open'
+        $r.items[0].refused | Should Match 'Fix the document or its generator, then import again\.'
         @($r.items[0].findings | Where-Object { $_.rule -eq 'links.planned' -and $_.severity -eq 'error' }).Count | Should Be 1
     }
 
@@ -170,6 +173,7 @@ Describe 'import of generated HMI documents (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match 'generated'
+        $r.items[0].refused | Should Match 'only, where the HMI validator checks them'
     }
 
     It 'refuses everything when the validator cannot run' {
@@ -364,6 +368,7 @@ Describe 'import of a generated HMI tag table (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match 'hmi\\generated\\tags'
+        $r.items[0].refused | Should Match 'only, where the HMI validator checks them'
     }
 }
 
@@ -416,6 +421,7 @@ Describe 'import of an HMI cycle (validator guard)' {
         $r.ok | Should Be $false
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match 'imported from hmi\\cycles only'
+        $r.items[0].refused | Should Match 'only, where the HMI validator checks them'
     }
 
     It 'checks the cycle of the device given in a project with several HMI devices' {
@@ -495,6 +501,7 @@ Describe 'import of generated HMI documents of a project with several HMI device
         $r = Invoke-DeviceImport $repo -Paths @('hmi\HMI_B\generated\screens\Main.xml')
         $r.ok | Should Be $false
         $r.items[0].refused | Should Match 'hmi\\HMI_A\\generated\\screens'
+        $r.items[0].refused | Should Match 'only, where the HMI validator checks them'
     }
 
     It 'finds the device folder of a generated document' {
@@ -602,6 +609,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         @($script:imported).Count | Should Be 0
         $r.items[0].refused | Should Match "exists and override is false; nothing imported\. .*alarm window and an alarm indicator"
         $r.items[0].refused | Should Match "user"
+        $r.items[0].refused | Should Match "pass override true only on the user's yes to this import"
     }
 
     It 'gives the reason for override only to the refusal for want of it, not to one of another cause' {
@@ -652,6 +660,7 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r = Invoke-HmiImport $repo -Kind 'hmi_slidein' -Paths @('elsewhere\Top.xml')
         $r.ok | Should Be $false
         $r.items[0].refused | Should Match 'imported from hmi\\slideins only'
+        $r.items[0].refused | Should Match 'only, where the HMI validator checks them'
     }
 
     It 'refuses a slide-in the device does not have: a new one was not tried' {

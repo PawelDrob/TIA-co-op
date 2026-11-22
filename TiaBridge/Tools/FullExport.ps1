@@ -839,6 +839,7 @@ function Register-FullExportTool {
         'are listed (keptUncommitted: import, commit or delete each before committing); a git repo inside or around such a folder is left whole and listed (keptRepos); the export of an object still replaces uncommitted edits of its own files, as export does. ' +
         'A file that differs from the one in the repo only in what TIA writes anew per export (the export time; in an .xlsx also its relationship Ids) stays as it is: a full_export with no change in TIA changes no file; unchanged counts the files left so. ' +
         'Blocks, DBs, data types and PLC tag tables TIA has not changed since the last full_export are not exported and keep their files (skipped counts them). ' +
+        'Of edits in TIA, a comment edited in its editors and a move were tried by a person; block properties edited in its dialogs were never tried: when such an edit may be missed, pass full: true. ' +
         'An object is exported again when what TIA keeps of it, its folder or its files in the repo changed; every object of a PLC when a data type, a tag table or the set of objects changed (exportedAllOf); everything without a usable record (exportedAll); details counts per part why. ' +
         'HMI, library and the other parts export every time. full: true exports everything. ' +
         'hmi\generated, gen, library\changes, changes, logs, archives and standards are never touched. Read only: works under connect and in a background session. Long: about minutes per thousand objects; ' +

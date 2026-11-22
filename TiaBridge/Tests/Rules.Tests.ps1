@@ -9,6 +9,7 @@ Describe 'Test-WriteAllowed (archive gate, 6.1)' {
     It 'refuses writes until the session archive exists' {
         $s = New-SessionState
         Test-WriteAllowed $s | Should Match 'archive'
+        Test-WriteAllowed $s | Should Match 'Writes are refused until the session archive exists: call archive\(reason\)'
         Register-Archive $s
         Test-WriteAllowed $s | Should BeNullOrEmpty
     }
@@ -31,6 +32,7 @@ Describe 'Test-SaveAllowed without a session archive (save rules, 6.2)' {
     It 'refuses a save after a write without a compile of that scope' {
         Register-Write $s -Scope plc -Device PLC_1 -Items @(Ok 'A')
         (Test-SaveAllowed $s) -join ' ' | Should Match 'compile'
+        (Test-SaveAllowed $s) -join ' ' | Should Match 'Written but not compiled since, and this session has no archive'
         Register-Compile $s -Scope hmi -Device HMI_1 -ErrorCount 0
         @(Test-SaveAllowed $s).Count | Should Be 1
         Register-Compile $s -Scope plc -Device PLC_1 -ErrorCount 0
@@ -49,6 +51,7 @@ Describe 'Test-SaveAllowed without a session archive (save rules, 6.2)' {
         Register-Write $s -Scope hmi -Device HMI_1 -Items @(Ok 'Screen1')
         Register-Compile $s -Scope hmi -Device HMI_1 -ErrorCount 2
         (Test-SaveAllowed $s) -join ' ' | Should Match 'error'
+        (Test-SaveAllowed $s) -join ' ' | Should Match 'reported errors, and this session has no archive\.'
         Register-Compile $s -Scope hmi -Device HMI_1 -ErrorCount 0
         @(Test-SaveAllowed $s).Count | Should Be 0
     }
@@ -66,6 +69,7 @@ Describe 'Test-SaveAllowed without a session archive (save rules, 6.2)' {
         Register-Write $s -Scope plc -Device PLC_1 -Items @((Ok 'A'), (Failed 'B'))
         Register-Compile $s -Scope plc -Device PLC_1 -ErrorCount 0
         (Test-SaveAllowed $s) -join ' ' | Should Match 'B'
+        (Test-SaveAllowed $s) -join ' ' | Should Match 'A write failed and was not redone successfully'
         Register-Write $s -Scope plc -Device PLC_1 -Items @(Ok 'B')
         Register-Compile $s -Scope plc -Device PLC_1 -ErrorCount 0
         @(Test-SaveAllowed $s).Count | Should Be 0

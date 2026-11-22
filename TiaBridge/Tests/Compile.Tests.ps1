@@ -212,6 +212,7 @@ Describe 'the save rules over what TIA holds not consistent' {
         Register-Write $s -Scope plc -Device PLC_1 -Items @(@{ name = 'A'; ok = $true })
         Register-Compile $s -Scope plc -Device PLC_1 -Names @('A') -ErrorCount 0 -NotConsistent ([string[]]@('A'))
         (@(Test-SaveAllowed $s) -join ' ') | Should Match 'not consistent.*A\.'
+        (@(Test-SaveAllowed $s) -join ' ') | Should Match 'which this session wrote or named, and this session has no archive'
         Register-Compile $s -Scope plc -Device PLC_1 -ErrorCount 0 -NotConsistent ([string[]]@())
         @(Test-SaveAllowed $s).Count | Should Be 0
     }
@@ -255,6 +256,7 @@ Describe 'the save rules over what TIA holds not consistent' {
         $text = @(Test-SaveAllowed $s) -join ' '
         $text | Should Match 'Mine, Named'
         $text | Should Not Match 'Others'
+        $text | Should Match 'which this session wrote or named, and this session has no archive'
         @(Get-SaveStanding $s)[0].notConsistent.names -join ',' | Should Be 'Mine,Named,Others'
         Register-Compile $s -Scope plc -Device PLC_1 -ErrorCount 0 -NotConsistent ([string[]]@('Others'))
         @(Test-SaveAllowed $s).Count | Should Be 0

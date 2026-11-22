@@ -293,6 +293,7 @@ Describe 'library_release_chain and a contained type nobody listed' {
         $r.ok | Should Be $false
         @($r.wouldAlsoRelease) | Should Be 'Old'
         $r.refused | Should Match 'would also release Old'
+        $r.refused | Should Match 'TIA takes a contained type along with a type never released\. Nothing was released\.'
         @($new.Versions)[0].State | Should Be 'InWork'
         @($old.Versions)[1].State | Should Be 'InWork'
         $script:projectUpdates | Should Be 0
@@ -325,6 +326,7 @@ Describe 'library_release_chain and a contained type nobody listed' {
         @($r.wouldMakeTypes) | Should Be 'PlainFc'
         $r.refused | Should Match 'nobody made them'
         $r.refused | Should Match 'library_create_type'
+        $r.refused | Should Match 'nobody made them: TIA makes a type of a plain block or data type a released type uses\. Nothing was released\.'
         @($new.Versions)[0].State | Should Be 'InWork'
         @($script:fakeLib.TypeFolder.Types).Count | Should Be 1
         $script:projectUpdates | Should Be 0
@@ -362,6 +364,7 @@ Describe 'library_release_chain and a contained type nobody listed' {
             @($r.onOldVersions) | Should Be 'X: S (uses 0.0.1, default 0.0.2)'
             $r.refused | Should Match 'would burn'
             $r.refused | Should Match 'library_update_usages'
+            $r.refused | Should Match 'these versions sit on old versions of what they contain'
             @($script:x.Versions)[1].State | Should Be 'InWork'
             $script:projectUpdates | Should Be 0
             @($script:chainState.pending.Keys).Count | Should Be 0
@@ -538,6 +541,7 @@ Describe 'library_release_type names all it released' {
         $r.ok | Should Be $false
         @($r.wouldMakeTypes) | Should Be 'PlainUdt'
         $r.refused | Should Match 'Release of Top refused'
+        $r.refused | Should Match 'nobody made them: TIA makes a type of a plain block or data type a released type uses\. Nothing was released\.'
         @($top.Versions)[0].State | Should Be 'InWork'
         @($script:fakeLib.TypeFolder.Types).Count | Should Be 1
         @($script:chainState.pending.Keys).Count | Should Be 0
@@ -906,6 +910,7 @@ Describe 'library_edit_type on a type with no instance' {
         $script:comes = @(@{ object = 'X'; device = 'Plc1'; folder = ''; type = 'X'; version = '0.0.1'; language = 'F_LAD' })
         $r = Invoke-LibraryEditTool ([pscustomobject]@{ name = 'X' })
         $r.refused | Should Match 'safety program'
+        $r.refused | Should Match 'Pass safety: true only when the user asked for this safety change'
         $script:edited | Should Be $false
         @($script:records).Count | Should Be 1
         @($script:editState.pending.Keys).Count | Should Be 0
@@ -1114,6 +1119,7 @@ Describe 'A version on old versions of what it contains' {
         @($r.onOldVersions) | Should Be 'S (uses 0.0.1, default 0.0.2)'
         $r.refused | Should Match 'would burn a version'
         $r.refused | Should Match 'library_update_usages'
+        $r.refused | Should Match 'this version sits on old versions of what it contains'
         @($x.Versions)[1].State | Should Be 'InWork'
         @($script:relState.pending.Keys).Count | Should Be 0
     }

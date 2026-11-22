@@ -1719,7 +1719,7 @@ function Register-LibraryTools {
 
     Register-McpTool -Name 'library_discard_type' -Handler { param($a) Invoke-LibraryDiscardTool $a } -Description (
         'Discard the version in work of a PLC library type: what was changed in it is lost. A released version stays; a type with no other version goes, with its test instance. ' +
-        'An F-compliant PLC data type is not recognised as an F-block here. TIA does not refuse it when a type in work uses it: that type stops compiling. ' +
+        'An instance that is an F-block needs safety: true; an F-compliant PLC data type is not recognised as one here. TIA does not refuse a discard when a type in work uses the type: that type stops compiling. ' +
         'Only when the user asked for it, or for a test type the agent created. Compile the plc scope afterwards.') -Schema @{
         type = 'object'; required = @('name')
         properties = @{ name = @{ type = 'string' }; safety = $script:SafetyArgument
