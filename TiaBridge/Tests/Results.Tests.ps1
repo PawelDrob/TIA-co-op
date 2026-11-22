@@ -15,7 +15,7 @@ function New-Failure([string]$Name, [string]$Message, [string]$Type = 'Siemens.E
     [ordered]@{ name = $Name; folder = 'F'; error = [ordered]@{ type = $Type; message = $Message; details = @($Message); inner = @(@{ type = 'Inner.Type'; message = "inner of $Name" }) } }
 }
 
-function New-PartRecord2([string]$Part, [int]$Count, [object[]]$Failed = @()) {
+function New-TestPartRecord([string]$Part, [int]$Count, [object[]]$Failed = @()) {
     [ordered]@{ part = $Part; device = 'PLC_1'; dir = 'plc\blocks'; count = $Count; exported = $Count - @($Failed).Count; skipped = 0; why = [ordered]@{}; ms = 10
                 failed = @($Failed); fellBack = @(); knowHowProtected = @(); notExported = @(); removed = @(); keptUncommitted = @(); keptRepos = @() }
 }
@@ -34,8 +34,8 @@ Describe 'The short result of a tool' {
 
     It 'full_export: a failure that repeats said once with how many and their names, a different one beside it whole' {
         $records = @(
-            (New-PartRecord2 'blocks' 3 @((New-Failure 'B1' "The export of block 'B1' is not permitted."), (New-Failure 'B2' "The export of block 'B2' is not permitted.")))
-            (New-PartRecord2 'system_blocks' 2 @((New-Failure 'S1' "The export of block 'S1' is not permitted."), (New-Failure 'S2' 'The table is inconsistent and cannot be exported.' 'Siemens.Engineering.Other'))))
+            (New-TestPartRecord 'blocks' 3 @((New-Failure 'B1' "The export of block 'B1' is not permitted."), (New-Failure 'B2' "The export of block 'B2' is not permitted.")))
+            (New-TestPartRecord 'system_blocks' 2 @((New-Failure 'S1' "The export of block 'S1' is not permitted."), (New-Failure 'S2' 'The table is inconsistent and cannot be exported.' 'Siemens.Engineering.Other'))))
         $script:TestResult = [ordered]@{ ok = $false; failedCount = 4; parts = @($records | ForEach-Object { Format-PartLine $_ })
                                          failed = @(Get-FullExportFailures $records | ForEach-Object { $_.text }); leftOut = @(); limits = $script:FullExportLimits
                                          removed = @(); keptUncommitted = @(); keptRepos = @(); details = $records; next = 'Commit.' }
@@ -63,9 +63,9 @@ Describe 'The short result of a tool' {
     }
 
     It 'full_export: parts that hold nothing counted, and details, limits, times and empty lists left to the log' {
-        $records = @((New-PartRecord2 'blocks' 2), (New-PartRecord2 'technology_objects' 0), (New-PartRecord2 'watch_tables' 0))
-        $none = New-PartRecord2 'plc_alarm_texts' 0; $none.none = $true
-        $out = New-PartRecord2 'external_sources' 3; $out.leftOut = 'external source files: no export'
+        $records = @((New-TestPartRecord 'blocks' 2), (New-TestPartRecord 'technology_objects' 0), (New-TestPartRecord 'watch_tables' 0))
+        $none = New-TestPartRecord 'plc_alarm_texts' 0; $none.none = $true
+        $out = New-TestPartRecord 'external_sources' 3; $out.leftOut = 'external source files: no export'
         $records += @($none, $out)
         $script:TestResult = [ordered]@{ ok = $true; failedCount = 0; parts = @($records | ForEach-Object { Format-PartLine $_ }); failed = @(); leftOut = @('3 external source files')
                                          limits = $script:FullExportLimits; removed = @(); keptUncommitted = @(); keptRepos = @(); details = $records
@@ -139,7 +139,7 @@ Describe 'The short result of a tool' {
 
     It 'full_export: a failure without an exception keeps TIA''s messages, alike only when they are the same' {
         $f = { param($n, $m) [ordered]@{ name = $n; folder = 'F'; messages = [ordered]@{ state = 'Error'; messages = @([ordered]@{ path = $n; state = 'Error'; description = $m; messages = @() }) } } }
-        $records = @(New-PartRecord2 'blocks' 3 @((& $f 'B1' "Block 'B1' is inconsistent."), (& $f 'B2' "Block 'B2' is inconsistent."), (& $f 'B3' 'The know-how cannot be read.')))
+        $records = @(New-TestPartRecord 'blocks' 3 @((& $f 'B1' "Block 'B1' is inconsistent."), (& $f 'B2' "Block 'B2' is inconsistent."), (& $f 'B3' 'The know-how cannot be read.')))
         $script:TestResult = [ordered]@{ ok = $false; failedCount = 3; parts = @($records | ForEach-Object { Format-PartLine $_ })
                                          failed = @(Get-FullExportFailures $records | ForEach-Object { $_.text }); details = $records }
         $a = (Invoke-Short 'full_export').text | ConvertFrom-Json
@@ -152,10 +152,10 @@ Describe 'The short result of a tool' {
 
     It 'full_export: a part that could not be listed keeps its detail texts and inner chain' {
         $long = 'x' * 400
-        $rec = New-PartRecord2 'types' 0
+        $rec = New-TestPartRecord 'types' 0
         $rec.listError = [ordered]@{ type = 'Siemens.Engineering.EngineeringTargetInvocationException'; message = $long; details = @('detail of types')
                                      inner = @([ordered]@{ type = 'Inner.Type'; message = 'why not' }); at = 'at Get-X' }
-        $records = @((New-PartRecord2 'blocks' 1), $rec)
+        $records = @((New-TestPartRecord 'blocks' 1), $rec)
         $script:TestResult = [ordered]@{ ok = $false; failedCount = 1; parts = @($records | ForEach-Object { Format-PartLine $_ })
                                          failed = @(Get-FullExportFailures $records | ForEach-Object { $_.text }); details = $records }
         $a = (Invoke-Short 'full_export').text | ConvertFrom-Json
@@ -300,6 +300,10 @@ Describe 'The short result of a tool' {
         ($a.text | ConvertFrom-Json).PSObject.Properties['repo'] | Should BeNullOrEmpty
         ($a.text | ConvertFrom-Json).log | Should Match '^logs\\'
         (Read-CallLog $a).project | Should Be 'P1'
+        # tia_status, asked by an agent unsure where it stands, says them always: a log's path is relative to the repo
+        $st = (Invoke-Short 'tia_status').text | ConvertFrom-Json
+        $st.project | Should Be 'P1'
+        $st.repo | Should Be $script:TestRepo
         $script:TestResult = [ordered]@{ ok = $true }
         ((Invoke-Short 'connect').text | ConvertFrom-Json).project | Should Be 'P1'
         $script:Bridge.repo = Join-Path $root 'P2'
@@ -319,7 +323,7 @@ Describe 'The short result of a tool' {
     }
 
     It 'gives a program of this repo, and a report run, the whole result' {
-        $script:TestResult = [ordered]@{ ok = $true; parts = @('a: 0/0, 0 s'); failed = @(); limits = @('x'); details = @((New-PartRecord2 'a' 0)) }
+        $script:TestResult = [ordered]@{ ok = $true; parts = @('a: 0/0, 0 s'); failed = @(); limits = @('x'); details = @((New-TestPartRecord 'a' 0)) }
         $script:McpClientName = 'TiaArchiveCompare'
         $a = (Invoke-Short 'full_export').text | ConvertFrom-Json
         @($a.details).Count | Should Be 1

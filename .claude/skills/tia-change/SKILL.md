@@ -7,7 +7,7 @@ The order a change of a TIA project takes. The guides, and the tools' descriptio
 
 Git in a project repo goes by `git -C "C:/<projects root>/<repo>"`: the results give backslash paths, and first setup's allow rules match the forward form only.
 
-A result says a thing once. `project` and `repo` come with `connect`, `background_open` and `project_open`, and after that only when they change. An item whose `error`, `note` or `messages` is alike an earlier item's reads `as <that item>`, and the first error counts them in `alike`. What holds nothing is counted, not listed (`emptyParts`, `cleanItems`). A field is left out only where its absence says the same: a change report's network or tag side it is not on, a title, comment or device it has not, an empty list of what was removed or kept; a false, an empty list or a zero that is the news is said. The file in `log` holds the whole result: read it when a field you need is not there.
+A result says a thing once. `project` and `repo` come with `connect`, `background_open`, `project_open` and `tia_status`, and after that only when they change; `log` is a path in `repo`. An item whose `error`, `note` or `messages` is alike an earlier item's reads `as <that item>`, and the first error counts them in `alike`. What holds nothing is counted, not listed (`emptyParts`, `cleanItems`). A field is left out only where its absence says the same: a change report's network or tag side it is not on, a title, comment or device it has not, an empty list of what was removed or kept; a false, an empty list or a zero that is the news is said. The file in `log` holds the whole result: read it when a field you need is not there.
 
 | Kind of work | Reference file |
 |---|---|

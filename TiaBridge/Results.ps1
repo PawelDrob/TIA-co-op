@@ -13,14 +13,20 @@ $script:WholeResultClients = @('TiaArchiveCompare')
 # ask the user to look at TIA.
 $script:SlowStepMs = 60000
 
-# The tools that give project and repo: their result says them always, every other one when they changed.
-$script:GivesProject = @('connect', 'background_open', 'project_open')
+# The tools that give project and repo: their result says them always, every other one when they changed. tia_status is
+# the tool an agent asks when it is unsure where it stands, and a log's path in any answer is relative to the repo.
+$script:GivesProject = @('connect', 'background_open', 'project_open', 'tia_status')
 
 # Where the answer leaves a value out: the field, by its path in the result (items[].folder: the folder of each item), and
 # the one value it is left out at, the value a reader takes for granted when the field is absent. Every other value stays:
 # a false, an empty list or a zero that is the news is said. A change report never hides a change: of it only what has no
-# value, a network's or tag's side it is not on, a title, comment or device it has not. fields.md (ticket 414's research) gives
-# each with where that value is the usual one. '*': every tool.
+# value, a network's or tag's side it is not on, a title, comment or device it has not. '*': every tool. Why each:
+# - prompts: the bridge writes "" for a text TIA's dialog did not have.
+# - full_export removed, keptUncommitted, keptRepos, failed: their counts (removedCount, keptCount, failedCount) stay.
+# - import findings[].object: null for a finding about the document as a whole, not one object of it.
+# - change_report before, after: null on the side a new or removed network or tag is not on; its state says which. A
+#   network's title emptied keeps the old one in was, a tag's comment added or removed is in its changes: both stay.
+#   hmi[].device: "" for an HMI folder of no device.
 $script:UsualValues = @{
     '*'           = @{ 'prompts[].caption' = ''; 'prompts[].text' = ''; 'prompts[].detail' = ''; 'prompts[].choices' = ''; 'prompts[].answer' = ''; 'prompts[].icon' = '' }
     full_export   = @{ removed = @(); keptUncommitted = @(); keptRepos = @(); failed = @() }
@@ -183,20 +189,19 @@ function Get-ShortExportFailures([object[]]$Details) {
 
 # S: the answer as Get-ShortResult copied it; R: the result, whose details only the log keeps.
 function Get-ShortFullExport([System.Collections.IDictionary]$S, [System.Collections.IDictionary]$R) {
-    $s = $S
     $details = @($R.details)
     if ($R.Contains('details') -and $details.Count -eq @($R.parts).Count) {
         $lines = @($R.parts)
-        $s.parts = @(for ($i = 0; $i -lt $lines.Count; $i++) { if (-not (Test-EmptyPartRecord $details[$i])) { $lines[$i] } })
-        $empty = $lines.Count - $s.parts.Count
-        if ($empty) { $s.emptyParts = $empty }
+        $S.parts = @(for ($i = 0; $i -lt $lines.Count; $i++) { if (-not (Test-EmptyPartRecord $details[$i])) { $lines[$i] } })
+        $empty = $lines.Count - $S.parts.Count
+        if ($empty) { $S.emptyParts = $empty }
         if (Get-ValueCount $R.failed) {
             $f = Get-ShortExportFailures $details
-            $s.failed = $f.lines
-            if ($f.errors.Count) { $s.failedErrors = $f.errors }
+            $S.failed = $f.lines
+            if ($f.errors.Count) { $S.failedErrors = $f.errors }
         }
     }
-    $s
+    $S
 }
 
 function Get-ShortBackground([System.Collections.IDictionary]$S) {
