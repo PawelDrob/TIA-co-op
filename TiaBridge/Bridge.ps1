@@ -15,7 +15,7 @@ function Initialize-BridgeContext([System.Collections.IDictionary]$Settings) {
         background = $null                                  # open background session (Tools\Background.ps1)
         tiaEnded = $null                                    # TIA ended (Set-TiaEnded): every TIA call refused until connect
         reportRun = $false                                  # started by a report run of the TIA dashboard (TiaBridge.ps1 -ReportRun)
-        said = @{}                                          # project and repo as the last short result gave them (Results.ps1)
+        given = @{}                                         # project and repo as the last short result gave them (Results.ps1)
     }
 }
 
@@ -313,7 +313,7 @@ function Invoke-BridgeToolCall($Name, $Handler, $Arguments, [object[]]$Secrets) 
     # A short result that cannot be made costs its length, never the result: the whole one goes instead.
     $answer = $r
     if ($r -is [System.Collections.IDictionary] -and -not (Test-WholeResultClient)) {
-        try { $answer = Get-ShortResult $Name $r $script:Bridge.said }
+        try { $answer = Get-ShortResult $Name $r $script:Bridge.given }
         catch { Write-BridgeLog "Short result of $Name not made, the whole one given: $($_.Exception.Message)" }
     }
     @{ result = $r; text = (Limit-ToolResponse $answer $script:Bridge.settings.maxResponseChars) }

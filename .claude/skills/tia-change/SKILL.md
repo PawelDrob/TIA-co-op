@@ -7,7 +7,7 @@ The order a change of a TIA project takes. The guides, and the tools' descriptio
 
 Git in a project repo goes by `git -C "C:/<projects root>/<repo>"`: the results give backslash paths, and first setup's allow rules match the forward form only.
 
-A result says a thing once. `project` and `repo` come with `connect`, `background_open` and `project_open`, and after that only when they change. An item whose `error`, `note` or `messages` is alike an earlier item's reads `as <that item>`, and the first error counts them in `alike`. What holds nothing is counted, not listed (`emptyParts`, `cleanItems`). The file in `log` holds the whole result: read it when a field you need is not there.
+A result says a thing once. `project` and `repo` come with `connect`, `background_open` and `project_open`, and after that only when they change. An item whose `error`, `note` or `messages` is alike an earlier item's reads `as <that item>`, and the first error counts them in `alike`. What holds nothing is counted, not listed (`emptyParts`, `cleanItems`). A field is left out only where its absence says the same: a change report's network or tag side it is not on, a title, comment or device it has not, an empty list of what was removed or kept; a false, an empty list or a zero that is the news is said. The file in `log` holds the whole result: read it when a field you need is not there.
 
 | Kind of work | Reference file |
 |---|---|
@@ -38,4 +38,4 @@ A result says a thing once. `project` and `repo` come with `connect`, `backgroun
 - **The result:** before the commit, do what its `next` says, except under `removeErrors`. Where it is not `ok`:
   - `removeErrors`: files of objects TIA no longer has could not be removed, and a commit would keep them as if the objects stood. Fix what each line names and `full_export` again; when it stays, commit nothing and tell the user.
   - `stopped`: TIA ended mid-export. Commit nothing and tell the user; the session waits there until `full_export` runs through.
-  - `failed` lines: what each names, an object (with the ones alike after it), a part or a device, was not exported, and its files stay as they were; `failedErrors` holds the whole Siemens error of the first object of each kind. Commit, and name those lines in the commit message and to the user beside the page: a change there is on no page.
+  - `failed` lines: what each names, an object (with the ones alike after it), a part or a device, was not exported, and its files stay as they were; `failedErrors` holds the first of each kind whole: its Siemens error, or TIA's `messages` where there is none, a part not listed too. Commit, and name those lines in the commit message and to the user beside the page: a change there is on no page.

@@ -103,7 +103,7 @@ Describe 'The short result of a tool' {
         $a.items[3].note | Should Be 'Line ends of D.s7dcl written as CRLF.'
         $a.items[4].note | Should Be 'as D'
         foreach ($k in 'at', 'inner', 'tiaEnded', 'tiaDisconnected') { $a.items[0].error.PSObject.Properties[$k] | Should BeNullOrEmpty }
-        $a.items[0].PSObject.Properties['imported'] | Should BeNullOrEmpty
+        @($a.items[0].imported).Count | Should Be 0
         $a.items[1].ok | Should Be $false
         $a.transaction | Should Be $false
         # the log as the tool returned it
@@ -135,6 +135,58 @@ Describe 'The short result of a tool' {
         $short = Get-ShortResult 'full_export' ([ordered]@{ ok = $true; parts = @(); failed = $null; removed = $null; details = @() }) @{}
         $short.Contains('failed') | Should Be $false
         $short.Contains('removed') | Should Be $false
+    }
+
+    It 'full_export: a failure without an exception keeps TIA''s messages, alike only when they are the same' {
+        $f = { param($n, $m) [ordered]@{ name = $n; folder = 'F'; messages = [ordered]@{ state = 'Error'; messages = @([ordered]@{ path = $n; state = 'Error'; description = $m; messages = @() }) } } }
+        $records = @(New-PartRecord2 'blocks' 3 @((& $f 'B1' "Block 'B1' is inconsistent."), (& $f 'B2' "Block 'B2' is inconsistent."), (& $f 'B3' 'The know-how cannot be read.')))
+        $script:TestResult = [ordered]@{ ok = $false; failedCount = 3; parts = @($records | ForEach-Object { Format-PartLine $_ })
+                                         failed = @(Get-FullExportFailures $records | ForEach-Object { $_.text }); details = $records }
+        $a = (Invoke-Short 'full_export').text | ConvertFrom-Json
+        @($a.failed) -join '|' | Should Be 'blocks@PLC_1: F/B1: export state Error (+1 alike: F/B2)|blocks@PLC_1: F/B3: export state Error'
+        @($a.failedErrors).Count | Should Be 2
+        $a.failedErrors[0].object | Should Be 'blocks@PLC_1: F/B1'
+        $a.failedErrors[0].messages.messages[0].description | Should Be "Block 'B1' is inconsistent."
+        $a.failedErrors[1].messages.messages[0].description | Should Be 'The know-how cannot be read.'
+    }
+
+    It 'full_export: a part that could not be listed keeps its detail texts and inner chain' {
+        $long = 'x' * 400
+        $rec = New-PartRecord2 'types' 0
+        $rec.listError = [ordered]@{ type = 'Siemens.Engineering.EngineeringTargetInvocationException'; message = $long; details = @('detail of types')
+                                     inner = @([ordered]@{ type = 'Inner.Type'; message = 'why not' }); at = 'at Get-X' }
+        $records = @((New-PartRecord2 'blocks' 1), $rec)
+        $script:TestResult = [ordered]@{ ok = $false; failedCount = 1; parts = @($records | ForEach-Object { Format-PartLine $_ })
+                                         failed = @(Get-FullExportFailures $records | ForEach-Object { $_.text }); details = $records }
+        $a = (Invoke-Short 'full_export').text | ConvertFrom-Json
+        @($a.failed).Count | Should Be 1
+        $a.failed[0] | Should Match '^types@PLC_1: not listed: '
+        $a.failedErrors[0].object | Should Be 'types@PLC_1: not listed'
+        $a.failedErrors[0].error.message | Should Be $long
+        $a.failedErrors[0].error.details[0] | Should Be 'detail of types'
+        $a.failedErrors[0].error.inner[0].message | Should Be 'why not'
+        $a.failedErrors[0].error.PSObject.Properties['at'] | Should BeNullOrEmpty
+    }
+
+    It 'import: an ok item that brought nothing in says so' {
+        $script:TestResult = [ordered]@{ ok = $true; transaction = $true; rolledBack = $false; override = $false; items = @(
+            [ordered]@{ name = 'A'; path = 'plc\blocks\A.s7dcl'; folder = ''; ok = $true; imported = @() }
+            [ordered]@{ name = 'B'; path = 'plc\blocks\B.s7dcl'; folder = 'F'; ok = $true; imported = @('B') }) }
+        $a = (Invoke-Short 'import').text | ConvertFrom-Json
+        $a.items[0].PSObject.Properties['imported'] | Should Not BeNullOrEmpty
+        @($a.items[0].imported).Count | Should Be 0
+        $a.items[0].folder | Should Be ''
+        $a.override | Should Be $false
+        $a.rolledBack | Should Be $false
+    }
+
+    It 'compile: an item that is no dictionary is passed as it is, a list not unrolled' {
+        $result = [ordered]@{ ok = $false; scope = 'plc'; errors = 0; items = @('a text item', @('x', 'y'), [ordered]@{ name = 'A'; ok = $true; errors = 0; warnings = 0 }) }
+        $short = Get-ShortResult 'compile' $result @{}
+        @($short.items).Count | Should Be 2
+        $short.items[0] | Should Be 'a text item'
+        @($short.items[1]) -join ',' | Should Be 'x,y'
+        $short.cleanItems | Should Be 1
     }
 
     It 'import: an inner chain stays whole' {
@@ -201,18 +253,41 @@ Describe 'The short result of a tool' {
         $a.stepsLog | Should Be 'C:\P1\logs\x_background_steps.json'
     }
 
-    It 'change_report: default and empty values left out, every row kept' {
-        $script:TestResult = [ordered]@{ ok = $true; page = 'changes\reports\x.html'; otherFiles = @(); blocks = @(
-            [ordered]@{ name = 'Main'; kind = 'OB'; state = 'changed'; interface = $false; properties = $false; networks = @([ordered]@{ state = 'new'; lang = 'LAD'; before = $null; after = 8; title = '' }) }
-            [ordered]@{ name = 'Gone'; kind = 'FB'; state = 'removed'; interface = $true; properties = $false; networks = @() }) }
+    It 'change_report: a value is left out only where its absence says the same, every fact of a change stays, rows as JSON gives them' {
+        # Invoke-ChangeReports returns what ConvertFrom-Json makes of TiaChangeReports' output: its rows are no dictionaries
+        $res = @'
+{"blocks": [{"name": "Main", "kind": "OB", "state": "changed", "interface": false, "properties": false,
+             "networks": [{"state": "new", "lang": "LAD", "before": null, "after": 8, "title": ""}]},
+            {"name": "Gone", "kind": "FB", "state": "removed", "interface": true, "properties": false, "networks": []}],
+ "plcTags": [{"name": "Tags", "state": "changed", "counts": {"new": 1, "changed": 1},
+              "rows": [{"kind": "tag", "name": "Hidden", "state": "new", "changes": [], "before": null,
+                        "after": {"type": "Bool", "address": "%M0.0", "comment": "", "accessible": false, "writable": false, "visible": false}},
+                       {"kind": "tag", "name": "Locked", "state": "changed", "changes": ["writable"],
+                        "before": {"type": "Bool", "address": "%M0.1", "comment": "", "accessible": true, "writable": true, "visible": true},
+                        "after": {"type": "Bool", "address": "%M0.1", "comment": "", "accessible": true, "writable": false, "visible": true}}]}],
+ "hmi": [{"device": "", "kind": "graphic", "name": "Logo", "state": "new", "changes": 0}]}
+'@ | ConvertFrom-Json
+        $script:TestResult = @{ ok = $true; page = 'changes\reports\x.html'; before = 'r @ HEAD~1'; after = 'r @ HEAD'; blocks = @($res.blocks); plcTags = @($res.plcTags); hmi = @($res.hmi) }
         $d = Invoke-Short 'change_report'
         $a = $d.text | ConvertFrom-Json
         @($a.blocks).Count | Should Be 2
-        @($a.blocks[0].PSObject.Properties.Name) -join ',' | Should Be 'name,kind,state,networks'
+        @($a.blocks[0].PSObject.Properties.Name) -join ',' | Should Be 'name,kind,state,interface,properties,networks'
+        $a.blocks[0].interface | Should Be $false
         @($a.blocks[0].networks[0].PSObject.Properties.Name) -join ',' | Should Be 'state,lang,after'
-        @($a.blocks[1].PSObject.Properties.Name) -join ',' | Should Be 'name,kind,state,interface'
-        $a.PSObject.Properties['otherFiles'] | Should BeNullOrEmpty
-        (Read-CallLog $d).blocks[0].interface | Should Be $false
+        @($a.blocks[1].networks).Count | Should Be 0
+        $a.blocks[1].PSObject.Properties['networks'] | Should Not BeNullOrEmpty
+        # an added tag no HMI can reach, and a tag made read-only: the false is the change
+        $hidden, $locked = $a.plcTags[0].rows
+        @($hidden.PSObject.Properties.Name) -join ',' | Should Be 'kind,name,state,changes,after'
+        @($hidden.after.PSObject.Properties.Name) -join ',' | Should Be 'type,address,accessible,writable,visible'
+        foreach ($k in 'accessible', 'writable', 'visible') { $hidden.after.$k | Should Be $false }
+        $locked.after.writable | Should Be $false
+        $locked.before.writable | Should Be $true
+        @($a.hmi[0].PSObject.Properties.Name) -join ',' | Should Be 'kind,name,state,changes'
+        $a.hmi[0].changes | Should Be 0
+        $log = Read-CallLog $d
+        $log.blocks[0].networks[0].PSObject.Properties['before'] | Should Not BeNullOrEmpty
+        $log.hmi[0].device | Should Be ''
     }
 
     It 'the envelope: project and repo said once and again when they change; the step of a background session left to the log' {

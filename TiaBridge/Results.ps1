@@ -16,6 +16,27 @@ $script:SlowStepMs = 60000
 # The tools that give project and repo: their result says them always, every other one when they changed.
 $script:GivesProject = @('connect', 'background_open', 'project_open')
 
+# Where the answer leaves a value out: the field, by its path in the result (items[].folder: the folder of each item), and
+# the one value it is left out at, the value a reader takes for granted when the field is absent. Every other value stays:
+# a false, an empty list or a zero that is the news is said. A change report never hides a change: of it only what has no
+# value, a network's or tag's side it is not on, a title, comment or device it has not. fields.md (ticket 414's research) gives
+# each with where that value is the usual one. '*': every tool.
+$script:UsualValues = @{
+    '*'           = @{ 'prompts[].caption' = ''; 'prompts[].text' = ''; 'prompts[].detail' = ''; 'prompts[].choices' = ''; 'prompts[].answer' = ''; 'prompts[].icon' = '' }
+    full_export   = @{ removed = @(); keptUncommitted = @(); keptRepos = @(); failed = @() }
+    import        = @{ 'items[].findings[].object' = $null }
+    change_report = @{ 'blocks[].networks[].before' = $null; 'blocks[].networks[].after' = $null; 'blocks[].networks[].title' = ''
+                       'plcTags[].rows[].before' = $null; 'plcTags[].rows[].after' = $null; 'plcTags[].rows[].before.comment' = ''
+                       'plcTags[].rows[].after.comment' = ''; 'hmi[].device' = '' }
+}
+
+# The tools whose answer is made short field by field: their result is copied whole into dictionaries, a value at its usual
+# one left out and every error made short. Every other tool's answer is its result, its error and prompts made short.
+$script:ShortenedTools = @('full_export', 'background_open', 'background_close', 'compile', 'change_report', 'import', 'export', 'save')
+
+# The fields only the log keeps: they are not copied at all (a full_export's details are the most of its result).
+$script:LogOnlyFields = @{ '*' = @('times'); full_export = @('details', 'limits', 'planMs', 'saveMs') }
+
 # A map whose keys are texts compared as they are: PowerShell's own ignore case, and two Siemens messages that differ only
 # in case are not alike.
 function New-OrdinalMap { New-Object System.Collections.Hashtable ([StringComparer]::Ordinal) }
@@ -25,35 +46,42 @@ function Get-ValueCount($List) { @($List | Where-Object { $null -ne $_ }).Count 
 
 function Test-WholeResultClient { [bool]($script:Bridge.reportRun -or $script:WholeResultClients -contains $script:McpClientName) }
 
-# A copy of a dictionary, in its order, without the keys named.
-function Copy-ResultFields([System.Collections.IDictionary]$Value, [string[]]$Without = @()) {
-    $c = [ordered]@{}
-    foreach ($k in $Value.Keys) { if ($Without -notcontains $k) { $c[$k] = $Value[$k] } }
-    $c
-}
-
-function Test-EmptyValue($Value, [switch]$DropFalse) {
-    if ($null -eq $Value) { return $true }
-    if ($Value -is [string]) { return $Value.Length -eq 0 }
-    if ($Value -is [bool]) { return $DropFalse -and -not $Value }
-    if ($Value -is [System.Collections.IDictionary]) { return $Value.Count -eq 0 }
-    if ($Value -is [System.Collections.IList]) { return $Value.Count -eq 0 }
+# Whether a value is the usual one of its field (UsualValues): null, a text compared as it is, true or false, or a list
+# with no value (null counts as one: a result without a list of its own may hold null).
+function Test-UsualValue($Value, $Usual) {
+    if ($null -eq $Usual) { return $null -eq $Value }
+    if ($Usual -is [string]) { return $Value -is [string] -and $Value -ceq $Usual }
+    if ($Usual -is [bool]) { return $Value -is [bool] -and $Value -eq $Usual }
+    if ($Usual -is [System.Collections.IList]) { return $null -eq $Value -or ($Value -is [System.Collections.IList] -and -not (Get-ValueCount $Value)) }
     $false
 }
 
-# The value without null, empty texts, lists and dictionaries at any depth, and with DropFalse without false too: the reader
-# loses nothing, an absent value reads as that. ok always stays; an element of a list is never left out.
-function Remove-EmptyValues($Value, [switch]$DropFalse) {
+# Puts Value into the answer's dictionary Into as Key, unless it is the usual value of its field at Path; an error made
+# short. AsIs: the value as the result holds it, not copied.
+function Add-AnswerField([System.Collections.IDictionary]$Into, [string]$Key, $Value, [System.Collections.IDictionary]$Usual, [string]$Path, [switch]$AsIs) {
+    # assigned, not output: an empty list output is no value
+    $v = $Value
+    if (-not $AsIs) { $v = Copy-AnswerValue $Value $Usual $Path }
+    if ($Usual.Contains($Path) -and (Test-UsualValue $v $Usual[$Path])) { return }
+    if ($Key -eq 'error') { $v = Get-ShortError $v }
+    $Into[$Key] = $v
+}
+
+# A copy of a value of a result as the answer holds it, at any depth: dictionaries for objects (ConvertFrom-Json gives the
+# rows of a change report as objects), the fields at their usual value left out (Add-AnswerField). Path: where it is.
+function Copy-AnswerValue($Value, [System.Collections.IDictionary]$Usual, [string]$Path) {
+    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+        $d = [ordered]@{}
+        foreach ($p in $Value.PSObject.Properties) { $d[$p.Name] = $p.Value }
+        $Value = $d
+    }
     if ($Value -is [System.Collections.IDictionary]) {
         $c = [ordered]@{}
-        foreach ($k in $Value.Keys) {
-            $v = Remove-EmptyValues $Value[$k] -DropFalse:$DropFalse
-            if ($k -eq 'ok' -or -not (Test-EmptyValue $v -DropFalse:$DropFalse)) { $c[$k] = $v }
-        }
+        foreach ($k in $Value.Keys) { Add-AnswerField $c $k $Value[$k] $Usual "$Path.$k" }
         return $c
     }
-    if ($Value -is [System.Collections.IList] -and $Value -isnot [string]) {
-        $list = @(foreach ($v in $Value) { , (Remove-EmptyValues $v -DropFalse:$DropFalse) })
+    if ($Value -is [System.Collections.IList]) {
+        $list = @(foreach ($v in $Value) { , (Copy-AnswerValue $v $Usual "$Path[]") })
         return , $list
     }
     $Value
@@ -79,21 +107,20 @@ function Get-AlikeKey($Value, [string]$Name) {
 # code location (at), an empty inner chain and the flags that are false stay in the log.
 function Get-ShortError($Err) {
     if ($Err -isnot [System.Collections.IDictionary]) { return $Err }
-    $e = Copy-ResultFields $Err @('at')
+    $e = [ordered]@{}
+    foreach ($k in $Err.Keys) { if ($k -ne 'at') { $e[$k] = $Err[$k] } }
     foreach ($k in 'tiaEnded', 'tiaDisconnected') { if ($e.Contains($k) -and -not $e[$k]) { $e.Remove($k) } }
     if ($e.Contains('inner') -and -not (Get-ValueCount $e.inner)) { $e.Remove('inner') }
     $e
 }
 
 # Items whose error, note or messages are alike an earlier item's say so ("as <that item>"); that earlier item's error
-# counts them (alike). Items are copied, the ones given are not changed.
+# counts them (alike). Items: the answer's copies (Copy-AnswerValue), changed here.
 function Compress-ItemRepeats([object[]]$Items) {
     $seen = New-OrdinalMap
     $out = New-Object System.Collections.ArrayList
-    foreach ($i in $Items) {
-        if ($i -isnot [System.Collections.IDictionary]) { [void]$out.Add($i); continue }
-        $c = Copy-ResultFields $i
-        if ($c.Contains('error')) { $c.error = Get-ShortError $c.error }
+    foreach ($c in $Items) {
+        if ($c -isnot [System.Collections.IDictionary]) { [void]$out.Add($c); continue }
         foreach ($k in 'error', 'note', 'messages') {
             if (-not $c.Contains($k) -or $null -eq $c[$k]) { continue }
             $key = "$k|$(Get-AlikeKey $c[$k] ([string]$c.name))"
@@ -122,24 +149,29 @@ function Get-StepsSummary([object[]]$Steps) {
 }
 
 # The failed lines of a full_export, a failure that repeats said once: lines, the first object's line as the log has it,
-# with how many more are alike and their names; errors, the first object's whole error of each kind (its line cuts the
-# message and has no detail texts or inner chain). Alike: the same error, the object's name taken out. A part or a device
-# that failed has its line of its own.
+# with how many more are alike and their names; errors, the first of each kind whole, as the agent quotes it: its
+# Siemens error (the line cuts the message and has no detail texts or inner chain), or with none TIA's messages of the
+# export. Alike: the same error or messages, the object's name taken out. A part that could not be listed is a failure
+# of its own kind; a device refused has its line, whole.
 function Get-ShortExportFailures([object[]]$Details) {
     $groups = New-Object System.Collections.ArrayList
     $errors = New-Object System.Collections.ArrayList
     $byKind = New-OrdinalMap
     foreach ($e in @(Get-FullExportFailures $Details)) {
-        if (-not $e.failure) { [void]$groups.Add(@{ text = $e.text; alike = @() }); continue }
         $f = $e.failure
-        $err = if ($f.error) { Get-ShortError $f.error }
-        $kind = if ($err) { Get-AlikeKey $err ([string]$f.name) } else { "state $($f.messages.state)" }
+        $whole = if ($f.error) { [ordered]@{ error = Get-ShortError $f.error } }
+                 elseif ($f) { [ordered]@{ messages = $f.messages } }
+                 elseif ($e.listError) { [ordered]@{ error = Get-ShortError $e.listError } }
+        if (-not $whole) { [void]$groups.Add(@{ text = $e.text; alike = @() }); continue }
+        $kind = "$(if ($f) { 'object' } else { 'part' })|$(Get-AlikeKey $whole ([string]$f.name))"
         $g = $byKind[$kind]
         if (-not $g) {
             $g = @{ text = $e.text; where = $e.where; alike = (New-Object System.Collections.ArrayList) }
             $byKind[$kind] = $g
             [void]$groups.Add($g)
-            if ($err) { [void]$errors.Add([ordered]@{ object = "$($e.where): $($e.object)"; error = $err }) }
+            $first = [ordered]@{ object = "$($e.where): $($e.object)" }
+            foreach ($k in $whole.Keys) { $first[$k] = $whole[$k] }
+            [void]$errors.Add($first)
         }
         else { [void]$g.alike.Add($(if ($e.where -eq $g.where) { $e.object } else { "$($e.where): $($e.object)" })) }
     }
@@ -149,9 +181,9 @@ function Get-ShortExportFailures([object[]]$Details) {
     @{ lines = $lines; errors = $errors.ToArray() }
 }
 
-function Get-ShortFullExport([System.Collections.IDictionary]$R) {
-    $s = Copy-ResultFields $R @('details', 'limits', 'times', 'planMs', 'saveMs')
-    foreach ($k in 'removed', 'keptUncommitted', 'keptRepos', 'failed') { if ($s.Contains($k) -and -not (Get-ValueCount $s[$k])) { $s.Remove($k) } }
+# S: the answer as Get-ShortResult copied it; R: the result, whose details only the log keeps.
+function Get-ShortFullExport([System.Collections.IDictionary]$S, [System.Collections.IDictionary]$R) {
+    $s = $S
     $details = @($R.details)
     if ($R.Contains('details') -and $details.Count -eq @($R.parts).Count) {
         $lines = @($R.parts)
@@ -167,10 +199,9 @@ function Get-ShortFullExport([System.Collections.IDictionary]$R) {
     $s
 }
 
-function Get-ShortBackground([System.Collections.IDictionary]$R) {
-    $s = Copy-ResultFields $R
-    if ($R.Contains('steps')) { $s.steps = Get-StepsSummary @($R.steps) }
-    $s
+function Get-ShortBackground([System.Collections.IDictionary]$S) {
+    if ($S.Contains('steps')) { $S.steps = Get-StepsSummary @($S.steps) }
+    $S
 }
 
 # A compile message tree as a list: each error and warning with the path to it (' / ' between the levels); a message that
@@ -206,60 +237,52 @@ function Get-CompileMessageList($Tree, [hashtable]$Seen, [string]$ItemName) {
 }
 
 # compile: the items with errors or warnings, each message once, and how many items are clean.
-function Get-ShortCompile([System.Collections.IDictionary]$R) {
-    $s = Copy-ResultFields $R
-    if (-not $R.Contains('items')) { return $s }
+function Get-ShortCompile([System.Collections.IDictionary]$S) {
+    if (-not $S.Contains('items')) { return $S }
     $clean = 0
     $seen = New-OrdinalMap
-    $s.items = @(foreach ($i in @($R.items)) {
+    $S.items = @(foreach ($i in @($S.items)) {
         if ($i -isnot [System.Collections.IDictionary]) { , $i; continue }
         if ($i.ok -and -not [int]$i.errors -and -not [int]$i.warnings -and -not $i.error -and -not $i.refused) { $clean++; continue }
-        $c = Copy-ResultFields $i @('messages')
-        if ($c.Contains('error')) { $c.error = Get-ShortError $c.error }
-        if ($i.messages) {
-            $list = @(Get-CompileMessageList $i.messages $seen ([string]$i.name))
-            if ($list.Count) { $c.messages = $list }
+        $tree = $i.messages
+        $i.Remove('messages')
+        if ($tree) {
+            $list = @(Get-CompileMessageList $tree $seen ([string]$i.name))
+            if ($list.Count) { $i.messages = $list }
         }
-        $c
+        $i
     })
-    if ($clean) { $s.cleanItems = $clean }
-    $s
+    if ($clean) { $S.cleanItems = $clean }
+    $S
 }
 
-# import, export, save: no empty values, and what repeats on every item said once.
-function Get-ShortItems([System.Collections.IDictionary]$R) {
-    $s = Copy-ResultFields $R
-    foreach ($k in @($s.Keys)) {
-        if ($k -in 'ok', 'items') { continue }
-        $v = Remove-EmptyValues $s[$k]
-        if (Test-EmptyValue $v) { $s.Remove($k) } else { $s[$k] = $v }
+# The short result of a tool, a new dictionary: the one given stays as the log has it. Given: what earlier short results
+# gave the agent of the project (project, repo), kept up to date here.
+function Get-ShortResult([string]$Tool, [System.Collections.IDictionary]$Result, [System.Collections.IDictionary]$Given) {
+    $usual = @{}
+    foreach ($t in '*', $Tool) { $u = $script:UsualValues[$t]; if ($u) { foreach ($k in $u.Keys) { $usual[$k] = $u[$k] } } }
+    $logOnly = @($script:LogOnlyFields['*']) + @($script:LogOnlyFields[$Tool])
+    $deep = $script:ShortenedTools -contains $Tool
+    $s = [ordered]@{}
+    foreach ($k in $Result.Keys) {
+        if ($logOnly -contains $k) { continue }
+        Add-AnswerField $s $k $Result[$k] $usual $k -AsIs:(-not $deep -and $k -notin 'error', 'prompts')
     }
-    if ($s.Contains('items')) { $s.items = Compress-ItemRepeats @(foreach ($i in @($R.items)) { , (Remove-EmptyValues $i) }) }
-    $s
-}
-
-# The short result of a tool, a new dictionary: the one given stays as the log has it. Said: what earlier short results
-# gave the agent (project, repo), kept up to date here.
-function Get-ShortResult([string]$Tool, [System.Collections.IDictionary]$Result, [System.Collections.IDictionary]$Said) {
     $s = switch ($Tool) {
-        'full_export' { Get-ShortFullExport $Result }
-        { $_ -in 'background_open', 'background_close' } { Get-ShortBackground $Result }
-        'compile' { Get-ShortCompile $Result }
-        'change_report' { Remove-EmptyValues $Result -DropFalse }
-        { $_ -in 'import', 'export', 'save' } { Get-ShortItems $Result }
-        default { Copy-ResultFields $Result }
+        'full_export' { Get-ShortFullExport $s $Result }
+        { $_ -in 'background_open', 'background_close' } { Get-ShortBackground $s }
+        'compile' { Get-ShortCompile $s }
+        { $_ -in 'import', 'export', 'save' } { if ($s.Contains('items')) { $s.items = Compress-ItemRepeats @($s.items) }; $s }
+        default { $s }
     }
     # the envelope: a background session's step of this call is in the log and in the steps log of background_close
     if ($Tool -notlike 'background_*' -and $s.step -is [System.Collections.IDictionary]) { $s.Remove('step') }
-    if ($s.Contains('times')) { $s.Remove('times') }
-    if ($s.Contains('error')) { $s.error = Get-ShortError $s.error }
-    if ($s.Contains('prompts')) { $s.prompts = @(foreach ($p in @($s.prompts)) { , (Remove-EmptyValues $p) }) }
     # last, after everything that could throw: an answer the dispatch drops for the whole one (Bridge.ps1) must not have
-    # marked project and repo as said
+    # marked project and repo as given
     foreach ($k in 'project', 'repo') {
         if (-not $Result.Contains($k)) { continue }
-        if ($script:GivesProject -notcontains $Tool -and $Said.Contains($k) -and $Said[$k] -ceq $Result[$k]) { $s.Remove($k) }
-        else { $Said[$k] = $Result[$k] }
+        if ($script:GivesProject -notcontains $Tool -and $Given.Contains($k) -and $Given[$k] -ceq $Result[$k]) { $s.Remove($k) }
+        else { $Given[$k] = $Result[$k] }
     }
     $s
 }

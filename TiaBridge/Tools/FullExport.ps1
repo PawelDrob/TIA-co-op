@@ -602,7 +602,7 @@ function Format-PartLine($R) {
 
 # The failed lines of a run's part records (or the details of its result): text, the line of result.failed; for an object
 # also failure (its entry in the record), where (part@device) and object (folder/name), which the short result groups by
-# (Results.ps1). A device refused has one line, not one per part of it.
+# (Results.ps1); for a part not listed listError, where and object too. A device refused has one line, not one per part of it.
 function Get-FullExportFailures([object[]]$Records) {
     $refusedDevices = @{}
     foreach ($r in $Records) {
@@ -615,7 +615,7 @@ function Get-FullExportFailures([object[]]$Records) {
         if ($r.listError.type -eq 'TiaBridge.DeviceNameCollision') {
             if (-not $refusedDevices[$r.device]) { $refusedDevices[$r.device] = $true; @{ text = "$($r.device): $($r.listError.type): $($r.listError.message)" } }
         }
-        elseif ($r.listError) { @{ text = "$where`: not listed: $($r.listError.type): $(Limit-Text $r.listError.message 300)" } }
+        elseif ($r.listError) { @{ text = "$where`: not listed: $($r.listError.type): $(Limit-Text $r.listError.message 300)"; listError = $r.listError; where = $where; object = 'not listed' } }
     }
 }
 
