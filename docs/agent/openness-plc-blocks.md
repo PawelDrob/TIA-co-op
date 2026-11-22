@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: PLC blocks, OBs and compile"
 description: "What TIA Portal Openness V20 does with PLC blocks, data types, DBs, OBs (editing an OB's SimaticML), PLC tag tables, know-how protected blocks, F-blocks, F-LAD, SimaticML calls and compiles."
 tags: [openness, tia-v20, plc, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:20:07-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:42:50-05:00 }
 ---
 
 # TIA Openness V20 facts: PLC blocks, OBs and compile
@@ -52,11 +52,14 @@ holds it, `<Sections xmlns="...">`, `<FlgNet xmlns="...">`, with no prefix. Elem
 namespaces. TiaBridge refuses both before TIA sees the file, naming the line: a declared encoding other than utf-8 in any
 SimaticML, a namespace prefix in a block's. Whether TIA takes prefixes in other SimaticML was not tried.
 
-**Boxes in an OB's SimaticML** `[EXPORT]`, as SimaticML exports write them, Switch, JumpList and Calculate the export of
-networks in an OB; the same boxes as `.s7dcl` are in the [s7dcl guide](s7dcl-lad.md), 8.10, 8.12, 8.13 and 8.14:
+**Boxes in an OB's SimaticML** `[EXPORT]`. The facts on ENO and `Sp` come from SimaticML exports, those on Switch,
+JumpList and Calculate from the SimaticML export of networks in an OB. The same boxes as `.s7dcl` are in the
+[s7dcl guide](s7dcl-lad.md), 8.10, 8.12, 8.13 and 8.14:
 
 - ENO: a box with the ENO setting (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`) has
-  `DisabledENO="true"` where ENO generation is off; the Calculate with it on has `DisabledENO="false"`.
+  `DisabledENO="true"` where ENO generation is off; the Calculate with it on has `DisabledENO="false"`. A box without the
+  setting (timers, counters, calls, `SEL`, `MUX`, ...) and every box of an F-block carry neither `DisabledENO` nor the
+  `.s7dcl` pragma `{ S7_GenerateENO := "TRUE" }`.
 - `Sp`, the S5 pulse timer: the SimaticML part has the same name, its pins `s`, `tv`, `r`, `rt`, `rtbcd`, `timer`, `q`.
 - Switch and JumpList: the Switch part carries `<TemplateValue Name="SrcType" Type="Type">USInt</TemplateValue>` and per
   case `<TemplateValue Name="CASE0" Type="Operation">EQ</TemplateValue>`, the count as `Card`; its pins are `en`, `k`,

@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: instructions as exports write them"
 description: "How TIA Portal V20 writes instructions in SIMATIC SD (.s7dcl) and SimaticML where the names differ from its screen, and how extended, communication, Technology, Optional packages and F-LAD instructions go in."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:14:54-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:42:50-05:00 }
 sources:
   - id: export
     resource: TIA Portal V20 workspace exports of project F (2026-08), project B (2026-09), project C (2026-10) and project A (2026-10), with re-imports where stated; a test program with every basic LAD and SCL, every extended, Communication, Technology, Optional packages and F-LAD instruction this CPU takes, on a CPU 1515F, V20 Update 7 (2026-11)
@@ -12,7 +12,7 @@ sources:
 
 # SIMATIC SD guide: instructions as exports write them
 
-Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): section 8.13a, read for an SCL block calling a library, communication, Technology or F instruction, a LAD block, an F-block; a DB when an instance DB of a library, Technology or F box; any other change of an OB when an instruction's box is added or changed. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
+Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): section 8.13a, read for an SCL block calling a library, communication, Technology or F instruction, a LAD block, an F-block; a DB when an instance DB of a library, Technology or F box; any other change of an OB when the change adds or changes a coil of an IEC or S5 timer, a jump or return coil, a type-test contact, or any box but a call of an FB or FC of the program. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
 
 ### 8.13a Where the names differ `[EXPORT]`
 
