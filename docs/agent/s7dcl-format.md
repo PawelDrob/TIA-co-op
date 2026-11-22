@@ -3,7 +3,7 @@ type: Guide
 title: SIMATIC SD (.s7dcl) authoring guide
 description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source; the core every PLC change reads, and which part holds LAD networks, comments, data, instructions and import diagnostics.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:14:54-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:20:07-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -30,7 +30,7 @@ Target platform: Siemens TIA Portal V20 (Update 4 or later; projects are kept on
 | File | Sections | Read for |
 |---|---|---|
 | `s7dcl-format.md`, this file | 0 to 7, 9, 12, 13 | Every PLC change: what a file is, encoding, block structure, interface, literals, networks, SCL networks, the checklist, the gaps, the workflow |
-| [s7dcl-lad.md](s7dcl-lad.md) | 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14b: LAD, 8.14c: branch shapes and LAD operands, 8.14, Appendix A, Appendix B | A LAD block, an F-block; any other change of an OB when a pin of a box is on logic, or a box output other than the rung's on a coil; an import or SD export that fails when the log message's row names it |
+| [s7dcl-lad.md](s7dcl-lad.md) | 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14b: LAD, 8.14c: branch shapes and LAD operands, 8.14, Appendix A, Appendix B | A LAD block, an F-block; any other change of an OB when a pin of a box is on logic, or a box output on a coil other than the output on the rung; an import or SD export that fails when the log message's row names it |
 | [s7dcl-instructions.md](s7dcl-instructions.md) | 8.13a | An SCL block calling a library, communication, Technology or F instruction, a LAD block, an F-block; a DB when an instance DB of a library, Technology or F box; any other change of an OB when an instruction's box is added or changed |
 | [s7dcl-resources.md](s7dcl-resources.md) | 8.14b: resource files, 8.14c: resource files | A comment or title; an import or SD export that fails when the log message's row names it |
 | [s7dcl-data.md](s7dcl-data.md) | 8.14b: blocks, interfaces and data, 8.14d | A DB, a data type, a classic SCL source; an SCL block, an SCL block calling a library, communication, Technology or F instruction, a LAD block, an F-block when it declares a multi-instance of an FB imported in this session; a comment or title when a member's comment is new, for its pragma; an import or SD export that fails when the log message's row names it |

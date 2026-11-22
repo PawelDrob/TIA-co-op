@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: LAD networks"
 description: "How LAD networks are written in SIMATIC SD (.s7dcl) files for TIA Portal V20: rungs, wires, contacts, coils, boxes, calls, program control and the Calculate box, with a complete example block and the instruction set."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:13:51-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:20:07-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -16,7 +16,7 @@ sources:
 
 # SIMATIC SD guide: LAD networks
 
-Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14b: LAD, 8.14c: branch shapes and LAD operands, 8.14, Appendix A, Appendix B, read for a LAD block, an F-block; any other change of an OB when a pin of a box is on logic, or a box output other than the rung's on a coil; an import or SD export that fails when the log message's row names it. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
+Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14b: LAD, 8.14c: branch shapes and LAD operands, 8.14, Appendix A, Appendix B, read for a LAD block, an F-block; any other change of an OB when a pin of a box is on logic, or a box output on a coil other than the output on the rung; an import or SD export that fails when the log message's row names it. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
 
 ## 8. LAD networks (fully specified) `[LAD-DOC §3, §4]`
 
@@ -212,7 +212,7 @@ LAD has exactly three negation instructions: `I_Contact` (negates the operand), 
 
 - `EN`/`ENO` are the rung pins of ENO boxes and are never written in text.
 - If EN is false, the box is not executed and connected outputs are untouched; ENO goes false.
-- ENO generation is a setting of some boxes: math, move, conversion, string, word logic, shift and rotate, `Calculate` (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`). Off, ENO := EN, and TIA draws ENO gray, with a line from EN through the box. The export writes `{ S7_GenerateENO := "TRUE" }` on such a box where it is on and nothing where it is off; its SimaticML writes `DisabledENO`, `"true"` where it is off `[EXPORT]`. A box without the setting (timers, counters, calls, `SEL`, `MUX`, ...) and every box of an F-block carry neither `[EXPORT]`; the change report draws their ENO black, and reads the pragma written on one of them or taken away as a change. Switch it on with `{ S7_GenerateENO := "TRUE" }` (see 8.6).
+- ENO generation is a setting of some boxes: math, move, conversion, string, word logic, shift and rotate, `Calculate` (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`). Off, ENO := EN, and TIA draws ENO gray, with a line from EN through the box. The export writes `{ S7_GenerateENO := "TRUE" }` on such a box where it is on and nothing where it is off `[EXPORT]`; its SimaticML: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML. A box without the setting (timers, counters, calls, `SEL`, `MUX`, ...) and every box of an F-block carry neither `[EXPORT]`; the change report draws their ENO black, and reads the pragma written on one of them or taken away as a change. Switch it on with `{ S7_GenerateENO := "TRUE" }` (see 8.6).
 - The overflow-guard idiom (Add into a temp, Move copies only on ENO true) is expressed as two consecutive boxes in one rung.
 - Implicit data-type conversions inserted by the compiler have **no** textual representation.
 - Auto data type: never exported; a selected data type appears as an `S7_Templates` pragma.
@@ -278,7 +278,7 @@ Sp(
 )
 ```
 
-On an absolute address (`Top := %T1`) this imports, and then the compile refuses it: *A constant not permitted here.* A symbol was not tried. The SimaticML part has the same name, its pins `s`, `tv`, `r`, `rt`, `rtbcd`, `timer`, `q`.
+On an absolute address (`Top := %T1`) this imports, and then the compile refuses it: *A constant not permitted here.* A symbol was not tried. Its SimaticML: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
 
 **IEC counters** (template `value_type := <integer type>`) `[EXPORT]`; rung-in `cu` (CTU, CTUD) or `cd` (CTD, with `ld :=`, `pv :=`, `cv =>`); rung-out `q` (`qu` for CTUD); no coils exist for IEC counters:
 
@@ -350,7 +350,7 @@ END_NETWORK
 
 **The export ends this pragma block with `;` before `}`, and TIA refuses its own export:** *Syntax Error during import of TextLad file, Message: "no viable alternative at input ...* Without that last `;` it imports, so take it out of a reference export `[EXPORT]`. The symbols of the other relations (`<>`, `<`, `>`, `<=`, `>=`, as TIA shows them) are not yet seen in an export `[INFERRED]`. The LADDER Format Description's forms (`dest0 => ...`; case lines `EQ #v => label`, no template pragma) are not what TIA exports; whether TIA imports them is untested. Write the exported form.
 
-The SimaticML export of the same networks in an OB: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
+The SD export writes `Label(name)` (no blanks) on the line after `NETWORK`. The SimaticML export of the same networks in an OB: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
 
 ### 8.13b Logic on the pins of generic boxes `[PROBE]`
 
@@ -523,7 +523,7 @@ There is no `out :=` inside the expression; the output binding is fixed.
 
 Export of an FB (V20 Update 7, 2026-10-30) `[EXPORT]`: `{ S7_Templates := "SrcType := DInt"; S7_Expression := "(IN1 + IN2) * (IN1 - IN2)" }` before `Calculate( in1 := ..., in2 := ..., in3 := ..., out => ... )`: the export writes the formal names in the expression in upper case, as the editor shows them (`OUT := (IN1 + IN2) * (IN1 - IN2)`). The SimaticML export of the same network in an OB: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
 
-ENO: the Calculate as placed in the editor has `DisabledENO="true"` in the SimaticML export (ENO not generated: TIA draws it gray, with a line from EN through the box), and its `.s7dcl` export has no `S7_GenerateENO` pragma `[EXPORT]`. So no pragma = the gray ENO. With ENO generated the export writes `S7_GenerateENO := "TRUE"`, as on any box with the setting (8.10), and its SimaticML `DisabledENO="false"` `[EXPORT]`.
+ENO: the Calculate as placed in the editor has ENO not generated (TIA draws it gray, with a line from EN through the box), and its `.s7dcl` export has no `S7_GenerateENO` pragma `[EXPORT]`. So no pragma = the gray ENO. With ENO generated the export writes `S7_GenerateENO := "TRUE"`, as on any box with the setting (8.10) `[EXPORT]`. Its SimaticML: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
 
 ---
 
