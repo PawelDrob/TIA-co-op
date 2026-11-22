@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: blocks, interfaces and data as exports write them"
 description: "How TIA Portal V20 exports write SIMATIC SD block headers, interfaces, data types, DBs, start values and retain, and how a classic SCL source maps to SD."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:14:22-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T19:16:55-05:00 }
 sources:
   - id: export
     resource: TIA Portal V20 workspace exports of project F (2026-08), project B (2026-09), project C (2026-10) and project A (2026-10), with re-imports where stated; a test program with every basic LAD and SCL, every extended, Communication, Technology, Optional packages and F-LAD instruction this CPU takes, on a CPU 1515F, V20 Update 7 (2026-11)
@@ -12,7 +12,7 @@ sources:
 
 # SIMATIC SD guide: blocks, interfaces and data as exports write them
 
-Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): the block, interface and data items of 8.14b, and 8.14d, read for a DB, a data type or a member's attributes. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
+Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8.14b: blocks, interfaces and data, 8.14d, read for a DB, a data type, a classic SCL source; an SCL block, an SCL block calling a library, communication, Technology or F instruction, a LAD block, an F-block when it declares a multi-instance of an FB imported in this session; a comment or title when a member's comment is new, for its pragma; an import or SD export that fails when the log message's row names it. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
 
 ### 8.14b Shapes seen in exports `[EXPORT]`: blocks, interfaces and data
 

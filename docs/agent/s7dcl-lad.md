@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: LAD networks"
 description: "How LAD networks are written in SIMATIC SD (.s7dcl) files for TIA Portal V20: rungs, wires, contacts, coils, boxes, calls, program control and the Calculate box, with a complete example block and the instruction set."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:57:49-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T19:16:55-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -16,7 +16,7 @@ sources:
 
 # SIMATIC SD guide: LAD networks
 
-Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8 to 8.13, 8.13b, 8.14a, the LAD items of 8.14b, the branch shapes and LAD operands of 8.14c, 8.14 and Appendices A and B, what a LAD network written or changed needs. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
+Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14b: LAD, 8.14c: branch shapes and LAD operands, 8.14, Appendix A, Appendix B, read for a LAD block, an F-block; an OB when its networks are LAD; an import or SD export that fails when the log message's row names it. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
 
 ## 8. LAD networks (fully specified) `[LAD-DOC §3, §4]`
 

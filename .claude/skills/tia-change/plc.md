@@ -6,8 +6,7 @@ The guide: s7dcl-format.md, the core every PLC change reads. Its section 9 check
 |---|---|
 | An SCL block, new or changed, with no comment or title new or changed and no call of a library, communication, Technology or F instruction (an extended one, `T_CONV` and its like, is checklist item 21) | s7dcl-data.md when it declares a multi-instance of an FB imported in this session |
 | An SCL block calling a library, communication, Technology or F instruction | s7dcl-instructions.md; s7dcl-data.md when it declares a multi-instance of an FB imported in this session |
-| A LAD block, its networks new or changed | s7dcl-lad.md, s7dcl-instructions.md; s7dcl-data.md when it declares a multi-instance of an FB imported in this session |
-| A LAD block with an extended, library, communication, Technology or F box | s7dcl-lad.md, s7dcl-instructions.md; s7dcl-data.md when it declares a multi-instance of an FB imported in this session |
+| A LAD block, its networks new or changed, with plain boxes or extended, library, communication, Technology or F ones | s7dcl-lad.md, s7dcl-instructions.md; s7dcl-data.md when it declares a multi-instance of an FB imported in this session |
 | A comment or title, new or changed (`.s7res`), in any block, DB or data type | s7dcl-resources.md; s7dcl-data.md when a member's comment is new, for its pragma |
 | A DB, new or changed: global, instance or of a data type; its start values or retain | s7dcl-data.md; s7dcl-instructions.md when an instance DB of a library, Technology or F box; s7dcl-import.md when its type is or holds a library type changed in this session |
 | A data type, new or changed; a member's attributes | s7dcl-data.md |

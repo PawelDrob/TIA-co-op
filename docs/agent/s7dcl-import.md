@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: import behavior and platform notes"
 description: How TIA Portal V20 imports SIMATIC SD (.s7dcl) files, what its log messages mean and how to find a silent failure, and the platform notes of the Siemens readmes.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T16:19:37-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T19:16:55-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -20,7 +20,7 @@ sources:
 
 # SIMATIC SD guide: import behavior and platform notes
 
-Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 10 and 11, import behavior, diagnostics and the platform notes. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
+Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 10, 11, read for an F-block, an OB, a library type's document, an import or SD export that fails, the first change after a TIA Portal update; a DB when its type is or holds a library type changed in this session. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
 
 ## 10. Import behavior and diagnostics `[LAD-DOC §5]`
 

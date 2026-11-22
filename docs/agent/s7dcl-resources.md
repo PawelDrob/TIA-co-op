@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: comments and titles in the .s7res"
 description: "How TIA Portal V20 writes the comments and titles of a SIMATIC SD block in its .s7res, and the import failures a resource file gave."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:57:49-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T19:16:55-05:00 }
 sources:
   - id: export
     resource: TIA Portal V20 workspace exports of project F (2026-08), project B (2026-09), project C (2026-10) and project A (2026-10), with re-imports where stated; a test program with every basic LAD and SCL, every extended, Communication, Technology, Optional packages and F-LAD instruction this CPU takes, on a CPU 1515F, V20 Update 7 (2026-11)
@@ -12,7 +12,7 @@ sources:
 
 # SIMATIC SD guide: comments and titles in the .s7res
 
-Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): the resource file items of 8.14b and of 8.14c, read for a comment or title new or changed. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
+Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8.14b: resource files, 8.14c: resource files, read for a comment or title; an import or SD export that fails when the log message's row names it. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
 
 ### 8.14b Shapes seen in exports `[EXPORT]`: resource files
 
