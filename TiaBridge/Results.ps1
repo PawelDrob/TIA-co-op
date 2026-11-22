@@ -23,7 +23,7 @@ $script:GivesProject = @('connect', 'background_open', 'project_open', 'tia_stat
 # value, a network's or tag's side it is not on, a title, comment or device it has not. '*': every tool. Why each:
 # - prompts: the bridge writes "" for a text TIA's dialog did not have.
 # - full_export removed, keptUncommitted, failed: their counts (removedCount, keptCount, failedCount) stay. keptRepos has
-#   no count: absent, it reads as no repo kept, and next names keptRepos when there are some.
+#   no count: only an empty one is left out, so a list that holds a repo is always in the answer.
 # - import findings[].object: null for a finding about the document as a whole, not one object of it.
 # - change_report before, after: null on the side a new or removed network or tag is not on; its state says which. A
 #   network's title emptied keeps the old one in was, a tag's comment added or removed is in its changes: both stay.
