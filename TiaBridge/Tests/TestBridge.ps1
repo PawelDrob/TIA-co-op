@@ -26,12 +26,11 @@ function Read-CallFirstProject { $null = Get-TiaProject }
 
 # A project's LanguageSettings as Openness gives it: each language a Culture. Active: culture names, in TIA's order.
 function New-FakeLanguageSettings([string[]]$Active, [string]$Editing, [string]$Reference) {
-    $l = { param($n) [pscustomobject]@{ Culture = [System.Globalization.CultureInfo]::GetCultureInfo($n) } }
-    [pscustomobject]@{ ActiveLanguages = @($Active | ForEach-Object { & $l $_ }); EditingLanguage = (& $l $Editing); ReferenceLanguage = (& $l $Reference) }
+    $language = { param($n) [pscustomobject]@{ Culture = [System.Globalization.CultureInfo]::GetCultureInfo($n) } }
+    [pscustomobject]@{ ActiveLanguages = @($Active | ForEach-Object { & $language $_ }); EditingLanguage = (& $language $Editing); ReferenceLanguage = (& $language $Reference) }
 }
 
-# LanguageSettings whose ActiveLanguages throws when enumerated, as a list of Openness does: with a NonRecoverable
-# exception (TIA ended) or another one.
+# LanguageSettings whose ActiveLanguages throws when enumerated: with a NonRecoverable exception (TIA ended) or another one.
 if (-not ('TiaBridgeTest.UnreadableLanguages' -as [type])) {
     Add-Type -TypeDefinition @'
 namespace TiaBridgeTest {
@@ -47,6 +46,20 @@ namespace TiaBridgeTest {
             yield break;
 #pragma warning restore 162
         }
+    }
+}
+'@
+}
+
+# LanguageSettings whose EditingLanguage getter throws; en-US is the one active and the reference language.
+if (-not ('TiaBridgeTest.ThrowingEditingLanguage' -as [type])) {
+    Add-Type -TypeDefinition @'
+namespace TiaBridgeTest {
+    public class FakeLanguage { public System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("en-US"); }
+    public class ThrowingEditingLanguage {
+        public object[] ActiveLanguages { get { return new object[] { new FakeLanguage() }; } }
+        public object EditingLanguage { get { throw new System.InvalidOperationException("Access to a disposed object"); } }
+        public object ReferenceLanguage { get { return new FakeLanguage(); } }
     }
 }
 '@

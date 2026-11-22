@@ -239,13 +239,14 @@ function Set-StandardsResult($Result, $Map) {
 }
 
 # The project's languages for the result of connect and background_open, by culture name: the active ones in TIA's
-# order, the editing and the reference language. A getter that throws reads as null in PowerShell 5.1, so a language
-# missing makes them not known as an error does (notKnown says which or why); TIA ended is thrown on.
+# order, the editing and the reference language. A getter that throws reads as null in PowerShell 5.1: a language
+# missing makes them not known (notKnown names it). The list of active languages throws when its read fails: notKnown
+# says why, but where the error says TIA ended, it is thrown on.
 function Get-ProjectLanguages($Project) {
     try {
         $ls = $Project.LanguageSettings
         if (-not $ls) { return [ordered]@{ notKnown = 'TIA gave the project no LanguageSettings.' } }
-        $active = @(foreach ($l in @($ls.ActiveLanguages)) { [string]$l.Culture.Name })
+        $active = @(Read-TiaList { foreach ($language in @($ls.ActiveLanguages)) { [string]$language.Culture.Name } })
         $languages = [ordered]@{ active = $active; editing = [string]$ls.EditingLanguage.Culture.Name; reference = [string]$ls.ReferenceLanguage.Culture.Name }
     }
     catch {

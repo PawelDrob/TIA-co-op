@@ -299,7 +299,7 @@ Describe 'connect stores the HMI type identifier' {
         $r.languages.Contains('notKnown') | Should Be $false
     }
 
-    It 'connects when the languages cannot be read, and says they are not known' {
+    It 'connects without LanguageSettings, and says the languages are not known' {
         $ErrorActionPreference = 'Stop'   # as in TiaBridge.ps1
         Set-FakeTia @($plc)
         $r = Invoke-ConnectTool ('{}' | ConvertFrom-Json)
@@ -307,12 +307,19 @@ Describe 'connect stores the HMI type identifier' {
         $r.languages.notKnown | Should Be 'TIA gave the project no LanguageSettings.'
         $r.languages.Contains('active') | Should Be $false
         $r.archive.ok | Should Be $true
-        # a getter that throws reads as null in PowerShell 5.1: that language is missing, not an empty one
+    }
+
+    It 'takes a language whose getter throws for one TIA gave none of, not for an empty one' {
+        $ErrorActionPreference = 'Stop'
         Set-FakeTia @($plc)
-        $ls = New-FakeLanguageSettings @('en-US') 'en-US' 'en-US'
-        $ls.EditingLanguage = $null
-        $script:fakeTiaProject | Add-Member NoteProperty LanguageSettings $ls
-        (Invoke-ConnectTool ('{}' | ConvertFrom-Json)).languages.notKnown | Should Be 'TIA gave no EditingLanguage in LanguageSettings.'
+        $script:fakeTiaProject | Add-Member NoteProperty LanguageSettings (New-Object TiaBridgeTest.ThrowingEditingLanguage)
+        $r = Invoke-ConnectTool ('{}' | ConvertFrom-Json)
+        $r.ok | Should Be $true
+        $r.languages.notKnown | Should Be 'TIA gave no EditingLanguage in LanguageSettings.'
+    }
+
+    It 'connects when the list of active languages cannot be read, and says why' {
+        $ErrorActionPreference = 'Stop'
         Set-FakeTia @($plc)
         $script:fakeTiaProject | Add-Member NoteProperty LanguageSettings (New-Object TiaBridgeTest.UnreadableLanguages $false)
         $r = Invoke-ConnectTool ('{}' | ConvertFrom-Json)

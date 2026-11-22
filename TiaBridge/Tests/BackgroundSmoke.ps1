@@ -53,8 +53,8 @@ function Call([string]$Tool, $Arguments = @{}, [string]$Step = '', [bool]$WantOk
     $body
 }
 
-# The project's languages as background_open gives them: all three known.
-function Test-Languages($Body, [string]$Step) {
+# The project's languages as background_open gives them, in the summary; in wrong unless all three are known.
+function Add-LanguagesLine($Body, [string]$Step) {
     $l = $Body.languages
     if (-not $l -or $l.notKnown -or -not @($l.active).Count -or -not $l.editing -or -not $l.reference) { [void]$script:wrong.Add("$Step gave no languages: $(ConvertTo-Json $l -Compress)") }
     else { [void]$script:summary.Add("   languages: active $(@($l.active) -join ', '); editing $($l.editing); reference $($l.reference)") }
@@ -76,7 +76,7 @@ try {
     # ---------------------------------------------------------------- export only: a copy of the project file
     $e = Call 'background_open' @{ path = $Path; repo = $Repo } 'background_open, export only'
     if (-not $e.ok) { throw 'background_open failed' }
-    Test-Languages $e 'background_open, export only'
+    Add-LanguagesLine $e 'background_open, export only'
     $null = Call 'import' @{ kind = 'block'; paths = @('nothing.s7dcl') } 'import is refused in this session' $false
     $null = Call 'full_export' @{ parts = @('types', 'project_texts') } 'full_export of two parts'
     $null = Call 'background_close' @{} 'background_close, export only'
@@ -84,7 +84,7 @@ try {
     # ---------------------------------------------------------------- write: the project file itself
     $w = Call 'background_open' @{ path = $Path; repo = $Repo; write = $true } 'background_open, write'
     if (-not $w.ok) { throw 'background_open with write failed' }
-    Test-Languages $w 'background_open, write'
+    Add-LanguagesLine $w 'background_open, write'
     $root = $w.repo
     # Under the script's Stop, Windows PowerShell 5.1 makes any line git writes to stderr a terminating error, a warning too.
     function Invoke-RepoGit {
