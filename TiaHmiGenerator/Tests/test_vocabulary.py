@@ -269,5 +269,54 @@ class JudgeTest(unittest.TestCase):
         self.assertEqual('error', self.judge('Bottom')[0])
 
 
+def hold_button(name, link_kind, target):
+    """A button whose Press event calls SetBitWhileKeyPressed, its Tag parameter a <link_kind> link to target."""
+    return item('Hmi.Screen.Button', name, (
+        '<ObjectList><Hmi.Event.Event ID="0" CompositionName="Events"><AttributeList><Name>Press</Name>'
+        '</AttributeList><ObjectList><Hmi.Event.FunctionListEventHandler ID="0" CompositionName="EventHandler">'
+        '<ObjectList><Hmi.Event.FunctionListEntry ID="0" CompositionName="FunctionListEntries"><AttributeList>'
+        '<Name>SetBitWhileKeyPressed</Name><Type>SystemFunction</Type></AttributeList><ObjectList>'
+        '<Hmi.Event.FunctionListEntryParameter ID="0" CompositionName="Parameters"><AttributeList><Name>Tag</Name>'
+        '</AttributeList><LinkList><%s TargetID="@OpenLink"><Name>%s</Name></%s></LinkList>'
+        '</Hmi.Event.FunctionListEntryParameter></ObjectList></Hmi.Event.FunctionListEntry></ObjectList>'
+        '</Hmi.Event.FunctionListEventHandler></ObjectList></Hmi.Event.Event></ObjectList>')
+        % (link_kind, target, link_kind), Left=10, Top=90, Width=80, Height=40)
+
+
+class ParameterLinkTest(unittest.TestCase):
+    """A function parameter links its tag, screen or pop-up with a Value link; TIA refused a Tag link there
+    (ticket 407)."""
+
+    def setUp(self):
+        self.repo = FixtureRepo()
+        self.addCleanup(self.repo.cleanup)
+
+    def found(self):
+        return [(f.severity, f.object) for f in by_rule(validate(self.repo.path), 'vocabulary.parameter-link')]
+
+    def generate(self, link_kind):
+        return self.repo.generated('screen', 'New', document('screen', 'New', [
+            hold_button('btnStart', link_kind, 'PumpP1_start')], Number=2))
+
+    def test_a_tag_link_in_a_function_parameter_is_an_error_that_says_to_write_a_value_link(self):
+        self.generate('Tag')
+        found = by_rule(validate(self.repo.path), 'vocabulary.parameter-link')
+        self.assertEqual([('error', 'btnStart')], self.found())
+        self.assertIn('<Value TargetID="@OpenLink"><Name>PumpP1_start</Name></Value>', found[0].message)
+
+    def test_a_value_link_passes_without_an_export(self):
+        self.generate('Value')
+        self.assertEqual([], self.found())
+
+    def test_another_link_no_export_holds_there_is_a_warning(self):
+        self.generate('TextList')
+        self.assertEqual([('warning', 'btnStart')], self.found())
+
+    def test_a_link_an_export_holds_in_a_function_parameter_passes(self):
+        self.repo.export('screen', 'Ref', document('screen', 'Ref', [hold_button('btnRef', 'TextList', 'x')], Number=1))
+        self.generate('TextList')
+        self.assertEqual([], self.found())
+
+
 if __name__ == '__main__':
     unittest.main()

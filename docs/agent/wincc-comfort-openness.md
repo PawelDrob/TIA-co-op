@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T23:54:59-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T03:26:53-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -315,20 +315,35 @@ A trigger without a tag is a self-closing `TagElementTrigger`; it imports
 <Hmi.Event.Event CompositionName="Events"> Name = Press | Release | Click | GenerateScreen
   <Hmi.Event.FunctionListEventHandler CompositionName="EventHandler">
     <Hmi.Event.FunctionListEntry CompositionName="FunctionListEntries"> Name, Type=SystemFunction
-      <Hmi.Event.FunctionListEntryParameter CompositionName="Parameters"> Name, Value or link
+      <Hmi.Event.FunctionListEntryParameter CompositionName="Parameters"> Name, a Value or a Value link
 ```
 
 | Function | Parameters (name = value) |
 |---|---|
-| `SetBitWhileKeyPressed` | `Tag` (link), `Bit` = `<Value Type="System.Int32">0</Value>` |
+| `SetBitWhileKeyPressed` | `Tag` (`Value` link to the tag), `Bit` = `<Value Type="System.Int32">0</Value>` |
 | `ActivateScreen` | `Screen name` (`Value` link to the screen), `Object number` = 0 |
 | `ActivatePreviousScreen` | - |
-| `SetTag` | `Tag` (link), `Value` |
+| `SetTag` | `Tag` (`Value` link to the tag), `Value` |
 | `ShowPopupScreen` | `Name of the screen`, `X coordinate`, `Y coordinate`, `Display mode`, `Animation`, `Animation speed` |
 | `Logoff`, `StopRuntime` (`Mode`), `GetUserName` (`Tag`), `ClearAlarmBuffer` (`Alarm class number`) | |
 
 A function parameter without a tag: leave out its `LinkList` (imported
 `[IMPORT]`).
+
+A function parameter links its tag, screen or pop-up with a `Value` link
+after its `AttributeList`:
+`<LinkList><Value TargetID="@OpenLink"><Name>PumpP1_start</Name></Value></LinkList>`
+(`func` with kind `link`, `hold_event(tag)`). The exports of a test project's
+copies hold no other link element in a parameter of `ActivateScreen`,
+`SetBitWhileKeyPressed` or `ShowPopupScreen` `[EXPORT]` (2026-11-22). A
+`<Tag>` link in the `Tag` parameter of `SetBitWhileKeyPressed` was refused
+and the import rolled back: "The 'Tag' attribute at the
+'Siemens.Engineering.Hmi.Event.FunctionListEntryParameter' object at line
+number 587 at line position 32 with Simatic ML ID 2F is not supported."; as a
+`Value` link it imported and the HMI compiled with 0 errors `[IMPORT]` (a
+test project, 2026-11-21). The HMI validator refuses a `Tag` link in a
+function parameter, and warns on any other link element no export holds
+there (`vocabulary.parameter-link`).
 
 A call of a VB script is an entry of `Type` `VBScript` whose `Name` is the
 script, without parameters as tried `[PROBE]`. The HMI validator knows the
@@ -523,7 +538,7 @@ directly, as 5.2 does twice. The colour keys are those of `set_colours`.
 | `trigger(comp, tag)` | `RangeTag` or `VisibilityTag`; `None` leaves it open | A `TagElementTrigger` |
 | `event(name, funcs)` | `Press`, `Release`, `Click`, or a screen's `GenerateScreen`; functions from `func` | An event |
 | `func(name, params=())` | A system function (section 4.4); `[(name, kind, value)]`, `kind` `link` (a tag, screen or pop-up by name, `None` open), `self` (the own screen or pop-up), `int` or `double` | One function list entry |
-| `hold_event()` | | `Press`: `SetBitWhileKeyPressed`, `Bit` 0, its tag open |
+| `hold_event(tag=None)` | An HMI tag's name, or `None` to leave it open | `Press`: `SetBitWhileKeyPressed`, `Bit` 0, its `Tag` a `Value` link to the tag |
 
 ### 5.2 A worked screen
 
@@ -572,8 +587,10 @@ hx.child_list(fault).append(hx.appear_anim_tag('PumpP1_fault', [(0, 0, 'ok', 'ok
 hx.sort_objects(fault)
 
 start = hx.item(obj('btnStart', 'Button', 'S-Button', 40, 330, 120, 40, text=['Start']))
-bit = next(p for p in start.iter('Hmi.Event.FunctionListEntryParameter') if p.findtext('AttributeList/Name') == 'Tag')
-hx.tag_link(bit, 'PumpP1_start')                    # the Press event item() gives a button: the bit while pressed
+events = hx.child_list(start)
+events.remove(events.find('Hmi.Event.Event'))       # the Press event item() gives a button, its tag open
+events.append(hx.hold_event('PumpP1_start'))        # the same, the bit set while pressed
+hx.sort_objects(start)
 
 back = hx.item(obj('btnBack', 'Button', 'S-Button', 180, 330, 120, 40, text=['Back']))
 events = hx.child_list(back)

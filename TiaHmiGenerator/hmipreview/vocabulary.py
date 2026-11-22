@@ -5,6 +5,9 @@ what TIA wrote). And the attributes required per type: the names every object of
 exports (ExportSetting 'WithDefaults, WithReadOnly'); for a type no full export holds, those of the catalogue's
 fixture. Minimal exports add to the names and values, never to required.
 
+The link elements of a function parameter (Hmi.Event.FunctionListEntryParameter): those the catalogue's full exports
+hold there (Value) and those the reference exports hold there (parameter_link).
+
 An object element is any element with an ID attribute; its attributes are the children of its own AttributeList.
 """
 import re
@@ -41,6 +44,7 @@ class Vocabulary:
     attributes: dict = field(default_factory=dict)    # type -> set of attribute names
     values: dict = field(default_factory=dict)        # (type, attribute) -> set of values
     required: dict = field(default_factory=dict)      # type -> attribute names every full-export object carries
+    parameter_links: set = field(default_factory=set)  # link elements the exports hold in a function parameter
 
     def add_full(self, elem):
         names = {a.tag for a in attribute_elements(elem)}
@@ -54,6 +58,8 @@ class Vocabulary:
             names.add(a.tag)
             if not free(a.tag) and len(a) == 0:
                 self.values.setdefault((t, a.tag), set()).add(a.text or '')
+        if t == PARAMETER:
+            self.parameter_links.update(l.tag for l in parameter_links(elem))
 
 
 # Document types the screen object catalogue leaves out (it holds what a screen holds), with their attributes as an export
@@ -64,6 +70,37 @@ TEXT_LIST_TYPES = {
     'Hmi.TextGraphicList.TextListEntry': frozenset({'From', 'To'}),
 }
 TEXT_LIST_VALUES = {('Hmi.TextGraphicList.TextList', 'ListRange'): frozenset({'Binary'})}   # what exports show
+
+
+PARAMETER = 'Hmi.Event.FunctionListEntryParameter'
+# Link elements TIA refused in a function parameter, with its message (ticket 407: SetBitWhileKeyPressed, its Tag
+# parameter as a <Tag> link; the import was rolled back, and with a Value link it imported).
+REFUSED_PARAMETER_LINKS = {
+    'Tag': ("The 'Tag' attribute at the 'Siemens.Engineering.Hmi.Event.FunctionListEntryParameter' object ... is "
+            "not supported"),
+}
+
+
+def parameter_links(elem):
+    """The link elements in the LinkList of a function parameter."""
+    ll = elem.find('LinkList')
+    return list(ll) if ll is not None else []
+
+
+def parameter_link(link, v):
+    """None when a link element of a function parameter is one an export holds there, else (severity, message): an
+    error for one TIA refused there, a warning for any other."""
+    known = set(catalogue.part_links(PARAMETER)) | v.parameter_links
+    if link.tag in known:
+        return None
+    value = '<Value TargetID="@OpenLink"><Name>%s</Name></Value>' % (link.findtext('Name') or '...')
+    refused = REFUSED_PARAMETER_LINKS.get(link.tag)
+    if refused:
+        return ERROR, ('A function parameter holds a %s link, which TIA refuses at import ("%s"). Write it as a Value '
+                       "link: %s (hmixml: func with kind 'link', hold_event(tag))." % (link.tag, refused, value))
+    return WARNING, ('A function parameter holds a %s link, which no export holds there (they hold: %s); '
+                     'TIA may refuse it at import. A tag, screen or pop-up of a function parameter is a Value link: %s.'
+                     % (link.tag, _list(known), value))
 
 
 def known_type(element, v):

@@ -21,7 +21,8 @@ Object dict (one per screen item):
     vis=True                VisibilityAnimation 1..1 visible
     event='hold'            Press: SetBitWhileKeyPressed (tag open)
     grp='Banner'            group key overriding the panel group
-  Tags are left open (no LinkList); a later pass can add them.
+  Tags are left open (no LinkList); a later pass can add them (a button's: hold_event(tag) in place of its Press
+  event; a function parameter links its tag with a Value link, never a Tag link).
 
 Languages: every text and font of a generated document has one item per language of the project
 (generated_cultures(): the cultures of the project's exports, else of the exports loaded; ValueError when neither holds
@@ -333,22 +334,9 @@ def vis_anim():
     ET.SubElement(ET.SubElement(a, 'ObjectList'), 'Hmi.Dynamic.TagElementTrigger', {'ID': '0', 'CompositionName': 'VisibilityTag'})
     return a
 
-def hold_event():
-    ev = ET.Element('Hmi.Event.Event', {'ID': '0', 'CompositionName': 'Events'})
-    ET.SubElement(ET.SubElement(ev, 'AttributeList'), 'Name').text = 'Press'
-    h = ET.SubElement(ET.SubElement(ev, 'ObjectList'), 'Hmi.Event.FunctionListEventHandler', {'ID': '0', 'CompositionName': 'EventHandler'})
-    fe = ET.SubElement(ET.SubElement(h, 'ObjectList'), 'Hmi.Event.FunctionListEntry', {'ID': '0', 'CompositionName': 'FunctionListEntries'})
-    al = ET.SubElement(fe, 'AttributeList')
-    ET.SubElement(al, 'Name').text = 'SetBitWhileKeyPressed'
-    ET.SubElement(al, 'Type').text = 'SystemFunction'
-    ol = ET.SubElement(fe, 'ObjectList')
-    p1 = ET.SubElement(ol, 'Hmi.Event.FunctionListEntryParameter', {'ID': '0', 'CompositionName': 'Parameters'})
-    ET.SubElement(ET.SubElement(p1, 'AttributeList'), 'Name').text = 'Tag'
-    p2 = ET.SubElement(ol, 'Hmi.Event.FunctionListEntryParameter', {'ID': '0', 'CompositionName': 'Parameters'})
-    al2 = ET.SubElement(p2, 'AttributeList')
-    ET.SubElement(al2, 'Name').text = 'Bit'
-    ET.SubElement(al2, 'Value', {'Type': 'System.Int32'}).text = '0'
-    return ev
+def hold_event(tag=None):
+    """Press: SetBitWhileKeyPressed, Bit 0; its Tag parameter a Value link to tag, left open with None."""
+    return event('Press', [func('SetBitWhileKeyPressed', [('Tag', 'link', tag), ('Bit', 'int', 0)])])
 
 def link(e, kind, name):
     ll = e.find('LinkList')

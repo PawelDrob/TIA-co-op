@@ -99,6 +99,11 @@ class WorkedScreenTest(unittest.TestCase):
         names = [e.findtext('AttributeList/ObjectName') for e in screen.iter() if e.get('CompositionName') == 'ScreenItems']
         self.assertEqual(['rectPanel', 'txtTitle', 'ioSpeed', 'symState', 'rectFault', 'btnStart', 'btnBack'], names)
         self.assertEqual('Frame', screen.findtext('LinkList/Template/Name'))
+        start = next(e for e in screen.iter('Hmi.Screen.Button') if e.findtext('AttributeList/ObjectName') == 'btnStart')
+        tag = next(p for p in start.iter('Hmi.Event.FunctionListEntryParameter')
+                   if p.findtext('AttributeList/Name') == 'Tag')
+        self.assertEqual(['Value'], [l.tag for l in tag.find('LinkList')])
+        self.assertEqual('PumpP1_start', tag.findtext('LinkList/Value/Name'))
         entries = written('hmi/generated/textlists/tlPumpState.xml').iter('Hmi.TextGraphicList.TextListEntry')
         self.assertEqual(['0', '1', '2'], [e.findtext('AttributeList/From') for e in entries])
         tags = [t.findtext('AttributeList/Name') for t in written('hmi/generated/tags/PumpP1.xml').iter('Hmi.Tag.Tag')]

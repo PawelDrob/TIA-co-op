@@ -76,6 +76,13 @@ def attribute_names(element):
     return set(p['attributes']) if p else None
 
 
+def part_links(element):
+    """The link elements (LinkList children) full exports of project repos hold in an element below the screen
+    objects (catalogue 'parts', from seen.json): ('Value',) for a function parameter; () when it knows none."""
+    p = _parts().get(element)
+    return tuple(p.get('links', ())) if p else ()
+
+
 @lru_cache(maxsize=1)
 def dependent():
     """The dependent-property table (catalogue/dependent.json; its 'about' has the meaning): pairs, relations and

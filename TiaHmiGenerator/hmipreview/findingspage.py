@@ -71,6 +71,7 @@ TITLES = {
     'text.fit': 'Text does not fit',
     'vocabulary.attribute': 'Attribute not known',
     'vocabulary.element-type': 'Object type not known',
+    'vocabulary.parameter-link': 'Link in a function parameter',
     'vocabulary.value': 'Value not known',
 }
 LINK_TEXT = {'textlist': 'text list', 'popup': 'pop-up screen'}     # links.KINDS; the others as they are

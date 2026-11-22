@@ -997,7 +997,7 @@ def render_doc(cat, generated):
     L.append('## 3. The data file')
     L.append('')
     L.append('`TiaHmiGenerator\\catalogue\\catalogue.json`, schema %d. Read it with `hmipreview.catalogue` '
-             '(`load()`, `by_element()`, `attribute()`, `attribute_names()`, `enum_members()`, `fixture_objects()`). '
+             '(`load()`, `by_element()`, `attribute()`, `attribute_names()`, `enum_members()`, `part_links()`, `fixture_objects()`). '
              'Top level: `schema`, `tia`, `style`, `sources`, `types` (the objects above, in this order), `parts` '
              '(element types below the objects: fonts, texts, animations, events, properties, with their attributes '
              'and confirmed values; those without attributes empty), `enums` (TIA\'s enum types the attributes '

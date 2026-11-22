@@ -8,6 +8,8 @@ those under hmi/references (the catalogue is the limit, the project's style guid
   vocabulary.value          voc.judge: error for a value outside the catalogue and the exports (or one the round
                             trip lost); warning for a documented value or enum member whose spelling is not
                             confirmed (voc.free exempt: FREE_VALUES, colours)
+  vocabulary.parameter-link voc.parameter_link: a link element in a function parameter that no export holds there;
+                            error for one TIA refused there (Tag), warning for any other
 """
 from .. import vocabulary as voc
 from ..findings import Finding, error
@@ -36,3 +38,8 @@ def check(repo, ctx):
                     r = voc.judge(e.tag, a.tag, a.text or '', v)
                     if r:
                         yield Finding(r[0], d.path, obj, 'vocabulary.value', r[1])
+            if e.tag == voc.PARAMETER:
+                for link in voc.parameter_links(e):
+                    r = voc.parameter_link(link, v)
+                    if r:
+                        yield Finding(r[0], d.path, obj, 'vocabulary.parameter-link', r[1])

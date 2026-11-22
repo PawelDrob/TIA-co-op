@@ -923,7 +923,7 @@ class RunModeTest(BrowserCase):
 
     def test_other_functions_go_to_the_event_log(self):
         tag = '<Hmi.Event.FunctionListEntryParameter ID="0" CompositionName="Parameters"><AttributeList><Name>Tag' \
-              '</Name></AttributeList><LinkList>%s</LinkList></Hmi.Event.FunctionListEntryParameter>' % link('Tag', 'hmiMode')
+              '</Name></AttributeList><LinkList>%s</LinkList></Hmi.Event.FunctionListEntryParameter>' % link('Value', 'hmiMode')
         set_tag = func('SetTag', ('Value', 'int', 3)).replace('<ObjectList>', '<ObjectList>' + tag, 1)
         self.repo.export('screen', 'Main', document('screen', 'Main', [
             button('btnSet', 'Set', event('Press', func('SetBitWhileKeyPressed', ('Bit', 'int', 0))) +

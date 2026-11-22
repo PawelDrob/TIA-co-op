@@ -381,5 +381,23 @@ class GeneratorRunTest(unittest.TestCase):
         hmixml.finish()
 
 
+class HoldEventTest(unittest.TestCase):
+    """hold_event: a Press event calling SetBitWhileKeyPressed; its tag a Value link, as TIA imports it (ticket 407)."""
+
+    @staticmethod
+    def parameter(ev, name):
+        return next(p for p in ev.iter('Hmi.Event.FunctionListEntryParameter') if p.findtext('AttributeList/Name') == name)
+
+    def test_the_tag_is_a_value_link(self):
+        tag = self.parameter(hmixml.hold_event('PumpP1_start'), 'Tag')
+        self.assertEqual([('Value', '@OpenLink', 'PumpP1_start')],
+                         [(l.tag, l.get('TargetID'), l.findtext('Name')) for l in tag.find('LinkList')])
+
+    def test_without_a_tag_the_parameter_is_left_open(self):
+        ev = hmixml.hold_event()
+        self.assertIsNone(self.parameter(ev, 'Tag').find('LinkList'))
+        self.assertEqual('0', self.parameter(ev, 'Bit').findtext('AttributeList/Value'))
+
+
 if __name__ == '__main__':
     unittest.main()
