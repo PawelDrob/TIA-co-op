@@ -412,18 +412,18 @@ function Register-SessionTools {
     Register-McpTool -Name 'connect' -Handler { param($a) Invoke-ConnectTool $a } -Description (
         'Bind to a project open in TIA (project_open opens one when the user named it). Without project: the only open project, else the list. Creates or reuses the ' +
         'project repo, archives the project once per session (writes are refused until that archive exists), names each device with its online state (online: changes are refused until the user goes offline in TIA), and returns docs\project.md (the project notes): read it first, and standards when the repo''s standards\ holds files. ' +
-        'A switch to a project in a second TIA process is warned of (secondTia). Refused while the TIA dashboard makes a change report on that TIA or repo: the refusal says since when; tell the user. ' +
-        'A session record that cannot be read, or that lacks the result of a write (the bridge stopped during it or could not store it), refuses writes and save (recordUnreadable says why and what ends it): connect reads it again, and ends it when the project has no unsaved changes. ' +
-        'Calling it with another project switches the active project. A project is its .ap20 path: a name two open projects share is refused with both paths, and ' +
-        'a project at a new path has its own session and archive. A repo belongs to one path: when the repo records another path, connect is refused and names both, changing nothing. ' +
-        'Then ask the user: moved (moved=true) or a different project (repo="<other name>", its own repo); never decide this yourself.') -Schema @{
+        'A switch to a project in a second TIA process is warned of (secondTia). Refused while the TIA dashboard makes a change report on that TIA or repo: tell the user. ' +
+        'recordUnreadable: writes and save are refused; it says why and what ends it. ' +
+        'Calling it with another project switches the active project. A project is its .ap20 path: ' +
+        'a project at a new path has its own session and archive. When the repo records another path, ' +
+        'ask the user: moved (moved=true) or a different project (repo="<other name>", its own repo); never decide this yourself.') -Schema @{
         type = 'object'; properties = @{ project = @{ type = 'string'; description = 'project name or .ap20 path (the path when two open projects share the name)' }
                                          moved = @{ type = 'boolean'; description = 'the user says the project was moved: keep the repo, record the new path' }
                                          repo = @{ type = 'string'; description = 'the user says it is a different project: its repo folder, a plain folder name under the projects root, not a path; default the project name' } } }
 
     Register-McpTool -Name 'project_open' -Handler { param($a) Invoke-ProjectOpenTool $a } -Description (
         'Open a V20 project file (.ap20) in a TIA with a window, when the user named a project to work on; then connect. It starts the TIA program, which stays open whatever happens to the bridge, and waits up to 90 s. ' +
-        'Refused beside a project open in another TIA unless the user says to run both (second=true). A project that is open already only says so. Called again for a project a TIA was started on and waits behind a box, also after a bridge restart, it starts nothing. pending in the result: TIA waits behind a box the user has to answer (boxes names them): ask the user, then connect. A box in a TIA that stands with no project (a person reopening a protected project there) is not seen: a second TIA then stands behind a box of its own, and the result names that TIA in idleTia.') -Schema @{
+        'Refused beside a project open in another TIA unless the user says to run both (second=true). A project that is open already only says so. pending in the result: TIA waits behind a box the user has to answer (boxes names them): ask the user, then connect. A box in a TIA that stands with no project (a person reopening a protected project there) is not seen: a second TIA then stands behind a box of its own, and the result names that TIA in idleTia.') -Schema @{
         type = 'object'; required = @('path')
         properties = @{ path = @{ type = 'string'; description = 'the .ap20 file' }
                         second = @{ type = 'boolean'; description = 'the user says to run a second TIA process beside a project already open' } } }
@@ -438,9 +438,8 @@ function Register-SessionTools {
         properties = @{ reason = @{ type = 'string' }; skip = @{ type = 'boolean' } } }
 
     Register-McpTool -Name 'save' -Handler { param($a) Invoke-SaveTool $a } -Description (
-        'Save the TIA project. Refused while the session record cannot be read or lacks the result of a write (connect: what ends that; a background session does not read it), and while a write failed and was not redone successfully (a failed import of a name the project does not have holds nothing, nor does an import the bridge refused before TIA was asked). With an archive of this session a save goes through over writes not compiled since and known ' +
-        'compile errors: savedWith in the result names them per device (not compiled, deletes too; errors counts all compile errors on record, messages shows at most ten, the rest are in the compile logs; notConsistent what TIA held so on the whole PLC after the last compile, whatever it reported, the user''s own blocks too, at most ten names, what this session wrote or named first, the rest in list), and you quote it to the user; the save clears that list. Without an archive of this session ' +
-        '(skipped) it is also refused while, since the last save, a write was not followed by a compile of its scope on its device, or that compile had errors, or what this session wrote or named is left not consistent; another block on that PLC is only named in savedWith. ' +
+        'Save the TIA project. With an archive of this session a save goes through over writes not compiled since and known ' +
+        'compile errors: savedWith in the result names them per device, and you quote it to the user; the save clears that list. ' +
         "NOTE: a save also stores the user's own unsaved edits in the TIA UI. Save after each finished change, compiled where the project lets you, then commit the project repo.") -Schema @{
         type = 'object'; required = @('reason'); properties = @{ reason = @{ type = 'string' } } }
 }

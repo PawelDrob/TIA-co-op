@@ -595,18 +595,13 @@ function Register-BackgroundTools {
     Register-McpTool -Name 'background_open' -Handler { param($a) Invoke-BackgroundOpenTool $a } -Description (
         'Only when the user asks for it (it starts a TIA process and needs several GB of memory): open a TIA project (.ap20, copied first) or a project archive ' +
         '(.zap20, retrieved) in a TIA Portal without user interface that the bridge starts, from a copy under <projects root>\_bridge\background; an older ' +
-        'version (.ap19, .zap19) is upgraded in the copy only. Refused for a project open in a TIA (locked there: use connect, or the user closes it there). Export only: tia_status, list, ' +
-        'export, full_export, probe, change_report and read-only library_open work, every other tool is refused until background_close. Exports go to the project repo ' +
-        '(named after the project), or to repo. A repo that records another path (its project''s, or the source of an earlier export-only session) is refused, naming both, also when repo names it: ' +
-        'an export committed there would read as a change to that project. Say repo: "<name>" for a repo of its own; a repo that does not exist yet or records this source goes on. plain=true (for tools, not for agent work): repo (required, never the project name) is a plain export folder, no git, no commits, no repo skeleton ' +
-        '(tiabridge.json and logs\ beside the exports); change_report is refused. ' +
-        'write=true, only when the user asks for changes in a background session: opens the .ap20 itself (V20, no copy, no upgrade), or retrieves a V20 .zap20 once to <projects root>\_bridge\retrieved\<name>, which stays (the archive is never touched; folder and repo take the archive''s file name, or repo; a folder that exists is refused, naming its .ap20), and makes the session ' +
+        'version (.ap19, .zap19) is upgraded in the copy only. Export only: tia_status, list, ' +
+        'export, full_export, probe, change_report and read-only library_open work, every other tool is refused until background_close; compile (scope plc or blocks) and safety_login work on the copy, never saved. ' +
+        'Exports go to the project repo (named after the project), or to repo. plain=true is for tools, not for agent work. ' +
+        'write=true, only when the user asks for changes in a background session: opens the .ap20 itself (V20, no copy, no upgrade), or retrieves a V20 .zap20 once to <projects root>\_bridge\retrieved\<name>, which stays, and makes the session ' +
         'archive as connect does (a project TIA marks modified on opening, with no write made, is saved first: savedBeforeArchive in the result), then import, delete, delete_folder, compile, save, archive and the library tools work as under connect, with the archive gate and the save ' +
-        'rules; connect and a writable library_open stay refused. As under connect, a repo that records another path is refused, naming both: ask the user, then moved=true or repo. TIA prompts no one can see are answered Cancel/No and listed in the result (prompts), so ' +
-        'such a call fails instead of waiting. Every step and tool call returns its time and memory (step). A failure names the step and quotes the Siemens error, with a hint ' +
-        '(missing package or HSP, licence, protected project, Openness group, locked project). Export only also compiles the copy (compile scope plc or blocks, ' +
-        'safety_login), never saved. umc_user, umc_password (umc_global): the login of a protected project, for a tool in a plain session only (refused elsewhere); ' +
-        'never set them yourself.') -Schema @{
+        'rules. When its repo records another path: ask the user, then moved=true or repo. TIA prompts no one can see are answered Cancel/No and listed in the result (prompts), so ' +
+        'such a call fails instead of waiting. umc_user, umc_password, umc_global: for a tool in a plain session only; never set them yourself.') -Schema @{
         type = 'object'; required = @('path')
         properties = @{ path = @{ type = 'string'; description = '.ap20 or .zap20 file (older versions: .ap19, .zap19, ...); write=true: a V20 .ap20 or .zap20' }
                         write = @{ type = 'boolean'; description = 'open the project file itself, or an archive as a project of its own, with writes allowed; only when the user asks for it' }
@@ -619,7 +614,7 @@ function Register-BackgroundTools {
 
     Register-McpTool -Name 'background_close' -Handler { param($a) Invoke-BackgroundCloseTool $a } -Description (
         'Close the background session: the project closes without saving, its TIA process ends, the copy is removed (keep_copy=true keeps it). Write mode: ' +
-        'refused while the project has unsaved changes (save first, or discard=true to drop them); the project file is never removed. Returns the ' +
+        'the project file is never removed. Returns the ' +
         'time and memory of every step, also written to logs\<time>_background_steps.json of the repo. Afterwards the bridge is not connected.') -Schema @{
         type = 'object'; properties = @{ keep_copy = @{ type = 'boolean' }
                                          discard = @{ type = 'boolean'; description = 'write mode: close without saving although the project has unsaved changes' } } }

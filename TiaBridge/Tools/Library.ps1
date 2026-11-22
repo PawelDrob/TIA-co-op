@@ -510,7 +510,7 @@ function Import-LibraryTypeDocuments($Library, $File) {
 
 Register-ObjectKind 'library_type' @{
     scope = 'library'; dir = 'library\types'; defaultOverride = $true
-    description = 'project library types: export writes the documents of the version in work (else the default one); import writes edited documents back into the version in work'
+    description = 'project library types'
     items = { param($lib) Get-GroupTree $lib.TypeFolder 'Types' 'Folders' }
     info = { param($e) Get-LibraryTypeInfo $e }
     export = { param($e, $dir, $opt) Export-LibraryTypeDocuments $e $dir -Released:([bool]$opt.released) -As ([string]$opt.format) }
@@ -1700,7 +1700,6 @@ function Register-LibraryTools {
     $kinds = @($script:ObjectKinds.Keys)
     $library = @{ type = 'string'; description = 'name of a global library opened with library_open; default the project library' }
     $device = @{ type = 'string'; description = 'PLC or HMI device name; needed only when the project has several' }
-    $changesF = 'It can change F-blocks: refused without safety: true when TIA would let it change the safety program of a PLC (logged on, or no password).'
 
     Register-McpTool -Name 'library_open' -Handler { param($a) Invoke-LibraryOpenTool $a } -Description (
         'Open a global library (.al20) in TIA, read-only unless writable=true; a library already open is reused. list/export of library kinds and the ' +
@@ -1709,10 +1708,8 @@ function Register-LibraryTools {
 
     Register-McpTool -Name 'library_create_type' -Handler { param($a) Invoke-LibraryCreateTool $a } -Description (
         'Create a new PLC library type in the project library from one document in the repo (.s7dcl with its .s7res, or .xml; a PLC data type, FB or FC; the name it declares is the name of the type). ' +
-        'TIA makes the version in work (0.0.1, or the VersionNumber of a .libinfo beside the document; no meta file is needed, and one copied from an existing type is refused for its Guid) and its test instance in the PLC, in target_folder. ' +
-        'Never replaces anything: a library type of that name is refused, and TIA refuses a name the PLC already has. Refused: an OB, DB, tag table, watch table, force table, technology object or HMI document, a document declaring a second object or one whose object cannot be read, any write before the session archive, and the document of an F-block or F-compliant PLC data type without safety: true. ' +
-        'Put what it contains in first; TIA takes a missing data type with a warning, and the compile shows it. Compile afterwards, what it contains first. It has no released version until library_release_type, so a reviewed change cannot start before that; ' +
-        'a version in work lists no dependencies, so types on each other get theirs at their release, contained types first. ' +
+        'TIA makes the version in work (0.0.1, or the VersionNumber of a .libinfo beside the document) and its test instance in the PLC, in target_folder. Never replaces anything. ' +
+        'Put what it contains in first; TIA takes a missing data type with a warning, and the compile shows it. Compile afterwards, what it contains first. ' +
         'Its test instance stays only while something uses it: once released, the next update of any type removes it, as TIA does. library_discard_type removes it while it is in work.') -Schema @{
         type = 'object'; required = @('path')
         properties = @{ path = @{ type = 'string'; description = 'the .s7dcl, .s7res or .xml of the new type, relative to the project repo or absolute; library\types\<folder>\<name>\ keeps it where export writes it' }
@@ -1722,8 +1719,7 @@ function Register-LibraryTools {
 
     Register-McpTool -Name 'library_discard_type' -Handler { param($a) Invoke-LibraryDiscardTool $a } -Description (
         'Discard the version in work of a PLC library type: what was changed in it is lost. A released version stays; a type with no other version goes, with its test instance. ' +
-        'Refused without safety: true when its instance is an F-block (an F-compliant PLC data type is not recognised here), and without knowhow: true when it is know-how protected. ' +
-        'TIA does not refuse it when a type in work uses it: that type stops compiling. A type of a library change: the change reads what is left (status, stale, typesLeftBehind), as it is not done while its types stand on old versions. ' +
+        'An F-compliant PLC data type is not recognised as an F-block here. TIA does not refuse it when a type in work uses it: that type stops compiling. ' +
         'Only when the user asked for it, or for a test type the agent created. Compile the plc scope afterwards.') -Schema @{
         type = 'object'; required = @('name')
         properties = @{ name = @{ type = 'string' }; safety = $script:SafetyArgument
@@ -1733,8 +1729,8 @@ function Register-LibraryTools {
         'Put a project library type in work (Edit of its default version through one of its project instances: instance, else the first) and list ' +
         'its project instances. Change the type through export/import of kind library_type (its documents), never by importing over an instance. ' +
         'A type already in work is reused. A PLC type with no instance gets one, in target_folder, and instanceMade names it: an update removes what nothing uses, so this is the way to edit such a type. ' +
-        'What it contains comes along as copies name_1 on old versions when the project holds newer ones (copiesMade): compile, then library_update_usages moves the type to the new versions and TIA removes the copies; export only after that, as an export before it reads the names of the copies. An import brings the copies back from any document, and names them (copiesBack); the next update removes them. foldersMade names the folders that made in the PLC, for delete_folder once they stand empty. ' +
-        'An instance that would be an F-block is refused without safety: true. While a yes of library_left_behind is in work, the changed type of its change and a type those in work contain are refused. A type on the list of types left behind with no dependents starts a change too. Counts as a write of the scope of the type.') -Schema @{
+        'What it contains comes along as copies name_1 on old versions when the project holds newer ones (copiesMade): compile, then library_update_usages moves the type to the new versions and TIA removes the copies; export only after that, as an export before it reads the names of the copies. foldersMade names the folders that made in the PLC, for delete_folder once they stand empty. ' +
+        'A type on the list of types left behind with no dependents starts a change too. Counts as a write of the scope of the type.') -Schema @{
         type = 'object'; required = @('name')
         properties = @{ name = @{ type = 'string' }; instance = @{ type = 'string'; description = 'the project instance to edit through; default the first one' }
                         target_folder = @{ type = 'string'; description = 'PLC folder with / for an instance made because there is none; default the folder of the type in the library' }
@@ -1742,7 +1738,7 @@ function Register-LibraryTools {
 
     Register-McpTool -Name 'library_release_type' -Handler { param($a) Invoke-LibraryReleaseTool $a } -Description (
         'Release the version in work of a project library type, with the number TIA proposed (or version, above every released one) and a comment. ' +
-        'Contained types in work are released with it: alsoReleased names them. alsoInWork names the types in work now that were not before it. If TIA would make a library type of a plain block or data type it uses, nothing is released and wouldMakeTypes names it. A version that sits on old versions of what it contains is refused too, as it would burn a version: onOldVersions names them. Lists the containing types that still use the old version. Its instance reads not consistent until the next compile.') -Schema @{
+        'Contained types in work are released with it: alsoReleased names them. alsoInWork names the types in work now that were not before it. Lists the containing types that still use the old version. Its instance reads not consistent until the next compile.') -Schema @{
         type = 'object'; required = @('name', 'comment')
         properties = @{ name = @{ type = 'string' }; comment = @{ type = 'string' }; version = @{ type = 'string'; description = 'e.g. 0.0.4' } } }
 
@@ -1750,7 +1746,7 @@ function Register-LibraryTools {
         'Update the project (all PLC and HMI software) to the newest versions of the given types, or of all types, from the project library or an open ' +
         'global library. Returns what is still out of date and every type still in work. With an open library change (started by library_edit_type) ' +
         'it compiles and puts in work the library blocks of the change that TIA leaves out (put_left_out_in_work, default true), and updates ' +
-        "the change report. Any update removes every instance of a released type that nothing uses, as TIA's own window does, also of types not selected (seen through Openness, not tried in the window): instancesRemoved names them, the types stay in the library. A know-how protected instance goes the same way, with no knowhow flag asked, and only a project archive holds its code. To keep one, have something use it. DeleteUnusedVersions is about versions in the library, not this. HMI objects are not compared. typesLeftBehind names the types with no instance still on old versions; at the end of a change the user is asked about them (library_left_behind). Compile afterwards. $changesF") -Schema @{
+        "the change report. Any update removes every instance of a released type that nothing uses, as TIA's own window does, also of types not selected: instancesRemoved names them, the types stay in the library. A know-how protected instance goes the same way, with no knowhow flag asked, and only a project archive holds its code. To keep one, have something use it. HMI objects are not compared. typesLeftBehind names the types with no instance still on old versions; at the end of a change the user is asked about them (library_left_behind). Compile afterwards.") -Schema @{
         type = 'object'; properties = @{ types = @{ type = 'array'; items = @{ type = 'string' } }; library = $library
                                          put_left_out_in_work = @{ type = 'boolean' }; safety = $script:SafetyArgument } }
 
@@ -1758,9 +1754,9 @@ function Register-LibraryTools {
         'With an open library change: release only the types the user approved in its report (library_approve), contained types first, and ' +
         'only once the change types they contain are released; others stay in work. Without one: ' +
         'release every project library type in work (or the given ones) in dependency order, contained types first, after library_update_usages ' +
-        'put the containing types in work. Compiles first and releases nothing while the project does not compile (TIA itself would); names library ' +
-        'blocks that use a changed type and must be put in work. Releases as one transaction, then updates the project, which removes every instance of a released type that nothing uses, as the window of TIA does, also of types not selected (seen through Openness, not tried in the window; instancesRemoved names them, know-how protected ones too, with no knowhow flag asked, the types stay in the library; HMI objects are not compared), and compiles again, which clears the compile errors on record. typesLeftBehind names the types with no instance still on old versions: at the end of a change the user is asked about them (library_left_behind), and it is not plainly done while they stand. ' +
-        "A type never released takes a contained type in work with it, and TIA makes a library type of a plain block or data type it uses: then nothing is released, and wouldAlsoRelease or wouldMakeTypes names them. A version that sits on old versions of what it contains is refused too, as it would burn a version: onOldVersions names them. A release TIA refuses for a contained type in work outside this release names that type (heldBy). Run it again while the result says types are in work. $changesF") -Schema @{
+        'put the containing types in work. Compiles first and releases nothing while the project does not compile; names library ' +
+        'blocks that use a changed type and must be put in work. Releases as one transaction, then updates the project, which removes every instance of a released type that nothing uses, also of types not selected (instancesRemoved names them, know-how protected ones too, with no knowhow flag asked; HMI objects are not compared), and compiles again, which clears the compile errors on record. typesLeftBehind names the types with no instance still on old versions: at the end of a change the user is asked about them (library_left_behind), and it is not plainly done while they stand. ' +
+        'Run it again while the result says types are in work.') -Schema @{
         type = 'object'; required = @('comment')
         properties = @{ comment = @{ type = 'string'; description = 'what changed, written into every released version' }
                         types = @{ type = 'array'; items = @{ type = 'string' }; description = 'only these types in work; default all' }
@@ -1768,9 +1764,7 @@ function Register-LibraryTools {
 
     Register-McpTool -Name 'master_copy_to_project' -Handler { param($a) Invoke-MasterCopyToProjectTool $a } -Description (
         'Create project objects from a master copy (blocks, DBs, UDTs, tag tables, screens, pop-ups, templates, or a PLC folder of blocks, data types or tag tables) in folder, ' +
-        'created if missing. mode: ThrowIfExists (default), Rename or Replace. Compile afterwards. Blocks, DBs and PLC data types can be F-blocks: refused without safety: true ' +
-        'when TIA would let them change the safety program of that PLC (logged on, or no password). Replace is refused without knowhow: true over a know-how protected block or DB of the same name, ' +
-        'and for a master copy of a folder when the PLC has any (its code cannot be exported, so only a project archive can restore it: the session archive, unless it was skipped).') -Schema @{
+        'created if missing. mode: ThrowIfExists (default), Rename or Replace. Compile afterwards.') -Schema @{
         type = 'object'; required = @('name')
         properties = @{ name = @{ type = 'string' }; folder = @{ type = 'string'; description = 'TIA folder path with /' }
                         mode = @{ type = 'string'; enum = @('ThrowIfExists', 'Rename', 'Replace') }; library = $library; safety = $script:SafetyArgument
@@ -1779,7 +1773,7 @@ function Register-LibraryTools {
     Register-McpTool -Name 'master_copy_from_project' -Handler { param($a) Invoke-MasterCopyFromProjectTool $a } -Description (
         'Create a master copy from a project object (name), or from a user folder of the PLC with what it holds (source_folder; the kinds block, db, type, plc_tag_table say which tree), ' +
         'in the project library or a writable global library (saved afterwards), in folder (created if missing). It takes the name of the object or folder. ' +
-        'An existing master copy of that name is replaced only with replace=true. A folder of an HMI kind is refused: Openness offers no way to place one. ' +
+        'An existing master copy of that name is replaced only with replace=true. ' +
         'Making a folder is read from the V20 API and not yet tried on a real project: quote what TIA answers.') -Schema @{
         type = 'object'; required = @('kind')
         properties = @{ kind = @{ type = 'string'; enum = $kinds }; name = @{ type = 'string'; description = 'the object; or source_folder' }

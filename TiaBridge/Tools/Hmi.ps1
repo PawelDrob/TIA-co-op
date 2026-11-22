@@ -221,7 +221,7 @@ Register-ObjectKind 'hmi_screen' @{
     scope = 'hmi'; dir = 'hmi\screens'; importDir = 'hmi\generated\screens'
     importGuard = $script:HmiImportGuard
     defaultOverride = $true
-    description = 'screens; an import whose number another screen of the device has is refused (it ended TIA)'
+    description = 'screens'
     items = { param($hmi) Get-GroupTree $hmi.ScreenFolder 'Screens' 'Folders' }
     tree = { param($hmi) $hmi.ScreenFolder }; groups = 'Folders'
     # no info: a Comfort screen offers only Name through Openness; number and template are in its export only
@@ -238,7 +238,8 @@ Register-ObjectKind 'hmi_template' @{
     scope = 'hmi'; dir = 'hmi\templates'; importDir = 'hmi\generated\templates'
     importGuard = $script:HmiImportGuard
     defaultOverride = $false
-    description = 'screen templates; an existing template is skipped unless override is true (it may hold an alarm view Openness cannot carry)'
+    overrideWhy = 'A template may hold an alarm view, which Openness cannot carry: pass override true only on the user''s yes to this import.'
+    description = 'screen templates'
     items = { param($hmi) Get-GroupTree $hmi.ScreenTemplateFolder 'ScreenTemplates' 'Folders' }
     tree = { param($hmi) $hmi.ScreenTemplateFolder }; groups = 'Folders'
     info = { param($e) @{} }
@@ -267,7 +268,7 @@ Register-ObjectKind 'hmi_tag_table' @{
     importGuard = $script:HmiImportGuard
     defaultOverride = $false
     noOverride = 'Replacing an HMI tag table crashed TIA on 2026-10-01: delete it first, then import.'
-    description = 'HMI tag tables, imported from hmi\generated\tags after the HMI validator passed (a tag whose Length did not fit its data type ended TIA); an existing table is refused and override is refused (replacing a tag table crashed TIA on 2026-10-01: delete it first, then import)'
+    description = 'HMI tag tables'
     items = { param($hmi) Get-GroupTree $hmi.TagFolder 'TagTables' 'Folders' }
     tree = { param($hmi) $hmi.TagFolder }; groups = 'Folders'
     info = { param($e) @{ isSystem = $e.obj.IsSystemObject } }
@@ -298,7 +299,7 @@ Register-ObjectKind 'hmi_cycle' @{
     importGuard = $script:HmiImportGuard
     defaultOverride = $true
     noDelete = 'Deleting a cycle was not tried on a real TIA, and an HMI tag names its acquisition cycle. Delete it in TIA.'
-    description = 'cycles (no folders), exported full and imported from hmi\[<device>\]cycles after the HMI validator passed (a minimal export, as older repos hold, is refused: TIA sets StartAtStartingPoint false from it); not deleted'
+    description = 'cycles (no folders), exported full'
     items = { param($hmi) foreach ($c in $hmi.Cycles) { @{ obj = $c; name = $c.Name; folder = '' } } }
     info = { param($e) @{ isSystem = $e.obj.IsSystemObject } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
@@ -316,7 +317,7 @@ Register-ObjectKind 'hmi_cycle' @{
 Register-ObjectKind 'hmi_graphiclist' @{
     scope = 'hmi'; dir = 'hmi\graphiclists'; defaultOverride = $true
     noDelete = 'Deleting a graphic list was not tried on a real TIA, and screens name it. Delete it in TIA.'
-    description = 'graphic lists (no folders); an entry naming a graphic the project does not have is refused; not deleted'
+    description = 'graphic lists (no folders)'
     items = { param($hmi) foreach ($t in $hmi.GraphicLists) { @{ obj = $t; name = $t.Name; folder = '' } } }
     export = { param($e, $dir, $opt) Export-HmiObject $e $dir $opt }
     precheck = { param($file, $cache) Test-GraphicListFile $file $cache }
@@ -375,7 +376,7 @@ Register-ObjectKind 'hmi_slidein' @{
     importGuard = $script:HmiImportGuard
     defaultOverride = $true
     noDelete = 'A slide-in is one of the device''s, by its edge; a delete was not tried on a real TIA.'
-    description = 'slide-in screens, named by their panel edge (SlideinType); exported full and imported from hmi\[<device>\]slideins after the HMI validator passed, over the device''s own only; not deleted'
+    description = 'slide-in screens, named by their panel edge (SlideinType); exported full'
     # a slide-in has no Name; ScreenSlidein.SlideinType tells them apart, as Find(SlideinType) does
     # [PROBE: reflection of V20 Siemens.Engineering.dll, 2026-11-02; a real export holds <SlideinType>Right</SlideinType>]
     items = { param($hmi) foreach ($s in $hmi.ScreenSlideinFolder.ScreenSlideins) { @{ obj = $s; name = [string]$s.SlideinType; folder = '' } } }
@@ -402,7 +403,7 @@ Register-ObjectKind 'hmi_screen_global' @{
     defaultOverride = $false
     overrideWhy = 'The global elements can hold an alarm window and an alarm indicator, which Openness does not export, and an import over them is taken to drop those (not tried). Ask the user whether they hold either; pass override true only on the user''s yes to this import, and list them in hmi\[<device>\]handbuilt.json if they do. The screen overview is of this kind and goes under the same rule.'
     noDelete = 'The global elements and the screen overview are the device''s own; a delete was not tried on a real TIA.'
-    description = 'the global elements and the screen overview (ScreenGlobalElements, ScreenOverview); exported full and imported from hmi\[<device>\]global after the HMI validator passed, over the device''s own only and only with override true (the global elements can hold an alarm window and alarm indicator, which do not export); a screen item in the global elements is refused (a text field there ended TIA, others were not tried); not deleted'
+    description = 'the global elements and the screen overview (ScreenGlobalElements, ScreenOverview); exported full'
     items = { param($hmi)
         foreach ($n in $script:HmiGlobalScreens.Keys) { $o = $hmi.$n; if ($null -ne $o) { @{ obj = $o; name = $n; folder = '' } } } }
     export = { param($e, $dir, $opt) Export-HmiFullObject $e $dir }
@@ -428,7 +429,7 @@ Register-ObjectKind 'hmi_screen_global' @{
 Register-ObjectKind 'hmi_vbscript' @{
     scope = 'hmi'; dir = 'hmi\scripts'; defaultOverride = $true
     noDelete = 'Deleting a VB script was not tried on a real TIA, and screens call it by name. Delete it in TIA.'
-    description = 'VB scripts (a syntax error goes in; the HMI compile found it only once a screen called the script); not deleted'
+    description = 'VB scripts'
     items = { param($hmi) Get-GroupTree $hmi.VBScriptFolder 'VBScripts' 'Folders' }
     export = { param($e, $dir, $opt) Export-HmiObject $e $dir $opt }
     precheck = { param($file, $cache) $doc = Read-HmiDocumentObject $file 'Hmi.RuntimeScripting.VBScript' 'VB script'; if ($doc.refused) { $doc } }

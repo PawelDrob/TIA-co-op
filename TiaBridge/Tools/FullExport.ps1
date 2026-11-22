@@ -16,7 +16,7 @@ Register-ObjectKind 'graphic' @{
     scope = 'project'; dir = 'project\graphics'; defaultOverride = $true
     usedBy = 'hmi'
     noDelete = 'Deleting a graphic was not tried on a real TIA, and graphic lists and screens name it. Delete it in TIA.'
-    description = 'project graphics (multilingual graphics of the HMI): <name>.xml with its image folder ''<name> files'' beside it, as the export writes them; an image the document names that is not there is refused; not deleted'
+    description = 'project graphics (multilingual graphics of the HMI): <name>.xml with its image folder ''<name> files'' beside it, as the export writes them'
     items = { param($p) foreach ($g in $p.Graphics) { @{ obj = $g; name = $g.Name; folder = '' } } }
     # a multilingual graphic writes its images beside the .xml
     export = { param($e, $dir, $opt)
@@ -836,17 +836,16 @@ function Register-FullExportTool {
         'project texts (.xlsx), alarm classes, supervision and diagnostics settings, graphics, project library types, faceplate ' +
         'metadata and a master copy index. With several PLC or HMI devices each gets plc\<device>\ or hmi\<device>\. Mirrors the project: files of ' +
         'objects no longer in it are removed from the folders the export writes (removed), except files not committed (untracked, ignored or changed), which stay and ' +
-        'are listed (keptUncommitted: import, commit or delete each before committing); a git repo inside such a folder stays whole and is listed (keptRepos), an object whose own export folder holds one is refused and in failed, and a repo around such a folder loses nothing, gets the new files and is listed too; the export of an object still replaces uncommitted edits of its own files, as export does. ' +
+        'are listed (keptUncommitted: import, commit or delete each before committing); a git repo inside or around such a folder is left whole and listed (keptRepos); the export of an object still replaces uncommitted edits of its own files, as export does. ' +
         'A file that differs from the one in the repo only in what TIA writes anew per export (the export time; in an .xlsx also its relationship Ids) stays as it is: a full_export with no change in TIA changes no file; unchanged counts the files left so. ' +
         'Blocks, DBs, data types and PLC tag tables TIA has not changed since the last full_export are not exported and keep their files (skipped counts them). ' +
-        'This rests on the dates and other values TIA keeps of each object, compared for unequal (every edit of a block, DB or data type tried on V20 moved a date of it; a move to another folder moved none, so the folder is compared), on a fresh export of each tag table compared with its file (a tag renamed moves no date of its table), and on the files the last export left (.tiabridge-export.json, ignored by git); a comment edited in TIA''s editors and a move were tried by a person in TIA, not by an agent; block properties edited in TIA dialogs were not tried, those Openness reads are compared as values. ' +
-        'It exports an object when a value differs, it moved, it is not consistent, its last export failed, a file of it was edited, removed or added beside it in the repo, or it is an instance DB of an exported FB; a block, DB or data type written as SimaticML also when another block or DB changed; every object of a PLC when a data type changed, a tag table exports differently or an object was added, deleted or renamed (exportedAllOf); ' +
-        'everything when there is no usable record, or the project, TIA version, project languages, PLC devices or the bridge differ from it (exportedAll); details counts per part why objects were exported. HMI, library and the other parts export every time. full: true exports everything. ' +
+        'An object is exported again when what TIA keeps of it, its folder or its files in the repo changed; every object of a PLC when a data type, a tag table or the set of objects changed (exportedAllOf); everything without a usable record (exportedAll); details counts per part why. ' +
+        'HMI, library and the other parts export every time. full: true exports everything. ' +
         'hmi\generated, gen, library\changes, changes, logs, archives and standards are never touched. Read only: works under connect and in a background session. Long: about minutes per thousand objects; ' +
         'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part, failed items, ' +
-        'leftOut (what Openness cannot export, with the reason); the log has details, and times: where the time went, per part and step (tia_* are the calls into Openness), with the slowest objects of each part. Objects whose names give one file name are in failed: neither is exported, the files there stay and are not mirrored away; rename one in TIA. ' +
-        'Devices whose names give one folder each get a folder with a mark (deviceFolders); a device holding two software items of one kind is refused and in failed: nothing of it is exported, its files stay. In a TIA with a window, boxes of the call with the icon Success or Information are acknowledged; every other box and every question stays with the user, who may have to close it; all notifications are listed with their icon (prompts). ' +
-        "In a TIA with a window, a run with $script:ExportWindowFrom or more blocks, DBs and data types to export as .s7dcl minimizes TIA's main window once it has read what to export, and restores it after: on one PC an .s7dcl export took about seven times as long with the window showing. " +
+        'leftOut (what Openness cannot export, with the reason); the log has details and the times per part and step. ' +
+        'In a TIA with a window, boxes of the call with the icon Success or Information are acknowledged; every other box and every question stays with the user, who may have to close it (prompts). ' +
+        "In a TIA with a window, a run with $script:ExportWindowFrom or more blocks, DBs and data types to export as .s7dcl minimizes TIA's main window once it has read what to export, and restores it after. " +
         'Before the call, tell the user: "Full export minimizes TIA for performance." Pass on window in the result. Commit the repo afterwards.') -Schema @{
         type = 'object'
         properties = @{ parts = @{ type = 'array'; items = @{ type = 'string'; enum = @($script:FullExportParts | ForEach-Object { $_.name }) }

@@ -98,6 +98,17 @@ Describe 'TiaBridge.ps1 with the bridge tools, without a connected project' {
         ($names -join ',') | Should Be 'archive,background_close,background_open,change_report,compile,connect,delete,delete_folder,export,full_export,import,library_approve,library_create_type,library_discard_type,library_edit_type,library_left_behind,library_open,library_release_chain,library_release_type,library_review,library_update_usages,list,master_copy_from_project,master_copy_to_project,probe,project_close,project_open,safety_login,save,tia_status'
     }
 
+    # A client that loads every tool reads tools/list with every request. Before the tool texts were cut to what a tool
+    # does and the rules code cannot hold (2026-11-21), the tools came to 67,217 characters and the import description
+    # alone to 13,282; after the cut this line was 44,502 and the largest description 2,788 (full_export). The limits
+    # leave about a tenth for what comes. A text that grows past them is cut, not the limit raised: what a tool refuses
+    # goes in its refusal, how to work well in the guides.
+    It 'keeps tools/list and its largest description under their limits' {
+        $tools = @(($out[0] | ConvertFrom-Json).result.tools)
+        $out[0].Length | Should BeLessThan 49000
+        ($tools | ForEach-Object { $_.description.Length } | Measure-Object -Maximum).Maximum | Should BeLessThan 3100
+    }
+
     It 'lists the login arguments the archive compare tool looks for (TiaArchiveCompare\runner\bridge.py)' {
         $tools = @(($out[0] | ConvertFrom-Json).result.tools)
         $open = ($tools | Where-Object { $_.name -eq 'background_open' }).inputSchema.properties.PSObject.Properties.Name
@@ -111,19 +122,18 @@ Describe 'TiaBridge.ps1 with the bridge tools, without a connected project' {
             $t = $tools | Where-Object { $_.name -eq $n }
             $t.inputSchema.properties.safety.type | Should Be 'boolean'
             $t.inputSchema.properties.safety.description | Should Match 'user asked'
-            $t.description | Should Match 'F-block'
+            $t.inputSchema.properties.safety.description | Should Match 'F-blocks'
         }
-        ($tools | Where-Object { $_.name -eq 'import' }).description | Should Match 'know-how protected'
         $login = ($tools | Where-Object { $_.name -eq 'safety_login' }).description
         $login | Should Match 'allows changes'
         foreach ($n in 'library_update_usages', 'library_release_chain', 'master_copy_to_project') { $login | Should Match $n }
     }
 
-    It 'says on background_open that an export-only session refuses a repo of another path' {
-        $tools = @(($out[0] | ConvertFrom-Json).result.tools)
-        $d = ($tools | Where-Object { $_.name -eq 'background_open' }).description
-        $d | Should Match 'records another path.*also when repo names it'
-        $d | Should Match 'repo: "<name>"'
+    It 'leaves to the refusal what background_open said of a repo of another path: why, and repo for one of its own' {
+        $why = Get-ExportRepoRefusal 'C:\p\Bg' 'C:\P\Bg.ap20' 'C:\a\Bg.zap20'
+        $why | Should Match ([regex]::Escape('records C:\P\Bg.ap20'))
+        $why | Should Match 'would read as a change to that project'
+        $why | Should Match 'repo: "<other name>", a repo of its own'
     }
 
     It 'says on background_open that write mode saves a project TIA marks modified on opening' {
@@ -140,7 +150,7 @@ Describe 'TiaBridge.ps1 with the bridge tools, without a connected project' {
         $delete = @(($out[0] | ConvertFrom-Json).result.tools) | Where-Object { $_.name -eq 'delete' }
         $delete.inputSchema.properties.knowhow.type | Should Be 'boolean'
         $delete.inputSchema.properties.knowhow.description | Should Match 'user asked'
-        $delete.description | Should Match 'know-how protected'
+        $delete.inputSchema.properties.knowhow.description | Should Match 'know-how protected'
     }
 
     It 'loads Openness and reports the TIA processes' -Skip:(-not $openness) {

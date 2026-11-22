@@ -55,6 +55,13 @@ Describe 'import of a kind that has no import' {
             $r.refused | Should Be "Kind $kind is export only; the bridge does not import it."
         }
     }
+    It 'refuses a delete of <kind> as well, as export only' -TestCases @(@{ kind = 'system_block' }, @{ kind = 'hmi_connection' }) {
+        param($kind)
+        $null = Invoke-ImportOfKind $kind
+        $r = Invoke-DeleteTool ([pscustomobject]@{ kind = $kind; names = @('Any') })
+        $r.ok | Should Be $false
+        $r.refused | Should Be "Kind $kind is export only; the bridge does not delete it."
+    }
     It 'master_copy changes through the library tools, and says so' {
         $r = Invoke-ImportOfKind 'master_copy'
         $r.ok | Should Be $false

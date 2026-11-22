@@ -94,7 +94,7 @@ Register-ObjectKind 'project_texts' @{
     noUndo = $script:NotInTransaction
     compileWhy = 'a block title edited through them turned the block not consistent'
     noDelete = 'Project texts are the texts of the project''s objects, not objects of their own.'
-    description = 'project texts: project-texts_<reference>_<target>.xlsx per active language, as full_export writes them in project\texts, over the project''s own; outside a transaction, so only with no_undo; not deleted'
+    description = 'project texts: project-texts_<reference>_<target>.xlsx per active language, as full_export writes them in project\texts'
     items = { param($p)
         $languages = Get-ProjectTextLanguages $p
         foreach ($t in $languages.targets) { @{ obj = $p; name = (Get-ProjectTextsName $languages.ref $t); folder = '' } } }
@@ -109,7 +109,7 @@ Register-ObjectKind 'alarm_classes' @{
     noUndo = $script:NotInTransaction
     compileWhy = 'whether these need one was not tried'
     noDelete = 'The alarm classes are one settings file of the project; change them by importing it.'
-    description = 'alarm classes: alarm-classes.dat, or the alarm-classes.xml full_export writes beside it (packed into a .dat for TIA), in project\alarmclasses; outside a transaction, so only with no_undo; not deleted'
+    description = 'alarm classes: alarm-classes.dat, or the alarm-classes.xml full_export writes beside it, in project\alarmclasses'
     items = { param($p) @{ obj = $p; name = 'alarm-classes'; folder = '' } }
     precheck = { param($file, $cache, $entries) Test-SettingsPartFile $file $entries 'alarm classes' 'AlarmServiceGlobalSettingsData' }
     import = { param($p, $folder, $file, $override) Import-SettingsDat (Get-RequiredService $p ([Siemens.Engineering.SW.Alarm.AlarmClassDataProvider])) $file 'alarm classes' }
@@ -119,7 +119,7 @@ Register-ObjectKind 'diagnostics_settings' @{
     scope = 'project'; dir = 'project\diagnostics'; importDir = 'project\diagnostics'; defaultOverride = $true; overrideWhy = $script:SettingsOverrideWhy; usedBy = @('plc'); extensions = @('.dat', '.xml')
     compileWhy = 'whether these need one was not tried'
     noDelete = 'The system diagnostics settings are one settings file of the project; change them by importing it.'
-    description = 'system diagnostics settings: systemdiagnostics-settings.dat, or the .xml full_export writes beside it (packed into a .dat for TIA), in project\diagnostics; not deleted'
+    description = 'system diagnostics settings: systemdiagnostics-settings.dat, or the .xml full_export writes beside it, in project\diagnostics'
     items = { param($p) @{ obj = $p; name = 'systemdiagnostics-settings'; folder = '' } }
     precheck = { param($file, $cache, $entries) Test-SettingsPartFile $file $entries 'system diagnostics settings' 'SysDiagGlobalSettingsData' }
     import = { param($p, $folder, $file, $override) Import-SettingsDat (Get-RequiredService $p ([Siemens.Engineering.HW.Systemdiagnostics.Settings.SystemdiagnosticsSettingsDataProvider])) $file 'system diagnostics settings' }
@@ -147,7 +147,7 @@ Register-ObjectKind 'supervisions' @{
     scope = 'plc'; dir = 'plc\supervisions'; importDir = 'plc\supervisions'; defaultOverride = $true; overrideWhy = $script:SupervisionsOverrideWhy; extensions = @('.xlsx')
     compileWhy = 'whether these need one was not tried'
     noDelete = 'The ProDiag supervisions of a PLC are one sheet; change them by importing it.'
-    description = 'ProDiag supervisions of a PLC: supervisions.xlsx, as full_export writes it in plc\supervisions, over the PLC''s own; not deleted'
+    description = 'ProDiag supervisions of a PLC: supervisions.xlsx, as full_export writes it in plc\supervisions'
     items = { param($plc) @{ obj = $plc; name = 'supervisions'; folder = '' } }
     # read once per call, before TIA is asked: the result names the side effect only when this import caused it
     precheck = { param($file, $cache, $entries)

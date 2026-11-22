@@ -110,8 +110,8 @@ function Register-ReportTool {
         'on the same page every changed HMI object (screens, templates and pop-ups drawn ' +
         'before | after with their changes, tag tables and text lists with where-used, project graphics). Default: the last commit (rev2 HEAD, ' +
         'rev1 its parent); run it after save + commit. Writes changes\reports\<date>_<commit>.html (gitignored). The result lists the PLC tag tables ' +
-        '(plcTags: name, state, counts, rows of tags and user constants), the HMI objects (hmi: device, kind, name, state, changes), files it ' +
-        'skipped (skipped: path, reason), changed files it does not read (otherFiles: paths, the page names them too: quote them, it reads nothing of them), ' +
+        '(plcTags), the HMI objects (hmi), files it ' +
+        'skipped (skipped), changed files it does not read (otherFiles: paths, the page names them too: quote them, it reads nothing of them), ' +
         'blocks .s7dcl on one side and SimaticML on the other (acrossFormats: names, the page names them too: compared by what the report reads ' +
         'of them; a field it does not read, or one only one format writes, is not compared: say so) and names in blocks that match no block ' +
         '(unmatched), only when there are. blocks leaves the tag tables and the HMI part out.') -Schema @{

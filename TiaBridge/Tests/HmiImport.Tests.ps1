@@ -194,6 +194,26 @@ Describe 'import of generated HMI documents (validator guard)' {
     }
 }
 
+# A template may hold an alarm view, which Openness cannot carry, so an import over an existing one waits for override
+# true, the user's word, and the refusal says so.
+Describe 'import over an existing template' {
+    function Get-GroupTree { @(@{ obj = [pscustomobject]@{ Name = 'Tpl' }; name = 'Tpl'; folder = '' }) }
+
+    It 'refuses an import over an existing template unless override is passed true, as it may hold an alarm view' {
+        $repo = New-HmiRepo 'TemplateNoOverride'
+        Write-TextFile (Join-Path $repo 'hmi\generated\templates\Tpl.xml') (New-HmiDocument 'Tpl' @((New-HmiItem 'Hmi.Screen.Rectangle' 'rect1')) -Root 'Hmi.Screen.ScreenTemplate')
+        $r = Invoke-HmiImport $repo -Kind 'hmi_template' -Paths @('hmi\generated\templates\Tpl.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match "exists and override is false; nothing imported\. A template may hold an alarm view"
+        $r.items[0].refused | Should Match "only on the user's yes to this import"
+
+        $r = Invoke-HmiImport $repo -Kind 'hmi_template' -Paths @('hmi\generated\templates\Tpl.xml') -Override $true
+        $r.ok | Should Be $true
+        $script:imported -join ',' | Should Be 'Tpl'
+    }
+}
+
 # A screen number is unique on the device: a new screen, or an override, whose number another screen has ended TIA
 # (2026-11-12). The bridge reads the numbers of the screens in TIA from their exports and refuses before TIA sees the file.
 Describe 'import of a screen whose number another screen has' {
