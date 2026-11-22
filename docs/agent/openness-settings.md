@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: project texts and settings"
 description: "What TIA Portal Openness V20 does when importing project texts, alarm classes, system diagnostics settings and ProDiag supervisions."
 tags: [openness, tia-v20, settings, agents]
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T20:43:12-05:00 }
 ---
 
 # TIA Openness V20 facts: project texts and settings
@@ -53,7 +53,8 @@ back over the project's own:
 - **After these imports** a compile of the PLC and of the HMI had 0 errors (2026-11-19). Whether a part needs a compile
   was not tried; a block title edited through the project texts turned the block not consistent in the paragraph above
   (2026-11-18).
-- **Not tried:** an import of supervision settings and of PLC alarm text lists and texts; a new alarm class; project texts
-  of a second language through TiaBridge (the paragraph above tried them by script).
+- **Not tried:** an import of supervision settings and of PLC alarm text lists and texts; whether TIA keeps part of a
+  file whose import failed; a new alarm class; project texts of a second language through TiaBridge (the paragraph
+  above tried them by script).
 
 How TiaBridge imports them: [TiaBridge internals](../dev/tools/tia-bridge.md#the-rules).

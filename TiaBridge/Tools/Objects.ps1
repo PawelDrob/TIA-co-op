@@ -1049,6 +1049,7 @@ function Register-ObjectTools {
         'Before importing global elements or a slide-in, ask the user whether it holds any, and list it in hmi\[<device>\]handbuilt.json if so. hmi_screen_global goes in only with override true, which only the user''s yes to this import allows. ' +
         'project_texts and alarm_classes go in only with no_undo true, which only the user''s yes allows, once told what has no undo and that the way back is the archive this session made, which holds the project as it was when made. ' +
         'Importing supervisions into a project with no ProDiag settings initialises them and adds ProDiag categories to the project texts: tell the user before such an import. ' +
+        'An F-compliant PLC data type is recognised by its document only: with the mark taken out, nothing refuses it. ' +
         'Forcing stays the user''s, online in TIA. Pass on to the user what the result''s noUndo, prodiag and overrideLoses say.') -Schema @{
         type = 'object'; required = @('kind', 'paths')
         properties = @{

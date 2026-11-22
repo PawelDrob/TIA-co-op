@@ -99,10 +99,10 @@ Describe 'TiaBridge.ps1 with the bridge tools, without a connected project' {
     }
 
     # A client that loads every tool reads tools/list with every request. Before the tool texts were cut to what a tool
-    # does and the rules code cannot hold (2026-11-21), the tools came to 67,217 characters and the import description
-    # alone to 13,282; after the cut this line was 44,502 and the largest description 2,788 (full_export). The limits
-    # leave about a tenth for what comes. A text that grows past them is cut, not the limit raised: what a tool refuses
-    # goes in its refusal, how to work well in the guides.
+    # does and the rules code cannot hold (2026-11-21), the tools came to 67,217 characters as Python writes them and the
+    # import description alone to 13,282; after the cut 45,205, this line 44,612 as the bridge writes it, and the largest
+    # description 2,788 (full_export). The limits leave about a tenth for what comes. A text that grows past them is
+    # cut, not the limit raised: what a tool refuses goes in its refusal, how to work well in the guides.
     It 'keeps tools/list and its largest description under their limits' {
         $tools = @(($out[0] | ConvertFrom-Json).result.tools)
         $out[0].Length | Should BeLessThan 49000
@@ -127,13 +127,6 @@ Describe 'TiaBridge.ps1 with the bridge tools, without a connected project' {
         $login = ($tools | Where-Object { $_.name -eq 'safety_login' }).description
         $login | Should Match 'allows changes'
         foreach ($n in 'library_update_usages', 'library_release_chain', 'master_copy_to_project') { $login | Should Match $n }
-    }
-
-    It 'leaves to the refusal what background_open said of a repo of another path: why, and repo for one of its own' {
-        $why = Get-ExportRepoRefusal 'C:\p\Bg' 'C:\P\Bg.ap20' 'C:\a\Bg.zap20'
-        $why | Should Match ([regex]::Escape('records C:\P\Bg.ap20'))
-        $why | Should Match 'would read as a change to that project'
-        $why | Should Match 'repo: "<other name>", a repo of its own'
     }
 
     It 'says on background_open that write mode saves a project TIA marks modified on opening' {

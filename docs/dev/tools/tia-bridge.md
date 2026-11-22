@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T20:04:19-05:00 }
 ---
 
 # TiaBridge internals
@@ -54,7 +54,7 @@ Tools return paths, counts, states and messages. Bulk content goes through files
 
 ## Tools
 
-The description in each tool's `Register-McpTool` call is the contract an agent reads, so it holds the details: what is refused and what a result names.
+The description in each tool's `Register-McpTool` call is what an agent reads before a call: what the tool does, what an argument means, and the rules no code can hold (what needs the user's own word, what is never to be done, what comes before or after). What a tool refuses its refusal says, with why and what to do, and a test holds that; how to work well is in the guides. `Tests\Stdio.Tests.ps1` holds `tools/list` and its largest description under a limit, so the texts do not grow back unseen.
 
 | Group | Tools |
 |---|---|
@@ -83,7 +83,7 @@ With an archive of this session, a save goes through over writes not compiled si
 
 The rules count per device. The record lives in `.tiabridge-session.json` in the project repo, so it survives a bridge restart. A `connect` to a project with no unsaved changes clears it. A background session keeps its record in memory.
 
-**Guards.** Most are in `Guards.ps1`, some where they are needed (`Tools\Hmi.ps1`, `Tools\Objects.ps1`, `Repo.ps1`), and each tool's description names what it refuses. The ones that matter most:
+**Guards.** Most are in `Guards.ps1`, some where they are needed (`Tools\Hmi.ps1`, `Tools\Objects.ps1`, `Repo.ps1`), and each refusal says why and what to do. The ones that matter most:
 
 - **An `.s7dcl` of an OB is refused** ([why](../decisions.md#the-bridge)).
 - **A document under the wrong kind is refused,** as is one declaring a second object, or a keyword whose object cannot be read: every guard goes by the object a document declares.

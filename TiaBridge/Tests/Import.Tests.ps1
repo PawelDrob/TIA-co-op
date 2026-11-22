@@ -40,12 +40,16 @@ Register-ObjectKind 'fakelib' @{
 }
 
 Describe 'import of a kind that has no import' {
-    function Invoke-ImportOfKind([string]$Kind) {
+    # A project bound to a repo of its own, with its session archive made: writes pass the archive gate
+    function Enter-ArchivedSession([string]$Kind) {
         $repo = Join-Path $TestDrive "NoImport$Kind"
         $null = New-Item -ItemType Directory -Force $repo
         Initialize-BridgeContext @{ maxResponseChars = 20000 }
         Set-TestBridgeProject $repo
         Register-Archive (Get-BridgeSession)
+    }
+    function Invoke-ImportOfKind([string]$Kind) {
+        Enter-ArchivedSession $Kind
         Invoke-ImportTool ([pscustomobject]@{ kind = $Kind; paths = @('Any.xml') })
     }
     foreach ($kind in 'system_block', 'hmi_connection') {
@@ -57,7 +61,7 @@ Describe 'import of a kind that has no import' {
     }
     It 'refuses a delete of <kind> as well, as export only' -TestCases @(@{ kind = 'system_block' }, @{ kind = 'hmi_connection' }) {
         param($kind)
-        $null = Invoke-ImportOfKind $kind
+        Enter-ArchivedSession $kind
         $r = Invoke-DeleteTool ([pscustomobject]@{ kind = $kind; names = @('Any') })
         $r.ok | Should Be $false
         $r.refused | Should Be "Kind $kind is export only; the bridge does not delete it."
