@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look; index of parts and Siemens manual sources.
 tags: [openness, tia-v20, agents]
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T23:54:59-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -28,6 +28,17 @@ seen in an export / import, `[INFERRED]` follows from those, not verified by a r
 | [openness-libraries.md](openness-libraries.md) | 3 | Project and global libraries, library types, reviewed changes, types left behind and master copies |
 | [openness-failures.md](openness-failures.md) | 4, 5 | Failing or hanging calls, exceptions, transactions, online mode, modal dialogs, names and files, archive, UMC, safety password, `project_open`, `project_close` and STA/MTA hangs |
 | [openness-measurements.md](openness-measurements.md) | 1 (export timing, dates and software units), 6 | Export timing with a window, object dates and `GetAttributes`, software units and named value documents, fingerprints and offline comparisons (not needed for routine TIA changes) |
+
+**What no part of `full_export` exports.** These limits hold for every project, so its result does not list them (its
+log does, as `limits`); what a part leaves out of this project is in the result's `leftOut`:
+
+- WinCC Comfort/Advanced alarms (discrete, analog), recipes, data and alarm logs, user administration: no Openness object in V20 (Siemens.Engineering.Hmi.Alarm/.Recipe/.Logging hold enums only)
+- screen objects Openness cannot export (alarm view, trend view, recipe view, system diagnostics view, ...): the screen export leaves them out without a message
+- faceplate type contents: version metadata only (library\faceplates)
+- master copy contents: no export in Openness; library\mastercopies\mastercopies.json lists them
+- hardware configuration: not exported (the CAx/AutomationML part was removed 2026-10-30)
+- know-how protected blocks: SimaticML with the interface only, unless unprotected
+- F-system blocks: cannot be exported (Siemens); F-blocks of the user export like other blocks
 
 ## Sources
 

@@ -2,7 +2,7 @@
 # every registered tool is classified, so a new tool fails this file until it is in $script:WriteTools or
 # $script:ReadTools.
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Bridge.ps1') { . (Join-Path $here "..\$f") }
+foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Bridge.ps1', 'Results.ps1') { . (Join-Path $here "..\$f") }
 
 # What is wrong with the classification of these registered tools; empty when each is in exactly one list and each
 # listed tool is registered.

@@ -1,5 +1,5 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'Tools\Objects.ps1', 'Tools\Session.ps1', 'Tools\Safety.ps1') {
+foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'Results.ps1', 'Tools\Objects.ps1', 'Tools\Session.ps1', 'Tools\Safety.ps1') {
     . (Join-Path $here "..\$f")
 }
 

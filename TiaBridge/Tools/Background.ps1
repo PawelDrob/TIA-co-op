@@ -614,8 +614,8 @@ function Register-BackgroundTools {
 
     Register-McpTool -Name 'background_close' -Handler { param($a) Invoke-BackgroundCloseTool $a } -Description (
         'Close the background session: the project closes without saving, its TIA process ends, the copy is removed (keep_copy=true keeps it). Write mode: ' +
-        'the project file is never removed. Returns the ' +
-        'time and memory of every step, also written to logs\<time>_background_steps.json of the repo. Afterwards the bridge is not connected.') -Schema @{
+        'the project file is never removed. Returns the count and time of the steps; ' +
+        'logs\<time>_background_steps.json of the repo has each with its memory. Afterwards the bridge is not connected.') -Schema @{
         type = 'object'; properties = @{ keep_copy = @{ type = 'boolean' }
                                          discard = @{ type = 'boolean'; description = 'write mode: close without saving although the project has unsaved changes' } } }
 }

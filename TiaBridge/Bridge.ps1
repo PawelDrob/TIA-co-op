@@ -1,5 +1,5 @@
 # Bridge.ps1 - bridge context (settings, active project, per-project session state) and the tool dispatch that
-# applies the error contract, writes the log of every call and shortens the response. The dispatch also holds
+# applies the error contract, writes the log of every call and shortens the response (Results.ps1). The dispatch also holds
 # a background session (Tools\Background.ps1) to its tools: export only, or the writes as well in write mode;
 # and it refuses the write tools until the session archive exists.
 
@@ -15,6 +15,7 @@ function Initialize-BridgeContext([System.Collections.IDictionary]$Settings) {
         background = $null                                  # open background session (Tools\Background.ps1)
         tiaEnded = $null                                    # TIA ended (Set-TiaEnded): every TIA call refused until connect
         reportRun = $false                                  # started by a report run of the TIA dashboard (TiaBridge.ps1 -ReportRun)
+        said = @{}                                          # project and repo as the last short result gave them (Results.ps1)
     }
 }
 
@@ -308,7 +309,9 @@ function Invoke-BridgeToolCall($Name, $Handler, $Arguments, [object[]]$Secrets) 
     }
     # the times of a full_export are for whoever reads the log after it, not for the answer (Times.ps1)
     if ($r -is [System.Collections.IDictionary] -and $r.Contains('times')) { $r.times = 'in the log file: per part and step, Openness apart, and the slowest objects' }
-    @{ result = $r; text = (Limit-ToolResponse $r $script:Bridge.settings.maxResponseChars) }
+    # the agent gets the short result (Results.ps1), a program of this repo the whole one; the log has both
+    $answer = if ($r -is [System.Collections.IDictionary] -and -not (Test-WholeResultClient)) { Get-ShortResult $Name $r $script:Bridge.said } else { $r }
+    @{ result = $r; text = (Limit-ToolResponse $answer $script:Bridge.settings.maxResponseChars) }
 }
 
 # Runs Block on an STA thread of its own and returns its output: the bridge runs on an MTA thread (TiaBridge.ps1), and a window

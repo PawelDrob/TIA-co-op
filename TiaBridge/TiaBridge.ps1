@@ -25,7 +25,7 @@ if ([Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA') {
     exit
 }
 
-foreach ($f in 'Guides.ps1', 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'State.ps1',
+foreach ($f in 'Guides.ps1', 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'Results.ps1', 'State.ps1',
                'Tools\Objects.ps1', 'Tools\Plc.ps1', 'Tools\Hmi.ps1', 'Tools\Library.ps1', 'Tools\LibraryChange.ps1',
                'Tools\Session.ps1', 'Tools\Probe.ps1', 'Tools\Report.ps1', 'Tools\Background.ps1', 'Tools\Safety.ps1',
                'Tools\FullExport.ps1', 'Tools\Settings.ps1') {

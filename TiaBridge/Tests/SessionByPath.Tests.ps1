@@ -1,7 +1,7 @@
 # A project is its .ap20 path, not its name: the session state (archive gate, save rules), the choice between open
 # projects, the attach and the project repo. Two projects of one name (a retrieved archive, a copy) never share them.
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'Tools\Objects.ps1', 'Tools\Session.ps1') { . (Join-Path $here "..\$f") }
+foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bridge.ps1', 'Results.ps1', 'Tools\Objects.ps1', 'Tools\Session.ps1') { . (Join-Path $here "..\$f") }
 
 if (-not ('Siemens.Engineering.ProjectArchivationMode' -as [type])) {
     Add-Type -TypeDefinition 'namespace Siemens.Engineering { public enum ProjectArchivationMode { None, Compressed, DiscardRestorableData, DiscardRestorableDataAndCompressed } }'

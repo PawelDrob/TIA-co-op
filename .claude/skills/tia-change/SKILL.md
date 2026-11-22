@@ -7,6 +7,8 @@ The order a change of a TIA project takes. The guides, and the tools' descriptio
 
 Git in a project repo goes by `git -C "C:/<projects root>/<repo>"`: the results give backslash paths, and first setup's allow rules match the forward form only.
 
+A result says a thing once. `project` and `repo` come with `connect`, `background_open` and `project_open`, and after that only when they change. An item whose `error`, `note` or `messages` is alike an earlier item's reads `as <that item>`, and the first error counts them in `alike`. What holds nothing is counted, not listed (`emptyParts`, `cleanItems`). The file in `log` holds the whole result: read it when a field you need is not there.
+
 | Kind of work | Reference file |
 |---|---|
 | PLC block, data type, DB | [plc.md](plc.md) |
@@ -30,9 +32,10 @@ Git in a project repo goes by `git -C "C:/<projects root>/<repo>"`: the results 
 
 ## The full export
 
+- **What no part exports** (alarms, recipes, hardware configuration, ...): openness-v20.md lists it; the result has only what this project leaves out (`leftOut`).
 - **Cost:** about minutes per thousand objects, longer in a TIA with a window (openness-failures.md, section 4, Modal dialogs). After a full export of every part, its `totalMs` goes in the notes of step 2.
 - **`parts`:** where the notes say a full export takes over 10 minutes, `parts` may hold it to the kinds the change can touch: the PLC parts (`blocks` to `external_sources`) for a PLC change, with the `hmi_` parts when it renames what an HMI reads, and with `library_types` for a library change. `parts` picks kinds, never a device: every PLC exports. Each report of the session then names the kinds left out in its `title`, e.g. "Changes already in TIA; HMI, project and library not exported".
 - **The result:** before the commit, do what its `next` says, except under `removeErrors`. Where it is not `ok`:
   - `removeErrors`: files of objects TIA no longer has could not be removed, and a commit would keep them as if the objects stood. Fix what each line names and `full_export` again; when it stays, commit nothing and tell the user.
   - `stopped`: TIA ended mid-export. Commit nothing and tell the user; the session waits there until `full_export` runs through.
-  - `failed` lines: what each names, an object, a part or a device, was not exported, and its files stay as they were. Commit, and name those lines in the commit message and to the user beside the page: a change there is on no page.
+  - `failed` lines: what each names, an object (with the ones alike after it), a part or a device, was not exported, and its files stay as they were. Commit, and name those lines in the commit message and to the user beside the page: a change there is on no page.

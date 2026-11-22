@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T20:04:19-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T23:54:59-05:00 }
 ---
 
 # TiaBridge internals
@@ -33,6 +33,7 @@ Tools return paths, counts, states and messages. Bulk content goes through files
 | `TiaBridge.ps1` | Entry point: loads the scripts, registers the tools, runs the loop |
 | `Mcp.ps1` | The protocol loop and tool registry (`Register-McpTool`), `Write-BridgeLog`, `Write-BridgeProgress` |
 | `Bridge.ps1` | Context, and the dispatch every call passes: which tools may run, the error contract, secrets, the log, the size of the response |
+| `Results.ps1` | The short result the agent reads, made from the logged one |
 | `Tia.ps1` | Loads `PublicAPI\V20\Siemens.Engineering.dll`, attaches, finds objects, unwraps errors |
 | `Repo.ps1` | Settings, the project repo, git, the check for Python |
 | `Rules.ps1` | The session record: the archive gate and the save rules |
@@ -127,11 +128,12 @@ An agent's `connect` refuses a TIA or repo that a running report run names in `<
 Every tool, through `Invoke-BridgeTool`:
 
 - The Siemens error comes unwrapped: .NET type, message, every detail text, the inner chain.
-- Results that fail with no exception (compile, document import) come as a full message tree.
+- Results that fail with no exception (compile, document import) come as a full message tree in the log; the answer to the agent lists each error and warning of a compile with its path.
 - A batch reports per item, so one bad file does not hide the others.
 - `tiaEnded`: TIA ended its own process, as it does after a `NonRecoverableException`. The bridge detaches and refuses TIA calls until `connect`, or `background_close` and `background_open`.
 - Whether TIA is alive (`Test-TiaAlive`: the project's name and TIA's process): `Get-TiaProject` asks once a call, at its first read of the project, and reconnects a window session there. A yes holds for the rest of the call, so the paths of an object do not ask again; a no is never kept. Code whose next step depends on the answer calls `Test-TiaAlive`, which asks each time. Two of those places took over from the ask each path made before: after an item failed (`Set-ItemError`), and after each part of `full_export`.
 - Every result goes untruncated to `logs\<yyyyMMdd_HHmmss>_<tool>.json`. The response may be shortened (`maxResponseChars`) and then names the log.
+- The answer to the agent is the short result (`Results.ps1`), made from the logged one after the log is written. A failure that repeats is said once: the first item whole, the others `as <that item>`, its count in `alike`; a `full_export` failure line carries the names of the ones alike. What holds nothing is counted (`emptyParts`, `cleanItems`). `project` and `repo` come with `connect`, `background_open` and `project_open`, then only when they change. What only a reader of the log wants stays there: `full_export`'s `details`, `limits` and `times`, a compile's message tree, each background step with its memory. The clients in `$script:WholeResultClients` (TiaArchiveCompare) and a report run get the whole result, as before.
 - `password`, `umc_password` and `umc_user` are hidden in the result, the log and stderr.
 
 ```json

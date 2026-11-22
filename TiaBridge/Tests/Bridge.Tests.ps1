@@ -1,5 +1,5 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Bridge.ps1') { . (Join-Path $here "..\$f") }
+foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Bridge.ps1', 'Results.ps1') { . (Join-Path $here "..\$f") }
 if (-not ('FakeSiemens.NonRecoverableException' -as [type])) {
     Add-Type -TypeDefinition 'namespace FakeSiemens { public class NonRecoverableException : System.Exception { public NonRecoverableException(string m) : base(m) { } } }'
 }
@@ -19,14 +19,17 @@ Describe 'Invoke-BridgeTool (error contract and logs on every call)' {
         ($d.text | ConvertFrom-Json).error.message | Should Be 'locked'
     }
 
-    It 'writes the times of a call into the log only, with the time the log took, and says so in the answer' {
+    It 'writes the times of a call into the log only, with the time the log took: the answer leaves them out, the whole one says where they are' {
         Initialize-BridgeContext @{ projectsRoot = $root; maxResponseChars = 20000 }
         $repo = Join-Path $root 'P1'
         Set-BridgeProject -Name 'P1' -Path 'C:\P1.ap20' -Repo $repo
         $d = Invoke-BridgeTool 'full_export' { param($a) [ordered]@{ ok = $true; times = [ordered]@{ ms = 5; parts = @([ordered]@{ part = 'blocks'; ms = 5 }) } } } (New-Object psobject)
         $d.result.times | Should Match '^in the log file'
         $d.text | Should Not Match '"parts"'
-        ($d.text | ConvertFrom-Json).times | Should Match '^in the log file'
+        ($d.text | ConvertFrom-Json).PSObject.Properties['times'] | Should BeNullOrEmpty
+        $script:McpClientName = 'TiaArchiveCompare'
+        try { ((Invoke-BridgeTool 'full_export' { param($a) [ordered]@{ ok = $true; times = [ordered]@{ ms = 5 } } } (New-Object psobject)).text | ConvertFrom-Json).times | Should Match '^in the log file' }
+        finally { $script:McpClientName = '' }
         $log = [System.IO.File]::ReadAllText((Join-Path $repo $d.result.log)) | ConvertFrom-Json
         $log.times.parts[0].part | Should Be 'blocks'
         $log.times.logMs.GetType().Name | Should Be 'Int32'

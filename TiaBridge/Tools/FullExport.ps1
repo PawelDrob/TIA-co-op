@@ -219,7 +219,8 @@ $script:FullExportParts = @(
     @{ name = 'master_copies'; scope = 'library'; dir = 'library\mastercopies'; file = { param($r, $d) Export-MasterCopyIndex $r $d } }
 )
 
-# What no part can export (Openness V20 limits, Siemens manual and [PROBE]s), listed in every result.
+# What no part can export (Openness V20 limits, Siemens manual and [PROBE]s), in the log of every result; the answer leaves them to
+# docs\agent\openness-v20.md, which holds each (Tests\Results.Tests.ps1).
 $script:FullExportLimits = @(
     'WinCC Comfort/Advanced alarms (discrete, analog), recipes, data and alarm logs, user administration: no Openness object in V20 (Siemens.Engineering.Hmi.Alarm/.Recipe/.Logging hold enums only)'
     'screen objects Openness cannot export (alarm view, trend view, recipe view, system diagnostics view, ...): the screen export leaves them out without a message'
@@ -588,6 +589,25 @@ function Format-PartLine($R) {
     $s
 }
 
+# The failed lines of a run's part records (or the details of its result): text, the line of result.failed; for an object
+# also failure (its entry in the record), where (part@device) and object (folder/name), which the short result groups by
+# (Results.ps1). A device refused has one line, not one per part of it.
+function Get-FullExportFailures([object[]]$Records) {
+    $refusedDevices = @{}
+    foreach ($r in $Records) {
+        $where = "$($r.part)$(if ($r.device) { "@$($r.device)" })"
+        foreach ($f in $r.failed) {
+            $object = "$(if ($f.folder) { "$($f.folder)/" })$($f.name)"
+            $text = if ($f.error) { "$where`: $object`: $($f.error.type): $(Limit-Text $f.error.message 300)" } else { "$where`: $object`: export state $($f.messages.state)" }
+            @{ text = $text; failure = $f; where = $where; object = $object }
+        }
+        if ($r.listError.type -eq 'TiaBridge.DeviceNameCollision') {
+            if (-not $refusedDevices[$r.device]) { $refusedDevices[$r.device] = $true; @{ text = "$($r.device): $($r.listError.type): $($r.listError.message)" } }
+        }
+        elseif ($r.listError) { @{ text = "$where`: not listed: $($r.listError.type): $(Limit-Text $r.listError.message 300)" } }
+    }
+}
+
 # The run with its times (Times.ps1) in result.times, which the bridge writes into the log only (Bridge.ps1).
 function Invoke-FullExportTool($a) {
     Start-ExportTimes
@@ -751,17 +771,7 @@ function Invoke-FullExportRun($a) {
         if ($r.gitError) { $gitError = $r.gitError }
     }
 
-    $refusedDevices = @{}   # one line per device, not one per part of it
-    $failed = @(foreach ($r in $records) {
-        foreach ($f in $r.failed) {
-            $line = "$($r.part)$(if ($r.device) { "@$($r.device)" }): $(if ($f.folder) { "$($f.folder)/" })$($f.name)"
-            if ($f.error) { "$line`: $($f.error.type): $(Limit-Text $f.error.message 300)" } else { "$line`: export state $($f.messages.state)" }
-        }
-        if ($r.listError.type -eq 'TiaBridge.DeviceNameCollision') {
-            if (-not $refusedDevices[$r.device]) { $refusedDevices[$r.device] = $true; "$($r.device): $($r.listError.type): $($r.listError.message)" }
-        }
-        elseif ($r.listError) { "$($r.part)$(if ($r.device) { "@$($r.device)" }): not listed: $($r.listError.type): $(Limit-Text $r.listError.message 300)" }
-    })
+    $failed = @(Get-FullExportFailures $records | ForEach-Object { $_.text })
     $leftOut = @(foreach ($r in $records | Where-Object { $_.leftOut }) { "$($r.count) $($r.leftOut)$(if ($r.device) { " ($($r.device))" })" })
     $khp = @($records | ForEach-Object { $_.knowHowProtected } | Where-Object { $_ })
     if ($khp.Count) { $leftOut += "$($khp.Count) know-how protected block(s), interface only: $($khp -join ', ')" }
@@ -843,7 +853,7 @@ function Register-FullExportTool {
         'An object is exported again when what TIA keeps of it, its folder or its files in the repo changed; every object of a PLC when a data type, a tag table or the set of objects changed (exportedAllOf); everything without a usable record (exportedAll); details counts per part why. ' +
         'HMI, library and the other parts export every time. full: true exports everything. ' +
         'hmi\generated, gen, library\changes, changes, logs, archives and standards are never touched. Read only: works under connect and in a background session. Long: about minutes per thousand objects; ' +
-        'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part, failed items, ' +
+        'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part with objects, failed items, ' +
         'leftOut (what Openness cannot export, with the reason); the log has details and the times per part and step. ' +
         'In a TIA with a window, boxes of the call with the icon Success or Information are acknowledged; every other box and every question stays with the user, who may have to close it (prompts). ' +
         "In a TIA with a window, a run with $script:ExportWindowFrom or more blocks, DBs and data types to export as .s7dcl minimizes TIA's main window once it has read what to export, and restores it after. " +

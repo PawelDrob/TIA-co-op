@@ -1076,7 +1076,7 @@ function Register-ObjectTools {
         properties = @{ kind = @{ type = 'string'; enum = @(Get-FolderKindNames) }; folder = @{ type = 'string'; description = 'exact TIA folder path with /' }; device = $device } }
 
     Register-McpTool -Name 'compile' -Handler { param($a) Invoke-CompileAndReadChange $a } -Description (
-        'Compile the PLC software (scope plc), single blocks or PLC data types (scope blocks + names) or the HMI (scope hmi). Returns the full compiler message tree. ' +
+        'Compile the PLC software (scope plc), single blocks or PLC data types (scope blocks + names) or the HMI (scope hmi). Returns the errors and warnings with their paths. ' +
         "failed names the blocks, PLC data types and technology objects TIA holds not consistent afterwards on the whole PLC, the user's own too, also with 0 errors: their export fails (a technology object stays so while its hardware is missing). At most ten names, what this session wrote or named first, and failedTotal; list shows them all. In a session for export only every name. " +
         'consistencyUnread: that could not be read, so failed is left out and what a save holds stays as it was. ' +
         'Compile the written scope on each device written to before save; warnings are allowed. A clean compile by name takes back the errors on record of those names. In a background session for export only it compiles ' +

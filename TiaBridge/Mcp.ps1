@@ -8,6 +8,8 @@ $script:McpProtocols = @('2025-06-18', '2025-03-26', '2024-11-05')
 
 # What initialize sends a client for its session, none when empty (TiaBridge.ps1 sets it: Guides.ps1).
 $script:McpInstructions = ''
+# The client's name from its initialize (clientInfo.name), '' before: Results.ps1 gives some clients the whole result.
+$script:McpClientName = ''
 
 function Reset-McpTools { $script:McpTools = [ordered]@{} }
 if (-not $script:McpTools) { Reset-McpTools }
@@ -78,6 +80,7 @@ function Invoke-McpRequest([string]$Line) {
     switch ($msg.method) {
         'initialize' {
             $proto = $msg.params.protocolVersion
+            $script:McpClientName = [string]$msg.params.clientInfo.name
             if ($script:McpProtocols -notcontains $proto) { $proto = $script:McpProtocols[0] }
             $result = @{ protocolVersion = $proto
                          capabilities = @{ tools = @{} }

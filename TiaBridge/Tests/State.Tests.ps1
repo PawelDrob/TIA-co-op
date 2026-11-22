@@ -1,5 +1,5 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Bridge.ps1', 'State.ps1') { . (Join-Path $here "..\$f") }
+foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Bridge.ps1', 'Results.ps1', 'State.ps1') { . (Join-Path $here "..\$f") }
 
 function Read-StateFile { Get-Content -LiteralPath $script:BridgeState.path -Raw | ConvertFrom-Json }
 

@@ -133,6 +133,7 @@ Describe 'Resolve-ProbeMember' {
 
 Describe 'probe that ends TIA' {
     . (Join-Path $here '..\Bridge.ps1')
+    . (Join-Path $here '..\Results.ps1')
     . (Join-Path $here '..\Repo.ps1')
     . (Join-Path $here '..\Rules.ps1')
     function Resolve-ProbeRoot([string]$Path) { $script:probed }
