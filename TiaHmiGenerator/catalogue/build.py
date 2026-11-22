@@ -1000,7 +1000,7 @@ def render_doc(cat, generated):
              '(`load()`, `by_element()`, `attribute()`, `attribute_names()`, `enum_members()`, `part_links()`, `fixture_objects()`). '
              'Top level: `schema`, `tia`, `style`, `sources`, `types` (the objects above, in this order), `parts` '
              '(element types below the objects: fonts, texts, animations, events, properties, with their attributes '
-             'and confirmed values; those without attributes empty), `enums` (TIA\'s enum types the attributes '
+             'and confirmed values, and the links full exports hold in them; those without attributes empty), `enums` (TIA\'s enum types the attributes '
              'name: member -> number).' % cat['schema'])
     L.append('')
     L.append('A type: `key` (element without `Hmi.Screen.`, null for a control whose element is unknown), '

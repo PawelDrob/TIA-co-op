@@ -284,8 +284,8 @@ def hold_button(name, link_kind, target):
 
 
 class ParameterLinkTest(unittest.TestCase):
-    """A function parameter links its tag, screen or pop-up with a Value link; TIA refused a Tag link there
-    (ticket 407)."""
+    """The exports link a function parameter's tag, screen or pop-up with a Value link; TIA refused a Tag link in
+    one."""
 
     def setUp(self):
         self.repo = FixtureRepo()
@@ -301,7 +301,7 @@ class ParameterLinkTest(unittest.TestCase):
     def test_a_tag_link_in_a_function_parameter_is_an_error_that_says_to_write_a_value_link(self):
         self.generate('Tag')
         found = by_rule(validate(self.repo.path), 'vocabulary.parameter-link')
-        self.assertEqual([('error', 'btnStart')], self.found())
+        self.assertEqual([('error', 'btnStart')], [(f.severity, f.object) for f in found])
         self.assertIn('<Value TargetID="@OpenLink"><Name>PumpP1_start</Name></Value>', found[0].message)
 
     def test_a_value_link_passes_without_an_export(self):

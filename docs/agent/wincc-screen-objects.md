@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen objects
 description: Every object of the WinCC Comfort toolbox with every option, its TIA display name and group, export name, default, allowed values and what the HMI preview draws; generated from TiaHmiGenerator/catalogue/catalogue.json.
 tags: [hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T03:28:10-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T03:37:09-05:00 }
 sources:
   - id: catalogue
     resource: ../../TiaHmiGenerator/catalogue/catalogue.json
@@ -1329,7 +1329,7 @@ A slide-in screen that the operator pulls in from a panel edge. Element `Hmi.Scr
 
 ## 3. The data file
 
-`TiaHmiGenerator\catalogue\catalogue.json`, schema 1. Read it with `hmipreview.catalogue` (`load()`, `by_element()`, `attribute()`, `attribute_names()`, `enum_members()`, `part_links()`, `fixture_objects()`). Top level: `schema`, `tia`, `style`, `sources`, `types` (the objects above, in this order), `parts` (element types below the objects: fonts, texts, animations, events, properties, with their attributes and confirmed values; those without attributes empty), `enums` (TIA's enum types the attributes name: member -> number).
+`TiaHmiGenerator\catalogue\catalogue.json`, schema 1. Read it with `hmipreview.catalogue` (`load()`, `by_element()`, `attribute()`, `attribute_names()`, `enum_members()`, `part_links()`, `fixture_objects()`). Top level: `schema`, `tia`, `style`, `sources`, `types` (the objects above, in this order), `parts` (element types below the objects: fonts, texts, animations, events, properties, with their attributes and confirmed values, and the links full exports hold in them; those without attributes empty), `enums` (TIA's enum types the attributes name: member -> number).
 
 A type: `key` (element without `Hmi.Screen.`, null for a control whose element is unknown), `element`, `toolbox` {`group`, `name`}, `stem` (TIA's default ObjectName without `_1`), `openness`, `source` (fixture | exports | help), `purpose`, `help` {`object`, `vbsType`}, `attributes`, `links`, `events` and `animations` (seen in exports), `preview` {`state`, `drawn`, `notDrawn`, `note`}.
 

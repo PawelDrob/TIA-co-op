@@ -6,7 +6,7 @@ exports (ExportSetting 'WithDefaults, WithReadOnly'); for a type no full export 
 fixture. Minimal exports add to the names and values, never to required.
 
 The link elements of a function parameter (Hmi.Event.FunctionListEntryParameter): those the catalogue's full exports
-hold there (Value) and those the reference exports hold there (parameter_link).
+hold there (Value) and those the reference exports hold there (judge_parameter_link).
 
 An object element is any element with an ID attribute; its attributes are the children of its own AttributeList.
 """
@@ -59,7 +59,7 @@ class Vocabulary:
             if not free(a.tag) and len(a) == 0:
                 self.values.setdefault((t, a.tag), set()).add(a.text or '')
         if t == PARAMETER:
-            self.parameter_links.update(l.tag for l in parameter_links(elem))
+            self.parameter_links.update(l.tag for l in link_elements(elem))
 
 
 # Document types the screen object catalogue leaves out (it holds what a screen holds), with their attributes as an export
@@ -73,21 +73,21 @@ TEXT_LIST_VALUES = {('Hmi.TextGraphicList.TextList', 'ListRange'): frozenset({'B
 
 
 PARAMETER = 'Hmi.Event.FunctionListEntryParameter'
-# Link elements TIA refused in a function parameter, with its message (ticket 407: SetBitWhileKeyPressed, its Tag
-# parameter as a <Tag> link; the import was rolled back, and with a Value link it imported).
+# Link elements TIA refused in a function parameter: where, and its message (2026-11-21: the import was rolled back;
+# with a Value link in place of the Tag link it imported).
 REFUSED_PARAMETER_LINKS = {
-    'Tag': ("The 'Tag' attribute at the 'Siemens.Engineering.Hmi.Event.FunctionListEntryParameter' object ... is "
-            "not supported"),
+    'Tag': ("the Tag parameter of SetBitWhileKeyPressed", "The 'Tag' attribute at the "
+            "'Siemens.Engineering.Hmi.Event.FunctionListEntryParameter' object ... is not supported"),
 }
 
 
-def parameter_links(elem):
-    """The link elements in the LinkList of a function parameter."""
+def link_elements(elem):
+    """The link elements in the LinkList of an element."""
     ll = elem.find('LinkList')
     return list(ll) if ll is not None else []
 
 
-def parameter_link(link, v):
+def judge_parameter_link(link, v):
     """None when a link element of a function parameter is one an export holds there, else (severity, message): an
     error for one TIA refused there, a warning for any other."""
     known = set(catalogue.part_links(PARAMETER)) | v.parameter_links
@@ -96,11 +96,12 @@ def parameter_link(link, v):
     value = '<Value TargetID="@OpenLink"><Name>%s</Name></Value>' % (link.findtext('Name') or '...')
     refused = REFUSED_PARAMETER_LINKS.get(link.tag)
     if refused:
-        return ERROR, ('A function parameter holds a %s link, which TIA refuses at import ("%s"). Write it as a Value '
-                       "link: %s (hmixml: func with kind 'link', hold_event(tag))." % (link.tag, refused, value))
-    return WARNING, ('A function parameter holds a %s link, which no export holds there (they hold: %s); '
-                     'TIA may refuse it at import. A tag, screen or pop-up of a function parameter is a Value link: %s.'
-                     % (link.tag, _list(known), value))
+        return ERROR, ('A function parameter holds a %s link, which no export holds there (they hold: %s); TIA refused '
+                       'one in %s at import ("%s"). Write it as a Value link: %s (hmixml: func with kind \'link\', '
+                       'hold_event(tag)).' % (link.tag, _list(known), refused[0], refused[1], value))
+    return WARNING, ('A function parameter holds a %s link, which no export holds there (they hold: %s); TIA may refuse '
+                     'it at import. The exports link a tag, screen or pop-up of a function parameter with a Value '
+                     'link: %s.' % (link.tag, _list(known), value))
 
 
 def known_type(element, v):

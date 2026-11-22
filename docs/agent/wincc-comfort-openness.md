@@ -3,7 +3,7 @@ type: Guide
 title: WinCC Comfort screen generation with TIA Portal Openness
 description: How to generate WinCC Comfort screens, pop-ups, tag tables and text lists as SimaticML and import them through TIA Portal Openness V20.
 tags: [tia-portal, hmi, wincc-comfort, openness, simatic-ml, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T03:26:53-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T03:37:18-05:00 }
 sources:
   - id: export
     resource: V20 Update 7 Openness exports of project B (2026-10-01), minimal and full
@@ -323,27 +323,29 @@ A trigger without a tag is a self-closing `TagElementTrigger`; it imports
 | `SetBitWhileKeyPressed` | `Tag` (`Value` link to the tag), `Bit` = `<Value Type="System.Int32">0</Value>` |
 | `ActivateScreen` | `Screen name` (`Value` link to the screen), `Object number` = 0 |
 | `ActivatePreviousScreen` | - |
-| `SetTag` | `Tag` (`Value` link to the tag), `Value` |
+| `SetTag` | `Tag` (`Value` link to the tag `[INFERRED]`), `Value` |
 | `ShowPopupScreen` | `Name of the screen`, `X coordinate`, `Y coordinate`, `Display mode`, `Animation`, `Animation speed` |
 | `Logoff`, `StopRuntime` (`Mode`), `GetUserName` (`Tag`), `ClearAlarmBuffer` (`Alarm class number`) | |
 
 A function parameter without a tag: leave out its `LinkList` (imported
 `[IMPORT]`).
 
-A function parameter links its tag, screen or pop-up with a `Value` link
-after its `AttributeList`:
+Write a function parameter's tag, screen or pop-up as a `Value` link after
+its `AttributeList`:
 `<LinkList><Value TargetID="@OpenLink"><Name>PumpP1_start</Name></Value></LinkList>`
 (`func` with kind `link`, `hold_event(tag)`). The exports of a test project's
 copies hold no other link element in a parameter of `ActivateScreen`,
-`SetBitWhileKeyPressed` or `ShowPopupScreen` `[EXPORT]` (2026-11-22). A
-`<Tag>` link in the `Tag` parameter of `SetBitWhileKeyPressed` was refused
-and the import rolled back: "The 'Tag' attribute at the
+`SetBitWhileKeyPressed` or `ShowPopupScreen` `[EXPORT]` (a test project,
+2026-11-22), and the full exports the screen object catalogue records hold
+none either (`TiaHmiGenerator\catalogue\seen.json`). A `<Tag>` link in the
+`Tag` parameter of `SetBitWhileKeyPressed` was refused and the import rolled
+back: "The 'Tag' attribute at the
 'Siemens.Engineering.Hmi.Event.FunctionListEntryParameter' object at line
 number 587 at line position 32 with Simatic ML ID 2F is not supported."; as a
 `Value` link it imported and the HMI compiled with 0 errors `[IMPORT]` (a
 test project, 2026-11-21). The HMI validator refuses a `Tag` link in a
-function parameter, and warns on any other link element no export holds
-there (`vocabulary.parameter-link`).
+function parameter while no export holds one there, and warns on any other
+link element no export holds there (`vocabulary.parameter-link`).
 
 A call of a VB script is an entry of `Type` `VBScript` whose `Name` is the
 script, without parameters as tried `[PROBE]`. The HMI validator knows the
@@ -523,7 +525,7 @@ directly, as 5.2 does twice. The colour keys are those of `set_colours`.
 | `set_text(e, comp, lines)` | The composition (`Text`, `TextOff`, `TextOn`) and its lines | That text in every language; `KeyError` when `e` has no such composition |
 | `ml_text(comp, lines)` | `lines` `None` for an empty text | A `MultilingualText` in the project's languages |
 | `body(lines)` | | The rich text `<Text>` of the lines |
-| `tag_link(parent, name, kind='Tag')` | Any element; `kind` `Tag`, `Picture`, `Template`, `Value`, ... | The link by name, after `parent`'s attribute list |
+| `tag_link(parent, name, kind='Tag')` | Any element; `kind` `Tag`, `Picture`, `Template`, `Value`, ...; in a function parameter `Value` (section 4.4) | The link by name, after `parent`'s attribute list |
 | `link(e, kind, name)` | | The same, returning nothing |
 | `process_value(e, tag)` | An I/O field or symbolic I/O field and an HMI tag's name | Its `ProcessValue` connected to the tag |
 

@@ -382,7 +382,7 @@ class GeneratorRunTest(unittest.TestCase):
 
 
 class HoldEventTest(unittest.TestCase):
-    """hold_event: a Press event calling SetBitWhileKeyPressed; its tag a Value link, as TIA imports it (ticket 407)."""
+    """hold_event: a Press event calling SetBitWhileKeyPressed; its tag a Value link, as TIA imports it."""
 
     @staticmethod
     def parameter(ev, name):

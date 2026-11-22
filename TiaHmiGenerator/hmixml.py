@@ -22,7 +22,7 @@ Object dict (one per screen item):
     event='hold'            Press: SetBitWhileKeyPressed (tag open)
     grp='Banner'            group key overriding the panel group
   Tags are left open (no LinkList); a later pass can add them (a button's: hold_event(tag) in place of its Press
-  event; a function parameter links its tag with a Value link, never a Tag link).
+  event; a function parameter's tag is a Value link, as func writes it: TIA refused a Tag link in one).
 
 Languages: every text and font of a generated document has one item per language of the project
 (generated_cultures(): the cultures of the project's exports, else of the exports loaded; ValueError when neither holds
