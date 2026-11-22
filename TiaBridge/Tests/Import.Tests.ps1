@@ -1241,7 +1241,6 @@ Describe 'import of the settings parts' {
             $r.refused | Should Match "^$($case[0]) imports outside a transaction \(TIA refuses it inside one"
             $r.refused | Should Match 'this one has none: its archive was skipped\. Nothing imported\. Make one with archive\(reason\)'
             $r.refused | Should Match 'A call stops at the first file that fails, and the files before it stay in; whether TIA keeps part of the file that failed was not tried\.'
-            $r.refused | Should Match 'its archive was skipped\. Nothing imported\. Make one with archive\(reason\)'
             @($script:imported).Count | Should Be 0
         }
     }

@@ -574,6 +574,7 @@ Describe 'Editing the changed type while a yes is in work' {
         Reset-Fake
         $why = Get-EditYesRefusal $null 'R'
         $why | Should Match "holds the types of a yes in work: X"
+        $why | Should Match 'A new change now would lose them, and the folders of the yes\.'
         $why | Should Match 'library_discard_type'
     }
     It 'goes on once they are out' {
