@@ -45,6 +45,14 @@ Describe 'The short result of a tool' {
         $a.failed[0] | Should Be "blocks@PLC_1: F/B1: Siemens.Engineering.EngineeringTargetInvocationException: The export of block 'B1' is not permitted. (+2 alike: F/B2, system_blocks@PLC_1: F/S1)"
         $a.failed[1] | Should Be 'system_blocks@PLC_1: F/S2: Siemens.Engineering.Other: The table is inconsistent and cannot be exported.'
         $a.failedCount | Should Be 4
+        # the first object of each kind with its whole Siemens error, as the agent quotes it
+        @($a.failedErrors).Count | Should Be 2
+        $a.failedErrors[0].object | Should Be 'blocks@PLC_1: F/B1'
+        $a.failedErrors[0].error.type | Should Be 'Siemens.Engineering.EngineeringTargetInvocationException'
+        $a.failedErrors[0].error.details[0] | Should Be "The export of block 'B1' is not permitted."
+        $a.failedErrors[0].error.inner[0].message | Should Be 'inner of B1'
+        $a.failedErrors[1].object | Should Be 'system_blocks@PLC_1: F/S2'
+        $a.failedErrors[1].error.inner[0].type | Should Be 'Inner.Type'
         # the log as before: one line per object, every part's record, the limits
         $log = Read-CallLog $d
         @($log.failed).Count | Should Be 4
@@ -104,6 +112,29 @@ Describe 'The short result of a tool' {
         $log.items[0].error.at | Should Match 'Import-PlcFile'
         $log.items[0].error.tiaEnded | Should Be $false
         $log.items[4].note | Should Be 'Line ends of E.s7dcl written as CRLF.'
+    }
+
+    It 'never takes two messages that differ only in case for alike' {
+        $script:TestResult = [ordered]@{ ok = $false; items = @(
+            [ordered]@{ name = 'A'; ok = $false; error = [ordered]@{ type = 'T'; message = 'Value too large.' } }
+            [ordered]@{ name = 'B'; ok = $false; error = [ordered]@{ type = 'T'; message = 'Value too LARGE.' } }) }
+        $a = (Invoke-Short 'import').text | ConvertFrom-Json
+        $a.items[1].error.message | Should Be 'Value too LARGE.'
+        $leaf = { param($d) [ordered]@{ path = 'X'; state = 'Warning'; description = $d; messages = @() } }
+        $script:TestResult = [ordered]@{ ok = $true; scope = 'plc'; errors = 0; items = @([ordered]@{ name = 'P'; ok = $true; errors = 0; warnings = 2
+                                         messages = [ordered]@{ state = 'Warning'; messages = @((& $leaf 'Tag x unused.'), (& $leaf 'Tag X unused.')) } }) }
+        $c = (Invoke-Short 'compile').text | ConvertFrom-Json
+        @($c.items[0].messages | ForEach-Object { $_.description }) -join '|' | Should Be 'Tag x unused.|Tag X unused.'
+    }
+
+    It 'counts no null as a value: no steps, no inner chain, no failed lines' {
+        $short = Get-ShortResult 'background_open' ([ordered]@{ ok = $false; step = 'start'; steps = $null }) @{}
+        $short.steps.count | Should Be 0
+        $short = Get-ShortResult 'import' ([ordered]@{ ok = $false; error = [ordered]@{ type = 'T'; message = 'm'; inner = $null } }) @{}
+        $short.error.Contains('inner') | Should Be $false
+        $short = Get-ShortResult 'full_export' ([ordered]@{ ok = $true; parts = @(); failed = $null; removed = $null; details = @() }) @{}
+        $short.Contains('failed') | Should Be $false
+        $short.Contains('removed') | Should Be $false
     }
 
     It 'import: an inner chain stays whole' {

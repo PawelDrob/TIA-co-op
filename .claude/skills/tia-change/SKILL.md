@@ -38,4 +38,4 @@ A result says a thing once. `project` and `repo` come with `connect`, `backgroun
 - **The result:** before the commit, do what its `next` says, except under `removeErrors`. Where it is not `ok`:
   - `removeErrors`: files of objects TIA no longer has could not be removed, and a commit would keep them as if the objects stood. Fix what each line names and `full_export` again; when it stays, commit nothing and tell the user.
   - `stopped`: TIA ended mid-export. Commit nothing and tell the user; the session waits there until `full_export` runs through.
-  - `failed` lines: what each names, an object (with the ones alike after it), a part or a device, was not exported, and its files stay as they were. Commit, and name those lines in the commit message and to the user beside the page: a change there is on no page.
+  - `failed` lines: what each names, an object (with the ones alike after it), a part or a device, was not exported, and its files stay as they were; `failedErrors` holds the whole Siemens error of the first object of each kind. Commit, and name those lines in the commit message and to the user beside the page: a change there is on no page.

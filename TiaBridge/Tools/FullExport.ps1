@@ -574,6 +574,17 @@ function New-PartRecord($Part, [string]$Device) {
                 written = (New-Object System.Collections.ArrayList); kept = (New-Object System.Collections.ArrayList) }
 }
 
+# A part record that holds nothing: no object, nothing failed, left out, removed or kept. The short result counts those
+# parts instead of listing them (Results.ps1).
+function Test-EmptyPartRecord($Record) {
+    if ($Record -isnot [System.Collections.IDictionary]) { return $false }
+    if ($Record.listError -or $Record.stopped -or $Record.leftOut -or [int]$Record.count) { return $false }
+    foreach ($k in 'failed', 'notExported', 'knowHowProtected', 'fellBack', 'removed', 'keptUncommitted', 'keptRepos') {
+        if (@($Record[$k] | Where-Object { $null -ne $_ }).Count) { return $false }
+    }
+    $true
+}
+
 # One line per part for the response: "<part>[@<device>]: <exported>/<count>, <s> s[, <failed> failed][, ...]".
 function Format-PartLine($R) {
     $s = "$($R.part)$(if ($R.device) { "@$($R.device)" }): "
@@ -850,7 +861,7 @@ function Register-FullExportTool {
         'A file that differs from the one in the repo only in what TIA writes anew per export (the export time; in an .xlsx also its relationship Ids) stays as it is: a full_export with no change in TIA changes no file; unchanged counts the files left so. ' +
         'Blocks, DBs, data types and PLC tag tables TIA has not changed since the last full_export are not exported and keep their files (skipped counts them). ' +
         'Of edits in TIA, a comment edited in its editors and a move were tried by a person; block properties edited in its dialogs were never tried: when such an edit may be missed, pass full: true. ' +
-        'An object is exported again when what TIA keeps of it, its folder or its files in the repo changed; every object of a PLC when a data type, a tag table or the set of objects changed (exportedAllOf); everything without a usable record (exportedAll); details counts per part why. ' +
+        'An object is exported again when what TIA keeps of it, its folder or its files in the repo changed; every object of a PLC when a data type, a tag table or the set of objects changed (exportedAllOf); everything without a usable record (exportedAll); details in the log count per part why. ' +
         'HMI, library and the other parts export every time. full: true exports everything. ' +
         'hmi\generated, gen, library\changes, changes, logs, archives and standards are never touched. Read only: works under connect and in a background session. Long: about minutes per thousand objects; ' +
         'parts runs a subset (a folder is then mirrored only when every part writing it ran). Result: one line per part with objects, failed items, ' +

@@ -3,7 +3,7 @@ type: Guide
 title: TIA Openness V20 facts for agents
 description: What TIA Portal Openness V20 can and cannot do for the PLC blocks, HMI objects and library types an agent changes through TiaBridge, and how its failures look; index of parts and Siemens manual sources.
 tags: [openness, tia-v20, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T23:54:59-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T00:16:45-05:00 }
 ---
 
 # TIA Openness V20 facts for agents
@@ -20,7 +20,7 @@ seen in an export / import, `[INFERRED]` follows from those, not verified by a r
 
 | File | Sections | Read for |
 |---|---|---|
-| `openness-v20.md`, this file | Intro, Sources | Index of parts and Siemens manual citations `[n]` |
+| `openness-v20.md`, this file | Intro, Sources | Index of parts, what no part of `full_export` exports, and Siemens manual citations `[n]` |
 | [openness-plc-blocks.md](openness-plc-blocks.md) | 1 (blocks, OBs, F-blocks and compile) | PLC blocks, data types, DBs, OBs (Editing an OB's SimaticML), PLC tag tables, know-how protection, F-blocks, F-LAD, SimaticML calls, compile and export after a batch |
 | [openness-plc-objects.md](openness-plc-objects.md) | 1 (watch and force tables, technology objects and folders) | Watch and force tables, technology objects and deleting user folders |
 | [openness-settings.md](openness-settings.md) | 1 (project texts and settings) | Project texts, alarm classes, system diagnostics settings and ProDiag supervisions |

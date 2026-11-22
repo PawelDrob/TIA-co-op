@@ -3,7 +3,7 @@
 # what only a reader of the log wants stays in the log. The log keeps everything (Bridge.ps1 writes it first); a failure
 # keeps its Siemens type, message, detail texts and inner chain at its first of a kind.
 
-# The clients that read the whole result, as before: programs of this repo that drive the bridge over MCP and read fields
+# The clients that read the whole result: programs of this repo that drive the bridge over MCP and read fields
 # the short one leaves to the log (TiaArchiveCompare\runner\bridge.py: full_export details, background_open steps), by the
 # name their initialize sends. A report run of the TIA dashboard (TiaBridge.ps1 -ReportRun) reads the whole one too.
 # Tests\Results.Tests.ps1 holds the names against the clients' code.
@@ -15,6 +15,13 @@ $script:SlowStepMs = 60000
 
 # The tools that give project and repo: their result says them always, every other one when they changed.
 $script:GivesProject = @('connect', 'background_open', 'project_open')
+
+# A map whose keys are texts compared as they are: PowerShell's own ignore case, and two Siemens messages that differ only
+# in case are not alike.
+function New-OrdinalMap { New-Object System.Collections.Hashtable ([StringComparer]::Ordinal) }
+
+# How many values a list holds, a null one not counted (@($null) holds one).
+function Get-ValueCount($List) { @($List | Where-Object { $null -ne $_ }).Count }
 
 function Test-WholeResultClient { [bool]($script:Bridge.reportRun -or $script:WholeResultClients -contains $script:McpClientName) }
 
@@ -74,14 +81,14 @@ function Get-ShortError($Err) {
     if ($Err -isnot [System.Collections.IDictionary]) { return $Err }
     $e = Copy-ResultFields $Err @('at')
     foreach ($k in 'tiaEnded', 'tiaDisconnected') { if ($e.Contains($k) -and -not $e[$k]) { $e.Remove($k) } }
-    if ($e.Contains('inner') -and -not @($e.inner).Count) { $e.Remove('inner') }
+    if ($e.Contains('inner') -and -not (Get-ValueCount $e.inner)) { $e.Remove('inner') }
     $e
 }
 
 # Items whose error, note or messages are alike an earlier item's say so ("as <that item>"); that earlier item's error
 # counts them (alike). Items are copied, the ones given are not changed.
 function Compress-ItemRepeats([object[]]$Items) {
-    $seen = @{}
+    $seen = New-OrdinalMap
     $out = New-Object System.Collections.ArrayList
     foreach ($i in $Items) {
         if ($i -isnot [System.Collections.IDictionary]) { [void]$out.Add($i); continue }
@@ -106,6 +113,7 @@ function Compress-ItemRepeats([object[]]$Items) {
 
 # The steps of a background session: how many and how long, and each one of a minute or more.
 function Get-StepsSummary([object[]]$Steps) {
+    $Steps = @($Steps | Where-Object { $null -ne $_ })
     $ms = 0; foreach ($s in $Steps) { $ms += [int]$s.ms }
     $sum = [ordered]@{ count = @($Steps).Count; ms = $ms }
     $slow = @(foreach ($s in $Steps) { if ([int]$s.ms -ge $script:SlowStepMs) { [ordered]@{ step = $s.step; ms = [int]$s.ms } } })
@@ -113,49 +121,48 @@ function Get-StepsSummary([object[]]$Steps) {
     $sum
 }
 
-# A part of full_export that holds nothing: no object, nothing failed, left out, removed or kept.
-function Test-EmptyPart($Record) {
-    if ($Record -isnot [System.Collections.IDictionary]) { return $false }
-    if ($Record.listError -or $Record.stopped -or $Record.leftOut -or [int]$Record.count) { return $false }
-    foreach ($k in 'failed', 'notExported', 'knowHowProtected', 'fellBack', 'removed', 'keptUncommitted', 'keptRepos') {
-        if (@($Record[$k] | Where-Object { $null -ne $_ }).Count) { return $false }
-    }
-    $true
-}
-
-# The failed lines of a full_export, a failure that repeats said once: the first object's line as the log has it, with how
-# many more are alike and their names. A part or a device that failed has its line of its own.
+# The failed lines of a full_export, a failure that repeats said once: lines, the first object's line as the log has it,
+# with how many more are alike and their names; errors, the first object's whole error of each kind (its line cuts the
+# message and has no detail texts or inner chain). Alike: the same error, the object's name taken out. A part or a device
+# that failed has its line of its own.
 function Get-ShortExportFailures([object[]]$Details) {
     $groups = New-Object System.Collections.ArrayList
-    $byKind = @{}
+    $errors = New-Object System.Collections.ArrayList
+    $byKind = New-OrdinalMap
     foreach ($e in @(Get-FullExportFailures $Details)) {
         if (-not $e.failure) { [void]$groups.Add(@{ text = $e.text; alike = @() }); continue }
         $f = $e.failure
-        $kind = if ($f.error) { Get-AlikeKey ([ordered]@{ type = $f.error.type; message = $f.error.message }) ([string]$f.name) }
-                else { "state $($f.messages.state)" }
+        $err = if ($f.error) { Get-ShortError $f.error }
+        $kind = if ($err) { Get-AlikeKey $err ([string]$f.name) } else { "state $($f.messages.state)" }
         $g = $byKind[$kind]
         if (-not $g) {
             $g = @{ text = $e.text; where = $e.where; alike = (New-Object System.Collections.ArrayList) }
             $byKind[$kind] = $g
             [void]$groups.Add($g)
+            if ($err) { [void]$errors.Add([ordered]@{ object = "$($e.where): $($e.object)"; error = $err }) }
         }
         else { [void]$g.alike.Add($(if ($e.where -eq $g.where) { $e.object } else { "$($e.where): $($e.object)" })) }
     }
-    @(foreach ($g in $groups) {
+    $lines = @(foreach ($g in $groups) {
         if (@($g.alike).Count) { "$($g.text) (+$(@($g.alike).Count) alike: $(@($g.alike) -join ', '))" } else { $g.text }
     })
+    @{ lines = $lines; errors = $errors.ToArray() }
 }
 
 function Get-ShortFullExport([System.Collections.IDictionary]$R) {
     $s = Copy-ResultFields $R @('details', 'limits', 'times', 'planMs', 'saveMs')
-    foreach ($k in 'removed', 'keptUncommitted', 'keptRepos', 'failed') { if ($s.Contains($k) -and -not @($s[$k]).Count) { $s.Remove($k) } }
+    foreach ($k in 'removed', 'keptUncommitted', 'keptRepos', 'failed') { if ($s.Contains($k) -and -not (Get-ValueCount $s[$k])) { $s.Remove($k) } }
     $details = @($R.details)
     if ($R.Contains('details') -and $details.Count -eq @($R.parts).Count) {
         $lines = @($R.parts)
-        $s.parts = @(for ($i = 0; $i -lt $lines.Count; $i++) { if (-not (Test-EmptyPart $details[$i])) { $lines[$i] } })
+        $s.parts = @(for ($i = 0; $i -lt $lines.Count; $i++) { if (-not (Test-EmptyPartRecord $details[$i])) { $lines[$i] } })
         $empty = $lines.Count - $s.parts.Count
         if ($empty) { $s.emptyParts = $empty }
-        if (@($R.failed).Count) { $s.failed = @(Get-ShortExportFailures $details) }
+        if (Get-ValueCount $R.failed) {
+            $f = Get-ShortExportFailures $details
+            $s.failed = $f.lines
+            if ($f.errors.Count) { $s.failedErrors = $f.errors }
+        }
     }
     $s
 }
@@ -181,7 +188,7 @@ function Get-CompileMessageList($Tree, [hashtable]$Seen, [string]$ItemName) {
         foreach ($c in $children) { & $walk $c $p }
     }
     & $walk $Tree @()
-    $byKey = [ordered]@{}
+    $byKey = New-Object System.Collections.Specialized.OrderedDictionary ([StringComparer]::Ordinal)
     foreach ($m in $found) {
         $k = "$($m.state)|$($m.description)"
         if (-not $byKey.Contains($k)) { $byKey[$k] = New-Object System.Collections.ArrayList }
@@ -203,9 +210,9 @@ function Get-ShortCompile([System.Collections.IDictionary]$R) {
     $s = Copy-ResultFields $R
     if (-not $R.Contains('items')) { return $s }
     $clean = 0
-    $seen = @{}
+    $seen = New-OrdinalMap
     $s.items = @(foreach ($i in @($R.items)) {
-        if ($i -isnot [System.Collections.IDictionary]) { $i; continue }
+        if ($i -isnot [System.Collections.IDictionary]) { , $i; continue }
         if ($i.ok -and -not [int]$i.errors -and -not [int]$i.warnings -and -not $i.error -and -not $i.refused) { $clean++; continue }
         $c = Copy-ResultFields $i @('messages')
         if ($c.Contains('error')) { $c.error = Get-ShortError $c.error }
@@ -247,6 +254,8 @@ function Get-ShortResult([string]$Tool, [System.Collections.IDictionary]$Result,
     if ($s.Contains('times')) { $s.Remove('times') }
     if ($s.Contains('error')) { $s.error = Get-ShortError $s.error }
     if ($s.Contains('prompts')) { $s.prompts = @(foreach ($p in @($s.prompts)) { , (Remove-EmptyValues $p) }) }
+    # last, after everything that could throw: an answer the dispatch drops for the whole one (Bridge.ps1) must not have
+    # marked project and repo as said
     foreach ($k in 'project', 'repo') {
         if (-not $Result.Contains($k)) { continue }
         if ($script:GivesProject -notcontains $Tool -and $Said.Contains($k) -and $Said[$k] -ceq $Result[$k]) { $s.Remove($k) }
