@@ -683,6 +683,7 @@ Describe 'a git repo inside an export folder' {
             [System.IO.File]::WriteAllText((Join-Path $files 'Image.png'), 'png')
             [System.IO.File]::WriteAllText($f.FullName, 'xml') }
         { Export-ObjectFolder $g (Join-Path $repo 'project\graphics') 'Logo' ([Siemens.Engineering.ExportOptions]::WithDefaults) } | Should Throw 'git repo'
+        { Export-ObjectFolder $g (Join-Path $repo 'project\graphics') 'Logo' ([Siemens.Engineering.ExportOptions]::WithDefaults) } | Should Throw 'Move the repo out of the folder and export again.'
         Assert-RepoWhole $d $head
     }
 

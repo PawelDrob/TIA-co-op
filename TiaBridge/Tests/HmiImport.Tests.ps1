@@ -417,6 +417,19 @@ Describe 'import of an HMI cycle (validator guard)' {
         $f[0].message | Should Match 'Export the cycles again'
     }
 
+    It 'refuses a cycle on a repo-level error of the validator, as a screen is' {
+        $repo = New-HmiRepo 'CycleRepoLevel'
+        Write-TextFile (Join-Path $repo 'hmi\panel.json') '{ "panel": "TP700 Comfort", "width": 800, "height": 480, "portrait": false }'
+        Write-TextFile (Join-Path $repo 'hmi\cycles\Fast.xml') (New-CycleDocument 'Fast')
+        $r = Invoke-HmiImport $repo -Kind 'hmi_cycle' -Paths @('hmi\cycles\Fast.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match 'Fix the document or its generator, then import again\.'
+        $f = @($r.items[0].findings | Where-Object { $_.rule -eq 'resolution.mismatch' })
+        $f.Count | Should Be 1
+        $f[0].document | Should Be 'hmi/panel.json'
+    }
+
     It 'refuses a cycle file outside hmi\cycles, where the validator does not look' {
         $repo = New-HmiRepo 'CycleOutside'
         Write-TextFile (Join-Path $repo 'elsewhere\Fast.xml') (New-CycleDocument 'Fast')
@@ -660,6 +673,15 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r.items[0].findings[0].message | Should Match 'cannot carry them, so they are taken to be lost'
     }
 
+    It 'refuses a global elements file outside hmi\global, where the validator does not look' {
+        $repo = New-HmiRepo 'GlobalOutside'
+        Write-TextFile (Join-Path $repo 'elsewhere\ScreenGlobalElements.xml') (New-GlobalElementsDocument)
+        $r = Invoke-HmiImport $repo -Kind 'hmi_screen_global' -Paths @('elsewhere\ScreenGlobalElements.xml') -Override $true
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match 'hmi_screen_global files are imported from hmi\\global only, where the HMI validator checks them\.'
+    }
+
     It 'refuses a slide-in file outside hmi\slideins, where the validator does not look' {
         $repo = New-HmiRepo 'SlideinOutside'
         Write-TextFile (Join-Path $repo 'elsewhere\Top.xml') (New-SlideinDocument)
@@ -685,6 +707,16 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r = Invoke-HmiImport $repo -Kind 'hmi_slidein' -Paths @('hmi\slideins\Top.xml')
         $r.ok | Should Be $false
         $r.items[0].refused | Should Match 'SlideinType'
+    }
+
+    It 'refuses another document in hmi\slideins' {
+        $repo = New-HmiRepo 'SlideinOther'
+        Write-TextFile (Join-Path $repo 'hmi\slideins\ScreenGlobalElements.xml') (New-GlobalElementsDocument)
+        $r = Invoke-HmiImport $repo -Kind 'hmi_slidein' -Paths @('hmi\slideins\ScreenGlobalElements.xml')
+        $r.ok | Should Be $false
+        @($script:imported).Count | Should Be 0
+        $r.items[0].refused | Should Match 'slidein.not-slidein'
+        $r.items[0].findings[0].message | Should Match 'HMI imports of objects TIA could not make ended its process'
     }
 
     It 'refuses another document in hmi\global' {

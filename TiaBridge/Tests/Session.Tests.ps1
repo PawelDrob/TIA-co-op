@@ -339,6 +339,7 @@ Describe 'connect stores the HMI type identifier' {
             $r.note | Should Not Match 'skip'
             $r.note | Should Match 'recordUnreadable'
             $r.session.recordUnreadable | Should Match 'ask the user to save in TIA or to close without saving, then connect'
+            (@(Test-SaveAllowed (Get-BridgeSession)) -join ' ') | Should Match 'so writes and save are refused'
             Remove-Item $file
         }
 

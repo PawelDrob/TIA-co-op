@@ -293,6 +293,7 @@ Describe 'import of F-blocks and know-how protected blocks' {
     It 'refuses a new F-block by its .s7dcl or SimaticML document without safety' {
         (Invoke-Guarded @('plc\guard\NewF.s7dcl')).items[0].refused | Should Match 'safety: true'
         (Invoke-Guarded @('plc\guard\NewFXml.xml')).items[0].refused | Should Match 'safety: true'
+        (Invoke-Guarded @('plc\guard\NewF.s7dcl')).items[0].refused | Should Match "'NewF' is an F-block: the import would change the safety program\. Pass safety: true only when the user asked for this safety change"
         @($script:imported).Count | Should Be 0
     }
 

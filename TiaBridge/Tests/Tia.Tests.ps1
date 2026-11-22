@@ -187,6 +187,7 @@ Describe 'Invoke-TiaWrite' {
         $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Offline' } }, @{ device = 'HMI_1'; kind = 'hmi'; deviceItem = $null })
         $m = try { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true }; '' } catch { $_.Exception.Message }
         $m | Should Be "$head TIA gives no online state for HMI_1, and whether it ever does for such a device was not probed: while it gives none, this write is refused. $inTia"
+        $m | Should Match 'Until then the bridge does not import project texts or alarm classes'
         # a state on its way: wait, or go offline
         $script:fakeSoftware = @(@{ device = 'PLC_1'; kind = 'plc'; deviceItem = @{ state = 'Connecting' } })
         $m = try { Invoke-TiaWrite 'import' -OutsideTransaction { $script:bodyRan = $true }; '' } catch { $_.Exception.Message }
