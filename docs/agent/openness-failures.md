@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: failures, modal dialogs and project lifecycle"
 description: "How TIA Portal Openness V20 calls fail, transactions, online mode, modal dialogs, names and files, archive, UMC, safety passwords, starting TIA, opening and closing projects, and STA/MTA hangs."
 tags: [openness, tia-v20, failures, agents]
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:40:00-05:00 }
 ---
 
 # TIA Openness V20 facts: failures, modal dialogs and project lifecycle

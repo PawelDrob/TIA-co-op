@@ -3,7 +3,7 @@ type: Guide
 title: SIMATIC SD (.s7dcl) authoring guide
 description: How to write SIMATIC SD (.s7dcl) PLC blocks for TIA Portal V20 and V21 that import cleanly, with every statement tagged by its source; the core every PLC change reads, and which part holds LAD networks, comments, data, instructions and import diagnostics.
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:41:00-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073

@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: HMI (WinCC Comfort)"
 description: "What TIA Portal Openness V20 can and cannot do with WinCC Comfort screens, screen numbers, templates, pop-ups, cycles, slide-ins, global screens, graphics, graphic lists, VB scripts, faceplates and HMI tag tables."
 tags: [openness, tia-v20, hmi, wincc-comfort, agents]
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:40:00-05:00 }
 ---
 
 # TIA Openness V20 facts: HMI (WinCC Comfort)

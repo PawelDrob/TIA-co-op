@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: watch and force tables, technology objects and folders"
 description: "What TIA Portal Openness V20 does with PLC watch tables, force tables, technology objects and user folders."
 tags: [openness, tia-v20, plc, agents]
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T20:18:00-05:00 }
 ---
 
 # TIA Openness V20 facts: watch and force tables, technology objects and folders
@@ -12,7 +12,7 @@ Part of the [TIA Openness V20 facts for agents](openness-v20.md): section 1 (wat
 
 ## 1. PLC software: watch and force tables, technology objects and folders
 
-Its other items: [blocks, OBs, F-blocks and compile](openness-plc-blocks.md), [project texts and settings](openness-settings.md), [export timing, dates and software units](openness-measurements.md) ("next paragraph" under User folders below refers to Software units and named value documents there).
+Its other items: [blocks, OBs, F-blocks and compile](openness-plc-blocks.md), [project texts and settings](openness-settings.md), [export timing, dates and software units](openness-measurements.md).
 
 | What | Behaviour | Source |
 |---|---|---|

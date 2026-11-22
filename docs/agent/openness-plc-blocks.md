@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: PLC blocks, OBs and compile"
 description: "What TIA Portal Openness V20 does with PLC blocks, data types, DBs, OBs (editing an OB's SimaticML), PLC tag tables, know-how protected blocks, F-blocks, F-LAD, SimaticML calls and compiles."
 tags: [openness, tia-v20, plc, agents]
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T20:18:00-05:00 }
 ---
 
 # TIA Openness V20 facts: PLC blocks, OBs and compile
@@ -12,7 +12,7 @@ Part of the [TIA Openness V20 facts for agents](openness-v20.md): section 1 (blo
 
 ## 1. PLC software: blocks, OBs, F-blocks and compile
 
-Its other items: [watch and force tables, technology objects and folders](openness-plc-objects.md) (which holds the row Technology objects cited below), [project texts and settings](openness-settings.md), [export timing, dates and software units](openness-measurements.md).
+Its other items: [watch and force tables, technology objects and folders](openness-plc-objects.md), [project texts and settings](openness-settings.md), [export timing, dates and software units](openness-measurements.md).
 
 | What | Behaviour | Source |
 |---|---|---|
