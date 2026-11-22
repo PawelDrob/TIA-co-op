@@ -1304,6 +1304,7 @@ Describe 'import of the settings parts' {
         Write-TextFile (Join-Path $repo 'project\alarmclasses\alarm-classes.xml') $diagXml
         $r = Invoke-SettingsImportTool 'alarm_classes' @('project\alarmclasses\alarm-classes.xml') -NoUndo
         $r.items[0].refused | Should Match 'holds SysDiagGlobalSettingsData, not the alarm classes \(AlarmServiceGlobalSettingsData\)'
+        $r.items[0].refused | Should Match 'not the alarm classes \(AlarmServiceGlobalSettingsData\), as full_export writes them\.'
         Write-TextFile (Join-Path $repo 'project\alarmclasses\alarm-classes.xml') '<AlarmServiceGlobalSettingsData>'
         $r = Invoke-SettingsImportTool 'alarm_classes' @('project\alarmclasses\alarm-classes.xml') -NoUndo
         $r.items[0].refused | Should Match 'is no well-formed XML'
