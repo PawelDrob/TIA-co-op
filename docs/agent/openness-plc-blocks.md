@@ -1,9 +1,9 @@
 ---
 type: Guide
 title: "TIA Openness V20 facts: PLC blocks, OBs and compile"
-description: "What TIA Portal Openness V20 does with PLC blocks, OBs (editing an OB's SimaticML), know-how protected blocks, F-blocks, F-LAD, SimaticML calls and compiles."
+description: "What TIA Portal Openness V20 does with PLC blocks, data types, DBs, OBs (editing an OB's SimaticML), PLC tag tables, know-how protected blocks, F-blocks, F-LAD, SimaticML calls and compiles."
 tags: [openness, tia-v20, plc, agents]
-generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
 ---
 
 # TIA Openness V20 facts: PLC blocks, OBs and compile
@@ -11,6 +11,8 @@ generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
 Part of the [TIA Openness V20 facts for agents](openness-v20.md): section 1 (blocks, OBs, F-blocks, compile and editing an OB's SimaticML). A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its Sources section holds the citations `[n]`.
 
 ## 1. PLC software: blocks, OBs, F-blocks and compile
+
+Its other items: [watch and force tables, technology objects and folders](openness-plc-objects.md) (which holds the row Technology objects cited below), [project texts and settings](openness-settings.md), [export timing, dates and software units](openness-measurements.md).
 
 | What | Behaviour | Source |
 |---|---|---|
@@ -28,6 +30,8 @@ Part of the [TIA Openness V20 facts for agents](openness-v20.md): section 1 (blo
 | SimaticML calls | Adding output pins to a call without wiring them fails the import: "The connection with the name '8' is not connected to the object with the UID '31'". Leave them out; the compile adds them `[PROBE]` | `[PROBE]` |
 | PLC alarm texts | `.xlsx` only. Without text lists the text list export throws `TextListNotFoundException`; without program alarms the alarm text export throws "There is no exportable alarm." `[PROBE]` | [33] |
 | SimaticML version | An export carries the installed TIA version; the format is "internal and valid exclusively for the current version of TIA Portal Openness" [12]; from V19 an API imports SimaticML of the three previous versions [13] | [12][13] |
+
+(The row **Technology objects** cited in Know-how protected, system blocks above is in [openness-plc-objects.md](openness-plc-objects.md), section 1.)
 
 **Compile** (`ICompilable`): on a device, PLC software, a block, a type or a group. It is not allowed inside a
 transaction [6]. A password-protected safety program needs the safety login first, or the compile fails at once:

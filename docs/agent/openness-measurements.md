@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: measurements, dates, software units and comparisons"
 description: "TIA Portal Openness V20 probe measurements: export timing with a window, object dates and GetAttributes, software units and named value documents, and fingerprints and offline comparisons."
 tags: [openness, tia-v20, measurements, agents]
-generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
 ---
 
 # TIA Openness V20 facts: measurements, dates, software units and comparisons
@@ -11,6 +11,8 @@ generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
 Part of the [TIA Openness V20 facts for agents](openness-v20.md): export timing, dates and software units of section 1, and section 6 (fingerprints and offline comparisons). A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its Sources section holds the citations `[n]`.
 
 ## 1. PLC software: export timing, dates and software units
+
+Its other items: [blocks, OBs, F-blocks and compile](openness-plc-blocks.md), [watch and force tables, technology objects and folders](openness-plc-objects.md), [project texts and settings](openness-settings.md) (which holds Texts edited through the project texts, one of the lists after the Dates table below).
 
 | What | Behaviour | Source |
 |---|---|---|
@@ -22,6 +24,8 @@ them again. A block changed by a person after the agent's last import and compil
 `[PROBE]`. `full_export` skips a block, DB or data type whose values below read as at the last export, and a tag table
 whose export reads as its file ([TiaBridge's internals](../dev/tools/tia-bridge.md) say what else it checks); every
 reason it skips rests on this table and the lists after it.
+
+(One further list of this probe — **Texts edited through the project texts** — is in [openness-settings.md](openness-settings.md), section 1.)
 
 Probed on 2026-10-08 on a real project, V20 Update 7, with a person making the edits in TIA and a script reading the
 values between the steps `[PROBE]`. The objects: an SCL FB, a LAD FB, a global DB, a data type, a PLC tag table, and an

@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: project texts and settings"
 description: "What TIA Portal Openness V20 does when importing project texts, alarm classes, system diagnostics settings and ProDiag supervisions."
 tags: [openness, tia-v20, settings, agents]
-generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
 ---
 
 # TIA Openness V20 facts: project texts and settings
@@ -11,6 +11,8 @@ generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
 Part of the [TIA Openness V20 facts for agents](openness-v20.md): section 1 (texts edited through project texts and settings parts through import). A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its Sources section holds the citations `[n]`.
 
 ## 1. PLC software: project texts and settings
+
+Its other items: [blocks, OBs, F-blocks and compile](openness-plc-blocks.md), [watch and force tables, technology objects and folders](openness-plc-objects.md), [export timing, dates and software units](openness-measurements.md).
 
 **Texts edited through the project texts** `[PROBE]` (2026-11-18, V20 Update 7, without a window, on a copy of a test
 project given a second language: reference en-US, de-DE added). `Project.ImportProjectTexts(FileInfo path, bool

@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: libraries"
 description: "What TIA Portal Openness V20 does with project and global libraries, library types, reviewed changes, types left behind and master copies."
 tags: [openness, tia-v20, library, agents]
-generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
 ---
 
 # TIA Openness V20 facts: libraries

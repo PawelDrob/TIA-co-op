@@ -1,5 +1,5 @@
 # Tia.ps1 - Openness DLL loading, attach, object lookup, error unwrapping, result dumps.
-# Openness facts used here: docs/agent/openness-v20.md, docs/agent/wincc-comfort-api.md sections 2.1 and 2.2.
+# Openness facts used here: docs/agent/openness-failures.md, docs/agent/wincc-comfort-api.md sections 2.1 and 2.2.
 
 . (Join-Path $PSScriptRoot 'Times.ps1')   # the steps of a full_export; tests load this file alone
 

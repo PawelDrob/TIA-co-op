@@ -29,7 +29,7 @@ Read only the part your change needs, in `docs\agent\`:
 
 | The change touches | Read |
 |---|---|
-| PLC blocks, OBs, know-how protected blocks, F-blocks, PLC tag tables, SimaticML calls, compile | openness-plc-blocks.md |
+| PLC blocks, data types, DBs, OBs, know-how protected blocks, F-blocks, PLC tag tables, SimaticML calls, compile | openness-plc-blocks.md |
 | Watch or force tables, technology objects, deleting user folders | openness-plc-objects.md |
 | Master copies of PLC objects or folders | openness-libraries.md |
 | A failing or hanging call, modal dialogs, online mode, archive, opening or closing a project | openness-failures.md |

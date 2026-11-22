@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: watch and force tables, technology objects and folders"
 description: "What TIA Portal Openness V20 does with PLC watch tables, force tables, technology objects and user folders."
 tags: [openness, tia-v20, plc, agents]
-generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
+generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T19:58:00-05:00 }
 ---
 
 # TIA Openness V20 facts: watch and force tables, technology objects and folders
@@ -11,6 +11,8 @@ generated: { by: antigravity/gemini, at: 2026-11-21T19:40:00-05:00 }
 Part of the [TIA Openness V20 facts for agents](openness-v20.md): section 1 (watch and force tables, technology objects and user folders). A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its Sources section holds the citations `[n]`.
 
 ## 1. PLC software: watch and force tables, technology objects and folders
+
+Its other items: [blocks, OBs, F-blocks and compile](openness-plc-blocks.md), [project texts and settings](openness-settings.md), [export timing, dates and software units](openness-measurements.md) ("next paragraph" under User folders below refers to Software units and named value documents there).
 
 | What | Behaviour | Source |
 |---|---|---|
@@ -43,3 +45,5 @@ screen, template, pop-up and HMI tag folders of a Comfort panel):
 - No folder was found that looks empty and holds something: F-blocks are listed without the safety login, and
   `delete_folder` reads every collection the folder reports, not only those of its kind. Something Openness does not
   list at all cannot be ruled out this way.
+
+("next paragraph" in the bullet on `Documents` above refers to **Software units and named value documents** in [openness-measurements.md](openness-measurements.md), section 1.)
