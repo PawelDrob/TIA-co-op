@@ -3,7 +3,7 @@ type: Guide
 title: "TIA Openness V20 facts: PLC blocks, OBs and compile"
 description: "What TIA Portal Openness V20 does with PLC blocks, data types, DBs, OBs (editing an OB's SimaticML), PLC tag tables, know-how protected blocks, F-blocks, F-LAD, SimaticML calls and compiles."
 tags: [openness, tia-v20, plc, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:42:50-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:55:40-05:00 }
 ---
 
 # TIA Openness V20 facts: PLC blocks, OBs and compile
@@ -52,20 +52,20 @@ holds it, `<Sections xmlns="...">`, `<FlgNet xmlns="...">`, with no prefix. Elem
 namespaces. TiaBridge refuses both before TIA sees the file, naming the line: a declared encoding other than utf-8 in any
 SimaticML, a namespace prefix in a block's. Whether TIA takes prefixes in other SimaticML was not tried.
 
-**Boxes in an OB's SimaticML** `[EXPORT]`. The facts on ENO and `Sp` come from SimaticML exports, those on Switch,
-JumpList and Calculate from the SimaticML export of networks in an OB. The same boxes as `.s7dcl` are in the
-[s7dcl guide](s7dcl-lad.md), 8.10, 8.12, 8.13 and 8.14:
+**Boxes in an OB's SimaticML.** The items below say what a box carries in an OB's SimaticML; the same boxes as
+`.s7dcl` are in the [s7dcl guide](s7dcl-lad.md), 8.10, 8.12, 8.13 and 8.14.
 
 - ENO: a box with the ENO setting (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`) has
-  `DisabledENO="true"` where ENO generation is off; the Calculate with it on has `DisabledENO="false"`. A box without the
-  setting (timers, counters, calls, `SEL`, `MUX`, ...) and every box of an F-block carry neither `DisabledENO` nor the
-  `.s7dcl` pragma `{ S7_GenerateENO := "TRUE" }`.
-- `Sp`, the S5 pulse timer: the SimaticML part has the same name, its pins `s`, `tv`, `r`, `rt`, `rtbcd`, `timer`, `q`.
+  `DisabledENO="true"` where ENO generation is off `[EXPORT]`; the Calculate with it on has `DisabledENO="false"`
+  `[EXPORT]`. A box without the setting (timers, counters, calls, `SEL`, `MUX`, ...) and every box of an F-block carry no
+  `DisabledENO` in the SimaticML export, and no pragma `{ S7_GenerateENO := "TRUE" }` in the `.s7dcl` export `[EXPORT]`.
+- `Sp`, the S5 pulse timer: the SimaticML part has the same name, its pins `s`, `tv`, `r`, `rt`, `rtbcd`, `timer`, `q`
+  `[EXPORT]`.
 - Switch and JumpList: the Switch part carries `<TemplateValue Name="SrcType" Type="Type">USInt</TemplateValue>` and per
   case `<TemplateValue Name="CASE0" Type="Operation">EQ</TemplateValue>`, the count as `Card`; its pins are `en`, `k`,
   `case0..n`, `dest0..n` (not `dst`), `else`. The JumpList part (`JmpList`, `Card` only) has `en`, `k`, `dest0..n`. A
   destination is a wire to an access `Scope="Label"` holding `<Label Name="..."/>`; the target network declares it in
   `<Labels><LabelDeclaration>`. Neither part has an `eno` pin: TIA draws both boxes with EN and no ENO, `DEST0` on the EN
-  row, `ELSE` after the last destination, each case input with its relation (`==`) in place of a pin name.
+  row, `ELSE` after the last destination, each case input with its relation (`==`) in place of a pin name `[EXPORT]`.
 - Calculate: the part `Calc` with `<Equation>(IN1 + IN2) * (IN1 - IN2)</Equation>`, `Card` (the number of inputs) and
-  `SrcType`; pins `en`, `in1..n`, `out`.
+  `SrcType`; pins `en`, `in1..n`, `out` `[EXPORT]`.

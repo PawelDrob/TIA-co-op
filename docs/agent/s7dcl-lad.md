@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: LAD networks"
 description: "How LAD networks are written in SIMATIC SD (.s7dcl) files for TIA Portal V20: rungs, wires, contacts, coils, boxes, calls, program control and the Calculate box, with a complete example block and the instruction set."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:42:50-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:55:40-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -350,7 +350,7 @@ END_NETWORK
 
 **The export ends this pragma block with `;` before `}`, and TIA refuses its own export:** *Syntax Error during import of TextLad file, Message: "no viable alternative at input ...* Without that last `;` it imports, so take it out of a reference export `[EXPORT]`. The symbols of the other relations (`<>`, `<`, `>`, `<=`, `>=`, as TIA shows them) are not yet seen in an export `[INFERRED]`. The LADDER Format Description's forms (`dest0 => ...`; case lines `EQ #v => label`, no template pragma) are not what TIA exports; whether TIA imports them is untested. Write the exported form.
 
-The SD export writes `Label(name)` (no blanks) on the line after `NETWORK`. The SimaticML export of the same networks in an OB: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
+The SD export writes `Label(name)` (no blanks) on the line after `NETWORK` `[EXPORT]`. The SimaticML export of the same networks in an OB: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
 
 ### 8.13b Logic on the pins of generic boxes `[PROBE]`
 
