@@ -547,6 +547,7 @@ Describe 'import of an HMI object that is no SimaticML' {
         $script:groupsMade = 0
         $r = Invoke-HmiImport $repo -Kind $kind -Paths @($path)
         $r.items[0].refused | Should Match 'SimaticML'
+        $r.items[0].refused | Should Match 'HMI objects are SimaticML \(\.xml\) only\.'
         $script:groupsMade | Should Be 0
         @($script:imported).Count | Should Be 0
         @(Test-SaveAllowed (Get-BridgeSession)).Count | Should Be 0
@@ -738,6 +739,8 @@ Describe 'import of slide-ins and global screens (validator guard)' {
         $r = Invoke-DeleteTool ([pscustomobject]@{ kind = $kind; names = @($name) })
         $r.ok | Should Be $false
         $r.refused | Should Match "^Kind $kind is not deleted by the bridge"
+        if ($kind -eq 'hmi_slidein') { $r.refused | Should Match "A slide-in is one of the device's, by its edge; a delete was not tried on a real TIA\." }
+        if ($kind -eq 'hmi_screen_global') { $r.refused | Should Match "The global elements and the screen overview are the device's own; a delete was not tried on a real TIA\." }
     }
 
     It 'finds the device folder of a slide-in or global screen' {

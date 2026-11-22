@@ -461,6 +461,7 @@ Describe 'import the bridge refuses before TIA is asked, and the save' {
         Write-TextFile (Join-Path $repo 'plc\tags\sub\New.s7dcl') 'x'
         $r = Invoke-ImportTool ([pscustomobject]@{ kind = 'plc_tag_table'; paths = @('plc\tags\sub\New.s7dcl') })
         $r.items[0].refused | Should Match 'SimaticML'
+        $r.items[0].refused | Should Match 'PLC tag tables are SimaticML \(\.xml\) only\.'
         $script:groupsMade | Should Be 0
     }
 
@@ -739,6 +740,7 @@ Describe 'import of force tables' {
     It 'refuses a file that is no SimaticML, and a watch table document, before TIA is asked; and a force table under watch_table' {
         $r = Invoke-ForceImport @('plc\forcetables\Force table.s7dcl')
         $r.items[0].refused | Should Match 'SimaticML'
+        $r.items[0].refused | Should Match 'Force tables are SimaticML \(\.xml\) only\.'
         $r = Invoke-ForceImport @('plc\forcetables\Watch1.xml')
         $r.items[0].refused | Should Match 'holds a watch table: import it with kind watch_table, not force_table'
         $r = Invoke-ForceImport @('plc\watchtables\Force table.xml') 'watch_table'
@@ -898,6 +900,7 @@ Describe 'import of technology objects' {
     It 'refuses a file that is no SimaticML and a DB document before TIA is asked, and a technology object under db' {
         $r = Invoke-ToImport @('plc\technology\Pid1.s7dcl')
         $r.items[0].refused | Should Match 'SimaticML'
+        $r.items[0].refused | Should Match 'Technology objects are SimaticML \(\.xml\) only\.'
         $r = Invoke-ToImport @('plc\technology\Db1.xml')
         $r.items[0].refused | Should Match 'holds a DB: import it with kind db, not technology_object'
         $r = Invoke-ToImport @('plc\blocks\Pid1.xml') 'db'
@@ -910,6 +913,7 @@ Describe 'import of technology objects' {
         $r = Invoke-DeleteTool ([pscustomobject]@{ kind = 'technology_object'; names = @('Pid1') })
         $r.ok | Should Be $false
         $r.refused | Should Match 'not tried on a real TIA'
+        $r.refused | Should Match 'Deleting a technology object was not tried on a real TIA\.'
         @($script:deleted).Count | Should Be 0
     }
 }
@@ -1009,6 +1013,7 @@ Describe 'import of project graphics' {
             $r = Invoke-GraphicImport @("project\graphics\$($case[0])")
             $r.ok | Should Be $false
             $r.items[0].refused | Should Match $case[1]
+            if ($case[0] -eq 'zzList.xml') { $r.items[0].refused | Should Match 'no graphic: import it with its own kind' }
             @($script:imported).Count | Should Be 0
         }
     }
@@ -1421,7 +1426,10 @@ Describe 'import of the settings parts' {
             $r = Invoke-DeleteTool ([pscustomobject]@{ kind = $kind; names = @('x') })
             $r.ok | Should Be $false
             $r.refused | Should Match "^Kind $kind is not deleted by the bridge\."
-            if ($kind -ne 'project_texts') { $r.refused | Should Match 'change them by importing it\.' }
+            if ($kind -eq 'project_texts') { $r.refused | Should Match "Project texts are the texts of the project's objects, not objects of their own\." }
+            if ($kind -eq 'alarm_classes') { $r.refused | Should Match 'The alarm classes are one settings file of the project; change them by importing it\.' }
+            if ($kind -eq 'diagnostics_settings') { $r.refused | Should Match 'The system diagnostics settings are one settings file of the project; change them by importing it\.' }
+            if ($kind -eq 'supervisions') { $r.refused | Should Match 'The ProDiag supervisions of a PLC are one sheet; change them by importing it\.' }
         }
     }
 
