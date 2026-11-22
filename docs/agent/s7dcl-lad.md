@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: LAD networks"
 description: "How LAD networks are written in SIMATIC SD (.s7dcl) files for TIA Portal V20: rungs, wires, contacts, coils, boxes, calls, program control and the Calculate box, with a complete example block and the instruction set."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T19:16:55-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:13:51-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -16,7 +16,7 @@ sources:
 
 # SIMATIC SD guide: LAD networks
 
-Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14b: LAD, 8.14c: branch shapes and LAD operands, 8.14, Appendix A, Appendix B, read for a LAD block, an F-block; an OB when its networks are LAD; an import or SD export that fails when the log message's row names it. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
+Part of the [SIMATIC SD (.s7dcl) authoring guide](s7dcl-format.md): sections 8, 8.1 to 8.13, 8.13b, 8.14a, 8.14b: LAD, 8.14c: branch shapes and LAD operands, 8.14, Appendix A, Appendix B, read for a LAD block, an F-block; any other change of an OB when a pin of a box is on logic, or a box output other than the rung's on a coil; an import or SD export that fails when the log message's row names it. A section keeps its number in the file that holds it; the table at the head of the guide names the file of a section cited by number, and its section 0 the confidence tags.
 
 ## 8. LAD networks (fully specified) `[LAD-DOC §3, §4]`
 
@@ -350,7 +350,7 @@ END_NETWORK
 
 **The export ends this pragma block with `;` before `}`, and TIA refuses its own export:** *Syntax Error during import of TextLad file, Message: "no viable alternative at input ...* Without that last `;` it imports, so take it out of a reference export `[EXPORT]`. The symbols of the other relations (`<>`, `<`, `>`, `<=`, `>=`, as TIA shows them) are not yet seen in an export `[INFERRED]`. The LADDER Format Description's forms (`dest0 => ...`; case lines `EQ #v => label`, no template pragma) are not what TIA exports; whether TIA imports them is untested. Write the exported form.
 
-SimaticML export of the same networks in an OB `[EXPORT]`: the Switch part carries `<TemplateValue Name="SrcType" Type="Type">USInt</TemplateValue>` and per case `<TemplateValue Name="CASE0" Type="Operation">EQ</TemplateValue>`, the count as `Card`; its pins are `en`, `k`, `case0..n`, `dest0..n` (not `dst`), `else`. The JumpList part (`JmpList`, `Card` only) has `en`, `k`, `dest0..n`. A destination is a wire to an access `Scope="Label"` holding `<Label Name="..."/>`; the target network declares it in `<Labels><LabelDeclaration>`, where the SD export writes `Label(name)` (no blanks) on the line after `NETWORK`. Neither part has an `eno` pin: TIA draws both boxes with EN and no ENO, `DEST0` on the EN row, `ELSE` after the last destination, each case input with its relation (`==`) in place of a pin name.
+The SimaticML export of the same networks in an OB: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
 
 ### 8.13b Logic on the pins of generic boxes `[PROBE]`
 
@@ -521,7 +521,7 @@ END_RUNG
 
 There is no `out :=` inside the expression; the output binding is fixed.
 
-Export of an FB (V20 Update 7, 2026-10-30) `[EXPORT]`: `{ S7_Templates := "SrcType := DInt"; S7_Expression := "(IN1 + IN2) * (IN1 - IN2)" }` before `Calculate( in1 := ..., in2 := ..., in3 := ..., out => ... )`: the export writes the formal names in the expression in upper case, as the editor shows them (`OUT := (IN1 + IN2) * (IN1 - IN2)`). The SimaticML export of the same network in an OB: the part `Calc` with `<Equation>(IN1 + IN2) * (IN1 - IN2)</Equation>`, `Card` (the number of inputs) and `SrcType`; pins `en`, `in1..n`, `out`.
+Export of an FB (V20 Update 7, 2026-10-30) `[EXPORT]`: `{ S7_Templates := "SrcType := DInt"; S7_Expression := "(IN1 + IN2) * (IN1 - IN2)" }` before `Calculate( in1 := ..., in2 := ..., in3 := ..., out => ... )`: the export writes the formal names in the expression in upper case, as the editor shows them (`OUT := (IN1 + IN2) * (IN1 - IN2)`). The SimaticML export of the same network in an OB: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML.
 
 ENO: the Calculate as placed in the editor has `DisabledENO="true"` in the SimaticML export (ENO not generated: TIA draws it gray, with a line from EN through the box), and its `.s7dcl` export has no `S7_GenerateENO` pragma `[EXPORT]`. So no pragma = the gray ENO. With ENO generated the export writes `S7_GenerateENO := "TRUE"`, as on any box with the setting (8.10), and its SimaticML `DisabledENO="false"` `[EXPORT]`.
 

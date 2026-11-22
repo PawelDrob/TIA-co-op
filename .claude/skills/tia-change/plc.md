@@ -12,7 +12,8 @@ The guide: s7dcl-format.md, the core every PLC change reads. Its section 9 check
 | A data type, new or changed; a member's attributes | s7dcl-data.md |
 | A classic `.scl` or `.udt` source to bring in | s7dcl-data.md |
 | An F-block (`safety: true`), the main safety block above all: its import needs a step of the user's after it | s7dcl-lad.md, s7dcl-instructions.md, s7dcl-import.md; s7dcl-data.md when it declares a multi-instance of an FB imported in this session |
-| An OB | s7dcl-instructions.md, s7dcl-import.md; s7dcl-lad.md when its networks are LAD; SimaticML only: see An OB below |
+| An OB: a call of an FB or FC added to, changed in or taken out of it | Nothing more: SimaticML only: see An OB below |
+| An OB, any other change | s7dcl-lad.md when a pin of a box is on logic, or a box output other than the rung's on a coil; s7dcl-instructions.md when an instruction's box is added or changed; SimaticML only: see An OB below |
 | An FBD, STL or GRAPH network | Nothing more: the core's section 12 says what is blocked, and why |
 | A PLC tag table, watch or force table, technology object | Nothing more: a SimaticML document: openness-plc-blocks.md (section 1, Formats and the tag table in Editing an OB's SimaticML) and, for watch or force tables and technology objects, openness-plc-objects.md (section 1); the core's checklist item 20 names the kind it goes under |
 | A library type's document | s7dcl-import.md; library.md, and the rows above for what the document holds |
@@ -21,7 +22,7 @@ The guide: s7dcl-format.md, the core every PLC change reads. Its section 9 check
 
 ## An OB
 
-SimaticML only. Edit it per openness-plc-blocks.md section 1, "Editing an OB's SimaticML": keep the declaration `encoding="utf-8"` and every namespace without a prefix, so no Python ElementTree round trip.
+SimaticML only. Edit it per openness-plc-blocks.md section 1, "Editing an OB's SimaticML": keep the declaration `encoding="utf-8"` and every namespace without a prefix, so no Python ElementTree round trip. A call: the row SimaticML calls there. A Switch, JumpList or Calculate box: "Boxes in an OB's SimaticML" there.
 
 ## Openness facts
 

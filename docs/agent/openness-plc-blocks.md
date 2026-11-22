@@ -1,9 +1,9 @@
 ---
 type: Guide
 title: "TIA Openness V20 facts: PLC blocks, OBs and compile"
-description: "What TIA Portal Openness V20 does with PLC blocks, data types, DBs, OBs (editing an OB's SimaticML), PLC tag tables, know-how protected blocks, F-blocks, F-LAD, SimaticML calls and compiles."
+description: "What TIA Portal Openness V20 does with PLC blocks, data types, DBs, OBs (editing an OB's SimaticML, its Switch, JumpList and Calculate boxes), PLC tag tables, know-how protected blocks, F-blocks, F-LAD, SimaticML calls and compiles."
 tags: [openness, tia-v20, plc, agents]
-generated: { by: antigravity/gemini-4-neon, at: 2026-11-21T20:18:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:13:51-05:00 }
 ---
 
 # TIA Openness V20 facts: PLC blocks, OBs and compile
@@ -51,3 +51,16 @@ So keep the export's `<?xml version="1.0" encoding="utf-8"?>`, and each namespac
 holds it, `<Sections xmlns="...">`, `<FlgNet xmlns="...">`, with no prefix. ElementTree cannot write several default
 namespaces. TiaBridge refuses both before TIA sees the file, naming the line: a declared encoding other than utf-8 in any
 SimaticML, a namespace prefix in a block's. Whether TIA takes prefixes in other SimaticML was not tried.
+
+**Boxes in an OB's SimaticML** `[EXPORT]`, as the SimaticML export of networks in an OB writes them; the same networks
+as `.s7dcl` are in the [SIMATIC SD guide](s7dcl-lad.md), 8.13 and 8.14:
+
+- Switch and JumpList: the Switch part carries `<TemplateValue Name="SrcType" Type="Type">USInt</TemplateValue>` and per
+  case `<TemplateValue Name="CASE0" Type="Operation">EQ</TemplateValue>`, the count as `Card`; its pins are `en`, `k`,
+  `case0..n`, `dest0..n` (not `dst`), `else`. The JumpList part (`JmpList`, `Card` only) has `en`, `k`, `dest0..n`. A
+  destination is a wire to an access `Scope="Label"` holding `<Label Name="..."/>`; the target network declares it in
+  `<Labels><LabelDeclaration>`, where the SD export writes `Label(name)` (no blanks) on the line after `NETWORK`.
+  Neither part has an `eno` pin: TIA draws both boxes with EN and no ENO, `DEST0` on the EN row, `ELSE` after the last
+  destination, each case input with its relation (`==`) in place of a pin name.
+- Calculate: the part `Calc` with `<Equation>(IN1 + IN2) * (IN1 - IN2)</Equation>`, `Card` (the number of inputs) and
+  `SrcType`; pins `en`, `in1..n`, `out`.
