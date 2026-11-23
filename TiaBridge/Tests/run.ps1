@@ -1,8 +1,8 @@
 # Runs the Pester 3.4 unit tests (no TIA needed). Usage: powershell -NoProfile -File run.ps1 [test file]
 # A relative test file is looked up in the current folder, then in this folder. Exits non-zero when a test fails,
 # the file does not exist or no test ran.
-# A folder's test files run in PRE_COMMIT_WORKERS PowerShell processes at once (default 4, no more than the cores; 1 runs
-# them here), dealt out by size. Each worker's Pester output comes whole, one after the other, then the sum of them all.
+# A folder's test files run in PRE_COMMIT_WORKERS PowerShell processes at once, dealt out by size (default 4, no more
+# than the cores; 1 runs them here). Each worker's Pester output comes whole, one after the other, then the sum of all.
 param([string]$Path = $PSScriptRoot)
 $found = @($Path, (Join-Path $PSScriptRoot $Path)) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $found) { [Console]::Error.WriteLine("run.ps1: test file not found: $Path"); exit 2 }
@@ -59,7 +59,8 @@ $clock = [Diagnostics.Stopwatch]::StartNew()
 $temp = Join-Path ([IO.Path]::GetTempPath()) "tiabridge-pester-$PID-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
 New-Item -ItemType Directory -Path $temp | Out-Null
 $workerFile = Join-Path $temp 'worker.ps1'
-[IO.File]::WriteAllText($workerFile, $worker, (New-Object Text.UTF8Encoding $true))    # with a BOM: Windows PowerShell reads one without in the ANSI code page
+# with a BOM: Windows PowerShell reads one without in the ANSI code page
+[IO.File]::WriteAllText($workerFile, $worker, (New-Object Text.UTF8Encoding $true))
 $running = @()
 try {
     for ($i = 0; $i -lt $workers; $i++) {

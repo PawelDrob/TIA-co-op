@@ -164,7 +164,6 @@ def running_executables():
         paths = _win_process_executables()
     except OSError as error:
         raise SessionError(f'the process list could not be read, nothing of the tree removed: {error}') from None
-    paths = [path.strip() for path in paths if path.strip()]
     if not paths:
         raise SessionError('the process list could not be read, nothing of the tree removed: empty process list')
     return paths

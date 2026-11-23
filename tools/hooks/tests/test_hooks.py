@@ -485,7 +485,8 @@ class T(unittest.TestCase):
         _, base_venv = _hook_templates()
         shutil.copytree(base_venv, other / '.venv')
         (other / 'tools' / 'hooks').mkdir(parents=True)
-        shutil.copy(self.repo / 'tools' / 'hooks' / 'run_tests.py', other / 'tools' / 'hooks')    # untracked: no checkout brings it
+        # untracked: no checkout brings it
+        shutil.copy(self.repo / 'tools' / 'hooks' / 'run_tests.py', other / 'tools' / 'hooks')
         self.assertRan(self.audit(cwd=other))
         self.assertSkipped(self.audit(cwd=other))
         self.assertSkipped(self.audit())

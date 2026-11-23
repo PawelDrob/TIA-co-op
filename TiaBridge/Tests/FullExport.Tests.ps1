@@ -1180,6 +1180,17 @@ Describe 'the times of a full_export' {
         $blocks.objects.maxMs | Should Be $s.ms
     }
 
+    Context 'a part whose times are slow to begin, as on a busy PC' {
+        $script:newTimesBucket = ${function:New-TimesBucket}
+        Mock New-TimesBucket { Start-Sleep -Milliseconds 30; & $script:newTimesBucket $Part $Device }
+        It 'leaves that wait out of the part''s time, which its steps add up to' {
+            $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('external_sources') })
+            $p = $r.times.parts[0]
+            $sum = 0.0; foreach ($s in $p.steps.Values) { $sum += $s.ms }
+            [Math]::Abs($sum - $p.ms) | Should Not BeGreaterThan 1.5
+        }
+    }
+
     Context 'the folder of an object' {
         It 'is timed as paths' {
             Mock Get-KindRelDir { [TiaBridgeTimes]::TestTicks += [long](4 * [System.Diagnostics.Stopwatch]::Frequency / 1000); 'plc\blocks' }

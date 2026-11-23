@@ -695,8 +695,9 @@ function Invoke-FullExportRun($a) {
         $p = $j.part
         $rec = New-PartRecord $p $j.device
         [void]$records.Add($rec)
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        # the part's time starts where its steps do, so that they add up to it
         Enter-PartTimes $p.name $j.device
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
         $step = [TiaBridgeTimes]::Enter('progress')
         Write-BridgeLog "full_export $($p.name)$(if ($j.device) { " @ $($j.device)" }) ..."
         $pp = [ordered]@{ event = 'part'; part = $p.name }
@@ -724,7 +725,7 @@ function Invoke-FullExportRun($a) {
             $rec.listError = ConvertTo-BridgeError $_
             Set-PartStopped $rec $rec.listError
         }
-        $rec.ms = [int]$sw.ElapsedMilliseconds
+        $rec.ms = [int]$sw.Elapsed.TotalMilliseconds
         Exit-PartTimes $rec.ms
         Update-ExportWindowSeen
         $step = [TiaBridgeTimes]::Enter('progress')

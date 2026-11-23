@@ -14,9 +14,9 @@ the same flags, the same PNG.
 Every run uses the same temp profile (--user-data-dir) and kills the processes of the run afterwards: headless
 children can outlive the parent. The browser starts in a Windows job object, held before it runs, so every process it
 starts is in the job too; the end of the job ends them and waits until they have. Where Windows gives no job, the
-processes are found by the profile on their command line, as before the job (a PowerShell, about 0.8 s a run). The
-preview page is driven by its URL hooks (static/app.js); pass ?live=0, an open change stream keeps virtual time from
-running out and the browser would never dump or shoot.
+processes are found by the profile on their command line, by a PowerShell of about 0.8 s a run. The preview page is
+driven by its URL hooks (static/app.js); pass ?live=0, an open change stream keeps virtual time from running out and
+the browser would never dump or shoot.
 """
 import ctypes
 import os
@@ -135,7 +135,8 @@ class _Job:
         """subprocess.Popen(args) with no window and its output read, in this job before it runs: a process it starts is
         in the job from its start."""
         proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
-                                creationflags=NO_WINDOW | 0x4)      # 0x4: CREATE_SUSPENDED, which subprocess does not name
+                                # 0x4: CREATE_SUSPENDED, which subprocess does not name
+                                creationflags=NO_WINDOW | 0x4)
         try:
             handle = _OpenProcess(_PROCESS_SET_QUOTA | _PROCESS_TERMINATE, False, proc.pid)
             if not handle:

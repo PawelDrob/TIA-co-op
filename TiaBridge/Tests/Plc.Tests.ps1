@@ -151,7 +151,8 @@ Describe 'Export-PlcObject' {
         [System.IO.File]::WriteAllText((Join-Path $dir 'L.xml'), 'old')
         $good = [pscustomobject]@{ IsKnowHowProtected = $false }
         $good | Add-Member ScriptMethod Export { param($f, $o) Set-Content $f.FullName 'new xml' }
-        $retryMs = $script:ReplaceRetryMs; $script:ReplaceRetryMs = 50    # held to the end: no need to wait out the 2000 ms a moment of a scanner gets
+        # held to the end: no need to wait out the 2000 ms a moment of a scanner gets
+        $retryMs = $script:ReplaceRetryMs; $script:ReplaceRetryMs = 50
         $lock = [System.IO.File]::Open((Join-Path $dir 'L.xml'), 'Open', 'Read', 'None')
         try { { Export-PlcObject @{ name = 'L'; obj = $good } $dir ([pscustomobject]@{ format = 'xml' }) $false } | Should Throw 'L.xml' }
         finally { $lock.Dispose(); $script:ReplaceRetryMs = $retryMs }

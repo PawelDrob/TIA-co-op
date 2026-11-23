@@ -87,7 +87,8 @@ def _clone_template():
         clone.mkdir()
         git(clone, 'init', '-q', '-b', 'main')
         (clone / 'a.txt').write_text('a', encoding='utf-8')
-        (clone / 'TiaArchiveCompare' / 'window').mkdir(parents=True)    # tracked, as in the clone: git status names window/bin
+        # tracked, as in the clone: git status names window/bin
+        (clone / 'TiaArchiveCompare' / 'window').mkdir(parents=True)
         (clone / 'TiaArchiveCompare' / 'window' / 'README.md').write_text('w', encoding='utf-8')
         (clone / '.gitignore').write_text('.scratch/\n.venv/\n__pycache__/\n/local/\n.playwright-mcp/\n*.stackdump\n', encoding='utf-8')
         git(clone, 'add', '.')

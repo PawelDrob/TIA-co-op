@@ -584,7 +584,8 @@ def _changed_in_working_tree(snap, work_files):
         ids = []
     else:
         try:
-            ids = _git(snap._top, 'hash-object', '--stdin-paths',       # takes its paths from the repo's root, wherever run
+            # takes its paths from the repo's root, wherever run
+            ids = _git(snap._top, 'hash-object', '--stdin-paths',
                        input=''.join(snap.prefix + p + '\n' for p in files).encode('utf-8')).decode().split()
         except ValueError:
             ids = []

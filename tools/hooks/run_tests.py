@@ -5,8 +5,8 @@
 
 Workers: -j, else PRE_COMMIT_WORKERS, else as many as the PC has cores, at most 6. A class with setUpClass or
 tearDownClass goes whole to one worker, any other test on its own, the biggest classes first. With one worker, one class
-or test, or a module that does not import, the suite runs in this process as unittest runs it. The summary has unittest's lines (Ran, OK,
-FAIL:, ERROR:, FAILED), which the hook reads.
+or test, or a module that does not import, the suite runs in this process as unittest runs it. The summary has
+unittest's lines (Ran, OK, FAIL:, ERROR:, FAILED), which the hook reads.
 """
 import argparse
 import json
@@ -80,7 +80,8 @@ def _run_worker(top_dir):
         result = unittest.TestResult()
         try:
             loader.loadTestsFromName(target).run(result)
-        except BaseException:       # a name that does not load, or a test that ends the run (SystemExit): an error of it
+        except BaseException:
+            # a name that does not load, or a test that ends the run (SystemExit): an error of it
             result.errors.append((target, traceback.format_exc()))
             result.testsRun = max(result.testsRun, 1)
         payload = {'ran': result.testsRun,

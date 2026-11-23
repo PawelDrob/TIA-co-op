@@ -27,9 +27,9 @@
 #      repo or of a top-level folder naming a file that is gone, or a skill whose frontmatter does not parse, on every
 #      commit that has the .venv (it says so when skipped), and the check's own tests when the commit touches
 #      tools/pointers/
-#  10. Session tool tests (about 9 s, on temp git repos, with no claude or herdr), when the commit touches tools/session/,
-#      tools/setup/setup.py, whose command for the bridge a session starts too, or tools/dashboard/board.py or review_page.py,
-#      which its merge reads a ticket's head and takes a page down with
+#  10. Session tool tests (about 9 s, on temp git repos, with no claude or herdr), when the commit touches
+#      tools/session/, tools/setup/setup.py, whose command for the bridge a session starts too, or
+#      tools/dashboard/board.py or review_page.py, which its merge reads a ticket's head and takes a page down with
 #  11. The hook's own tests (tools/hooks/tests/, about 40 s, on temp git repos with the suites stubbed), when the commit
 #      touches .githooks/ or tools/hooks/
 #  12. First setup tests (about 10 s, on temp clones, with a fake claude), when the commit touches tools/setup/ or

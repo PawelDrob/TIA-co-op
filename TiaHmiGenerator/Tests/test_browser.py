@@ -73,7 +73,8 @@ class BrowserProcessesTest(unittest.TestCase):
         """A browser that leaves a child running, its Windows process number in child.pid, and dumps an empty page."""
         pid = os.path.join(folder, 'child.pid')
         leave = os.path.join(folder, 'leave.py')
-        with open(leave, 'w', encoding='utf-8') as f:     # Python hands the child no handle but nul: not the run's output
+        # Python hands the child no handle but nul: not the run's output
+        with open(leave, 'w', encoding='utf-8') as f:
             f.write('import subprocess, sys\n'
                     'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], stdin=subprocess.DEVNULL,\n'
                     '                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n'

@@ -1,5 +1,6 @@
-"""tools/hooks/run_tests.py on made-up suites: tests in two workers, a class with setUpClass in one, failures and errors as
-unittest writes them, a module that does not import, a worker that dies, a test whose child reads stdin, no -t."""
+"""tools/hooks/run_tests.py on made-up suites: tests in two workers, a class with setUpClass in one, failures and
+errors as unittest writes them, a module that does not import, a worker that dies, a test whose child reads stdin,
+the default of -t."""
 import subprocess
 import sys
 import tempfile
