@@ -22,7 +22,7 @@ Describe 'TiaBridgeTimes: Enter and Exit' {
         $x = [TiaBridgeTimes]::Enter('tia_export_s7dcl'); Step-TestClock 50; [TiaBridgeTimes]::Exit($x)
         $x = [TiaBridgeTimes]::Enter('tia_export_s7dcl'); Step-TestClock 10; [TiaBridgeTimes]::Exit($x)
         Step-TestClock 4                                  # other
-        Exit-PartTimes 75
+        Exit-PartTimes | Should Be 75
         $r = Stop-ExportTimes
         $p = $r.parts[0]
         "$($p.part)@$($p.device) $($p.ms) $($p.tiaMs)" | Should Be 'blocks@PLC_1 75 60'
@@ -45,7 +45,7 @@ Describe 'TiaBridgeTimes: Enter and Exit' {
         try { $x = [TiaBridgeTimes]::Enter('tia_export_xml'); Step-TestClock 9; [TiaBridgeTimes]::Exit($x) }
         finally { Exit-ExportRetry }
         $x = [TiaBridgeTimes]::Enter('tia_export_xml'); Step-TestClock 2; [TiaBridgeTimes]::Exit($x)
-        Exit-PartTimes 18
+        $null = Exit-PartTimes
         $p = (Stop-ExportTimes).parts[0]
         "$($p.steps.tia_export_s7dcl.ms) $($p.steps.tia_export_retry.ms) $($p.steps.tia_export_xml.ms)" | Should Be '7 9 2'
     }
@@ -56,7 +56,7 @@ Describe 'TiaBridgeTimes: Enter and Exit' {
         [TiaBridgeTimes]::Enter('move') | Should Be $null
         [TiaBridgeTimes]::Exit('other')
         [TiaBridgeTimes]::Changes | Should Be $changes
-        Enter-PartTimes 'blocks'; Exit-PartTimes 1
+        Enter-PartTimes 'blocks'; Exit-PartTimes | Should Be $null
         Get-ObjectTimeMark | Should Be $null
         Add-ObjectTime $null 'A' '' @()
         Stop-ExportTimes | Should Be $null
@@ -70,8 +70,8 @@ Describe 'Stop-ExportTimes' {
         Enter-PartTimes 'plan'
         $x = [TiaBridgeTimes]::Enter('tia_state'); Step-TestClock 20; [TiaBridgeTimes]::Exit($x)
         Step-TestClock 1
-        Exit-PartTimes -Plan
-        Enter-PartTimes 'blocks'; Step-TestClock 30; Exit-PartTimes 30
+        $null = Exit-PartTimes -Plan
+        Enter-PartTimes 'blocks'; Step-TestClock 30; $null = Exit-PartTimes
         $x = [TiaBridgeTimes]::Enter('mirror'); Step-TestClock 4
         $g = [TiaBridgeTimes]::Enter('git'); Step-TestClock 6; [TiaBridgeTimes]::Exit($g); [TiaBridgeTimes]::Exit($x)
         $r = Stop-ExportTimes
@@ -108,7 +108,7 @@ Describe 'the slowest objects of a part' {
             Add-ObjectTime $m "B$i" 'F' @("plc\blocks\B$i.s7dcl", "plc\blocks\B$i.s7res")
         }
         $m = Get-ObjectTimeMark; Step-TestClock 0.5; Add-ObjectTime $m 'S' '' @('plc\blocks\S.s7dcl') -Skipped
-        Exit-PartTimes 100
+        $null = Exit-PartTimes
         $p = (Stop-ExportTimes).parts[0]
         @($p.slowest | ForEach-Object { $_.name }) -join ',' | Should Be 'B12,B11,B10,B9,B8,B7,B6,B5,B4,B3'
         $b7 = $p.slowest | Where-Object { $_.name -eq 'B7' }

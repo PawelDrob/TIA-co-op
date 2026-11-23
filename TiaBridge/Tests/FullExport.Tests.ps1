@@ -316,11 +316,11 @@ Describe 'file parts' {
         try {
             Enter-PartTimes 't'
             Invoke-FullExportFilePart $part $null '' (New-Rec $part)
-            Exit-PartTimes 0
+            $null = Exit-PartTimes
             Save-TestRepo $repo
             Enter-PartTimes 't'
             Invoke-FullExportFilePart @{ name = 't'; scope = 'project'; dir = 'project\texts'; file = { param($r, $d) @{ none = $true } } } $null '' (New-Rec $part)
-            Exit-PartTimes 0
+            $null = Exit-PartTimes
             $t = Stop-ExportTimes
         }
         finally { Stop-ExportTimesClock }
@@ -1180,15 +1180,33 @@ Describe 'the times of a full_export' {
         $blocks.objects.maxMs | Should Be $s.ms
     }
 
-    Context 'a part whose times are slow to begin, as on a busy PC' {
-        $script:newTimesBucket = ${function:New-TimesBucket}
+    # A wait of 30 ms where a busy PC may pause the bridge: in and after the start of a part's times, and before their
+    # end. The part's steps add up to its time wherever the wait lands.
+    function Test-PartAddsUp {
+        $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('external_sources') })
+        $p = $r.times.parts[0]
+        $line = $r.details | Where-Object { $_.part -eq 'external_sources' }
+        $p.ms | Should Be $line.ms
+        $sum = 0.0; foreach ($s in $p.steps.Values) { $sum += $s.ms }
+        [Math]::Abs($sum - $p.ms) | Should Not BeGreaterThan 1.5
+    }
+    $script:newTimesBucket = ${function:New-TimesBucket}
+    $script:enterPartTimes = ${function:Enter-PartTimes}
+    $script:exitPartTimes = ${function:Exit-PartTimes}
+
+    Context 'a part whose bucket is slow to make' {
         Mock New-TimesBucket { Start-Sleep -Milliseconds 30; & $script:newTimesBucket $Part $Device }
-        It 'leaves that wait out of the part''s time, which its steps add up to' {
-            $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('external_sources') })
-            $p = $r.times.parts[0]
-            $sum = 0.0; foreach ($s in $p.steps.Values) { $sum += $s.ms }
-            [Math]::Abs($sum - $p.ms) | Should Not BeGreaterThan 1.5
-        }
+        It 'adds up its steps to its time' { Test-PartAddsUp }
+    }
+
+    Context 'a part whose times begin late' {
+        Mock Enter-PartTimes { & $script:enterPartTimes $Part $Device; Start-Sleep -Milliseconds 30 }
+        It 'adds up its steps to its time' { Test-PartAddsUp }
+    }
+
+    Context 'a part whose times end late' {
+        Mock Exit-PartTimes { Start-Sleep -Milliseconds 30; & $script:exitPartTimes -Plan:$Plan }
+        It 'adds up its steps to its time' { Test-PartAddsUp }
     }
 
     Context 'the folder of an object' {

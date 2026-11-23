@@ -677,7 +677,7 @@ function Invoke-FullExportRun($a) {
             Enter-PartTimes 'plan'
             try { $plan = Get-ExportPlan $software $project $full }
             catch { $planNote = "what TIA says of the objects did not read: $((ConvertTo-BridgeError $_).message)" }
-            finally { Exit-PartTimes -Plan }
+            finally { $null = Exit-PartTimes -Plan }
         }
     }
     $planMs = [int]$planWatch.ElapsedMilliseconds
@@ -695,9 +695,8 @@ function Invoke-FullExportRun($a) {
         $p = $j.part
         $rec = New-PartRecord $p $j.device
         [void]$records.Add($rec)
-        # the part's time starts where its steps do, so that they add up to it
+        # the part's time is the span its steps count (Exit-PartTimes)
         Enter-PartTimes $p.name $j.device
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
         $step = [TiaBridgeTimes]::Enter('progress')
         Write-BridgeLog "full_export $($p.name)$(if ($j.device) { " @ $($j.device)" }) ..."
         $pp = [ordered]@{ event = 'part'; part = $p.name }
@@ -725,8 +724,7 @@ function Invoke-FullExportRun($a) {
             $rec.listError = ConvertTo-BridgeError $_
             Set-PartStopped $rec $rec.listError
         }
-        $rec.ms = [int]$sw.Elapsed.TotalMilliseconds
-        Exit-PartTimes $rec.ms
+        $rec.ms = [int](Exit-PartTimes)
         Update-ExportWindowSeen
         $step = [TiaBridgeTimes]::Enter('progress')
         Write-BridgeLog "full_export $(Format-PartLine $rec)"

@@ -76,15 +76,17 @@ function Enter-PartTimes([string]$Part, [string]$Device = '') {
     $t.bucket = $b
 }
 
-# Ms: the part's time as the part measured it (its line); the plan gives none and takes the span of its steps.
-function Exit-PartTimes([int]$Ms = -1, [switch]$Plan) {
+# Returns the part's ms, for its line: the span its steps count, so that they add up to it whatever the PC does between
+# them. Nothing when off.
+function Exit-PartTimes([switch]$Plan) {
     $t = $script:ExportTimes
     if (-not $t -or $t.bucket -eq $t.once) { return }
     $b = $t.bucket
     [TiaBridgeTimes]::UseBucket($t.once.steps)
-    $b.ms = $(if ($Ms -ge 0) { $Ms } else { [int](ConvertTo-Ms ([TiaBridgeTimes]::Mark - $b.start)) })
+    $b.ms = [int](ConvertTo-Ms ([TiaBridgeTimes]::Mark - $b.start))
     if ($Plan) { $t.plan = $b } else { [void]$t.parts.Add($b) }
     $t.bucket = $t.once
+    $b.ms
 }
 
 # Where one object begins: @(ticks, Openness ticks) for Add-ObjectTime, $null when off.
@@ -169,7 +171,7 @@ function Get-BucketTimes($Bucket, [switch]$Part) {
 function Stop-ExportTimes {
     $t = $script:ExportTimes
     if (-not $t) { return $null }
-    if ($t.bucket -ne $t.once) { Exit-PartTimes }
+    if ($t.bucket -ne $t.once) { $null = Exit-PartTimes }
     [TiaBridgeTimes]::Flush()
     $r = [ordered]@{
         about = 'ms per step: steps named tia_* are calls into Openness, the others the bridge''s own work; a part''s steps add up to its ms. slowest: the objects of a part that took longest, with the size of their files.'
