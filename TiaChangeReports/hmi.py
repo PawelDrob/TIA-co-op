@@ -44,6 +44,12 @@ def sides_of(before, after=None, rev2=None, folders=False):
     return (b, a) if b.files() or a.files() else None
 
 
+def has_files(*listings):
+    """Does a listing of paths from a repo's root hold a file where the HMI part reads: with none in either side's,
+    sides_of is None."""
+    return any(p.startswith(ROOTS) for paths in listings for p in paths)
+
+
 def holds_objects(repo, rev):
     """Does this revision hold an HMI object as TIA exported it (generated documents are none)."""
     return bool(sides.documents(sides.side(repo, rev)))

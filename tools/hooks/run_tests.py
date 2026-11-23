@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import unittest
 
 MARKER = '__RUN_TESTS_JSON__'
@@ -58,42 +59,26 @@ def _results_channel():
 def _run_worker(top_dir):
     if top_dir not in sys.path:
         sys.path.insert(0, top_dir)
-    real_out = _results_channel()
+    results = _results_channel()
     loader = unittest.TestLoader()
     for line in sys.stdin:
         target = line.strip()
         if not target:
             continue
-        res = unittest.TestResult()
-        t0 = time.perf_counter()
+        result = unittest.TestResult()
         try:
-            suite = loader.loadTestsFromName(target)
-            suite.run(res)
-        except BaseException:
-            import traceback
-            payload = {
-                'target': target,
-                'ran': 1,
-                'elapsed': time.perf_counter() - t0,
-                'failures': [],
-                'errors': [[target, traceback.format_exc()]],
-                'skipped': 0,
-                'expected_failures': 0,
-                'unexpected_successes': [],
-            }
-        else:
-            payload = {
-                'target': target,
-                'ran': res.testsRun,
-                'elapsed': time.perf_counter() - t0,
-                'failures': [[str(t), tb] for t, tb in res.failures],
-                'errors': [[str(t), tb] for t, tb in res.errors],
-                'skipped': len(res.skipped),
-                'expected_failures': len(res.expectedFailures),
-                'unexpected_successes': [str(t) for t in res.unexpectedSuccesses],
-            }
-        real_out.write('\n' + MARKER + json.dumps(payload) + '\n')
-        real_out.flush()
+            loader.loadTestsFromName(target).run(result)
+        except BaseException:       # a name that does not load, or a test that ends the run (SystemExit): an error of it
+            result.errors.append((target, traceback.format_exc()))
+            result.testsRun = max(result.testsRun, 1)
+        payload = {'ran': result.testsRun,
+                   'failures': [[str(test), text] for test, text in result.failures],
+                   'errors': [[str(test), text] for test, text in result.errors],
+                   'skipped': len(result.skipped),
+                   'expected_failures': len(result.expectedFailures),
+                   'unexpected_successes': [str(test) for test in result.unexpectedSuccesses]}
+        results.write('\n' + MARKER + json.dumps(payload) + '\n')
+        results.flush()
 
 
 def _run_parallel(targets, top_dir, workers):
@@ -127,20 +112,20 @@ def _run_parallel(targets, top_dir, workers):
                 try:
                     proc.stdin.write(target + '\n')
                     proc.stdin.flush()
-                    got = None
+                    result = None
                     for out_line in proc.stdout:
                         if out_line.startswith(MARKER):
-                            got = json.loads(out_line[len(MARKER):])
+                            result = json.loads(out_line[len(MARKER):])
                             break
                         elif out_line.strip():
                             sys.stderr.write(out_line)
-                    if got is None:
+                    if result is None:
                         code = proc.wait()
                         with results_lock:
                             worker_errors.append((target, f'worker exited early (code {code}) while running {target}\n'))
                         break
                     with results_lock:
-                        results.append(got)
+                        results.append(result)
                 finally:
                     work.task_done()
         finally:
@@ -154,18 +139,17 @@ def _run_parallel(targets, top_dir, workers):
                 proc.kill()
                 proc.wait()
 
-    n = min(workers, len(targets))
-    threads = [threading.Thread(target=worker_loop, daemon=True) for _ in range(n)]
-    for t in threads:
-        t.start()
+    threads = [threading.Thread(target=worker_loop, daemon=True) for _ in range(min(workers, len(targets)))]
+    for thread in threads:
+        thread.start()
     try:
-        for t in threads:
-            t.join()
+        for thread in threads:
+            thread.join()
     except KeyboardInterrupt:
         with procs_lock:
-            for p in procs:
+            for proc in procs:
                 try:
-                    p.kill()
+                    proc.kill()
                 except OSError:
                     pass
         raise
@@ -173,13 +157,13 @@ def _run_parallel(targets, top_dir, workers):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser()
-    p.add_argument('-s', '--start-directory', default='.')
-    p.add_argument('-t', '--top-level-directory', default='.')
-    p.add_argument('-p', '--pattern', default='test*.py')
-    p.add_argument('-j', '--jobs', type=int, default=0)
-    p.add_argument('--worker', action='store_true')
-    args = p.parse_args(argv)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-s', '--start-directory', default='.')
+    parser.add_argument('-t', '--top-level-directory', default='.')
+    parser.add_argument('-p', '--pattern', default='test*.py')
+    parser.add_argument('-j', '--jobs', type=int, default=0)
+    parser.add_argument('--worker', action='store_true')
+    args = parser.parse_args(argv)
 
     top_dir = os.path.abspath(args.top_level_directory)
     if args.worker:
@@ -189,7 +173,7 @@ def main(argv=None):
     if top_dir not in sys.path:
         sys.path.insert(0, top_dir)
 
-    t0 = time.perf_counter()
+    start = time.perf_counter()
     loader = unittest.TestLoader()
     suite = loader.discover(args.start_directory, pattern=args.pattern, top_level_dir=top_dir)
 
@@ -213,13 +197,13 @@ def main(argv=None):
     workers = args.jobs if args.jobs > 0 else _default_workers()
 
     if discovery_failures or workers <= 1 or len(counts) <= 1:
-        res = unittest.TextTestRunner(verbosity=1).run(suite)
-        return 0 if res.wasSuccessful() and res.testsRun > 0 else 1
+        result = unittest.TextTestRunner(verbosity=1).run(suite)
+        return 0 if result.wasSuccessful() and result.testsRun > 0 else 1
 
-    # Class-level targets (custom setUpClass/tearDownClass) first by size, then individual test methods.
-    targets = [k for k, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+    # the classes run whole first, the biggest first, as they take longest; then the tests run on their own
+    targets = [name for name, _ in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
     results, worker_errors = _run_parallel(targets, top_dir, workers)
-    elapsed = time.perf_counter() - t0
+    elapsed = time.perf_counter() - start
 
     ran = sum(r['ran'] for r in results)
     skipped = sum(r['skipped'] for r in results)
@@ -229,20 +213,9 @@ def main(argv=None):
     unexpected_successes = [item for r in results for item in r['unexpected_successes']]
 
     out = sys.stderr
-    for label, tb in errors:
-        out.write('=' * 70 + '\n')
-        out.write(f'ERROR: {label}\n')
-        out.write('-' * 70 + '\n')
-        out.write(tb)
-        if not tb.endswith('\n'):
-            out.write('\n')
-    for label, tb in failures:
-        out.write('=' * 70 + '\n')
-        out.write(f'FAIL: {label}\n')
-        out.write('-' * 70 + '\n')
-        out.write(tb)
-        if not tb.endswith('\n'):
-            out.write('\n')
+    for kind, items in (('ERROR', errors), ('FAIL', failures)):     # as unittest writes them
+        for label, text in items:
+            out.write('=' * 70 + '\n' + f'{kind}: {label}\n' + '-' * 70 + '\n' + text + ('' if text.endswith('\n') else '\n'))
     for label in unexpected_successes:
         out.write(f'UNEXPECTED SUCCESS: {label}\n')
 

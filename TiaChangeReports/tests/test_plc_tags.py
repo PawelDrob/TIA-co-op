@@ -43,7 +43,7 @@ def table(name, *items, created='2026-10-06T00:00:00Z'):
 
 
 class _LazyListing:
-    """Runs the non-JSON listing call only for tests that actually read the listing."""
+    """The list of a plain run, run only for a test that reads it: the JSON and the page come from the --json run."""
 
     def __init__(self, load):
         self._load = load

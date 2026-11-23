@@ -9,7 +9,7 @@ the same flags, the same PNG.
   Edge().screenshot(url, out, width, height)
                                  one `--headless --screenshot` run with a window of width x height CSS px
                                  at device scale factor 1, so the PNG has exactly that size
-  close()                        kills every browser process still using the temp profile and removes it
+  close()                        ends the browser processes of its runs and removes the temp profile
 
 Every run uses the same temp profile (--user-data-dir) and kills the processes of the run afterwards: headless
 children can outlive the parent. The browser starts in a Windows job object, held before it runs, so every process it
@@ -255,7 +255,7 @@ class Edge:
         return out
 
     def kill(self):
-        """Stop every browser process still running on this profile."""
+        """End the processes of the runs so far: those of each job, and those on the profile after a run with no job."""
         while self._jobs:
             self._jobs.pop().end()
         if self._outside_a_job:

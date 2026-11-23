@@ -199,10 +199,10 @@ Describe 'Export-LibraryTypeDocuments for a type of a global library' {
         $v | Add-Member ScriptMethod ExportAsDocuments { param($d, $n, $f, $o) [System.IO.File]::WriteAllText((Join-Path $d.FullName "$n.s7dcl"), 'new') }
         $t = [pscustomobject]@{ Versions = @($v) }
         $t | Add-Member ScriptMethod GetSupportedExportFormats { @('SimaticSD') }
-        $script:ReplaceRetryMs = 50    # held to the end: the replace gives up after 50 ms, not the 2000 a moment of a scanner gets
+        $retryMs = $script:ReplaceRetryMs; $script:ReplaceRetryMs = 50    # held to the end: no need to wait out the 2000 ms a moment of a scanner gets
         $lock = [System.IO.File]::Open("$dir\typeL\typeL.s7dcl", 'Open', 'Read', 'None')
         try { { Export-LibraryTypeDocuments @{ name = 'typeL'; obj = $t } $dir } | Should Throw 'typeL' }
-        finally { $lock.Dispose(); $script:ReplaceRetryMs = 2000 }
+        finally { $lock.Dispose(); $script:ReplaceRetryMs = $retryMs }
         [System.IO.File]::ReadAllText("$dir\typeL\typeL.s7dcl") | Should Be 'old'
         Test-Path "$dir\typeL.partial" | Should Be $false
         Test-Path "$dir\typeL.old" | Should Be $false

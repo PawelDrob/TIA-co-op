@@ -4,7 +4,7 @@ title: Testing
 description: What each test suite covers and what it fakes, what the commit hook runs across tools, and what only a real TIA can show.
 tags: [dev, testing]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T17:57:49-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-23T13:44:22-05:00 }
 ---
 
 # Testing
@@ -37,6 +37,8 @@ No suite the hook runs needs TIA, a window or a person, so anyone can run them a
 - The bridge's validator guard tests, on a change to the generator.
 - The generator's suite, on a change to `docs\agent\wincc-comfort-openness.md`: a test holds its list of the generator's calls (5.1) to the code and runs its worked screen (5.2).
 - The Archive Compare package tests, on a change to `TiaBridge\Mcp.ps1`: the download's version must equal the bridge's.
+
+A suite's tests run in worker processes at once: a Python suite's through `tools\hooks\run_tests.py`, each test on its own or a class with `setUpClass` whole, and the bridge's test files through `TiaBridge\Tests\run.ps1`. So a test shares the PC with the others of its suite. It keeps what it writes in a temp folder of its own, reads a file another process writes only once that file is whole, and waits for another process with a bound, so that a test that fails ends.
 
 ## By hand
 

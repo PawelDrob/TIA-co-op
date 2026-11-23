@@ -176,10 +176,10 @@ Describe 'a refused or failed export keeps the last good files' {
             $x }) }
         New-TestRepo @()
         foreach ($f in 'F_V1.0.0.xml', 'F_V2.0.0.xml', 'F.type.json') { Write-Old $script:repo "plc\versions\$f" }
-        $script:ReplaceRetryMs = 50    # held to the end: the replace gives up after 50 ms, not the 2000 a moment of a scanner gets
+        $retryMs = $script:ReplaceRetryMs; $script:ReplaceRetryMs = 50    # held to the end: no need to wait out the 2000 ms a moment of a scanner gets
         $lock = [System.IO.File]::Open((Join-Path $script:repo 'plc\versions\F_V1.0.0.xml'), 'Open', 'Read', 'None')
         try { $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'versions'; names = @('F') }) }
-        finally { $lock.Dispose(); $script:ReplaceRetryMs = 2000 }
+        finally { $lock.Dispose(); $script:ReplaceRetryMs = $retryMs }
         $r.items[0].ok | Should Be $false
         $r.items[0].error.message | Should Match 'F_V1\.0\.0\.xml'
         foreach ($f in 'F_V1.0.0.xml', 'F_V2.0.0.xml', 'F.type.json') { Read-Repo "plc\versions\$f" | Should Be 'old' }
@@ -245,10 +245,10 @@ Describe 'names and destinations' {
         It "$how fails an object whose destination stays locked, naming it, keeps its files, and puts the others in place" {
             New-TestRepo @((New-TestBlock 'A'), (New-TestBlock 'L'), (New-TestBlock 'C'))
             Write-Old $script:repo 'plc\blocks\L.s7dcl'; Write-Old $script:repo 'plc\blocks\L.xml'
-            $script:ReplaceRetryMs = 50    # held to the end: the replace gives up after 50 ms, not the 2000 a moment of a scanner gets
+            $retryMs = $script:ReplaceRetryMs; $script:ReplaceRetryMs = 50    # held to the end: no need to wait out the 2000 ms a moment of a scanner gets
             $lock = [System.IO.File]::Open((Join-Path $script:repo 'plc\blocks\L.s7dcl'), 'Open', 'Read', 'None')
             try { if ($how -eq 'export') { $r = Invoke-TestExport } else { $rec = Invoke-TestPart } }
-            finally { $lock.Dispose(); $script:ReplaceRetryMs = 2000 }
+            finally { $lock.Dispose(); $script:ReplaceRetryMs = $retryMs }
             if ($how -eq 'export') {
                 $l = $r.items[1]
                 $r.ok | Should Be $false
@@ -292,10 +292,10 @@ Describe 'the mirror' {
         foreach ($f in 'A.s7dcl', 'Gone.s7dcl', 'L.s7dcl', 'L.xml') { Write-Old $script:repo "plc\blocks\$f" }
         $script:Bridge.background = @{ plain = $true }
         Mock Get-TiaProject { [pscustomobject]@{ Name = 'P'; ProjectLibrary = $null } }
-        $script:ReplaceRetryMs = 50    # held to the end: the replace gives up after 50 ms, not the 2000 a moment of a scanner gets
+        $retryMs = $script:ReplaceRetryMs; $script:ReplaceRetryMs = 50    # held to the end: no need to wait out the 2000 ms a moment of a scanner gets
         $lock = [System.IO.File]::Open((Join-Path $script:repo 'plc\blocks\L.s7dcl'), 'Open', 'Read', 'None')
         try { $r = Invoke-FullExportTool ([pscustomobject]@{ parts = @('blocks', 'dbs') }) }
-        finally { $lock.Dispose(); $script:ReplaceRetryMs = 2000; $script:Bridge.background = $null }
+        finally { $lock.Dispose(); $script:ReplaceRetryMs = $retryMs; $script:Bridge.background = $null }
         @($r.removed) | Should Be 'plc\blocks\Gone.s7dcl'
         Read-Repo 'plc\blocks\A.s7dcl' | Should Be 'A sd'
         Read-Repo 'plc\blocks\L.s7dcl' | Should Be 'old'

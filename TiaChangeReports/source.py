@@ -415,8 +415,7 @@ class GitSnapshot:
                          rev + '^{commit}').decode('utf-8').splitlines())
                 commit = commit.strip()
             except ValueError:
-                self._top, self.prefix = (_git(self.root, 'rev-parse', '--show-toplevel', '--show-prefix')
-                                          .decode('utf-8').splitlines())
+                _git(self.root, 'rev-parse', '--show-toplevel')     # a folder outside git: git's own words
                 raise ValueError('no commit %s in %s' % (rev, self.root))
         self.label = '%s @ %s' % (name_of(self.root), rev if rev.startswith(commit) else '%s (%s)' % (rev, commit))
         self._blobs = _Blobs(self.root, rev)
@@ -572,14 +571,14 @@ def skipped(snaps):
     return list(dict.fromkeys(x for s in snaps for x in getattr(s, 'skipped', ())))
 
 
-def _changed_in_working_tree(snap, work_files=None):
+def _changed_in_working_tree(snap, work_files):
     """The files load() reads whose bytes in the working tree are not those of the revision snap. By the blob id of
     every file: git's own word that a file is unchanged rests on its size and time, which an edit with the time restored
-    passes. git hash-object applies git's filters, so a checkout's line ends differ from nothing; a blob
+    passes; work_files are the working tree's files. git hash-object applies git's filters, so a checkout's line ends differ from nothing; a blob
     that itself holds CRLF under core.autocrlf does differ here, which costs a read and shows nothing.
     A file it cannot read has no id and may differ: then all of them, and the comparison names that one."""
     tree = {p: oid for p, oid in snap._blobs.tree().items() if p.endswith(LOADED)}
-    files = [p for p in (work_files if work_files is not None else _working_files(snap.root)) if p.endswith(LOADED)]
+    files = [p for p in work_files if p.endswith(LOADED)]
     if not files:
         ids = []
     else:

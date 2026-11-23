@@ -150,12 +150,10 @@ def main(argv=None):
                     tables += plctags.compare(before, after)
                 snaps += [before, after]
                 plc_not_compared += not_compared(before, after)
-            # found() lists every file of a side from the repo's root, where the HMI part reads: no side with a file
-            # under hmi.ROOTS is hmi.sides_of's None, here without its git calls
-            has_hmi = True
-            if plc_on and isinstance(before, GitSnapshot) and isinstance(after, GitSnapshot):
-                has_hmi = any(p.startswith(hmi.ROOTS) for s in (before, after) for p in s.found())
-            pair = load_hmi() if hmi_on and has_hmi else None
+            reads_hmi = hmi_on
+            if reads_hmi and plc_on and isinstance(before, GitSnapshot) and isinstance(after, GitSnapshot):
+                reads_hmi = hmi.has_files(before.found(), after.found())     # from the root, as sides_of reads
+            pair = load_hmi() if reads_hmi else None
             if tags_on or pair:
                 compared_inputs.append((before, after) if plc_on else load())
         except ValueError as ex:

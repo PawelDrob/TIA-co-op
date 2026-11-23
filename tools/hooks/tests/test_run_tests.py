@@ -1,4 +1,5 @@
-"""Tests for tools/hooks/run_tests.py: parallel sharding, setUpClass preservation, failures, and discovery errors."""
+"""tools/hooks/run_tests.py on made-up suites: tests in two workers, a class with setUpClass in one, failures and errors as
+unittest writes them, a module that does not import, a worker that dies."""
 import subprocess
 import sys
 import tempfile
