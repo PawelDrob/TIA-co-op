@@ -1,8 +1,8 @@
 """A report run of the TIA dashboard: the change report of a project as the user's TIA holds it, made without an agent
 (docs\\adr\\0004-the-tia-dashboard-starts-a-report-run.md). The dashboard's button starts it as a process of its own, and the
 page only reads what it writes. It starts TiaBridge in its report-run mode (TiaBridge.ps1 -ReportRun: tia_status, connect,
-full_export and change_report, no session archive) and calls those tools as an agent does, with a git commit of the export
-between: the bridge's own export, logs and state file.
+full_export and change_report, no session archive) and calls those tools as an agent does, with a git commit between: the
+export, and what connect keeps of its own (undo_bookkeeping).
 
 Its record, <projectsRoot>\\_bridge\\report-runs\\<repo folder>.json, says what it does and how it ended; it is written
 before the run looks for a bridge on the same TIA or repo, and an agent's bridge refuses that TIA and repo while the
@@ -157,9 +157,9 @@ def uncommitted(repo):
 
 
 def undo_bookkeeping(repo):
-    """What connect wrote of its own in a clean repo, its time in tiabridge.json among it, back as committed: the commit is
-    the export's, and a TIA with no change makes none. .gitignore stays: lines connect adds there keep the bridge's own
-    files out of git."""
+    """What connect wrote of its own in a clean repo, its time in tiabridge.json among it, back as committed. .gitignore
+    stays, and the logs connect took out of git's index: lines connect adds there keep the bridge's own files out of git.
+    A line added is a change the run commits, also when TIA holds no change."""
     changed = git(repo, 'diff', '--name-only', '-z', 'HEAD', '--', '.', f':(exclude){LOGS}', ':(exclude).gitignore').stdout
     paths = [p for p in changed.split('\0') if p]
     if paths:

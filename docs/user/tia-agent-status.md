@@ -4,7 +4,7 @@ title: TIA agent status
 description: What the dashboard, the status line and the herdr watcher of TiaAgentStatus show, with an example of each and the limits of what they show, and how the dashboard's button makes a change report without an agent.
 tags: [tia-bridge, agents, herdr, status-line, dashboard, change-report]
 status: draft
-generated: { by: claude-code/claude-fable-5-2, at: 2026-11-09T17:43:10-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-23T00:59:05-05:00 }
 sources:
   - id: code
     resource: ../../TiaAgentStatus/
@@ -75,7 +75,9 @@ The next report, yours or an agent's, starts from that commit.
 - **When it ends** the line says how, with the time: the commit, or TIA's own words when it failed. If the export did not
   reach every object, nothing is committed and the repo is as it was: a change no export reached would read as no change.
   The same when the run fails before its commit, at the connect or the export.
-  If TIA holds what the last commit holds, there is nothing to report.
+  If TIA holds what the last commit holds, there is nothing to report, unless the connect added a line to the repo's
+  `.gitignore`: the run then commits that line, with the logs the connect took out of git, and makes the report of that
+  commit.
 - **It waits, and says why,** while a bridge is connected to that TIA or that repo, or another program is attached to that
   TIA (two programs on one TIA have hung it), while another report run goes on, and while the repo has files not committed
   (the report would hold them). An agent's bridge in turn does not connect to that TIA or repo while the run goes on.
