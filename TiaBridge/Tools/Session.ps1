@@ -159,6 +159,7 @@ function Invoke-ConnectTool($a) {
     Set-StandardsResult $r $map
     if ($choice.found) { $r.repoByPath = Get-RepoByPathNote $choice }
     if ($map.pathChanged) { $r.pathChanged = "The project was at $($map.oldPath); tiabridge.json now records the new path." }
+    if ($map.logsIgnored) { $r.logsIgnored = $map.logsIgnored }
     $s = Get-BridgeSession
     if (-not $project.IsModified) {
         if ($s.unreadable) { $r.recordReset = 'The session record could not be read, or lacked the result of a write. The project has no unsaved changes, so it held nothing a save could store: a new record starts.' }

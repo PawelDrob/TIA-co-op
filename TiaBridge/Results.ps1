@@ -28,7 +28,8 @@ $script:GivesProject = @('connect', 'background_open', 'project_open', 'tia_stat
 # - change_report before, after: null on the side a new or removed network or tag is not on; its state says which. A
 #   network's title emptied keeps the old one in was, a tag's comment added or removed is in its changes: both stay.
 #   hmi[].device: "" for an HMI folder of no device.
-# Not here, so never left out: background_open's languages, a list of one language and languages.notKnown too.
+# Not here, so never left out: background_open's languages, a list of one language and languages.notKnown too; its
+# logsIgnored.
 # connect's are not made short at all: connect is not in ShortenedTools.
 $script:UsualValues = @{
     '*'           = @{ 'prompts[].caption' = ''; 'prompts[].text' = ''; 'prompts[].detail' = ''; 'prompts[].choices' = ''; 'prompts[].answer' = ''; 'prompts[].icon' = '' }

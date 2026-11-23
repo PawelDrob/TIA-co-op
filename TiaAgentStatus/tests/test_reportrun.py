@@ -47,8 +47,9 @@ def put(repo, rel, text):
 class FakeBridge:
     """The bridge in its report-run mode as the run talks to it: the tools' results, and what they do to the repo."""
 
-    def __init__(self, repo, export=None, processes=None, connect=None, report=None):
+    def __init__(self, repo, export=None, processes=None, connect=None, report=None, ignore_logs=False):
         self.repo, self.pid, self.calls, self.closed = repo, BRIDGE, [], False
+        self.ignore_logs = ignore_logs
         self.export = export if export is not None else (lambda: put(repo, 'plc/blocks/Main.s7dcl', 'new') or {'ok': True})
         self.processes = processes if processes is not None else [{'processId': TIA, 'path': PROJECT, 'mode': 'WithUserInterface'}]
         self.connect = connect or {'ok': True, 'unsavedChanges': False}
@@ -62,6 +63,11 @@ class FakeBridge:
         if name == 'connect':     # connect writes tiabridge.json anew, its time of this connect with it (Initialize-ProjectRepo)
             with open(os.path.join(self.repo, 'tiabridge.json'), 'w') as f:
                 json.dump({'projectPath': PROJECT, 'lastConnect': f'2026-11-06T12:00:0{len(self.calls)}'}, f)
+            if self.ignore_logs:     # a bridge since ticket 433: logs/ in .gitignore, and out of the index (Remove-TrackedLogs)
+                with open(os.path.join(self.repo, '.gitignore'), 'r+') as f:
+                    if 'logs/' not in f.read().split('\n'):
+                        f.write('\nlogs/\n')
+                git(self.repo, 'rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', 'logs')
             return self.connect() if callable(self.connect) else self.connect
         if name == 'full_export':
             return self.export()
@@ -167,7 +173,7 @@ class Run(unittest.TestCase):
     def test_refuses_a_repo_with_files_not_committed_before_it_starts_the_bridge_and_names_them(self):
         put(self.repo, 'plc/blocks/Main.s7dcl', 'edited')
         put(self.repo, 'docs/notes.md', 'mine')
-        put(self.repo, 'logs/20261105_090000_compile.json', '{}')     # an agent's last log goes with the next commit
+        put(self.repo, 'logs/20261105_090000_compile.json', '{}')     # an agent's last log, in a repo that tracks its logs
         r = self.run_it()
         self.assertEqual(r['outcome'], 'refused')
         self.assertEqual(r['text'], 'Not run: the repo has files not committed: docs/notes.md, plc/blocks/Main.s7dcl. '
@@ -183,6 +189,45 @@ class Run(unittest.TestCase):
                 self.assertEqual((r['outcome'], r['text']), ('refused', 'Not now: a bridge is connected to this TIA.'))
                 self.assertNotIn('connect', [c[0] for c in self.bridge.calls])
                 os.remove(os.path.join(st.sessions_dir(self.root), '4100.json'))
+
+    def logs_on_disk(self):
+        return sorted(os.listdir(os.path.join(self.repo, 'logs')))
+
+    def test_a_repo_whose_logs_git_ignores_commits_the_export_and_no_log(self):
+        with open(os.path.join(self.repo, '.gitignore'), 'a') as f:
+            f.write('logs/\n')
+        git(self.repo, 'commit', '-q', '-am', 'logs ignored')
+        put(self.repo, 'logs/20261105_090000_compile.json', '{}')     # an agent's last log
+        r = self.run_it(ignore_logs=True)
+        self.assertEqual(r['outcome'], 'done')
+        self.assertEqual(git(self.repo, 'show', '--format=', '--name-only', 'HEAD'), 'plc/blocks/Main.s7dcl')
+        self.assertEqual(git(self.repo, 'ls-files', '--', 'logs'), '')
+        self.assertEqual(len(self.logs_on_disk()), 5)
+        self.assertEqual(reportrun.uncommitted(self.repo), [])
+
+    def test_a_repo_that_tracks_its_logs_commits_their_removal_with_the_export_at_its_first_connect_since(self):
+        put(self.repo, 'logs/20261105_090000_compile.json', '{}')
+        git(self.repo, 'add', '-A')
+        git(self.repo, 'commit', '-q', '-m', 'a session, its log with it')
+        r = self.run_it(ignore_logs=True)
+        self.assertEqual(r['outcome'], 'done')
+        self.assertEqual(git(self.repo, 'show', '--format=', '--name-status', 'HEAD').split('\n'),
+                         ['M\t.gitignore', 'D\tlogs/20261105_090000_compile.json', 'M\tplc/blocks/Main.s7dcl'])
+        self.assertEqual(git(self.repo, 'ls-files', '--', 'logs'), '')
+        self.assertEqual(len(self.logs_on_disk()), 5)
+        self.assertEqual(reportrun.uncommitted(self.repo), [])
+
+    def test_a_failed_export_puts_a_repo_that_tracked_its_logs_back_as_it_was_its_logs_kept(self):
+        put(self.repo, 'logs/20261105_090000_compile.json', '{}')
+        git(self.repo, 'add', '-A')
+        git(self.repo, 'commit', '-q', '-m', 'a session, its log with it')
+        before = self.head()
+        r = self.run_it(ignore_logs=True, export=lambda: {'ok': False, 'failed': ['blocks@PLC_1: A: did not export']})
+        self.assertEqual(r['outcome'], 'failed')
+        self.assertEqual(self.head(), before)
+        self.assertEqual(git(self.repo, 'ls-files', '--', 'logs'), 'logs/20261105_090000_compile.json')
+        self.assertEqual(len(self.logs_on_disk()), 4)
+        self.assertEqual(reportrun.uncommitted(self.repo), [])
 
     def test_its_own_bridge_does_not_count(self):
         self.procs.add(BRIDGE, RUNNER, 'powershell.exe')

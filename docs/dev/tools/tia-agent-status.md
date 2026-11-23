@@ -4,7 +4,7 @@ title: TiaAgentStatus internals
 description: The bridge's state files and how the dashboard, the status line and the herdr watcher read them, tell live bridges from orphans, and judge a TIA as hung; and the report run the dashboard's button starts.
 tags: [dev, tia-bridge, herdr, status-line, dashboard]
 status: draft
-generated: { by: claude-code/claude-fable-5-2, at: 2026-11-10T09:45:33-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T18:27:07-05:00 }
 ---
 
 # TiaAgentStatus internals
@@ -79,4 +79,4 @@ It then starts `TiaBridge.ps1 -ReportRun` with its own copy of the bridge settin
 - `tia_status` gives the TIA process that holds the project's path, which must have a window. The record then takes that process, and the run checks again that no bridge names that TIA.
 - `connect` follows, then `full_export`.
 
-What `connect` writes of its own goes back as committed before the export (the time of the connect in `tiabridge.json`; not `.gitignore`), so the commit is the export's, and a TIA with no change commits nothing. An export that is not whole is not committed: failed objects, a stop, a git or mirror error, repos or uncommitted files left in the export folders, or a bridge that ended during it. Nor is a run that failed at `connect`, which may have written to the repo by then (`tiabridge.json`, the docs it makes when missing). The repo goes back with `reset --hard` and `clean`, keeping `logs\`: it held nothing else before the run. A whole export is committed with `add -A`, and `change_report` runs on that commit, with the commit's subject as the page's title, which says when TIA had unsaved edits.
+What `connect` writes of its own goes back as committed before the export (the time of the connect in `tiabridge.json`; not `.gitignore`, nor the logs connect takes out of git's index, which go with the next commit), so the commit is the export's, and a TIA with no change commits nothing. An export that is not whole is not committed: failed objects, a stop, a git or mirror error, repos or uncommitted files left in the export folders, or a bridge that ended during it. Nor is a run that failed at `connect`, which may have written to the repo by then (`tiabridge.json`, the docs it makes when missing). The repo goes back with `reset --hard` and `clean`, keeping `logs\`: it held nothing else before the run. A whole export is committed with `add -A`, and `change_report` runs on that commit, with the commit's subject as the page's title, which says when TIA had unsaved edits.

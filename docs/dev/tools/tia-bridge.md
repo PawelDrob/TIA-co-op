@@ -4,7 +4,7 @@ title: TiaBridge internals
 description: How the MCP server is built, its files and tools, the rules it enforces (archive gate, save rules, guards), its error contract and the project repo it writes.
 tags: [dev, tia-bridge, openness]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T01:38:47-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T18:27:07-05:00 }
 ---
 
 # TiaBridge internals
@@ -181,12 +181,13 @@ One per project, under `projectsRoot`, made by `connect`:
   library\               types\, faceplates\, mastercopies\, global\<library>\; changes\ the reviewed changes
   gen\                   the project's own generators
   changes\reports\       change report pages (ignored by git)
-  logs\                  one JSON per tool call (committed: they pair with the change)
+  logs\                  one JSON per tool call (ignored by git)
   archives\              .zap20 files (ignored by git)
   .tiabridge-session.json   the session record (ignored by git)
   .tiabridge-export.json    the record of the last full_export (ignored by git)
 ```
 
+- **The logs stay out of git.** A repo that tracks files in `logs\` from before `logs/` was in its `.gitignore`: `connect` and `background_open` add the line and take `logs\` out of git's index (`git rm -r --cached`), the files kept on disk, and say so in `logsIgnored` with how many files. The next commit records their removal. Where git cannot do it, the session still opens, `logsIgnored` says why, and the next `connect` or `background_open` tries again.
 - **Several devices.** With several PLC or HMI devices, each has its own `plc\<device>\` or `hmi\<device>\`, generated documents and panel included. One-device repos keep the layout above.
 - **Folders mirror the TIA tree.**
 - **`full_export` mirrors the project.** Committed files in a folder the export writes, which no part wrote this time, are removed and listed in `removed`, but only when every part writing that folder ran and listed its objects. Uncommitted files stay, and so does everything when git cannot tell. Never touched: `hmi\[<device>\]generated\`, `handbuilt.json`, `panel.json`, `gen\`, `standards\`, `library\changes\`, `changes\`, `logs\`, `archives\`, `docs\`, `tiabridge.json`.

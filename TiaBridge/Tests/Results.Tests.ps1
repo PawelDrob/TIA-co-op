@@ -266,6 +266,14 @@ Describe 'The short result of a tool' {
         }
     }
 
+    It 'connect and background_open: the logs taken out of git''s index said as the result says it' {
+        $said = 'logs\ is ignored by git from now on: 3 tracked files there left git''s index, kept on disk. The next commit records the removal; the history keeps the old logs.'
+        foreach ($tool in 'connect', 'background_open') {
+            $script:TestResult = [ordered]@{ ok = $true; logsIgnored = $said }
+            ((Invoke-Short $tool).text | ConvertFrom-Json).logsIgnored | Should Be $said
+        }
+    }
+
     It 'change_report: a value is left out only where its absence says the same, every fact of a change stays, rows as JSON gives them' {
         # Invoke-ChangeReports returns what ConvertFrom-Json makes of TiaChangeReports' output: its rows are no dictionaries
         $res = @'

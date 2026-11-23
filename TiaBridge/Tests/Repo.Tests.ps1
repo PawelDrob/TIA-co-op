@@ -138,6 +138,81 @@ Describe 'Initialize-ProjectRepo' {
     }
 }
 
+Describe 'the tool logs stay out of git' {
+    $root = Join-Path $TestDrive 'LogRoot'
+    function Get-Tracked([string]$Repo) { @(& git -C $Repo ls-files -- logs) }
+    # a repo as a bridge before ticket 433 left one: logs\ tracked, its .gitignore without logs/
+    function New-OldRepo([string]$Name) {
+        $r = Initialize-ProjectRepo -Root $root -ProjectName $Name -ProjectPath "C:\$Name.ap20" -PlcDevices @() -HmiDevices @()
+        [System.IO.File]::WriteAllText((Join-Path $r.repo '.gitignore'), "archives/`n.tiabridge-session.json`n")
+        foreach ($f in '.gitkeep', '20261101_120000_connect.json', '20261101_120100_import.json', 'library.log') { Write-TextFile (Join-Path $r.repo "logs\$f") '{}' }
+        Invoke-Git $r.repo @('add', '-A')
+        Invoke-Git $r.repo @('commit', '-q', '-m', 'old logs')
+        $r.repo
+    }
+
+    It 'a new repo has logs\ and ignores it: its first commit holds nothing there, nor does git see the logs written after' {
+        $r = Initialize-ProjectRepo -Root $root -ProjectName 'Fresh' -ProjectPath 'C:\f.ap20' -PlcDevices @() -HmiDevices @()
+        Test-Path -LiteralPath (Join-Path $r.repo 'logs') -PathType Container | Should Be $true
+        @(& git -C $r.repo show --format= --name-only HEAD | Where-Object { $_ -like 'logs/*' }).Count | Should Be 0
+        @(Get-Content -LiteralPath (Join-Path $r.repo '.gitignore')) -contains 'logs/' | Should Be $true
+        $r.logsIgnored | Should BeNullOrEmpty
+        $null = Write-ToolLog $r.repo 'connect' @{ ok = $true }
+        $null = Write-ToolLog $r.repo 'import' @{ ok = $true }
+        (& git -C $r.repo status --porcelain --untracked-files=all) | Should BeNullOrEmpty
+    }
+
+    It 'a repo that tracks its logs takes them out of the index once, keeps the files and says so' {
+        $repo = New-OldRepo 'Tracked'
+        $r = Initialize-ProjectRepo -Root $root -ProjectName 'Tracked' -ProjectPath 'C:\Tracked.ap20' -PlcDevices @() -HmiDevices @()
+        $r.logsIgnored | Should Match '4 tracked files there left git''s index, kept on disk'
+        (Get-Tracked $repo).Count | Should Be 0
+        foreach ($f in '.gitkeep', '20261101_120000_connect.json', '20261101_120100_import.json', 'library.log') { Test-Path -LiteralPath (Join-Path $repo "logs\$f") | Should Be $true }
+        $null = Write-ToolLog $repo 'export' @{ ok = $true }
+        Invoke-Git $repo @('add', '-A')
+        Invoke-Git $repo @('commit', '-q', '-m', 'the session')
+        (Get-Tracked $repo).Count | Should Be 0
+        @(& git -C $repo show --format= --name-status HEAD | Where-Object { $_ -match 'logs/' }) -join ',' |
+            Should Be "D`tlogs/.gitkeep,D`tlogs/20261101_120000_connect.json,D`tlogs/20261101_120100_import.json,D`tlogs/library.log"
+        (& git -C $repo status --porcelain --untracked-files=all) | Should BeNullOrEmpty
+        $again = Initialize-ProjectRepo -Root $root -ProjectName 'Tracked' -ProjectPath 'C:\Tracked.ap20' -PlcDevices @() -HmiDevices @()
+        $again.logsIgnored | Should BeNullOrEmpty
+        @(Get-Content -LiteralPath (Join-Path $repo '.gitignore') | Where-Object { $_ -eq 'logs/' }).Count | Should Be 1
+    }
+
+    It 'says nothing at a second connect before the commit, and leaves what is staged outside logs\ as it was' {
+        $repo = New-OldRepo 'Staged'
+        Write-TextFile (Join-Path $repo 'plc\Mine.s7dcl') 'mine'
+        Invoke-Git $repo @('add', '--', 'plc/Mine.s7dcl')
+        $null = Initialize-ProjectRepo -Root $root -ProjectName 'Staged' -ProjectPath 'C:\Staged.ap20' -PlcDevices @() -HmiDevices @()
+        $again = Initialize-ProjectRepo -Root $root -ProjectName 'Staged' -ProjectPath 'C:\Staged.ap20' -PlcDevices @() -HmiDevices @()
+        $again.logsIgnored | Should BeNullOrEmpty
+        @(& git -C $repo diff --cached --name-only | Where-Object { $_ -notlike 'logs/*' }) -join ',' | Should Be 'plc/Mine.s7dcl'
+    }
+
+    It 'connects in a repo git cannot change the index of, and says why, the logs still tracked' {
+        $repo = New-OldRepo 'Locked'
+        Write-TextFile (Join-Path $repo '.git\index.lock') ''
+        try {
+            $r = Initialize-ProjectRepo -Root $root -ProjectName 'Locked' -ProjectPath 'C:\Locked.ap20' -PlcDevices @() -HmiDevices @()
+            $r.logsIgnored | Should Match 'git still tracks 4 files there: git rm -r --cached logs failed'
+            $r.logsIgnored | Should Match 'index\.lock'
+            (Get-Tracked $repo).Count | Should Be 4
+        }
+        finally { Remove-Item -LiteralPath (Join-Path $repo '.git\index.lock') -Force }
+        $r = Initialize-ProjectRepo -Root $root -ProjectName 'Locked' -ProjectPath 'C:\Locked.ap20' -PlcDevices @() -HmiDevices @()
+        $r.logsIgnored | Should Match '4 tracked files there left'
+    }
+
+    It 'leaves logs\ tracked in a repo with no .gitignore, where git would see each log as new' {
+        $repo = New-OldRepo 'NoIgnore'
+        Remove-Item -LiteralPath (Join-Path $repo '.gitignore')
+        $r = Initialize-ProjectRepo -Root $root -ProjectName 'NoIgnore' -ProjectPath 'C:\NoIgnore.ap20' -PlcDevices @() -HmiDevices @()
+        $r.logsIgnored | Should BeNullOrEmpty
+        (Get-Tracked $repo).Count | Should Be 4
+    }
+}
+
 Describe 'Resolve-RepoFolder' {
     It 'gives the folder below the root for a plain folder name' {
         $r = Resolve-RepoFolder 'C:\TIA-Projects' 'cache-1.v2'

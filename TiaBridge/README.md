@@ -10,8 +10,9 @@ The MCP server `tia`: an agent changes an offline TIA Portal V20 project through
   screens, slide-ins, the global elements and screen overview, text and graphic lists, VB scripts, the project's
   graphics, project texts, alarm classes and system diagnostics settings, and a PLC's ProDiag supervisions, and saves the
   project. A technology object of an element or version not tried on a real TIA goes in with a note that says so.
-- Keeps a git repo per project under the projects root, with the exports, the logs, your `standards\` and the project's
-  notes. Session archives lie in its `archives\` folder, outside git, and only the newest are kept (`archivesKept`, default 10).
+- Keeps a git repo per project under the projects root, with the exports, your `standards\` and the project's notes.
+  The logs of the tool calls lie in its `logs\` folder, outside git. Session archives lie in its `archives\` folder, also
+  outside git, and only the newest are kept (`archivesKept`, default 10).
 - Archives the project before the first write, and names at each save what stays uncompiled or not consistent.
 - Creates and edits library types. You approve each release, level by level.
 - Makes master copies of project objects or PLC folders, in the project library or a global library, and creates project

@@ -152,6 +152,22 @@ Describe 'connect stores the HMI type identifier' {
         $r.standardsNote | Should Match 'no folder'
     }
 
+    It 'takes the logs a repo tracks out of git''s index, and says so once' {
+        Set-FakeTia @($plc)
+        $r = Invoke-ConnectTool ('{"repo":"Hp-logs"}' | ConvertFrom-Json)
+        $r.Contains('logsIgnored') | Should Be $false
+        $repo = Join-Path $root 'Hp-logs'
+        [System.IO.File]::WriteAllText((Join-Path $repo '.gitignore'), "archives/`n")
+        Write-TextFile (Join-Path $repo 'logs\20261101_120000_connect.json') '{}'
+        Invoke-Git $repo @('add', '-A')
+        Invoke-Git $repo @('commit', '-q', '-m', 'logs tracked, as before ticket 433')
+        Set-FakeTia @($plc)
+        $r = Invoke-ConnectTool ('{"repo":"Hp-logs"}' | ConvertFrom-Json)
+        $r.logsIgnored | Should Match "1 tracked file there left git's index"
+        Set-FakeTia @($plc)
+        (Invoke-ConnectTool ('{"repo":"Hp-logs"}' | ConvertFrom-Json)).Contains('logsIgnored') | Should Be $false
+    }
+
     It 'names the online state of each device' {
         function Get-OnlineProvider($Item) { if ($Item.Name -eq 'PLC_1') { @{ State = 'Online' } } }
         Set-FakeTia @(@{ device = 'PLC_1'; kind = 'plc'; deviceObject = $plc.deviceObject; deviceItem = $plc.deviceObject })

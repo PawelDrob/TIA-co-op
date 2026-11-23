@@ -726,6 +726,21 @@ class History(Case):
         self.assertIn('1:05', text)
         self.assertIn('1.5 s', text)
 
+    def test_the_calls_of_a_repo_whose_git_ignores_its_logs_show(self):
+        repo = os.path.join(self.root, 'zz-line')
+        os.makedirs(repo)
+        with open(os.path.join(repo, '.gitignore'), 'w') as f:
+            f.write('logs/\n')
+        for args in (('init', '-q'), ('add', '-A'), ('commit', '-q', '-m', 'first')):
+            subprocess.run(['git', '-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', *args], check=True, capture_output=True)
+        log(self.root, 'zz-line', '20261030_120000_compile', ok=True, durationMs=1500, items=[])
+        log(self.root, 'zz-line', '20261030_120105_import', ok=True, items=[{'name': 'zzPump', 'ok': True}])
+        self.assertEqual(subprocess.run(['git', '-C', repo, 'status', '--porcelain', '--untracked-files=all'],
+                                        check=True, capture_output=True, text=True).stdout, '')
+        text = plain(self.project('zz-line'))
+        self.assertIn('import zzPump', text)
+        self.assertIn('12:00:00', text)
+
     def test_many_objects_are_counted_not_listed(self):
         log(self.root, 'zz-line', '20261030_120000_import', ok=True,
             items=[{'name': f'zz{i}', 'ok': True} for i in range(5)])

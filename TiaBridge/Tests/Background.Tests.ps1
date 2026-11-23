@@ -262,6 +262,28 @@ Describe 'background_open and background_close' {
         $null = Invoke-BackgroundCloseTool (New-Object psobject)
     }
 
+    It 'takes the logs a repo tracks out of git''s index, and says so once' {
+        $open = "{`"path`":`"$($zap -replace '\\', '\\')`",`"repo`":`"BgLogs`"}"
+        Reset-Fakes
+        $r = Invoke-BackgroundOpenTool ($open | ConvertFrom-Json)
+        $r.Contains('logsIgnored') | Should Be $false
+        $null = Invoke-BackgroundCloseTool (New-Object psobject)
+        $repo = Join-Path $TestDrive 'projects\BgLogs'
+        [System.IO.File]::WriteAllText((Join-Path $repo '.gitignore'), "archives/`n")
+        Write-TextFile (Join-Path $repo 'logs\20261101_120000_export.json') '{}'
+        Invoke-Git $repo @('add', '-A')
+        Invoke-Git $repo @('commit', '-q', '-m', 'logs tracked, as before ticket 433')
+        $n = @(& git -C $repo ls-files -- logs).Count
+        Reset-Fakes
+        $r = Invoke-BackgroundOpenTool ($open | ConvertFrom-Json)
+        $r.logsIgnored | Should Match "$n tracked files there left git's index"
+        $null = Invoke-BackgroundCloseTool (New-Object psobject)
+        Reset-Fakes
+        $r = Invoke-BackgroundOpenTool ($open | ConvertFrom-Json)
+        $r.Contains('logsIgnored') | Should Be $false
+        $null = Invoke-BackgroundCloseTool (New-Object psobject)
+    }
+
     It 'fails at bind when TIA ends at the read of the languages, and ends its TIA' {
         Reset-Fakes
         $script:fakePortal.Projects.project | Add-Member NoteProperty LanguageSettings (New-Object TiaBridgeTest.UnreadableLanguages $true)

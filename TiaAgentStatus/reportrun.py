@@ -35,7 +35,7 @@ POWERSHELL = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32
 GIT_CONTEXT = ('GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY',
                'GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_GRAFT_FILE', 'GIT_INDEX_FILE', 'GIT_NO_REPLACE_OBJECTS',
                'GIT_REPLACE_REF_BASE', 'GIT_PREFIX', 'GIT_SHALLOW_FILE', 'GIT_COMMON_DIR')
-LOGS = 'logs'               # the bridge's logs of its calls: they go with the next commit, as after an agent
+LOGS = 'logs'               # the bridge's logs of its calls: set aside in git calls, for a repo whose .gitignore lacks logs/
 NAMED = 5                   # files not committed named in a refusal
 FAILED_NAMED = 3            # objects that did not export named in a failure
 CLIENT = 'report-run'       # the client of a report run's bridge in its state file (TiaBridge\State.ps1)

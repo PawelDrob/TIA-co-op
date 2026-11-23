@@ -60,6 +60,9 @@ function Add-LanguagesLine($Body, [string]$Step) {
     else { [void]$script:summary.Add("   languages: active $(@($l.active) -join ', '); editing $($l.editing); reference $($l.reference)") }
 }
 
+# What background_open says it took of logs\ out of git's index, in the summary.
+function Add-LogsLine($Body) { if ($Body.logsIgnored) { [void]$script:summary.Add("   logsIgnored: $($Body.logsIgnored)") } }
+
 function Write-Document([string]$File, [string]$Text) {
     New-Item -ItemType Directory -Force -Path (Split-Path $File) | Out-Null
     [System.IO.File]::WriteAllText($File, ($Text -replace "`r?`n", "`r`n"), (New-Object System.Text.UTF8Encoding $true))
@@ -77,6 +80,7 @@ try {
     $e = Call 'background_open' @{ path = $Path; repo = $Repo } 'background_open, export only'
     if (-not $e.ok) { throw 'background_open failed' }
     Add-LanguagesLine $e 'background_open, export only'
+    Add-LogsLine $e
     $null = Call 'import' @{ kind = 'block'; paths = @('nothing.s7dcl') } 'import is refused in this session' $false
     $null = Call 'full_export' @{ parts = @('types', 'project_texts') } 'full_export of two parts'
     $null = Call 'background_close' @{} 'background_close, export only'
@@ -85,6 +89,7 @@ try {
     $w = Call 'background_open' @{ path = $Path; repo = $Repo; write = $true } 'background_open, write'
     if (-not $w.ok) { throw 'background_open with write failed' }
     Add-LanguagesLine $w 'background_open, write'
+    Add-LogsLine $w
     $root = $w.repo
     # Under the script's Stop, Windows PowerShell 5.1 makes any line git writes to stderr a terminating error, a warning too.
     function Invoke-RepoGit {
@@ -123,6 +128,8 @@ try {
     Remove-Item -LiteralPath (Join-Path $root 'plc\blocks\zzSmokeBg') -Recurse -Force
     Remove-Item -LiteralPath (Join-Path $root 'library\types\zzSmokeBg') -Recurse -Force
     Save-And-Commit 'FC deleted'
+    $tracked = @(Invoke-RepoGit ls-files -- logs)
+    if ($tracked.Count) { [void]$script:wrong.Add("git tracks $($tracked.Count) files in logs\ after the session's commits") }
 
     if ($SafetyLogin) {
         Write-Host 'safety_login: a password window opens on the screen.' -ForegroundColor Cyan

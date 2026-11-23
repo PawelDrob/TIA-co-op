@@ -493,6 +493,7 @@ function Invoke-BackgroundOpenTool($a) {
     # asked: how often TIA called for the login (0: the project is not protected)
     if ($login) { $r.umcLogin = @{ userType = $login.UserType; asked = $login.Calls }; $login.Dispose() }
     if ($map.pathChanged) { $r.pathChanged = "The project was at $($map.oldPath); tiabridge.json now records the new path." }
+    if ($map.logsIgnored) { $r.logsIgnored = $map.logsIgnored }
     if (-not $plain) { Set-StandardsResult $r $map }
     if ($target) { $r.retrievedTo = $target.dir; $r.reopen = "This project stays at $($project.Path.FullName) after background_close: background_open with that path and write=true works on it again." }
     if ($choice -and $choice.found) { $r.repoByPath = Get-RepoByPathNote $choice }

@@ -583,7 +583,11 @@ $script:SessionTempIgnore = '.tiabridge-session.json.*.tmp'
 $script:ExportRecordName = '.tiabridge-export.json'
 $script:ExportRecordTempIgnore = "$script:ExportRecordName.*.tmp"
 
+# The bridge's tool logs: read on disk (the TIA dashboard), not from git; committed, they were most of a repo's files.
+$script:LogsIgnore = 'logs/'
+
 $script:RepoGitignore = @"
+$script:LogsIgnore
 archives/
 *.zap20
 .obsidian/
@@ -786,20 +790,46 @@ function Initialize-ProjectRepo([string]$Root, [string]$ProjectName, [string]$Pr
     if ($created) {
         $standardsNote = Copy-StandardsTemplate $StandardsTemplate (Join-Path $repo 'standards')
         if (-not (Test-Path (Join-Path $repo '.gitignore'))) { Write-TextFile (Join-Path $repo '.gitignore') $script:RepoGitignore }
-        foreach ($d in 'plc', 'hmi', 'library', 'gen', 'logs') { Write-TextFile (Join-Path $repo "$d\.gitkeep") '' }
+        foreach ($d in 'plc', 'hmi', 'library', 'gen') { Write-TextFile (Join-Path $repo "$d\.gitkeep") '' }
         if (-not (Test-Path (Join-Path $repo '.git'))) { Invoke-Git $repo @('init', '-q') }
         Invoke-Git $repo @('add', '-A')
         Invoke-Git $repo @('commit', '-q', '-m', "TiaBridge: repo for TIA project $ProjectName")
     }
-    # repos made before these ignore lines existed (the session file: 2026-10-06; the export record: 2026-11-17) get them
+    # repos made before these ignore lines existed (the session file: 2026-10-06; the export record: 2026-11-17; logs\:
+    # ticket 433) get them
     $gi = Join-Path $repo '.gitignore'
-    foreach ($line in '.tiabridge-session.json', $script:SessionTempIgnore, $script:WorkPathIgnore, $script:ExportRecordName, $script:ExportRecordTempIgnore) {
-        if ((Test-Path -LiteralPath $gi) -and -not (Select-String -LiteralPath $gi -SimpleMatch $line -Quiet)) {
-            [System.IO.File]::AppendAllText($gi, "`n$line`n", $script:Utf8NoBom)
+    $logsNote = $null
+    if (Test-Path -LiteralPath $gi) {
+        foreach ($line in '.tiabridge-session.json', $script:SessionTempIgnore, $script:WorkPathIgnore, $script:ExportRecordName, $script:ExportRecordTempIgnore, $script:LogsIgnore) {
+            if (@(Get-Content -LiteralPath $gi | ForEach-Object { $_.Trim() }) -notcontains $line) {
+                [System.IO.File]::AppendAllText($gi, "`n$line`n", $script:Utf8NoBom)
+            }
         }
+        $logsNote = Remove-TrackedLogs $repo
     }
-    @{ repo = $repo; created = $created; pathChanged = $otherPath; oldPath = $oldPath; standardsNote = $standardsNote }
+    @{ repo = $repo; created = $created; pathChanged = $otherPath; oldPath = $oldPath; standardsNote = $standardsNote; logsIgnored = $logsNote }
 }
+
+# Git keeps tracking the files it has, ignored or not: in a repo that committed its logs before logs/ was in its .gitignore,
+# they leave the index here and stay on disk. Only logs\ is touched; what is staged elsewhere stays. Returns the note for the
+# result, $null when git tracks nothing there.
+function Remove-TrackedLogs([string]$Repo) {
+    $n = 0
+    try {
+        $listed = Invoke-GitRaw $Repo @('ls-files', '--', 'logs')
+        if ($listed.exitCode) { throw "git ls-files failed (exit $($listed.exitCode)): $($listed.output -join ' ')" }
+        $n = @($listed.output | Where-Object { $_ }).Count
+        if (-not $n) { return $null }
+        $removed = Invoke-GitRaw $Repo @('rm', '-r', '-q', '--cached', '--', 'logs')
+        if ($removed.exitCode) { throw "git rm -r --cached logs failed (exit $($removed.exitCode)): $($removed.output -join ' ')" }
+    }
+    catch {
+        return "logs\ is in .gitignore, but git still tracks $(if ($n) { Get-FileCount $n } else { 'the files' }) there: $($_.Exception.Message) The next connect or background_open tries again."
+    }
+    "logs\ is ignored by git from now on: $(Get-FileCount $n 'tracked ') there left git's index, kept on disk. The next commit records the removal; the history keeps the old logs."
+}
+
+function Get-FileCount([int]$N, [string]$Kind = '') { "$N $Kind$(if ($N -eq 1) { 'file' } else { 'files' })" }
 
 # Full, untruncated result -> logs\<yyyyMMdd_HHmmss>_<tool>.json; returns the path relative to the repo. A result with
 # times (full_export, Times.ps1) gets times.logMs: how long the text of this file took to make, which only the text can hold.
