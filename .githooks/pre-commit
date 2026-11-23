@@ -1,8 +1,8 @@
 #!/bin/sh
 # Pre-commit checks of this repo. First setup (tools/setup/) turns them on: git config core.hooksPath .githooks
 # Times are of a full run (--all) on the maintainer's PC with nothing else running, two suites at once and the default
-# workers, 2026-11-23: about 2.5 min in all, where the suites' own times add up to about 4.5. The same run took about
-# 10 min the day before, each suite in one process.
+# workers, 2026-11-23: about 2.5 min in all, where the suites' own times add up to about 4.5. The same run on main,
+# each suite in one process, took about 10 min that day.
 #   1. parse check of every TiaBridge script (always)
 #   2. TiaBridge unit tests (about 1.8 min), when the commit touches TiaBridge/
 #   3. TiaChangeReports unit tests (about 45 s), when the commit touches TiaChangeReports/. A commit that touches
@@ -17,7 +17,7 @@
 #   6. TiaHmiGenerator unit tests (about 36 s, run from the folder) and the catalogue check (build.py --check), when
 #      the commit touches TiaHmiGenerator/ or docs/agent/wincc-comfort-openness.md (a test holds its list of the
 #      generator's calls, 5.1, to the module and runs its worked screen, 5.2), with the bridge's validator guard
-#      tests (HmiImport.Tests.ps1, about 17 s) when step 2 does not run. A TiaBridge/ change alone does not need them:
+#      tests (HmiImport.Tests.ps1, about 9 s) when step 2 does not run. A TiaBridge/ change alone does not need them:
 #      the generator tests use no bridge code, and step 2 runs the guard tests on the real validator
 #   7. OKF check of docs/ (check only, tools/okf/), when the commit touches docs/ or tools/okf/, and the checker's
 #      own tests (about 8 s) when it touches tools/okf/. A document added, moved, removed or deprecated needs a line in

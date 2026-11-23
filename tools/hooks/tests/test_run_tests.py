@@ -1,5 +1,5 @@
 """tools/hooks/run_tests.py on made-up suites: tests in two workers, a class with setUpClass in one, failures and errors as
-unittest writes them, a module that does not import, a worker that dies."""
+unittest writes them, a module that does not import, a worker that dies, a test whose child reads stdin, no -t."""
 import subprocess
 import sys
 import tempfile
@@ -9,12 +9,13 @@ from pathlib import Path
 RUNNER = Path(__file__).resolve().parents[1] / 'run_tests.py'
 
 
-def run_runner(folder, *extra):
+def run_runner(folder, *extra, top=True):
     """The runner on folder, its output into files as the hook's logs: a pipe would wait on a child a test left."""
     out, err = Path(folder) / 'out.txt', Path(folder) / 'err.txt'
     with out.open('w', encoding='utf-8') as o, err.open('w', encoding='utf-8') as e:
-        code = subprocess.run([sys.executable, '-X', 'utf8', str(RUNNER), '-s', str(folder), '-t', str(folder), *extra],
-                              stdout=o, stderr=e, timeout=60).returncode
+        code = subprocess.run([sys.executable, '-X', 'utf8', str(RUNNER), '-s', str(folder),
+                               *(['-t', str(folder)] if top else []), *extra],
+                              stdin=subprocess.DEVNULL, stdout=o, stderr=e, timeout=60).returncode
     return subprocess.CompletedProcess([], code, out.read_text(encoding='utf-8'), err.read_text(encoding='utf-8'))
 
 
@@ -109,6 +110,42 @@ class Lives(unittest.TestCase):
                 subprocess.run(['taskkill', '/F', '/PID', pid.read_text()], capture_output=True)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn('worker exited early (code 3) while running test_dies.Dies.test', r.stderr)
+
+    def test_a_child_of_a_test_reads_no_work_of_its_worker_from_stdin(self):
+        self.put('test_reads.py', '''import subprocess
+import sys
+import unittest
+
+
+class ReadsStdin(unittest.TestCase):
+    def test(self):
+        subprocess.run([sys.executable, '-c', 'import sys; sys.stdin.read()'], timeout=10)
+
+
+class Other(unittest.TestCase):
+    def test(self):
+        pass
+''')
+        r = run_runner(self.dir, '-j', '2')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('Ran 2 tests in ', r.stderr)
+
+    def test_the_top_folder_is_the_start_folder_unless_given(self):
+        self.put('test_alone.py', '''import unittest
+
+
+class A(unittest.TestCase):
+    def test(self):
+        pass
+
+
+class B(unittest.TestCase):
+    def test(self):
+        pass
+''')
+        r = run_runner(self.dir, '-j', '2', top=False)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('Ran 2 tests in ', r.stderr)
 
     def test_import_error_during_discovery_fails(self):
         self.put('test_broken.py', 'import no_such_module_xyz_123\n')

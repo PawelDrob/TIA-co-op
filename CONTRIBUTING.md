@@ -38,7 +38,7 @@ The head of `.githooks/pre-commit` lists the suites and when each runs, and its 
 <clone>\.venv\Scripts\python.exe -X utf8 tools/hooks/run_tests.py -s tools/setup/tests -t .
 ```
 
-It takes the options of `-m unittest discover`, which runs the same suite in one process. The hook's Python suites, and `run.ps1` on a folder, run their tests in `PRE_COMMIT_WORKERS` processes at once: by default 6 for a Python suite and 4 for the bridge's, no more than the PC has cores. `PRE_COMMIT_WORKERS=1` runs each suite in one process.
+Of the options of `-m unittest discover`, which runs the same suite in one process, it takes `-s`, `-t` and `-p`; `-j` sets its number of workers. The hook's Python suites, and `run.ps1` on a folder, run their tests in `PRE_COMMIT_WORKERS` processes at once: by default 6 for a Python suite and 4 for the bridge's, no more than the PC has cores. `PRE_COMMIT_WORKERS=1` runs each suite in one process.
 
 **PowerShell tests** run on Pester 3.4, which Windows includes. From a Windows terminal:
 

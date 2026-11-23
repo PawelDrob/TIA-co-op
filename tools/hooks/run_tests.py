@@ -1,11 +1,11 @@
 """A suite's tests in worker processes at once, for the hook; standard library only. It finds them as
-`python -m unittest discover` does, with its options:
+`python -m unittest discover` does, and of that command's options takes -s, -t and -p, with its defaults:
 
-    <py> tools/hooks/run_tests.py -s <start folder> [-t <top folder>] [-p <pattern>] [-j <workers>]
+    <py> tools/hooks/run_tests.py [-s <start folder>] [-t <top folder>] [-p <pattern>] [-j <workers>]
 
-Workers: -j, else PRE_COMMIT_WORKERS, else 6, no more than the cores. A class with setUpClass or tearDownClass goes whole
-to one worker, any other test on its own, the biggest classes first. With one worker, one class or test, or a module
-that does not import, the suite runs in this process as unittest runs it. The summary has unittest's lines (Ran, OK,
+Workers: -j, else PRE_COMMIT_WORKERS, else as many as the PC has cores, at most 6. A class with setUpClass or
+tearDownClass goes whole to one worker, any other test on its own, the biggest classes first. With one worker, one class
+or test, or a module that does not import, the suite runs in this process as unittest runs it. The summary has unittest's lines (Ran, OK,
 FAIL:, ERROR:, FAILED), which the hook reads.
 """
 import argparse
@@ -37,31 +37,43 @@ def _default_workers():
     return min(6, os.cpu_count() or 1)
 
 
-def _results_channel():
-    """The worker's stdout as a handle of its own for the results, which no process a test starts inherits; stdout itself
-    then goes to stderr. A child that outlives its test would else hold the pipe, and the reader would wait for it,
-    after the worker itself ended."""
+def _set_std_handle(which, fd):
+    """Windows: the handle a child gets for stdin or stdout=None is the process's standard handle, not fd 0 or 1."""
+    if os.name != 'nt':
+        return
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+    set_std_handle = ctypes.WinDLL('kernel32', use_last_error=True).SetStdHandle
+    set_std_handle.argtypes = [wintypes.DWORD, wintypes.HANDLE]
+    set_std_handle.restype = wintypes.BOOL
+    if not set_std_handle(wintypes.DWORD(which & 0xFFFFFFFF), msvcrt.get_osfhandle(fd)):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+def _worker_channels():
+    """The worker's stdin and stdout as handles of its own, for the work and the results, which no process a test starts
+    inherits; stdin itself then reads NUL, as under the hook, and stdout goes to stderr. A child that outlives its test
+    would else hold the results' pipe, and the reader would wait for it after the worker ended; a child that reads stdin
+    would wait for the run's end, or take the next target."""
     sys.stdout.flush()
-    channel = os.fdopen(os.dup(1), 'w', encoding='utf-8', newline='\n')     # os.dup: not inheritable
+    work = os.fdopen(os.dup(0), 'r', encoding='utf-8', newline='\n')         # os.dup: not inheritable
+    results = os.fdopen(os.dup(1), 'w', encoding='utf-8', newline='\n')
+    nul = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(nul, 0)
+    os.close(nul)
     os.dup2(2, 1)
-    if os.name == 'nt':     # what a child gets for stdout=None
-        import ctypes
-        import msvcrt
-        from ctypes import wintypes
-        set_std_handle = ctypes.WinDLL('kernel32', use_last_error=True).SetStdHandle
-        set_std_handle.argtypes = [wintypes.DWORD, wintypes.HANDLE]
-        set_std_handle.restype = wintypes.BOOL
-        if not set_std_handle(wintypes.DWORD(-11 & 0xFFFFFFFF), msvcrt.get_osfhandle(2)):     # STD_OUTPUT_HANDLE
-            raise ctypes.WinError(ctypes.get_last_error())
-    return channel
+    _set_std_handle(-10, 0)     # STD_INPUT_HANDLE
+    _set_std_handle(-11, 1)     # STD_OUTPUT_HANDLE
+    return work, results
 
 
 def _run_worker(top_dir):
     if top_dir not in sys.path:
         sys.path.insert(0, top_dir)
-    results = _results_channel()
+    work, results = _worker_channels()
     loader = unittest.TestLoader()
-    for line in sys.stdin:
+    for line in work:
         target = line.strip()
         if not target:
             continue
@@ -159,13 +171,13 @@ def _run_parallel(targets, top_dir, workers):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--start-directory', default='.')
-    parser.add_argument('-t', '--top-level-directory', default='.')
+    parser.add_argument('-t', '--top-level-directory', default=None)     # unittest's: the start folder
     parser.add_argument('-p', '--pattern', default='test*.py')
     parser.add_argument('-j', '--jobs', type=int, default=0)
     parser.add_argument('--worker', action='store_true')
     args = parser.parse_args(argv)
 
-    top_dir = os.path.abspath(args.top_level_directory)
+    top_dir = os.path.abspath(args.top_level_directory or args.start_directory)
     if args.worker:
         _run_worker(top_dir)
         return 0
