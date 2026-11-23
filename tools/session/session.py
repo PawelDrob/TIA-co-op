@@ -15,6 +15,7 @@ Run the main working tree's tool with its .venv, from there. `<name>` is <prefix
 command's --help has its options. Exit code 0 is done, 1 refused or failed, 3 a session is not ready for what comes next.
 """
 import argparse
+import ctypes
 import json
 import os
 import re
@@ -22,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
+from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
 
@@ -90,19 +92,81 @@ def ticket_status(path):
     return status_of(Path(path).read_bytes().decode('utf-8', 'replace'))
 
 
-def running_executables():
-    """The path of the program of every running process Windows shows to this user, as Win32_Process has it."""
-    command = ('[Console]::OutputEncoding = [Text.Encoding]::UTF8; $ErrorActionPreference = "Stop"; '
-               'Get-CimInstance Win32_Process | ForEach-Object { $_.ExecutablePath } | Where-Object { $_ }')
+if os.name == 'nt':
+    _k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+
+    class _ProcessEntry32W(ctypes.Structure):
+        _fields_ = [
+            ('dwSize', wintypes.DWORD),
+            ('cntUsage', wintypes.DWORD),
+            ('th32ProcessID', wintypes.DWORD),
+            ('th32DefaultHeapID', ctypes.c_void_p),
+            ('th32ModuleID', wintypes.DWORD),
+            ('cntThreads', wintypes.DWORD),
+            ('th32ParentProcessID', wintypes.DWORD),
+            ('pcPriClassBase', wintypes.LONG),
+            ('dwFlags', wintypes.DWORD),
+            ('szExeFile', wintypes.WCHAR * 260),
+        ]
+
+    _k32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    _k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    _k32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(_ProcessEntry32W)]
+    _k32.Process32FirstW.restype = wintypes.BOOL
+    _k32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(_ProcessEntry32W)]
+    _k32.Process32NextW.restype = wintypes.BOOL
+    _k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    _k32.OpenProcess.restype = wintypes.HANDLE
+    _k32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    _k32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+    _k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    _k32.CloseHandle.restype = wintypes.BOOL
+
+    _TH32CS_SNAPPROCESS = 0x2
+    _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    _INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value
+
+
+def _win_process_executables():
+    """The program path of every process this user may ask about, by Toolhelp's list and QueryFullProcessImageNameW: in
+    this process, where Get-CimInstance Win32_Process started a PowerShell for about a second."""
+    snap = _k32.CreateToolhelp32Snapshot(_TH32CS_SNAPPROCESS, 0)
+    if not snap or snap == _INVALID_HANDLE_VALUE:
+        raise ctypes.WinError(ctypes.get_last_error())
+    paths = []
     try:
-        done = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', command], capture_output=True, text=True,
-                              encoding='utf-8', errors='replace', timeout=60)
-    except (OSError, subprocess.TimeoutExpired) as error:
+        entry = _ProcessEntry32W()
+        entry.dwSize = ctypes.sizeof(entry)
+        if not _k32.Process32FirstW(snap, ctypes.byref(entry)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        buf = ctypes.create_unicode_buffer(32768)    # the longest path Windows has: none is left out for its length
+        while True:
+            pid = entry.th32ProcessID
+            if pid:
+                proc = _k32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+                if proc:
+                    try:
+                        size = wintypes.DWORD(len(buf))
+                        if _k32.QueryFullProcessImageNameW(proc, 0, buf, ctypes.byref(size)):
+                            paths.append(buf.value)
+                    finally:
+                        _k32.CloseHandle(proc)
+            if not _k32.Process32NextW(snap, ctypes.byref(entry)):
+                break
+    finally:
+        _k32.CloseHandle(snap)
+    return paths
+
+
+def running_executables():
+    """The path of the program of every running process Windows shows to this user."""
+    try:
+        paths = _win_process_executables()
+    except OSError as error:
         raise SessionError(f'the process list could not be read, nothing of the tree removed: {error}') from None
-    paths = done.stdout.split('\n') if done.stdout else []
     paths = [path.strip() for path in paths if path.strip()]
-    if done.returncode or not paths:
-        raise SessionError(f'the process list could not be read, nothing of the tree removed: {done.stderr.strip()}')
+    if not paths:
+        raise SessionError('the process list could not be read, nothing of the tree removed: empty process list')
     return paths
 
 

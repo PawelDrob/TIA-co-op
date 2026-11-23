@@ -230,14 +230,17 @@ function Restore-UnchangedExports([string]$Partial, [string]$Destination) {
     }
 }
 
+$script:ReplaceRetryMs = 2000
+
 # Puts a finished export (<target>.partial, a file or a folder) in place of Destination. Another process may hold the
 # old file open for a moment (2026-10-06: Move-Item -Force failed with "Cannot create a file when that file
-# already exists" while a preview server watched the folder), so a locked destination is retried for RetryMs. If it
+# already exists" while a preview server watched the folder), so a locked destination is retried for RetryMs, by default
+# ReplaceRetryMs (a test that holds a file to the end sets it lower). If it
 # stays locked, the partial is removed, the old file or folder stays as it was, and the error names the destination.
 # A folder holding a git repo (Test-GitRepoFolder) is not replaced, the same way: the repo's history is nowhere else.
 # A file that differs from the old one only in the export time keeps the old one (Test-OnlyExportTimeDiffers), in a
 # folder too: an export of an object nobody changed changes nothing in the repo.
-function Move-ExportIntoPlace([string]$Partial, [string]$Destination, [int]$RetryMs = 2000) {
+function Move-ExportIntoPlace([string]$Partial, [string]$Destination, [int]$RetryMs = $script:ReplaceRetryMs) {
     $step = [TiaBridgeTimes]::Enter('move')
     try {
         $isDir = [System.IO.Directory]::Exists($Partial)

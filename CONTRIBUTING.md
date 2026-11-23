@@ -32,11 +32,13 @@ No suite needs TIA. The commit hook runs those a commit touches. From Git Bash:
 | Some suites, by their keys | `sh .githooks/pre-commit --all <suite>...` |
 | What a branch touches, since a ref | `sh .githooks/pre-commit main` |
 
-The head of `.githooks/pre-commit` lists the suites and when each runs, and its body holds each command. To run one Python suite, from a Windows terminal in the clone:
+The head of `.githooks/pre-commit` lists the suites and when each runs, and its body holds each command. To run one Python suite as the hook does, from a Windows terminal in the clone:
 
 ```
-<clone>\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tools/setup/tests -t .
+<clone>\.venv\Scripts\python.exe -X utf8 tools/hooks/run_tests.py -s tools/setup/tests -t .
 ```
+
+It takes the options of `-m unittest discover`, which runs the same suite in one process. The hook's Python suites, and `run.ps1` on a folder, run their tests in `PRE_COMMIT_WORKERS` processes at once: by default 6 for a Python suite and 4 for the bridge's, no more than the PC has cores. `PRE_COMMIT_WORKERS=1` runs each suite in one process.
 
 **PowerShell tests** run on Pester 3.4, which Windows includes. From a Windows terminal:
 

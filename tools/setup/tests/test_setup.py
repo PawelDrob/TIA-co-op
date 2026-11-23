@@ -1,4 +1,5 @@
 """The setup command, run as a person or an agent runs it: in a temp clone, with a temp Claude config and fake claude and whoami."""
+import atexit
 import datetime
 import importlib.util
 import json
@@ -31,23 +32,37 @@ def git(cwd, *args):
                           capture_output=True, text=True, check=True).stdout
 
 
+_SETUP_CLONE_TEMPLATE = None
+
+
+def _setup_clone_template():
+    global _SETUP_CLONE_TEMPLATE
+    if _SETUP_CLONE_TEMPLATE is None or not _SETUP_CLONE_TEMPLATE.is_dir():
+        tpl = Path(tempfile.mkdtemp(prefix='setup-tpl-')).resolve()
+        clone = tpl / 'clone'
+        (clone / 'tools' / 'setup').mkdir(parents=True)
+        (clone / 'TiaBridge').mkdir()
+        shutil.copy(TOOL / 'setup.py', clone / 'tools' / 'setup')
+        shutil.copy(TOOL / 'setup.ps1', clone / 'tools' / 'setup')
+        (clone / 'TiaBridge' / 'TiaBridge.ps1').write_text('# bridge\n')
+        (clone / '.claude').mkdir()
+        (clone / '.claude' / 'settings.json').write_text(json.dumps({'env': {'LANG': 'C.UTF-8'}, 'enabledPlugins': {PLUGIN: True}}))
+        git(tpl, 'init', '-q', str(clone))
+        git(clone, 'add', '-A')
+        git(clone, 'commit', '-qm', 'first')
+        _SETUP_CLONE_TEMPLATE = clone
+        atexit.register(shutil.rmtree, tpl, True)
+    return _SETUP_CLONE_TEMPLATE
+
+
 class SetupCase(unittest.TestCase):
     def setUp(self):
         self.temp_folder = tempfile.TemporaryDirectory(prefix='setup-')     # it deletes git's read-only files, rmtree does not
         self.addCleanup(self.temp_folder.cleanup)
         self.temp = Path(self.temp_folder.name).resolve()
         self.clone = self.temp / 'clone'
-        (self.clone / 'tools' / 'setup').mkdir(parents=True)
-        (self.clone / 'TiaBridge').mkdir()
-        shutil.copy(TOOL / 'setup.py', self.clone / 'tools' / 'setup')
-        shutil.copy(TOOL / 'setup.ps1', self.clone / 'tools' / 'setup')
-        (self.clone / 'TiaBridge' / 'TiaBridge.ps1').write_text('# bridge\n')
-        (self.clone / '.claude').mkdir()
+        shutil.copytree(_setup_clone_template(), self.clone)
         self.tracked_settings = self.clone / '.claude' / 'settings.json'
-        self.tracked_settings.write_text(json.dumps({'env': {'LANG': 'C.UTF-8'}, 'enabledPlugins': {PLUGIN: True}}))
-        git(self.clone.parent, 'init', '-q', str(self.clone))
-        git(self.clone, 'add', '-A')
-        git(self.clone, 'commit', '-qm', 'first')
         self.config = self.temp / 'config'
         self.config.mkdir()
         self.tia = self.temp / 'Portal V20'

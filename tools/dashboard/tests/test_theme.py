@@ -200,7 +200,7 @@ class ProbeHandler(live.Handler):
 
 def probe_server(test):
     server = live.Server(('127.0.0.1', 0), ProbeHandler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    threading.Thread(target=server.serve_forever, args=(0.02,), daemon=True).start()
     test.addCleanup(server.server_close)
     test.addCleanup(server.shutdown)
     return server.server_address[1]

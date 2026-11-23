@@ -60,12 +60,7 @@ def headless():
 def dom_at_load(edge, url):
     """The DOM of a real page when it has loaded. Edge.dump_dom waits for virtual time to run out, which a page holding its
     live connection open never lets it do."""
-    try:
-        return subprocess.run([edge.path, '--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-                               '--disable-extensions', '--user-data-dir=' + edge.profile, '--dump-dom', url],
-                              capture_output=True, timeout=30, env=edge.environment()).stdout.decode('utf-8', 'replace')
-    finally:
-        edge.kill()
+    return edge.dump_dom(url, budget=None, timeout=30)
 
 
 # the theme switch, as dashboard.js makes it, among the direct content of the page's top bar

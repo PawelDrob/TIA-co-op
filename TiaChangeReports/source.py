@@ -385,33 +385,55 @@ class GitSnapshot:
     repo may be a folder inside the repo: paths are relative to it. only: the stems (path without extension) to
     keep, e.g. the blocks changed between two revisions."""
 
-    def __init__(self, repo, rev=None, only=None):
+    def __init__(self, repo, rev=None, only=None, _repo_info=None):
         self.root = os.path.abspath(repo)
         self.rev = rev
         self.only = only
         self.skipped = []
         self._tables = None
+        self._found = None
+        self._work = None
         if not os.path.isdir(self.root):
             raise ValueError('not a folder: %s' % repo)
-        self._top, self.prefix = (_git(self.root, 'rev-parse', '--show-toplevel', '--show-prefix').decode('utf-8')
-                                  .splitlines())
         self.changed = ()       # the files git_snapshots found changed between the two revisions
         self._laid_out = None
         if rev is None:
+            self._top, self.prefix = _repo_info or tuple(
+                _git(self.root, 'rev-parse', '--show-toplevel', '--show-prefix').decode('utf-8').splitlines())
             self.label = '%s (working tree)' % name_of(self.root)
             return
-        try:
-            commit = _git(self.root, 'rev-parse', '--verify', '--short', rev + '^{commit}').decode().strip()
-        except ValueError:
-            raise ValueError('no commit %s in %s' % (rev, self.root))
+        if _repo_info is not None:
+            self._top, self.prefix = _repo_info
+            try:
+                commit = _git(self.root, 'rev-parse', '--verify', '--short', rev + '^{commit}').decode().strip()
+            except ValueError:
+                raise ValueError('no commit %s in %s' % (rev, self.root))
+        else:
+            try:
+                self._top, self.prefix, commit = (
+                    _git(self.root, 'rev-parse', '--show-toplevel', '--show-prefix', '--verify', '--short',
+                         rev + '^{commit}').decode('utf-8').splitlines())
+                commit = commit.strip()
+            except ValueError:
+                self._top, self.prefix = (_git(self.root, 'rev-parse', '--show-toplevel', '--show-prefix')
+                                          .decode('utf-8').splitlines())
+                raise ValueError('no commit %s in %s' % (rev, self.root))
         self.label = '%s @ %s' % (name_of(self.root), rev if rev.startswith(commit) else '%s (%s)' % (rev, commit))
         self._blobs = _Blobs(self.root, rev)
 
+    def _work_files(self):
+        if self._work is None:
+            self._work = _working_files(self.root)
+        return self._work
+
     def found(self):
         """Every file of this revision or working tree, an export or not, from the repo's root."""
-        if self.rev is None:
-            return _working_files(self._top)
-        return list(_Blobs(self._top, self.rev).tree() if self.prefix else self._blobs.tree())
+        if self._found is None:
+            if self.rev is None:
+                self._found = self._work_files() if not self.prefix else _working_files(self._top)
+            else:
+                self._found = list(_Blobs(self._top, self.rev).tree() if self.prefix else self._blobs.tree())
+        return self._found
 
     def laid_out(self):
         """Is this revision or working tree a project repo's (_in_layout); git_snapshots may have decided for the pair."""
@@ -431,7 +453,7 @@ class GitSnapshot:
 
     def paths(self):
         if self.rev is None:
-            ps = _working_files(self.root)
+            ps = self._work_files()
         else:
             ps = self._blobs.tree()
         laid_out = self.laid_out()
@@ -550,30 +572,34 @@ def skipped(snaps):
     return list(dict.fromkeys(x for s in snaps for x in getattr(s, 'skipped', ())))
 
 
-def _changed_in_working_tree(snap):
+def _changed_in_working_tree(snap, work_files=None):
     """The files load() reads whose bytes in the working tree are not those of the revision snap. By the blob id of
     every file: git's own word that a file is unchanged rests on its size and time, which an edit with the time restored
     passes. git hash-object applies git's filters, so a checkout's line ends differ from nothing; a blob
     that itself holds CRLF under core.autocrlf does differ here, which costs a read and shows nothing.
     A file it cannot read has no id and may differ: then all of them, and the comparison names that one."""
     tree = {p: oid for p, oid in snap._blobs.tree().items() if p.endswith(LOADED)}
-    files = [p for p in _working_files(snap.root) if p.endswith(LOADED)]
-    try:
-        ids = _git(snap._top, 'hash-object', '--stdin-paths',       # takes its paths from the repo's root, wherever run
-                   input=''.join(snap.prefix + p + '\n' for p in files).encode('utf-8')).decode().split()
-    except ValueError:
+    files = [p for p in (work_files if work_files is not None else _working_files(snap.root)) if p.endswith(LOADED)]
+    if not files:
         ids = []
+    else:
+        try:
+            ids = _git(snap._top, 'hash-object', '--stdin-paths',       # takes its paths from the repo's root, wherever run
+                       input=''.join(snap.prefix + p + '\n' for p in files).encode('utf-8')).decode().split()
+        except ValueError:
+            ids = []
     return (set(tree) | set(files)) - {p for p, oid in zip(files, ids) if tree.get(p) == oid}
 
 
 def git_snapshots(repo, rev1, rev2=None):
     """Two revisions of a repo (rev2 None: its working tree), each restricted to the blocks with a changed file, read
     alike: a file one side leaves out and the other reads would be a block deleted or new that nobody touched."""
-    before, after = GitSnapshot(repo, rev1), GitSnapshot(repo, rev2)
+    before = GitSnapshot(repo, rev1)
+    after = GitSnapshot(repo, rev2, _repo_info=(before._top, before.prefix))
     before._laid_out = after._laid_out = before.laid_out() and after.laid_out()
     diff = ['diff', '--name-only', '--no-renames', '--no-ext-diff', '--relative', '-z', rev1]
     if rev2 is None:
-        changed = _changed_in_working_tree(before)
+        changed = _changed_in_working_tree(before, after._work_files())
         others = _names(_git(before.root, *diff)) + _names(_git(before.root, 'ls-files', '-z', '--others',
                                                                 '--exclude-standard'))
         changed |= {p for p in others if not p.endswith(LOADED)}    # by git's word: what no block reads

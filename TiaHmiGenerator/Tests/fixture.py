@@ -4,6 +4,7 @@ file into the folder of that HMI device, hmi/<device>/... (a project with severa
 
 Documents are written as SimaticML in the shape of docs/agent/wincc-comfort-openness.md section 4.
 """
+import atexit
 import json
 import os
 import shutil
@@ -162,6 +163,21 @@ def document(kind, name, items=(), template=None, full=True, export_setting=FULL
     return export_document(body, export_setting)
 
 
+_GIT_TEMPLATE = None
+
+
+def _git_template():
+    """One empty git repo initialized once per process, copied into each FixtureRepo instead of running 3 git calls."""
+    global _GIT_TEMPLATE
+    if _GIT_TEMPLATE is None or not os.path.isdir(_GIT_TEMPLATE):
+        tpl = tempfile.mkdtemp(prefix='hmipreview-git-tpl-')
+        for args in (('init', '-q'), ('config', 'user.email', 'fixture@example.invalid'), ('config', 'user.name', 'Fixture')):
+            subprocess.run(['git', '-C', tpl, *args], check=True, capture_output=True, text=True)
+        _GIT_TEMPLATE = os.path.join(tpl, '.git')
+        atexit.register(shutil.rmtree, tpl, True)
+    return _GIT_TEMPLATE
+
+
 class FixtureRepo:
     """A project repo on disk. Call cleanup() (or use addCleanup) when done."""
 
@@ -175,9 +191,7 @@ class FixtureRepo:
         self.write('tiabridge.json', json.dumps(cfg, indent=2))
         os.makedirs(os.path.join(self.path, 'hmi'), exist_ok=True)
         if git:
-            self.git('init', '-q')
-            self.git('config', 'user.email', 'fixture@example.invalid')
-            self.git('config', 'user.name', 'Fixture')
+            shutil.copytree(_git_template(), os.path.join(self.path, '.git'))
 
     def cleanup(self):
         def onerror(func, p, _exc):          # git marks pack files read-only on Windows

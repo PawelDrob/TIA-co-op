@@ -5,6 +5,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ import unittest
 from TiaChangeReports.__main__ import main
 from TiaChangeReports.names import file_safe
 from TiaChangeReports.source import EXPORT_ROOTS, LEFT_OUT, FolderSnapshot, GitSnapshot, _in_place, git_snapshots
-from TiaChangeReports.tests.test_change_reports import SRC, _git, _put
+from TiaChangeReports.tests.test_change_reports import SRC, _git, _git_template, _put
 from TiaChangeReports.tests.test_plc_tags import table, tag
 
 CHANGED = SRC.replace('I_Contact( #b )', 'I_Contact( #a )')
@@ -24,6 +25,15 @@ def _report(*args):
     with tempfile.TemporaryDirectory() as out, contextlib.redirect_stdout(io.StringIO()) as printed:
         main(list(args) + ['-o', os.path.join(out, 'page.html'), '--json'])
     return json.loads(printed.getvalue())
+
+
+def _report_and_page(*args):
+    """The --json result and the page of one report on args: a --json run writes the page a plain one does."""
+    with tempfile.TemporaryDirectory() as out, contextlib.redirect_stdout(io.StringIO()) as printed:
+        page = os.path.join(out, 'page.html')
+        main(list(args) + ['-o', page, '--json'])
+        with open(page, encoding='utf-8') as f:
+            return json.loads(printed.getvalue()), f.read()
 
 
 def _page(*args):
@@ -47,8 +57,7 @@ class Repo(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = self.tmp.name
-        _git(self.repo, 'init', '-q')
-        _git(self.repo, 'config', 'core.autocrlf', 'false')
+        shutil.copytree(_git_template(), os.path.join(self.repo, '.git'))
 
     def commit(self, files):
         _put(self.repo, files)

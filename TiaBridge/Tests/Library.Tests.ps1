@@ -178,7 +178,7 @@ Describe 'Export-LibraryTypeDocuments for a type of a global library' {
     function ConvertTo-ResultTree($r) { $r }
 
     if (-not ('Siemens.Engineering.ExportOptions' -as [type])) {
-        Add-Type -TypeDefinition 'namespace Siemens.Engineering { public enum ExportOptions { None, WithDefaults, WithReadOnly } }'
+        Add-Type -TypeDefinition 'namespace Siemens.Engineering { [System.Flags] public enum ExportOptions { None = 0, WithDefaults = 1, WithReadOnly = 2 } }'
     }
 
     It 'exports the version metadata of a type whose documents Openness refuses to export (global library, 2026-10-06)' {
@@ -199,9 +199,10 @@ Describe 'Export-LibraryTypeDocuments for a type of a global library' {
         $v | Add-Member ScriptMethod ExportAsDocuments { param($d, $n, $f, $o) [System.IO.File]::WriteAllText((Join-Path $d.FullName "$n.s7dcl"), 'new') }
         $t = [pscustomobject]@{ Versions = @($v) }
         $t | Add-Member ScriptMethod GetSupportedExportFormats { @('SimaticSD') }
+        $script:ReplaceRetryMs = 50    # held to the end: the replace gives up after 50 ms, not the 2000 a moment of a scanner gets
         $lock = [System.IO.File]::Open("$dir\typeL\typeL.s7dcl", 'Open', 'Read', 'None')
         try { { Export-LibraryTypeDocuments @{ name = 'typeL'; obj = $t } $dir } | Should Throw 'typeL' }
-        finally { $lock.Dispose() }
+        finally { $lock.Dispose(); $script:ReplaceRetryMs = 2000 }
         [System.IO.File]::ReadAllText("$dir\typeL\typeL.s7dcl") | Should Be 'old'
         Test-Path "$dir\typeL.partial" | Should Be $false
         Test-Path "$dir\typeL.old" | Should Be $false
@@ -541,7 +542,7 @@ Describe 'Export-LibraryTypeVersions' {
 
 Describe 'Import-LibraryTypeDocuments, line ends of a .s7dcl' {
     if (-not ('Siemens.Engineering.Library.Types.CreateOptions' -as [type])) {
-        Add-Type -TypeDefinition 'namespace Siemens.Engineering.Library.Types { public enum CreateOptions { Override } } namespace Siemens.Engineering.Library { public enum LibraryImportOptions { None } }'
+        Add-Type -TypeDefinition 'namespace Siemens.Engineering.Library.Types { public enum CreateOptions { None, Override } } namespace Siemens.Engineering.Library { public enum LibraryImportOptions { None } }'
     }
     function Select-TypeVersion { [pscustomobject]@{ VersionNumber = '1.0.1' } }
     function Add-LibraryLog { }

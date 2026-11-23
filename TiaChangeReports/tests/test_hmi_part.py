@@ -125,6 +125,10 @@ class HmiPart(unittest.TestCase):
         self.assertIn('id="blk-screen:Filler"', html)
         self.assertIn('<table class="sum hsum">', html)
 
+    def test_a_run_with_json_writes_the_page_a_plain_run_writes(self):
+        """test_plc_tags and test_object_names read the page of a --json run for that of a plain one."""
+        self.assertEqual(self.main()[1], self.main('--json')[1])
+
     def test_page_data_holds_the_changes_and_the_documents_drawn(self):
         _, html = self.main()
 
@@ -903,6 +907,85 @@ class DrawnOnThePage(unittest.TestCase):
 
     def test_all_on_one_page_draws_one_scale(self):
         self.assert_one_scale(self.scales((440, 240), (520, 240), '?all')['fit'])
+
+
+class TheHmiPartBesideThePlc(unittest.TestCase):
+    """A --git report with the PLC part reads the HMI part only when a side lists a file where it reads (hmi.ROOTS). It
+    lists what the HMI part alone lists, which --only hmi reads always, as every report did before the skip."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = tmp.name
+        self.out = os.path.join(tmp.name, 'out', 'page.html')
+
+    def repo(self, *commits, top='Plant'):
+        """A git repo at top in the temp folder, one commit for each dict of files."""
+        r = os.path.join(self.tmp, top)
+        os.makedirs(r)
+        _git(r, 'init', '-q')
+        _git(r, 'config', 'core.autocrlf', 'false')
+        for files in commits:
+            _put(r, files)
+            _git(r, 'add', '-A')
+            _git(r, 'commit', '-q', '--allow-empty', '-m', 'a commit')
+        return r
+
+    def listed(self, folder, *revs, only_hmi=False):
+        """The HMI objects of --json."""
+        from TiaChangeReports.__main__ import main
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = main(['--git', folder, *revs, '-o', self.out, '--json'] + (['--only', 'hmi'] if only_hmi else []))
+        self.assertEqual(0, code)
+        return json.loads(out.getvalue()).get('hmi')
+
+    def assertListedAsAlone(self, folder, *revs):
+        listed = self.listed(folder, *revs)
+        self.assertEqual(listed, self.listed(folder, *revs, only_hmi=True))
+        return [(o['name'], o['state']) for o in listed]
+
+    PLC = {'plc/A.s7dcl': SRC, 'plc/A.s7res': RES}
+
+    def test_a_change_between_two_commits(self):
+        r = self.repo(dict(self.PLC, **{'hmi/screens/Door.xml': screen('Door', 11, rect('door'))}),
+                      {'hmi/screens/Door.xml': screen('Door', 11, rect('door', left=50))})
+        self.assertEqual([('Door', 'changed')], self.assertListedAsAlone(r, 'HEAD~1', 'HEAD'))
+
+    def test_a_first_hmi_object_in_the_later_commit(self):
+        r = self.repo(self.PLC, {'hmi/screens/Door.xml': screen('Door', 11)})
+        self.assertEqual([('Door', 'new')], self.assertListedAsAlone(r, 'HEAD~1', 'HEAD'))
+
+    def test_every_hmi_object_gone_in_the_later_commit(self):
+        r = self.repo(dict(self.PLC, **{'hmi/screens/Door.xml': screen('Door', 11)}), {})
+        _git(r, 'rm', '-q', '-r', 'hmi')
+        _git(r, 'commit', '-q', '-m', 'no hmi')
+        self.assertEqual([('Door', 'deleted')], self.assertListedAsAlone(r, 'HEAD~1', 'HEAD'))
+
+    def test_an_untracked_file_under_hmi_in_the_working_tree(self):
+        r = self.repo(self.PLC)
+        _put(r, {'hmi/screens/Door.xml': screen('Door', 11)})
+        self.assertEqual([('Door', 'new')], self.assertListedAsAlone(r, 'HEAD'))
+
+    def test_an_untracked_project_graphic_with_no_hmi_folder(self):
+        r = self.repo(self.PLC)
+        _put(r, {'project/graphics/Logo.xml': graphic('Logo'), 'project/graphics/Logo files/DefaultImageStream.png': 'one'})
+        self.assertEqual([('Logo', 'new')], self.assertListedAsAlone(r, 'HEAD'))
+
+    def test_a_folder_below_the_root_of_its_git_repo(self):
+        r = self.repo({'Plant/plc/A.s7dcl': SRC, 'Plant/plc/A.s7res': RES, 'hmi/screens/Door.xml': screen('Door', 11)},
+                      {'hmi/screens/Door.xml': screen('Door', 11, rect('door'))}, top='site')
+        plant = os.path.join(r, 'Plant')
+        self.assertEqual([('Door', 'changed')], self.assertListedAsAlone(plant, 'HEAD~1', 'HEAD'))
+        _put(r, {'hmi/screens/Gate.xml': screen('Gate', 12)})
+        self.assertEqual([('Door', 'changed'), ('Gate', 'new')], sorted(self.assertListedAsAlone(plant, 'HEAD~1')))
+
+    def test_with_no_file_where_it_reads_on_either_side_it_reads_nothing(self):
+        r = self.repo(dict(self.PLC, **{'hmi.txt': 'not the folder'}), {'plc/A.s7dcl': SRC.replace('#b', '#a')})
+        with mock.patch('TiaChangeReports.hmi.sides_of') as sides_of:
+            self.assertIsNone(self.listed(r, 'HEAD~1', 'HEAD'))
+            self.listed(r, 'HEAD~1')
+        sides_of.assert_not_called()
 
 
 if __name__ == '__main__':

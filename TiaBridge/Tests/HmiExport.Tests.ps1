@@ -59,9 +59,10 @@ Describe 'export of HMI screens, templates and pop-ups' {
     It 'fails the item when the file cannot be replaced, keeps the old file and leaves no .partial' {
         $file = Join-Path $repo 'hmi\popups\P1.xml'
         [System.IO.File]::WriteAllText($file, 'old')
+        $script:ReplaceRetryMs = 50    # held to the end: the replace gives up after 50 ms, not the 2000 a moment of a scanner gets
         $lock = [System.IO.File]::Open($file, 'Open', 'Read', 'None')
         try { $r = Invoke-ExportTool ([pscustomobject]@{ kind = 'hmi_popup'; names = @('P1') }) }
-        finally { $lock.Dispose() }
+        finally { $lock.Dispose(); $script:ReplaceRetryMs = 2000 }
         $r.ok | Should Be $false
         $r.items[0].ok | Should Be $false
         $r.items[0].error.message | Should Match 'P1.xml'
@@ -93,11 +94,12 @@ Describe 'Export-HmiObject over a file another process holds open' {
 
     It 'keeps the old file, leaves no .partial and throws when the file stays locked (2026-10-06)' {
         [System.IO.File]::WriteAllText($file, 'old')
+        $script:ReplaceRetryMs = 50    # held to the end: the replace gives up after 50 ms, not the 2000 a moment of a scanner gets
         $lock = [System.IO.File]::Open($file, 'Open', 'Read', 'None')
         try {
             { Export-HmiObject @{ name = '040 - Operating Mode'; obj = (New-FakeHmiObject 'new') } $dir (New-Object psobject) } |
                 Should Throw '040 - Operating Mode.xml'
-        } finally { $lock.Dispose() }
+        } finally { $lock.Dispose(); $script:ReplaceRetryMs = 2000 }
         [System.IO.File]::ReadAllText($file) | Should Be 'old'
         Test-Path -LiteralPath "$file.partial" | Should Be $false
     }

@@ -53,6 +53,66 @@ class BrowserTempFolderTest(unittest.TestCase):
                 edge.close()
 
 
+def ended(pid):
+    """Whether Windows process pid has ended, now."""
+    import ctypes
+    kernel32 = ctypes.WinDLL('kernel32')
+    handle = kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+    if not handle:
+        return True
+    try:
+        return kernel32.WaitForSingleObject(handle, 0) == 0
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+class BrowserProcessesTest(unittest.TestCase):
+    """A run ends the processes it started: headless children can outlive the browser."""
+
+    def stand_in(self, folder):
+        """A browser that leaves a child running, its Windows process number in child.pid, and dumps an empty page."""
+        pid = os.path.join(folder, 'child.pid')
+        leave = os.path.join(folder, 'leave.py')
+        with open(leave, 'w', encoding='utf-8') as f:     # Python hands the child no handle but nul: not the run's output
+            f.write('import subprocess, sys\n'
+                    'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], stdin=subprocess.DEVNULL,\n'
+                    '                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n'
+                    'open(%r, "w").write(str(child.pid))\n' % pid)
+        browser = os.path.join(folder, 'browser.cmd')
+        with open(browser, 'w', encoding='ascii') as f:
+            f.write('@"%s" "%s"\n@echo ^<html^>^</html^>\n' % (sys.executable, leave))
+        return browser, pid
+
+    def test_a_process_the_browser_left_has_ended_when_the_run_returns(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        browser, pid = self.stand_in(folder)
+        edge = Edge(browser)
+        self.addCleanup(edge.close)
+        self.assertIn('<html>', edge.dump_dom('about:blank'))
+        with open(pid, encoding='ascii') as f:
+            self.assertTrue(ended(int(f.read())))
+
+    def test_a_run_windows_gives_no_job_ends_the_browsers_on_its_profile_by_their_command_line(self):
+        from unittest import mock
+        from hmipreview import edge as plain
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        browser = os.path.join(folder, 'browser.cmd')
+        with open(browser, 'w', encoding='ascii') as f:
+            f.write('@echo ^<html^>^</html^>\n')
+        edge = Edge(browser)
+        self.addCleanup(edge.close)
+        swept = []
+        with mock.patch.object(plain, '_Job', side_effect=OSError('no job')), \
+                mock.patch.object(plain.subprocess, 'run', side_effect=lambda args, **kw: swept.append(args[-1])):
+            self.assertIn('<html>', edge.dump_dom('about:blank'))
+            edge.dump_dom('about:blank')
+        self.assertEqual(len(swept), 2)
+        self.assertIn("-like '*%s*'" % edge.profile, swept[0])
+        self.assertIn("Name='browser.cmd'", swept[0])
+
+
 class DrawnPageTest(unittest.TestCase):
     """On a slow machine (a CI runner) the browser dumped some pages before they had drawn: a stand-in browser draws
     the page only on its second run, or never."""

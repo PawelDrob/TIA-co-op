@@ -106,7 +106,7 @@ class Case(unittest.TestCase):
     def serve(self):
         self.tick()
         server = dashboard.make_server(self.d, 0)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
+        threading.Thread(target=server.serve_forever, args=(0.02,), daemon=True).start()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
         self.port = server.server_address[1]
@@ -954,7 +954,7 @@ class Preview:
             def log_message(self, *a):
                 pass
         self.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        threading.Thread(target=self.server.serve_forever, args=(0.02,), daemon=True).start()
         test.addCleanup(self.server.server_close)
         test.addCleanup(self.server.shutdown)
         self.url = f'http://127.0.0.1:{self.server.server_address[1]}/'

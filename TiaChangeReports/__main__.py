@@ -78,7 +78,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 from TiaChangeReports.compare import compare_snapshots     # noqa: E402
 from TiaChangeReports.page import FROM_COMMITS, FROM_WORKING_TREE, NET_NOT_SHOWN, NOT_SHOWN, across_names, listed, render  # noqa: E402
-from TiaChangeReports.source import git_snapshots, not_compared, skipped, snapshot  # noqa: E402
+from TiaChangeReports.source import GitSnapshot, git_snapshots, not_compared, skipped, snapshot  # noqa: E402
 from TiaChangeReports.otherfiles import other_files        # noqa: E402
 from TiaChangeReports import hmi, plctags, s7dcl           # noqa: E402
 
@@ -150,7 +150,12 @@ def main(argv=None):
                     tables += plctags.compare(before, after)
                 snaps += [before, after]
                 plc_not_compared += not_compared(before, after)
-            pair = load_hmi() if hmi_on else None
+            # found() lists every file of a side from the repo's root, where the HMI part reads: no side with a file
+            # under hmi.ROOTS is hmi.sides_of's None, here without its git calls
+            has_hmi = True
+            if plc_on and isinstance(before, GitSnapshot) and isinstance(after, GitSnapshot):
+                has_hmi = any(p.startswith(hmi.ROOTS) for s in (before, after) for p in s.found())
+            pair = load_hmi() if hmi_on and has_hmi else None
             if tags_on or pair:
                 compared_inputs.append((before, after) if plc_on else load())
         except ValueError as ex:

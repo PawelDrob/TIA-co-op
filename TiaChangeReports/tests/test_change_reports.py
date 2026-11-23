@@ -304,6 +304,23 @@ class FixtureNetworks(unittest.TestCase):
         self.assertEqual(added, ['#statWeighed.Gross'])
 
 
+_GIT_TEMPLATE = None
+
+
+def _git_template():
+    """One empty git repo initialized once per process, copied into test repos instead of running git init + config."""
+    global _GIT_TEMPLATE
+    if _GIT_TEMPLATE is None or not os.path.isdir(_GIT_TEMPLATE):
+        import atexit
+        import shutil
+        tpl = tempfile.mkdtemp(prefix='cr-git-tpl-')
+        _git(tpl, 'init', '-q')
+        _git(tpl, 'config', 'core.autocrlf', 'false')
+        _GIT_TEMPLATE = os.path.join(tpl, '.git')
+        atexit.register(shutil.rmtree, tpl, True)
+    return _GIT_TEMPLATE
+
+
 def _git(repo, *args):
     import subprocess
     subprocess.run(['git', '-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false']

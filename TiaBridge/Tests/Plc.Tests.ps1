@@ -62,7 +62,7 @@ Describe 'Get-ImportRefusal' {
 
 Describe 'Export-PlcObject' {
     if (-not ('Siemens.Engineering.ExportOptions' -as [type])) {
-        Add-Type -TypeDefinition 'namespace Siemens.Engineering { public enum ExportOptions { None, WithDefaults, WithReadOnly } }'
+        Add-Type -TypeDefinition 'namespace Siemens.Engineering { [System.Flags] public enum ExportOptions { None = 0, WithDefaults = 1, WithReadOnly = 2 } }'
     }
 
     It 'keeps the previous export when TIA refuses the new one, and replaces it after a successful one (2026-10-06)' {
@@ -151,9 +151,10 @@ Describe 'Export-PlcObject' {
         [System.IO.File]::WriteAllText((Join-Path $dir 'L.xml'), 'old')
         $good = [pscustomobject]@{ IsKnowHowProtected = $false }
         $good | Add-Member ScriptMethod Export { param($f, $o) Set-Content $f.FullName 'new xml' }
+        $script:ReplaceRetryMs = 50    # held to the end: the replace gives up after 50 ms, not the 2000 a moment of a scanner gets
         $lock = [System.IO.File]::Open((Join-Path $dir 'L.xml'), 'Open', 'Read', 'None')
         try { { Export-PlcObject @{ name = 'L'; obj = $good } $dir ([pscustomobject]@{ format = 'xml' }) $false } | Should Throw 'L.xml' }
-        finally { $lock.Dispose() }
+        finally { $lock.Dispose(); $script:ReplaceRetryMs = 2000 }
         [System.IO.File]::ReadAllText((Join-Path $dir 'L.xml')) | Should Be 'old'
         @(Get-ChildItem -LiteralPath (Split-Path -Parent $dir) -Filter '*.partial').Count | Should Be 0
     }

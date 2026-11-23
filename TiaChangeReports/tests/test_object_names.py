@@ -4,7 +4,7 @@ import unittest
 from TiaChangeReports.compare import Callees
 from TiaChangeReports.names import file_safe
 from TiaChangeReports.source import GitSnapshot
-from TiaChangeReports.tests.test_export_roots import Repo, _page, _report
+from TiaChangeReports.tests.test_export_roots import Repo, _page, _report, _report_and_page
 
 FC = '{ S7_Optimized := "TRUE" }\nFUNCTION "zzNs:Block" : Void\n    VAR_INPUT\n        a : Bool;\n    END_VAR\nBEGIN\nEND_FUNCTION\n'
 TYPE_PATH = 'library/types/zzBm/zzNs_Block/zzNs_Block.s7dcl'
@@ -22,7 +22,7 @@ class Names(Repo):
 
     def report_of_the_commit(self, files):
         self.commit(files)
-        return _report('--git', self.repo, 'HEAD~1', 'HEAD'), _page('--git', self.repo, 'HEAD~1', 'HEAD')
+        return _report_and_page('--git', self.repo, 'HEAD~1', 'HEAD')
 
     def named(self, files):
         return [b['name'] for b in self.report_of_the_commit(files)[0]['blocks']]

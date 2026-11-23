@@ -33,10 +33,13 @@
 #      touches .githooks/ or tools/hooks/
 #  12. First setup tests (about 45 s, on temp clones, with a fake claude), when the commit touches tools/setup/ or
 #      TiaAgentStatus/ (a test runs the status line setup writes, with its fakes)
-# The checks and tests run side by side, at most PRE_COMMIT_JOBS at once (default 2: the maintainer's PC runs at most two
-# heavy jobs at once, as more ran it out of memory; CI may set more), the long suites first. Each writes its own log in
-# the git dir of the tree (<suite>.log), and the summary comes in the order above, each step as soon as the steps before
-# it have ended. PRE_COMMIT_JOBS=1 runs them one after another. Stopped, the hook ends the steps still running.
+# The checks and tests run side by side, at most PRE_COMMIT_JOBS at once (default 2; CI may set more), the long suites
+# first. A suite runs its own tests side by side too, in PRE_COMMIT_WORKERS processes at once: a Python suite through
+# tools/hooks/run_tests.py (default 6), the TiaBridge unit tests through TiaBridge/Tests/run.ps1 (default 4), neither
+# more than the PC has cores. Two suites at once so run up to 12 test processes, each starting git, PowerShell or a
+# browser of its own; PRE_COMMIT_WORKERS=1 runs each suite in one process. Each step writes its own log in the git dir
+# of the tree (<suite>.log), and the summary comes in the order above, each step as soon as the steps before it have
+# ended. PRE_COMMIT_JOBS=1 runs them one after another. Stopped, the hook ends the steps still running.
 # With a ref, sh .githooks/pre-commit <ref> runs the same choice for what HEAD changed since it, not for what is staged:
 # the audit of a branch runs it so. A run with a ref that passes on a clean tree leaves a stamp, pre-commit-passed in the
 # git dir: the commit tested and the commit of the ref. The next run with the same pair on a clean tree runs nothing and
@@ -109,7 +112,8 @@ if [ -n "$ref" ]; then
     [ -n "$tested" ] && rm -f "$stamp"  # this run decides the pair: a failure leaves no earlier pass behind
 fi
 
-py="$(pwd)/.venv/Scripts/python.exe"
+root=$(pwd)
+py="$root/.venv/Scripts/python.exe"
 if [ "$mode" != --groups ] && echo "$staged" | grep -qE '^(TiaBridge|TiaChangeReports|TiaArchiveCompare|TiaAgentStatus|TiaHmiGenerator|tools/dashboard|tools/pointers|tools/session|tools/hooks|tools/setup|\.githooks|\.claude/skills)/|^(AGENTS|CODING_STANDARDS|CONTRIBUTING)\.md$|^docs/agent/wincc-comfort-openness\.md$' && [ ! -x "$py" ]; then
     echo "pre-commit: no .venv in this tree: run uv sync here (once per clone and per worktree). Commit refused."
     exit 1
@@ -128,8 +132,15 @@ suite() {
     if [ "$5" = long ]; then long_suites="$long_suites $1"; else short_suites="$short_suites $1"; fi
 }
 
+# unittest discover runs a suite through tools/hooks/run_tests.py, its tests in PRE_COMMIT_WORKERS processes at once;
+# a named test runs in unittest itself
 unittest() {
-    "$py" -X utf8 -m unittest "$@"
+    if [ "$1" = discover ]; then
+        shift
+        "$py" -X utf8 "$root/tools/hooks/run_tests.py" "$@"
+    else
+        "$py" -X utf8 -m unittest "$@"
+    fi
 }
 
 powershell_file() {
@@ -339,6 +350,9 @@ report_step() {
 
 waiting="$long_suites $short_suites"
 unreported=$suites
+# A look at the steps every pause: short ones first, for steps that end at once, then half a second, as a sleep in
+# Git Bash is a process start of its own
+pause=0.05
 while [ -n "$unreported" ]; do
     running=0
     for key in $started; do
@@ -359,7 +373,14 @@ while [ -n "$unreported" ]; do
         shift
         unreported="$*"
     done
-    [ -n "$unreported" ] && sleep 0.5
+    if [ -n "$unreported" ]; then
+        sleep $pause
+        case $pause in
+            0.05) pause=0.1 ;;
+            0.1) pause=0.2 ;;
+            *) pause=0.5 ;;
+        esac
+    fi
 done
 wait
 rm -rf "$rundir"

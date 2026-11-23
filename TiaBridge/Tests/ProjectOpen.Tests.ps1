@@ -19,6 +19,10 @@ Describe 'project_open' {
     $ap = Join-Path $TestDrive 'P\P.ap20'
     New-Item -ItemType Directory -Force -Path (Split-Path $ap) | Out-Null; Set-Content $ap 'ap'
 
+    # TIA never holds the project: the wait runs out, here in 50 ms. A test whose TIA holds it keeps the 2000 ms, so a
+    # slow machine fails no test, and one that says it did not wait has a time to stay under.
+    function Wait-Out { $script:holdsAfter = [int]::MaxValue; $script:ProjectOpenWaitMs = 50 }
+
     function Reset-Fakes {
         Initialize-BridgeContext @{ projectsRoot = (Join-Path $TestDrive 'projects'); tiaRoot = 'C:\none'; maxResponseChars = 20000 }
         $script:fakeProcesses = @(); $script:started = 0; $script:startedOn = ''; $script:calls = 0; $script:holdsAfter = 1
@@ -48,7 +52,7 @@ Describe 'project_open' {
 
     It 'after the wait says TIA waits for the user, naming the boxes, and leaves it open' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         $script:boxes = @('Log on')
         $r = Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })
         $r.ok | Should Be $false
@@ -61,7 +65,7 @@ Describe 'project_open' {
 
     It 'called again for the project it waits on, starts nothing and waits on that process' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         (Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })).pending | Should Be $true
         (Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })).pending | Should Be $true
         $script:started | Should Be 1
@@ -74,7 +78,7 @@ Describe 'project_open' {
 
     It 'counts a process waiting behind a box as a project beside another' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         $null = Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })
         $other = Join-Path $TestDrive 'Other.ap20'; Set-Content $other 'o'
         $r = Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $other })
@@ -85,7 +89,7 @@ Describe 'project_open' {
 
     It 'beside a second TIA the user asked for, still waits on the first: called again for it, starts nothing' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         $other = Join-Path $TestDrive 'Other.ap20'; Set-Content $other 'o'
         $null = Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })
         $null = Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $other; second = $true })
@@ -97,7 +101,7 @@ Describe 'project_open' {
 
     It 'after a bridge restart, waits on the process started before, which it knows by its command line' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         $script:commandLines = @(New-CommandLine $PID "`"$ap`"")
         $script:boxes = @('Log on')
         $r = Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })
@@ -164,7 +168,7 @@ Describe 'project_open' {
 
     It 'says so when no box can be read' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         $text = (Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })).refused
         $text | Should Match 'still opening, shows a box, or stands with no project'
         $text | Should Match 'If it shows nothing, the user closes that TIA'
@@ -172,7 +176,7 @@ Describe 'project_open' {
 
     It 'says so when the process it started ended' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         $script:tiaId = Get-DeadPid
         $r = Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })
         $r.ok | Should Be $false
@@ -235,7 +239,7 @@ Describe 'project_open' {
 
     It 'names a TIA that stands with no project on a pending result too' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         $script:fakeProcesses = @(@{ processId = 15; name = ''; path = ''; mode = 'WithUserInterface' })
         $r = Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })
         $r.pending | Should Be $true
@@ -245,7 +249,7 @@ Describe 'project_open' {
 
     It 'promises no wait past the box: once the process is listed it holds the project or stands behind none' {
         Reset-Fakes
-        $script:holdsAfter = [int]::MaxValue
+        Wait-Out
         (Invoke-ProjectOpenTool (ConvertTo-Arguments @{ path = $ap })).refused | Should Match 'while that box stands'
     }
 

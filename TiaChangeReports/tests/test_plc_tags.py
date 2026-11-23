@@ -5,10 +5,11 @@ import io
 import json
 import os
 import re
+import shutil
 import tempfile
 import unittest
 
-from TiaChangeReports.tests.test_change_reports import RES, SRC, _git, _put
+from TiaChangeReports.tests.test_change_reports import RES, SRC, _git, _git_template, _put
 
 
 def comment_xml(*texts):
@@ -41,6 +42,28 @@ def table(name, *items, created='2026-10-06T00:00:00Z'):
             % (created, name, '<ObjectList>%s</ObjectList>' % ''.join(items) if items else ''))
 
 
+class _LazyListing:
+    """Runs the non-JSON listing call only for tests that actually read the listing."""
+
+    def __init__(self, load):
+        self._load = load
+        self._text = None
+
+    def _get(self):
+        if self._text is None:
+            self._text = self._load()
+        return self._text
+
+    def __contains__(self, item):
+        return item in self._get()
+
+    def __str__(self):
+        return self._get()
+
+    def __repr__(self):
+        return repr(self._get())
+
+
 class Report(unittest.TestCase):
     """Two commits of a made-up repo, the report over them."""
 
@@ -50,8 +73,7 @@ class Report(unittest.TestCase):
         self.tmp = tmp.name
         self.dir = r = os.path.join(tmp.name, 'Plant')
         os.makedirs(r)
-        _git(r, 'init', '-q')
-        _git(r, 'config', 'core.autocrlf', 'false')
+        shutil.copytree(_git_template(), os.path.join(r, '.git'))
         _put(r, one)
         _git(r, 'add', '-A')
         _git(r, 'commit', '-q', '-m', 'one')
@@ -77,10 +99,10 @@ class Report(unittest.TestCase):
     def report(self, one, two, *args):
         """(the plcTags of --json, the page, the list)."""
         self.repo(one, two)
-        res = json.loads(self.main('--json', *args)[0])
+        json_out, html = self.main('--json', *args)
+        res = json.loads(json_out)
         self.res = res
-        listing, html = self.main(*args)
-        return res.get('plcTags', []), html, listing
+        return res.get('plcTags', []), html, _LazyListing(lambda: self.main(*args)[0])
 
 
 T = 'plc/tags/Plant.xml'

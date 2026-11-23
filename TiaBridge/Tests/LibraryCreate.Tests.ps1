@@ -5,7 +5,7 @@ foreach ($f in 'Mcp.ps1', 'Tia.ps1', 'Repo.ps1', 'Rules.ps1', 'Guards.ps1', 'Bri
     . (Join-Path $here "..\$f")
 }
 if (-not ('Siemens.Engineering.Library.Types.CreateOptions' -as [type])) {
-    Add-Type -TypeDefinition 'namespace Siemens.Engineering.Library.Types { public enum CreateOptions { Override } } namespace Siemens.Engineering.Library { public enum LibraryImportOptions { None } }'
+    Add-Type -TypeDefinition 'namespace Siemens.Engineering.Library.Types { public enum CreateOptions { None, Override } } namespace Siemens.Engineering.Library { public enum LibraryImportOptions { None } }'
 }
 
 function Write-Doc([string]$Path, [string]$Text) {

@@ -1,6 +1,7 @@
 """Starting, prompting and closing, on a real temp git repo with a fake terminal in place of a real session."""
 import _winapi
 import argparse
+import atexit
 import importlib.util
 import io
 import json
@@ -75,10 +76,31 @@ class FakeTerminal:
         return 'ended ' + record['name']
 
 
+_CLONE_TEMPLATE = None
+
+
+def _clone_template():
+    global _CLONE_TEMPLATE
+    if _CLONE_TEMPLATE is None or not _CLONE_TEMPLATE.is_dir():
+        tpl = Path(tempfile.mkdtemp(prefix='session-tpl-')).resolve()
+        clone = tpl / 'clone'
+        clone.mkdir()
+        git(clone, 'init', '-q', '-b', 'main')
+        (clone / 'a.txt').write_text('a', encoding='utf-8')
+        (clone / 'TiaArchiveCompare' / 'window').mkdir(parents=True)    # tracked, as in the clone: git status names window/bin
+        (clone / 'TiaArchiveCompare' / 'window' / 'README.md').write_text('w', encoding='utf-8')
+        (clone / '.gitignore').write_text('.scratch/\n.venv/\n__pycache__/\n/local/\n.playwright-mcp/\n*.stackdump\n', encoding='utf-8')
+        git(clone, 'add', '.')
+        git(clone, 'commit', '-q', '-m', 'first')
+        _CLONE_TEMPLATE = clone
+        atexit.register(Case.remove_folder, tpl)
+    return _CLONE_TEMPLATE
+
+
 class Case(unittest.TestCase):
-    reads_real_processes = False    # each look at the process list starts a PowerShell, about a second
+    reads_real_processes = False
     ends_real_processes = False    # True: close's wait for the tree to be let go pauses PAUSE s a try, as a handle can outlive its process
-    PAUSE = 0.5
+    PAUSE = 0.05
 
     def setUp(self):
         if not self.reads_real_processes:
@@ -88,14 +110,7 @@ class Case(unittest.TestCase):
         self.top = Path(tempfile.mkdtemp(prefix='session-test-')).resolve()
         self.addCleanup(self.remove_top)
         self.main = self.top / 'clone'
-        self.main.mkdir()
-        git(self.main, 'init', '-q', '-b', 'main')
-        (self.main / 'a.txt').write_text('a', encoding='utf-8')
-        (self.main / 'TiaArchiveCompare' / 'window').mkdir(parents=True)    # tracked, as in the clone: git status names window/bin
-        (self.main / 'TiaArchiveCompare' / 'window' / 'README.md').write_text('w', encoding='utf-8')
-        (self.main / '.gitignore').write_text('.scratch/\n.venv/\n__pycache__/\n/local/\n.playwright-mcp/\n*.stackdump\n', encoding='utf-8')
-        git(self.main, 'add', '.')
-        git(self.main, 'commit', '-q', '-m', 'first')
+        shutil.copytree(_clone_template(), self.main)
         self.scratch = self.main / '.scratch'
         self.ticket = self.write_ticket('ready-for-agent')
         (self.scratch / 'work' / 'map.md').write_text('# Map\n\n## Notes\n\nSessions: wk\n', encoding='utf-8')
@@ -1164,13 +1179,12 @@ class HeldTreeTests(Case):
         self.assertFalse(session.folder_held(self.tree))
 
     def test_a_process_list_that_cannot_be_read_is_said_and_nothing_is_taken_for_free(self):
-        failed = subprocess.CompletedProcess([], 1, '', 'boom')
-        with mock.patch('session.subprocess.run', return_value=failed):
+        with mock.patch('session._win_process_executables', side_effect=OSError('boom')):
             with self.assertRaisesRegex(SessionError, 'could not be read.*boom'):
                 session.running_executables()
 
     def test_an_empty_process_list_counts_as_not_read(self):
-        with mock.patch('session.subprocess.run', return_value=subprocess.CompletedProcess([], 0, '', '')):
+        with mock.patch('session._win_process_executables', return_value=[]):
             with self.assertRaisesRegex(SessionError, 'could not be read'):
                 session.running_executables()
 

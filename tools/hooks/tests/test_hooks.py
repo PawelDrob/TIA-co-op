@@ -1,4 +1,5 @@
 """The real hook, run by git commit in a throwaway repo. The suites it runs are stubbed."""
+import atexit
 import ctypes
 import json
 import os
@@ -14,6 +15,35 @@ from pathlib import Path
 from tools.hooks.tests.fixture import CLEAN_ENV, errors_of_a_test_holding_a_file, init_repo
 
 ROOT = Path(__file__).resolve().parents[3]
+_TEMPLATE_DIR = None
+
+
+def _hook_templates():
+    """Cached base repo and empty .venv built once per process, copied into each test repo."""
+    global _TEMPLATE_DIR
+    if _TEMPLATE_DIR is None or not _TEMPLATE_DIR.is_dir():
+        tpl = Path(tempfile.mkdtemp(prefix='hooks-tpl-'))
+        repo = tpl / 'repo'
+        repo.mkdir()
+        shutil.copytree(ROOT / '.githooks', repo / '.githooks')
+        for name, content in (('TiaBridge/Tests/parse.ps1', ''), ('tools/pointers/check_pointers.py', ''),
+                              ('.gitignore', '.scratch/\n.venv/\n')):
+            p = repo / name
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding='utf-8')
+        init_repo(repo)
+        for args in (('add', '-A'), ('commit', '-q', '-m', 'base'), ('config', 'core.hooksPath', '.githooks')):
+            subprocess.run(['git', *args], cwd=repo, env=CLEAN_ENV, check=True, capture_output=True)
+        # the hook runs a discover through it, as in this repo; untracked and excluded, so that no suite of tools/hooks/
+        # comes with it and git status shows the tree clean
+        (repo / 'tools' / 'hooks').mkdir(parents=True)
+        shutil.copy(ROOT / 'tools' / 'hooks' / 'run_tests.py', repo / 'tools' / 'hooks')
+        with (repo / '.git' / 'info' / 'exclude').open('a', encoding='utf-8') as exclude:
+            exclude.write('/tools/hooks/run_tests.py\n')
+        venv.create(tpl / '.venv', with_pip=False)
+        _TEMPLATE_DIR = tpl
+        atexit.register(shutil.rmtree, tpl, True)
+    return _TEMPLATE_DIR / 'repo', _TEMPLATE_DIR / '.venv'
 
 
 class HookRepo(unittest.TestCase):
@@ -23,18 +53,11 @@ class HookRepo(unittest.TestCase):
         self.temp_folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_folder.cleanup)
         self.folder = Path(self.temp_folder.name)
+        base_repo, base_venv = _hook_templates()
         self.repo = self.folder / 'repo'
-        self.repo.mkdir()
-        shutil.copytree(ROOT / '.githooks', self.repo / '.githooks')
-        self.put('TiaBridge/Tests/parse.ps1', '')
-        self.put('tools/pointers/check_pointers.py', '')
-        self.put('.gitignore', '.scratch/\n.venv/\n')
-        init_repo(self.repo)
-        self.git('add', '-A')
-        self.git('commit', '-q', '-m', 'base')
-        self.git('config', 'core.hooksPath', '.githooks')
+        shutil.copytree(base_repo, self.repo)
         if self.with_venv:
-            venv.create(self.repo / '.venv', with_pip=False)
+            shutil.copytree(base_venv, self.repo / '.venv')
 
     def put(self, name, content):
         path = self.repo / name
@@ -459,7 +482,10 @@ class T(unittest.TestCase):
         self.assertRan(self.audit())
         other = self.folder / 'other'
         self.git('worktree', 'add', '-q', '--detach', str(other), 'feature')
-        venv.create(other / '.venv', with_pip=False)
+        _, base_venv = _hook_templates()
+        shutil.copytree(base_venv, other / '.venv')
+        (other / 'tools' / 'hooks').mkdir(parents=True)
+        shutil.copy(self.repo / 'tools' / 'hooks' / 'run_tests.py', other / 'tools' / 'hooks')    # untracked: no checkout brings it
         self.assertRan(self.audit(cwd=other))
         self.assertSkipped(self.audit(cwd=other))
         self.assertSkipped(self.audit())
@@ -534,6 +560,48 @@ class T(unittest.TestCase):
                 self.assertEqual(self.most_at_once(), 2, result.stdout)
                 self.assertIn(f'PRE_COMMIT_JOBS is {value}, not a number above 0: 2 at once', result.stdout)
                 shutil.rmtree(self.folder / 'meeting')
+
+
+class TestsOfASuiteSideBySide(ABranchWithSuites):
+    """A suite's tests run through tools/hooks/run_tests.py, in PRE_COMMIT_WORKERS processes at once."""
+    FOLDERS = ('tools/setup',)
+    # Two tests, each waiting in a meeting folder for the other for up to 30 s: they pass only when they run at once.
+    MEETS = '''import os
+import time
+import unittest
+from pathlib import Path
+
+MEETING = Path(%r)
+
+
+def meet(name):
+    MEETING.mkdir(parents=True, exist_ok=True)
+    (MEETING / name).write_text(str(os.getpid()))
+    end = time.monotonic() + 30
+    while len(list(MEETING.iterdir())) < 2:
+        if time.monotonic() > end:
+            raise AssertionError('no other test came')
+        time.sleep(0.05)
+
+
+class A(unittest.TestCase):
+    def test(self):
+        meet('a')
+
+
+class B(unittest.TestCase):
+    def test(self):
+        meet('b')
+'''
+
+    def stub(self, folder):
+        return self.MEETS % str(self.folder / 'meeting')
+
+    def test_they_run_in_as_many_processes_as_asked(self):
+        result = self.audit(PRE_COMMIT_WORKERS='2')
+        self.assertRan(result)
+        self.assertIn('Ran 2 tests in ', result.stdout)
+        self.assertEqual(len({path.read_text() for path in (self.folder / 'meeting').iterdir()}), 2)
 
 
 def ended(pid):

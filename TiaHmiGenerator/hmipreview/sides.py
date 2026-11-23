@@ -131,12 +131,17 @@ class GitSide:
     """Revision rev of the repo holding the folder repo; ids are git blob ids."""
 
     def __init__(self, repo, rev):
-        self.root = toplevel(repo)
-        self.rev = rev
+        if not os.path.isdir(repo):
+            raise ValueError('not a folder: %s' % repo)
         try:
-            short = _git(self.root, 'rev-parse', '--verify', '--short', rev + '^{commit}').decode().strip()
+            top, short = _git(repo, 'rev-parse', '--show-toplevel', '--verify', '--short',
+                              rev + '^{commit}').decode('utf-8').splitlines()
         except ValueError:
+            self.root = toplevel(repo)
             raise ValueError('no commit %s in %s' % (rev, self.root))
+        self.root = os.path.normpath(top.strip())
+        self.rev = rev
+        short = short.strip()
         self.label = '%s @ %s' % (os.path.basename(self.root), rev if rev.startswith(short) else
                                   '%s (%s)' % (rev, short))
         self._files = {}
@@ -195,6 +200,8 @@ class WorktreeSide(FolderSide):
 
     def _blob_ids(self, paths):
         """The git blob ids of the files paths; a file that cannot be read is a ValueError naming it, as of a folder."""
+        if not paths:
+            return []
         try:
             return _git(self.root, 'hash-object', '--stdin-paths', input=''.join(p + '\n' for p in paths)
                         .encode('utf-8')).decode().split()
