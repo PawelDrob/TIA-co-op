@@ -572,10 +572,11 @@ def skipped(snaps):
 
 
 def _changed_in_working_tree(snap, work_files):
-    """The files load() reads whose bytes in the working tree are not those of the revision snap. By the blob id of
-    every file: git's own word that a file is unchanged rests on its size and time, which an edit with the time restored
-    passes; work_files are the working tree's files. git hash-object applies git's filters, so a checkout's line ends differ from nothing; a blob
-    that itself holds CRLF under core.autocrlf does differ here, which costs a read and shows nothing.
+    """The files load() reads whose bytes in the working tree are not those of the revision snap; work_files are the
+    working tree's files. By the blob id of every file: git's own word that a file is unchanged rests on its size and
+    time, which an edit with the time restored passes. git hash-object applies git's filters, so a checkout's line ends
+    differ from nothing; a blob that itself holds CRLF under core.autocrlf does differ here, which costs a read and
+    shows nothing.
     A file it cannot read has no id and may differ: then all of them, and the comparison names that one."""
     tree = {p: oid for p, oid in snap._blobs.tree().items() if p.endswith(LOADED)}
     files = [p for p in work_files if p.endswith(LOADED)]
