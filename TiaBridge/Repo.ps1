@@ -583,7 +583,7 @@ $script:SessionTempIgnore = '.tiabridge-session.json.*.tmp'
 $script:ExportRecordName = '.tiabridge-export.json'
 $script:ExportRecordTempIgnore = "$script:ExportRecordName.*.tmp"
 
-# The bridge's tool logs: read on disk (the TIA dashboard), not from git; committed, they were most of a repo's files.
+# The bridge's tool logs: read on disk (the TIA dashboard), not from git.
 $script:LogsIgnore = 'logs/'
 
 $script:RepoGitignore = @"
@@ -796,12 +796,14 @@ function Initialize-ProjectRepo([string]$Root, [string]$ProjectName, [string]$Pr
         Invoke-Git $repo @('commit', '-q', '-m', "TiaBridge: repo for TIA project $ProjectName")
     }
     # repos made before these ignore lines existed (the session file: 2026-10-06; the export record: 2026-11-17; logs\:
-    # ticket 433) get them
+    # 2026-11-23) get them
     $gi = Join-Path $repo '.gitignore'
     $logsNote = $null
     if (Test-Path -LiteralPath $gi) {
+        # a line as written, or anchored with a leading slash: a substring would take docs/logs/ for logs/
+        $have = @(Get-Content -LiteralPath $gi | ForEach-Object { $_.Trim().TrimStart('/') })
         foreach ($line in '.tiabridge-session.json', $script:SessionTempIgnore, $script:WorkPathIgnore, $script:ExportRecordName, $script:ExportRecordTempIgnore, $script:LogsIgnore) {
-            if (@(Get-Content -LiteralPath $gi | ForEach-Object { $_.Trim() }) -notcontains $line) {
+            if ($have -notcontains $line) {
                 [System.IO.File]::AppendAllText($gi, "`n$line`n", $script:Utf8NoBom)
             }
         }
@@ -811,25 +813,32 @@ function Initialize-ProjectRepo([string]$Root, [string]$ProjectName, [string]$Pr
 }
 
 # Git keeps tracking the files it has, ignored or not: in a repo that committed its logs before logs/ was in its .gitignore,
-# they leave the index here and stay on disk. Only logs\ is touched; what is staged elsewhere stays. Returns the note for the
-# result, $null when git tracks nothing there.
+# they leave the index here and stay on disk, once git ignores logs\. Only logs\ is touched; what is staged elsewhere stays.
+# Returns the note for the result, $null when git tracks nothing there or does not ignore it.
 function Remove-TrackedLogs([string]$Repo) {
     $n = 0
     try {
         $listed = Invoke-GitRaw $Repo @('ls-files', '--', 'logs')
         if ($listed.exitCode) { throw "git ls-files failed (exit $($listed.exitCode)): $($listed.output -join ' ')" }
-        $n = @($listed.output | Where-Object { $_ }).Count
+        # paths only: the output holds git's stderr too; a quoted path starts with "
+        $n = @($listed.output | Where-Object { $_ -match '^"?logs/' }).Count
         if (-not $n) { return $null }
+        # 0 ignored, 1 not
+        $ignored = Invoke-GitRaw $Repo @('check-ignore', '-q', '--no-index', '--', 'logs/')
+        if ($ignored.exitCode -eq 1) { return $null }
+        if ($ignored.exitCode) { throw "git check-ignore failed (exit $($ignored.exitCode)): $($ignored.output -join ' ')" }
         $removed = Invoke-GitRaw $Repo @('rm', '-r', '-q', '--cached', '--', 'logs')
         if ($removed.exitCode) { throw "git rm -r --cached logs failed (exit $($removed.exitCode)): $($removed.output -join ' ')" }
     }
     catch {
-        return "logs\ is in .gitignore, but git still tracks $(if ($n) { Get-FileCount $n } else { 'the files' }) there: $($_.Exception.Message) The next connect or background_open tries again."
+        $what = $(if ($n) { "git still tracks $(Get-FileCount $n) there" } else { 'git could not say whether it tracks files there' })
+        return "logs\ is in .gitignore, but ${what}: $($_.Exception.Message) The next connect or background_open tries again."
     }
-    "logs\ is ignored by git from now on: $(Get-FileCount $n 'tracked ') there left git's index, kept on disk. The next commit records the removal; the history keeps the old logs."
+    "logs\ is ignored by git from now on: $(Get-FileCount $n 'tracked') there left git's index, kept on disk. The next commit records the removal; the history keeps the old logs."
 }
 
-function Get-FileCount([int]$N, [string]$Kind = '') { "$N $Kind$(if ($N -eq 1) { 'file' } else { 'files' })" }
+# "1 file", "3 tracked files".
+function Get-FileCount([int]$N, [string]$Kind = '') { "$N $(if ($Kind) { "$Kind " })$(if ($N -eq 1) { 'file' } else { 'files' })" }
 
 # Full, untruncated result -> logs\<yyyyMMdd_HHmmss>_<tool>.json; returns the path relative to the repo. A result with
 # times (full_export, Times.ps1) gets times.logMs: how long the text of this file took to make, which only the text can hold.

@@ -160,7 +160,7 @@ Describe 'connect stores the HMI type identifier' {
         [System.IO.File]::WriteAllText((Join-Path $repo '.gitignore'), "archives/`n")
         Write-TextFile (Join-Path $repo 'logs\20261101_120000_connect.json') '{}'
         Invoke-Git $repo @('add', '-A')
-        Invoke-Git $repo @('commit', '-q', '-m', 'logs tracked, as before ticket 433')
+        Invoke-Git $repo @('commit', '-q', '-m', 'logs tracked, as a bridge left them before logs/ was ignored')
         Set-FakeTia @($plc)
         $r = Invoke-ConnectTool ('{"repo":"Hp-logs"}' | ConvertFrom-Json)
         $r.logsIgnored | Should Match "1 tracked file there left git's index"

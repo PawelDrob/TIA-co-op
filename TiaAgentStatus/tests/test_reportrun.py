@@ -63,7 +63,7 @@ class FakeBridge:
         if name == 'connect':     # connect writes tiabridge.json anew, its time of this connect with it (Initialize-ProjectRepo)
             with open(os.path.join(self.repo, 'tiabridge.json'), 'w') as f:
                 json.dump({'projectPath': PROJECT, 'lastConnect': f'2026-11-06T12:00:0{len(self.calls)}'}, f)
-            if self.ignore_logs:     # a bridge since ticket 433: logs/ in .gitignore, and out of the index (Remove-TrackedLogs)
+            if self.ignore_logs:     # a bridge that ignores logs/: the line in .gitignore, and out of the index (Remove-TrackedLogs)
                 with open(os.path.join(self.repo, '.gitignore'), 'r+') as f:
                     if 'logs/' not in f.read().split('\n'):
                         f.write('\nlogs/\n')
@@ -216,6 +216,15 @@ class Run(unittest.TestCase):
         self.assertEqual(git(self.repo, 'ls-files', '--', 'logs'), '')
         self.assertEqual(len(self.logs_on_disk()), 5)
         self.assertEqual(reportrun.uncommitted(self.repo), [])
+
+    def test_with_nothing_changed_in_tia_a_repo_that_tracked_its_logs_commits_the_line_and_their_removal(self):
+        put(self.repo, 'logs/20261105_090000_compile.json', '{}')
+        git(self.repo, 'add', '-A')
+        git(self.repo, 'commit', '-q', '-m', 'a session, its log with it')
+        r = self.run_it(ignore_logs=True, export=lambda: {'ok': True})
+        self.assertEqual(r['outcome'], 'done')
+        self.assertEqual(git(self.repo, 'show', '--format=', '--name-status', 'HEAD').split('\n'),
+                         ['M\t.gitignore', 'D\tlogs/20261105_090000_compile.json'])
 
     def test_a_failed_export_puts_a_repo_that_tracked_its_logs_back_as_it_was_its_logs_kept(self):
         put(self.repo, 'logs/20261105_090000_compile.json', '{}')

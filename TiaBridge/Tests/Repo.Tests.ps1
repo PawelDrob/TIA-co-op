@@ -141,7 +141,7 @@ Describe 'Initialize-ProjectRepo' {
 Describe 'the tool logs stay out of git' {
     $root = Join-Path $TestDrive 'LogRoot'
     function Get-Tracked([string]$Repo) { @(& git -C $Repo ls-files -- logs) }
-    # a repo as a bridge before ticket 433 left one: logs\ tracked, its .gitignore without logs/
+    # a repo as a bridge left one before logs/ was ignored: logs\ tracked, its .gitignore without logs/
     function New-OldRepo([string]$Name) {
         $r = Initialize-ProjectRepo -Root $root -ProjectName $Name -ProjectPath "C:\$Name.ap20" -PlcDevices @() -HmiDevices @()
         [System.IO.File]::WriteAllText((Join-Path $r.repo '.gitignore'), "archives/`n.tiabridge-session.json`n")
@@ -210,6 +210,35 @@ Describe 'the tool logs stay out of git' {
         $r = Initialize-ProjectRepo -Root $root -ProjectName 'NoIgnore' -ProjectPath 'C:\NoIgnore.ap20' -PlcDevices @() -HmiDevices @()
         $r.logsIgnored | Should BeNullOrEmpty
         (Get-Tracked $repo).Count | Should Be 4
+    }
+
+    It 'takes /logs/ for the line, and adds no second one' {
+        $repo = New-OldRepo 'Anchored'
+        [System.IO.File]::AppendAllText((Join-Path $repo '.gitignore'), "/logs/`n")
+        $r = Initialize-ProjectRepo -Root $root -ProjectName 'Anchored' -ProjectPath 'C:\Anchored.ap20' -PlcDevices @() -HmiDevices @()
+        $r.logsIgnored | Should Match '4 tracked files there left'
+        @(Get-Content -LiteralPath (Join-Path $repo '.gitignore') | Where-Object { $_ -match 'logs/' }) -join ',' | Should Be '/logs/'
+    }
+
+    It 'leaves logs\ tracked where the .gitignore takes it back in after the line' {
+        $repo = New-OldRepo 'KeptIn'
+        [System.IO.File]::AppendAllText((Join-Path $repo '.gitignore'), "logs/`n!logs/`n")
+        $r = Initialize-ProjectRepo -Root $root -ProjectName 'KeptIn' -ProjectPath 'C:\KeptIn.ap20' -PlcDevices @() -HmiDevices @()
+        $r.logsIgnored | Should BeNullOrEmpty
+        (Get-Tracked $repo).Count | Should Be 4
+    }
+
+    It 'says so when git cannot list what it tracks in logs\, and names no count' {
+        $repo = New-OldRepo 'Damaged'
+        $index = Join-Path $repo '.git\index'
+        $kept = [System.IO.File]::ReadAllBytes($index)
+        [System.IO.File]::WriteAllText($index, 'not an index')
+        try {
+            $note = Remove-TrackedLogs $repo
+            $note | Should Match 'git could not say whether it tracks files there: git ls-files failed'
+            $note | Should Match 'tries again'
+        }
+        finally { [System.IO.File]::WriteAllBytes($index, $kept) }
     }
 }
 

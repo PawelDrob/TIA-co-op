@@ -272,7 +272,7 @@ Describe 'background_open and background_close' {
         [System.IO.File]::WriteAllText((Join-Path $repo '.gitignore'), "archives/`n")
         Write-TextFile (Join-Path $repo 'logs\20261101_120000_export.json') '{}'
         Invoke-Git $repo @('add', '-A')
-        Invoke-Git $repo @('commit', '-q', '-m', 'logs tracked, as before ticket 433')
+        Invoke-Git $repo @('commit', '-q', '-m', 'logs tracked, as a bridge left them before logs/ was ignored')
         $n = @(& git -C $repo ls-files -- logs).Count
         Reset-Fakes
         $r = Invoke-BackgroundOpenTool ($open | ConvertFrom-Json)
