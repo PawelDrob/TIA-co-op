@@ -19,8 +19,9 @@ from Tests.test_server import PACKAGE_ROOT, ServerCase
 
 
 def records(where):
+    """The records written whole: a <pid>.json.part beside them is one a server is still writing."""
     try:
-        names = sorted(os.listdir(where))
+        names = sorted(n for n in os.listdir(where) if n.endswith('.json'))
     except OSError:
         return []
     out = []
@@ -132,7 +133,7 @@ class Serve(unittest.TestCase):
                                   '127.0.0.1', '--port', '0'], cwd=PACKAGE_ROOT, stdout=subprocess.PIPE,
                                  stderr=subprocess.DEVNULL, encoding='utf-8')
             self.addCleanup(p.stdout.close)
-            self.addCleanup(p.wait)
+            self.addCleanup(p.wait, 30)     # a start that failed stopped no server: a failure, not a run that never ends
             url = p.stdout.readline().strip()
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
