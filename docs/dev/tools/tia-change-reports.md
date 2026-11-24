@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T15:56:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T16:06:38-05:00 }
 ---
 
 # TiaChangeReports internals
