@@ -302,6 +302,10 @@ ENDS = '''FUNCTION_BLOCK "Ends"
         r : Bool;
         n : Int;
         m : Int;
+        instTrig : R_TRIG;
+        instTp : TP_TIME;
+        t : Time;
+        et : Time;
     END_VAR
     { S7_Language := "LAD" }
     NETWORK
@@ -419,6 +423,26 @@ ENDS = '''FUNCTION_BLOCK "Ends"
             Coil( #r )
         END_RUNG
     END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            #instTrig.R_TRIG(
+                clk := #a,
+                q => #q
+            )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            { S7_Templates := "time_type := Time" }
+            #instTp.TP(
+                pt := #t,
+                et => #et
+            )
+        END_RUNG
+    END_NETWORK
 END_FUNCTION_BLOCK
 '''
 
@@ -455,10 +479,10 @@ def _bars(svg):
 
 
 class RungEndsLikeTia(unittest.TestCase):
-    """A rung's end as TIA draws it (TIA's screen at 100%: zzBenEnds, zzBenContacts, zzLadControl, zzLadConvert): a
-    rung that runs to the network's end stops END_IN short of its last cell and closes with a bar END_H tall and END_W
-    wide, its right edge where the wire ends; an open ENO below the top rung ends STUB past its box with the same bar; a
-    box without ENO ends at its box, with nothing after it."""
+    """A rung's end as TIA draws it (TIA's screen at 100%: zzBenEnds, zzBenContacts, zzLadControl, zzLadConvert,
+    zzLadBitLogic, zzLadTimer): a rung that runs to the network's end stops END_IN short of its last cell and closes
+    with a bar END_H tall and END_W wide, its right edge where the wire ends; an open ENO below the top rung ends STUB
+    past its box with the same bar; a box without ENO ends at its box, with nothing after it."""
 
     @classmethod
     def setUpClass(cls):
@@ -531,6 +555,15 @@ class RungEndsLikeTia(unittest.TestCase):
     def test_several_rungs_from_the_rail(self):
         lay = self.nets[12]
         self.assert_ends(lay, [(self.network_end(lay), lay.ys[k]) for k in range(3)])
+
+    def test_an_edge_or_timer_box_with_its_rung_output_open(self):
+        """TIA's picture (zzLadBitLogic NW18, NW19; zzLadTimer NW1, NW3 with the coil after the box removed): an
+        R_TRIG's open ENO and a TP's open Q run to the network's end and close with the bar, as a coil's rung."""
+        for nw, instr in ((13, 'R_TRIG'), (14, 'TP')):
+            with self.subTest(instr):
+                lay = self.nets[nw]
+                self.assertTrue(_view(lay, instr))
+                self.assert_ends(lay, [(self.network_end(lay), lay.ys[0])])
 
     def test_an_empty_network(self):
         for rungs in ([], parse_block(_xml_src(_empty_network())).networks[0].rungs):

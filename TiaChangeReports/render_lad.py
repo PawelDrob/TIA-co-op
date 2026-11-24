@@ -4,12 +4,12 @@ Layout (from TIA screenshots at 100%: an FB call, R_TRIG, SR, TON and branches e
 zzBenEnds, zzBenContacts, zzLadControl and zzLadConvert):
 - power rail on the left, no right rail; one rung (text RUNG ... END_RUNG) = one horizontal line; an empty network
   (an empty rung) the rail and a line to the network's end;
-- a rung's end as TIA's: a rung that ends in a coil, the top rung after an open ENO and an empty rung run on to the
-  network's end, END_IN short of its last cell (inside the last coil's cell), and close there with TIA's end mark, a bar
-  END_H tall and END_W wide, its right edge where the wire ends; an open ENO below the top rung closes with the same bar
-  STUB past its box; a box without ENO (JumpList, Switch) ends at its box with nothing after it. The bar is drawing, no
-  wire: wiring() leaves it out, ends() gives it, verify.py checks that it stands where a wire ends and touches no other
-  line;
+- a rung's end as TIA's: a rung that ends in a coil, the top rung after an open ENO (or a timer's open Q, the rung
+  output of its box) and an empty rung run on to the network's end, END_IN short of its last cell (inside the last
+  coil's cell), and close there with TIA's end mark, a bar END_H tall and END_W wide, its right edge where the wire
+  ends; an open ENO below the top rung closes with the same bar STUB past its box; a box without ENO (JumpList, Switch)
+  ends at its box with nothing after it. The bar is drawing, no wire: wiring() leaves it out, ends() gives it, verify.py
+  checks that it stands where a wire ends and touches no other line;
 - a jump label: a gray box one cell wide over the rail, a black line inside its top and bottom edge, the name
   centered; the rail starts under it. A renamed, added or removed label: the box filled with the diff mark;
 - every element takes a cell, wire nodes sit at the longest-path column, so elements after a node line up;
@@ -804,7 +804,7 @@ class View:
         above, cx, yb = self._above(x, y)
         if above:
             out += _stack_up(above, cx, yb)
-        if not self.noeno:                                # on to the cell's end, or TIA's short open end
+        if not self.noeno:                                # to wire_end
             out.append(_ln(bx + self.bw, y, self.wire_end(x), y))
         if self.expr:
             ex, ey, ew, eh = self._expr_box(bx, y)
@@ -840,7 +840,8 @@ class View:
         return x + self.w if self.end_x is None else min(x + self.w, self.end_x)
 
     def closes_rung(self):
-        """Whether a rung that ends with it closes with the end mark: a coil, a box with an open ENO."""
+        """Whether a rung that ends with it closes with the end mark: a coil, a box with its rung output open (an ENO,
+        a timer's Q), as TIA's pictures show."""
         return self.el.kind == 'coil' or (self.el.kind == 'box' and not self.noeno)
 
     def _box_bottom(self, y):
@@ -909,14 +910,15 @@ PIN_GAP = 8              # minimum run from the end of the logic feeding a box p
 class Layout:
     """Positions of a LAD network.
 
-    Columns: every node at the longest path from the rail (element widths); a box with inputs fed by logic sits right
-    of that logic. Rows: one per rung, placed first-fit below the rows they attach to, without overlapping text or
-    crossing lines where possible; the rung feeding a box pin sets the height of that pin row (the box grows).
-    wiring() returns the drawn lines and the element terminals; svg() draws exactly those, verify.py reads the logic
-    back from them. callees: name -> Interface of a called FB / FC (compare.Callees); without it a call box shows its
-    pins as written. label: the network's jump label, drawn over it, filled with FILL[mark] unless mark is 'same'
-    (compare.NetPair.label_state); wiring() and marks() stay in the coordinates below it. other: {element id: the other version's
-    element} (diff.NetDiff.other), for the type settings the two differ in."""
+    Columns: every node at the longest path from the rail (element widths); a box with inputs fed by logic sits right of
+    that logic. Rows: one per rung, placed first-fit below the rows they attach to, without overlapping text or crossing
+    lines where possible; the rung feeding a box pin sets the height of that pin row (the box grows). wiring() returns
+    the drawn lines and the element terminals; svg() draws exactly those and the end marks of ends(), which are no
+    lines; verify.py reads the logic back from them. callees: name -> Interface of a called FB / FC (compare.Callees);
+    without it a call box shows its pins as written. label: the network's jump label, drawn over it, filled with
+    FILL[mark] unless mark is 'same' (compare.NetPair.label_state); wiring() and marks() stay in the coordinates below
+    it. other: {element id: the other version's element} (diff.NetDiff.other), for the type settings the two differ
+    in."""
 
     def __init__(self, rungs, itf, callees=None, label='', mark='same', other=None):
         rungs = rungs or [Rung(RAIL, [], None)]           # SimaticML's empty network: no rung at all
@@ -1157,8 +1159,9 @@ class Layout:
                 continue
             if last is None:
                 i['end_mark'] = end
-            elif self.views[last.eid].closes_rung():
-                v = self.views[last.eid]
+                continue
+            v = self.views[last.eid]
+            if v.closes_rung():
                 v.end_x = end
                 i['end_mark'] = v.wire_end(i['placed'][-1][1]) if v.eno_stub else end
 
@@ -1216,10 +1219,10 @@ class Layout:
                 if ex > cur:
                     segs.append((cur, y, ex, y))
                 terms.append(('in', el.eid, None, ex, y))
-                terms.append(('out', el.eid, None, v.wire_end(ex), y))         # its cell's end, or its rung's end
+                cur = v.wire_end(ex)                      # its cell's end, or its rung's end
+                terms.append(('out', el.eid, None, cur, y))
                 for r, (pn, wn) in v.wirepins.items():
                     terms.append(('pin', el.eid, pn, v.pin_x(ex), y + v.rowy[r]))
-                cur = v.wire_end(ex)
             if i['e'] is not None:
                 ex = x.get(i['e'], cur)
                 if ex > cur:
