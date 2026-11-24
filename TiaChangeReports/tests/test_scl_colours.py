@@ -233,8 +233,8 @@ class TheKindsAsReadFromTia(unittest.TestCase):
     def test_each_kind_has_the_colour_read_from_tia(self):
         """Each kind's name of the palette has, in TIA's native theme, the colour read from TIA's editor."""
         from TiaChangeReports.theme import NATIVE
-        long = lambda c: '#' + ''.join(x * 2 for x in c[1:]) if len(c) == 4 else c     # noqa: E731  #000 is #000000
-        self.assertEqual({k: long(NATIVE[v[1]]) for k, v in scl_colours.KINDS.items()}, {
+        hex_ = lambda c: '#%02x%02x%02x' % c[:3] if c[3] == 1 else c                   # noqa: E731
+        self.assertEqual({k: hex_(NATIVE[v[1]]) for k, v in scl_colours.KINDS.items()}, {
             'keyword': '#0000ff', 'region': '#c91ffe', 'constant': '#005989', 'comment': '#187e2b',
             'operand': '#4c3f88', 'local constant': '#02284e', 'block call': '#670667', 'instruction': '#51120f',
             'parameter': '#350034', 'operator': '#414141', 'semicolon': '#000000', 'label': '#000000'})

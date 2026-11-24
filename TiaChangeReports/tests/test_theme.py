@@ -2,7 +2,9 @@
 static\\tia-theme.css): no colour of what the report draws stands outside the palette's block (NoColourOutsideThePalette);
 every name is used and can take a host's value (TheNames); a theme of the user's own changes every colour of the page,
 the fragment and the viewer, and nothing the renderer writes (ATrialPalette, in Edge); a faulty theme file is refused
-with its line (ThemeFiles, TheOptions). The trial palette, every name a colour of its own, lives here only."""
+with its line (ThemeFiles, TheOptions); a theme takes what the browser takes of its forms (TheFormsOfColour), and the
+page holds each colour in one form the browser reads as the colour read (TheWrittenForm). The trial palette, every name
+a colour of its own, lives here only."""
 import ast
 import contextlib
 import io
@@ -107,7 +109,7 @@ def trial_values():
     """Each name of the palette a colour no other name and no value of TIA's native theme has."""
     out = {n: '#%02x%02x%02x' % (17 + i, 200 - i, 33 + (i * 7) % 200) for i, n in enumerate(theme.NAMES)}
     assert len(set(out.values())) == len(out)
-    assert not set(out.values()) & {v.lower() for v in theme.NATIVE.values()}
+    assert not {theme.colour(v) for v in out.values()} & set(theme.NATIVE.values())
     return out
 
 
@@ -191,8 +193,8 @@ class TheNames(unittest.TestCase):
     def test_the_palette_reads_as_a_theme(self):
         self.assertEqual(theme.read(theme.rail.THEME_CSS, 'tia-theme.css', theme.NAMES), theme.NATIVE)
         self.assertGreater(len(theme.NAMES), 100)
-        for name, value in theme.NATIVE.items():
-            self.assertTrue(theme.is_colour(value), (name, value))
+        for name, c in theme.NATIVE.items():
+            self.assertEqual(theme.colour(theme.written(c)), c, name)
 
     def test_each_name_is_used_and_each_used_name_is_one(self):
         used = set(re.findall(r'var\((--[a-z0-9-]+)\)', self.css()))
@@ -235,24 +237,38 @@ class ThemeFiles(unittest.TestCase):
 
     def test_a_theme_gives_some_names(self):
         text = '/* mine */\n.ldiff {\n  --theme-format: 1;\n  --wire: #00ff00;   /* green wires */\n  --page:rgb(10, 20, 30)\n}\n'
-        self.assertEqual(self.read(text), {'--wire': '#00ff00', '--page': 'rgb(10, 20, 30)'})
+        self.assertEqual(self.read(text), {'--wire': (0, 255, 0, 1.0), '--page': (10, 20, 30, 1.0)})
 
     def test_what_it_leaves_out_keeps_tias_value(self):
-        css = theme.css(theme.Theme('my.css', {'--wire': '#00ff00'}))
+        css = theme.css(theme.Theme('my.css', {'--wire': (0, 255, 0, 1.0)}))
         self.assertTrue(css.startswith(theme.css()), css[:200])                # TIA's whole block first
-        self.assertTrue(css.endswith('@media screen{:where(.ldiff){--wire:#00ff00}}\n'), css[-200:])
+        self.assertTrue(css.endswith('@media screen{:where(.ldiff){--wire:rgba(0,255,0,1)}}\n'), css[-200:])
 
     def test_each_form_of_colour(self):
-        for value in ('#abc', '#abcd', '#a1b2c3', '#A1B2C3D4', 'rgb(1,2,3)', 'rgba(1, 2, 3, .5)', 'rgb(1 2 3 / 50%)',
-                      'RGB(10%, 20%, 30%)', 'rgb(none 2% 3)', 'transparent', 'TRANSPARENT'):
-            self.assertEqual(self.read('.ldiff{--theme-format:1;--wire:%s}' % value), {'--wire': value}, value)
+        """Each read into numbers as the browser reads it: a percentage of 255, rounded half up, none 0, the alpha as
+        written."""
+        for value, c in (('#abc', (170, 187, 204, 1.0)), ('#abcd', (170, 187, 204, 221 / 255)),
+                         ('#a1b2c3', (161, 178, 195, 1.0)), ('#A1B2C3D4', (161, 178, 195, 212 / 255)),
+                         ('rgb(1,2,3)', (1, 2, 3, 1.0)), ('rgba(1, 2, 3, .5)', (1, 2, 3, .5)),
+                         ('rgb(1 2 3 / 50%)', (1, 2, 3, .5)), ('RGB(10%, 20%, 50%)', (26, 51, 128, 1.0)),
+                         ('rgb(none 2% 3 / none)', (0, 5, 3, 0.0)), ('rgb(1.5 -1 300 / 2)', (2, 0, 255, 1.0)),
+                         ('rgba(0,0,0,.18)', (0, 0, 0, .18)), ('transparent', (0, 0, 0, 0.0)),
+                         ('TRANSPARENT', (0, 0, 0, 0.0))):
+            self.assertEqual(self.read('.ldiff{--theme-format:1;--wire:%s}' % value), {'--wire': c}, value)
 
-    def test_no_colour_is_refused(self):
+    def test_the_page_holds_numbers_only(self):
+        """What the page holds of a theme's value is written from its numbers, not the file's text."""
+        for value, out in (('#ABC', 'rgba(170,187,204,1)'), ('rgba( 0 , 0 , 0 , .25 )', 'rgba(0,0,0,0.25)'),
+                           ('rgb(1e2 50% none / 1e-7)', 'rgba(100,128,0,0.0000001)'), ('transparent', 'rgba(0,0,0,0)')):
+            self.assertEqual(theme.written(theme.colour(value)), out, value)
+        self.assertIn('--shadow:rgba(0,0,0,0.25);--backdrop:rgba(0,0,0,0.18);', theme.css())
+
+    def test_another_form_is_refused(self):
         """Values the browser takes neither (TheFormsOfColour holds the two to one set), and NOT_TAKEN: the forms of
         CSS Color a theme does not take, a colour's name, hsl() and the rest."""
         for value in ('var(--vscode-editor-foreground)', '#12', 'rgb(1,2)', 'url(x.png)', '#fff</style>', 'rgb(a,b,c)',
                       '#ff00ff !important', 'hsl(1,2,3)', 'rgb(1%,2,3)', 'rgb(1 2,3)', 'rgb(10deg,2,3)', 'rgb(1/2/3)',
-                      'rgb(1 2 3 4)', 'rgb(1., 2, 3)') + NOT_TAKEN:
+                      'rgb(1 2 3 4)', 'rgb(1., 2, 3)') + OTHER_SCRIPTS + NOT_TAKEN:
             self.refused('.ldiff {\n --theme-format: 1;\n --wire: %s;\n}' % value, 3,
                          '--wire: %r is not a form of colour a theme takes; those are #rgb, #rgba, #rrggbb, #rrggbbaa, '
                          'rgb(), rgba() or transparent, no colour names, no hsl() or var()' % value)
@@ -281,7 +297,7 @@ class ThemeFiles(unittest.TestCase):
         self.assertEqual(theme.load('tia').values, {})
         with tempfile.TemporaryDirectory() as d:
             path = theme_file(d, {'--wire': '#123456'})
-            self.assertEqual(theme.load(path).values, {'--wire': '#123456'})
+            self.assertEqual(theme.load(path).values, {'--wire': (0x12, 0x34, 0x56, 1.0)})
             with self.assertRaises(theme.ThemeError) as e:
                 theme.load(os.path.join(d, 'none.css'))
             self.assertIn('no theme of that name (tia) and no theme file there', str(e.exception))
@@ -292,10 +308,17 @@ NOT_TAKEN = ('green', 'white', 'currentColor', 'hsl(120, 50%, 50%)', 'hsl(120deg
              'color-mix(in srgb, red, blue)', 'rgb(calc(1) 2 3)', 'rgb(from red r g b)')
 
 
+# Values with a digit, a letter or a white space CSS does not have: its are ASCII, its white space no vertical tab.
+# Neither the browser nor a theme takes them; Python's \d, \s and re.I would take some, float() the digits.
+OTHER_SCRIPTS = ('rgb(\u0661,2,3)', 'rgb(\uff11 2 3)', 'rgb(1,\u07c2,3)', 'rgba(1,2,3,.\u0665)', 'rgb(1e\uff12 2 3)',
+                 '#\uff46\uff46\uff46', '#ab\uff43', 'rgb(1\u00a02\u00a03)', 'rgb(1\u30002 3)', 'rgb(1\x0b2\x0b3)',
+                 'rgb(1,2,3)\u2028', 'tran\u017fparent', 'rgb(1 2 3 \uff0f 1)')
+
+
 def generated_values():
     """Values near the forms a theme takes, many a little off: hex of each length and with a letter that is no digit;
     rgb() and rgba() with numbers as CSS writes them and as it does not, percentages, an angle and none, in the comma
-    form and the space form, their separators mixed, with an alpha and without."""
+    form and the space form, their separators mixed, with an alpha and without; OTHER_SCRIPTS."""
     out = ['#' + '0aF9b1C2e'[:n] for n in range(10)] + ['#' + 'aF9b1C2e'[:n] + 'g' for n in (2, 3, 5, 7)]
     out += ['##fff', '#-12', 'transparent', 'Transparent', 'transparen', 'transparent0']
     first = ['1', '255', '300', '-1', '+1', '1.5', '.5', '1.', '1e2', '1E-1', '1e', '1%', '1.5%', '1deg', 'none', 'a']
@@ -306,14 +329,17 @@ def generated_values():
             for c in rest for g1 in gaps for g2 in gaps for alpha in alphas]
     out += ['RGB(1, 2, 3)', 'Rgba(1 2 3 / 1)', 'rgb (1, 2, 3)', 'rgb( 1 , 2 , 3 )', 'rgb(1,2)', 'rgb(1,2,3,4,5)',
             'rgb()', 'rgb(1 2 3 4)', 'rgb(1 / 2 / 3)', 'rgba(1, 2, 3, 4%)', 'rgba(1%, 2%, 3%, .5)']
-    return out
+    out += [' rgb(1,2,3) ', '\t#fff\n', '\ftransparent\r', ' rgb(1,2,3)\n\n']
+    return out + list(OTHER_SCRIPTS)
 
 
-class TheFormsOfColour(unittest.TestCase):
-    """What a theme takes is what the browser takes, over values near the forms a theme takes (generated_values()),
-    by Edge's CSS.supports('color', ...): a value the browser refused would leave the property that uses it unset, a
-    wire's stroke none, and the drawing would lose the wire with nothing said. NOT_TAKEN the browser takes and a theme
-    refuses, by their form."""
+def tias_values():
+    """The values of TIA's native theme as its file writes them."""
+    return re.findall(r'^ *--(?!theme-format)[a-z0-9-]+: *([^;]+);', theme.rail.THEME_CSS, re.M)
+
+
+class InEdge(unittest.TestCase):
+    """A test that asks Edge about colours."""
 
     @classmethod
     def setUpClass(cls):
@@ -327,12 +353,17 @@ class TheFormsOfColour(unittest.TestCase):
         cls.edge.close(ignore_errors=True)
         cls.tmp.cleanup()
 
-    def supported(self, values):
-        """[whether the browser takes each of values as a colour]."""
-        script = ('<script>var x=document.createElement("pre");x.id="ok";x.textContent=JSON.stringify(%s.map('
-                  'function(c){return CSS.supports("color",c)}));document.body.appendChild(x)</script>'
-                  % json.dumps(values).replace('</', '<\\/'))
-        path = os.path.join(self.tmp.name, 'forms.html')
+    def read_by_edge(self, values):
+        """[(whether the browser takes the value as a colour, an element's computed color under it, the pixel
+        [r, g, b, a] a canvas draws in it)] for each of values."""
+        script = ('<canvas id="c" width="1" height="1"></canvas><script>var g=document.getElementById("c")'
+                  '.getContext("2d",{willReadFrequently:true});var x=document.createElement("i");'
+                  'document.body.appendChild(x);var o=%s.map(function(c){x.style.color="";x.style.color=c;'
+                  'g.fillStyle="#000";g.fillStyle=c;g.clearRect(0,0,1,1);g.fillRect(0,0,1,1);'
+                  'return [CSS.supports("color",c),getComputedStyle(x).color,Array.from(g.getImageData(0,0,1,1).data)]'
+                  '});var p=document.createElement("pre");p.id="ok";p.textContent=JSON.stringify(o);'
+                  'document.body.appendChild(p)</script>' % json.dumps(values).replace('</', '<\\/'))
+        path = os.path.join(self.tmp.name, 'colours.html')
         with open(path, 'w', encoding='utf-8') as f:
             f.write('<!doctype html><html><body>%s</body></html>' % script)
         m = re.search(r'<pre id="ok">(.*?)</pre>', self.edge.dump_dom(Path(path).as_uri(), size=(200, 200)), re.S)
@@ -340,6 +371,16 @@ class TheFormsOfColour(unittest.TestCase):
         got = json.loads(unescape(m.group(1)))
         self.assertEqual(len(got), len(values))
         return got
+
+    def supported(self, values):
+        """[whether the browser takes each of values as a colour]."""
+        return [ok for ok, _, _ in self.read_by_edge(values)]
+
+
+class TheFormsOfColour(InEdge):
+    """What a theme takes is what the browser takes, over values near the forms a theme takes (generated_values()),
+    by Edge's CSS.supports('color', ...): a theme never refuses what a browser draws. NOT_TAKEN the browser takes and a
+    theme refuses, by their form."""
 
     def test_a_theme_takes_what_the_browser_takes(self):
         values = generated_values()
@@ -354,8 +395,39 @@ class TheFormsOfColour(unittest.TestCase):
         self.assertEqual([v for v in NOT_TAKEN if theme.is_colour(v)], [])
 
     def test_tias_values(self):
-        values = list(theme.NATIVE.values())
+        values = tias_values()
+        self.assertEqual(len(values), len(theme.NAMES))
         self.assertEqual(self.supported(values), [True] * len(values))
+
+
+class TheWrittenForm(InEdge):
+    """The page holds a theme's colour as theme.written() writes it from the numbers read, never the file's text: so a
+    value the browser would not draw cannot reach the page, whatever the reading lets through. The written form the
+    browser takes in each case (red, green and blue each 0 to 255, an alpha of each of the browser's 256 steps, 0 and 1,
+    one of many digits) and reads as the colour the value was: the same computed colour, or where the value has none
+    (which the browser keeps as none in the computed colour) the same pixel drawn."""
+
+    def values(self):
+        """Every value of generated_values() a theme takes, TIA's own as its file writes them, and sweeps: hex of each
+        red, green, blue and alpha 0 to 255, percentages in steps of .5, alphas of many digits."""
+        out = [v for v in generated_values() if theme.is_colour(v)] + tias_values()
+        out += ['#%02x%02x%02x%02x' % (k, 255 - k, (k * 7) % 256, k) for k in range(256)]
+        out += ['rgb(%s%% %s%% 0%%)' % (k / 2, 100 - k / 2) for k in range(201)]
+        out += ['rgba(1,2,3,%s)' % a for a in ('.25', '.18', '.08', '.123456', '.5019', '.0019', '.002', '1e-7', '5e-324',
+                                               '.99999', '0', '1', '25%', '.5%')]
+        return out
+
+    def test_it_reads_as_the_colour_read(self):
+        values = self.values()
+        written = [theme.written(theme.colour(v)) for v in values]
+        self.assertEqual({re.sub(r'[0-9.]+', 'n', w) for w in written}, {'rgba(n,n,n,n)'})
+        got = self.read_by_edge(values + written)
+        given, held = got[:len(values)], got[len(values):]
+        self.assertEqual([w for w, (ok, _, _) in zip(written, held) if not ok], [])
+        differ = [(v, w, a[1:], b[1:]) for v, w, a, b in zip(values, written, given, held)
+                  if (a[2] != b[2] if 'none' in v.lower() else a[1] != b[1])]
+        self.assertEqual(differ[:20], [], '%d of %d differ' % (len(differ), len(values)))
+        self.assertGreater(sum('none' in v.lower() for v in values), 100)
 
 
 class TheOptions(unittest.TestCase):
@@ -371,7 +443,7 @@ class TheOptions(unittest.TestCase):
             self.assertIn('--theme %s:3: --wire: ' % bad, err.getvalue())
             self.assertFalse(os.path.exists(out))
             good = report(d, '--theme', theme_file(d, {'--wire': '#123456'}, 'good.css'))
-            self.assertIn('@media screen{:where(:root){--wire:#123456}}', good)
+            self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', good)
 
     def test_the_help(self):
         for main in (cli.main, viewer_cli.main):
@@ -386,7 +458,7 @@ class TheOptions(unittest.TestCase):
             out = os.path.join(d, 'v.html')
             quiet(viewer_cli.main, [JUMPS, '--html', out, '--theme', theme_file(d, {'--wire': '#123456'})])
             with open(out, encoding='utf-8') as f:
-                self.assertIn('@media screen{:where(:root){--wire:#123456}}', f.read())
+                self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', f.read())
             err = io.StringIO()
             with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as e:
                 viewer_cli.main([JUMPS, '--html', out, '--theme', theme_file(d, {'--nope': '#000'}, 'bad.css')])
@@ -440,7 +512,7 @@ class TheDefaultTheme(unittest.TestCase):
 
     def test_the_report(self):
         self.put({'--wire': '#123456'})
-        self.assertIn('@media screen{:where(:root){--wire:#123456}}', report(self.tmp.name))
+        self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', report(self.tmp.name))
         self.assertNotIn('@media screen', report(self.tmp.name, '--theme', 'tia', name='tia.html'))
 
     def test_the_viewer(self):
@@ -448,7 +520,7 @@ class TheDefaultTheme(unittest.TestCase):
         out = os.path.join(self.tmp.name, 'v.html')
         quiet(viewer_cli.main, [JUMPS, '--html', out])
         with open(out, encoding='utf-8') as f:
-            self.assertIn('@media screen{:where(:root){--wire:#123456}}', f.read())
+            self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', f.read())
 
     def test_a_faulty_one(self):
         self.put({'--wire': 'green'})

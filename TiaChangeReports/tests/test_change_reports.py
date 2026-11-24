@@ -3648,14 +3648,15 @@ class DisabledCellsMoreKinds(unittest.TestCase):
         self.assertEqual(re.findall(r'data-u style="[^"]*"><span class="tw">[^<]*</span>([^<]+)<', html), ['arr[1]', 'q'])
         from TiaChangeReports import page, theme
         self.assertIn(':has(>td.nm[data-u])>td{background-color:var(--opened-member)}', page.CSS)
-        self.assertEqual(theme.NATIVE['--opened-member'], '#f4f4f4')
+        self.assertEqual(theme.NATIVE['--opened-member'], theme.colour('#f4f4f4'))
 
     def test_disabled_ticked_box_as_tia(self):
         """TIA's disabled ticked box: near-white, gray border, dark gray tick, as in a global DB."""
         from TiaChangeReports import page, theme
         self.assertIn('.cb.dis.on{background:var(--checkbox-off-on);border-color:var(--checkbox-off-on-line)}', page.CSS)
         self.assertIn('.cb.dis.on::after{border-color:var(--checkbox-off-tick)}', page.CSS)
-        self.assertEqual([theme.NATIVE['--checkbox-off-' + k] for k in ('on', 'on-line', 'tick')], ['#f7f9fb', '#7e7e7e', '#666'])
+        self.assertEqual([theme.NATIVE['--checkbox-off-' + k] for k in ('on', 'on-line', 'tick')],
+                         [theme.colour(c) for c in ('#f7f9fb', '#7e7e7e', '#666')])
 
 
 # ---------------------------------------------------------------- TIA network titles, no paths, panning
