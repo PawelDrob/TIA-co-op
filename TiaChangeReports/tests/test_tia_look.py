@@ -7,6 +7,7 @@ import re
 import tempfile
 import unittest
 
+from TiaChangeReports import render_lad
 from TiaChangeReports.compare import Callees
 from TiaChangeReports.render_lad import (C_CMT, C_CST, C_DEF, C_VAL, END_H, END_IN, END_W, LINE, STUB, X0, Layout,
                                          display_operand, operand_lines)
@@ -463,9 +464,9 @@ def _empty_network():
 
 
 def _wires_at(svg, y):
-    """(x1, x2) of every black line drawn along y."""
+    """(x1, x2) of every wire drawn along y."""
     out = []
-    for m in re.finditer(r'<line x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)" stroke="#1a1a1a"', svg):
+    for m in re.finditer(r'<line x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)" class="l-wire"', svg):
         x1, y1, x2, y2 = map(float, m.groups())
         if abs(y1 - y) < .06 and abs(y2 - y) < .06:
             out.append((min(x1, x2), max(x1, x2)))
@@ -509,8 +510,9 @@ class RungEndsLikeTia(unittest.TestCase):
         self.assertEqual((END_IN, END_H, END_W, STUB), (5.4, 5.4, 1.8, 41))
         lay = self.nets[1]
         x, y = lay.ends()[0]
-        self.assertIn('<rect class="end" x="%.1f" y="%.1f" width="1.8" height="5.4" fill="#1a1a1a"/>'
+        self.assertIn('<rect class="end" x="%.1f" y="%.1f" width="1.8" height="5.4"/>'
                       % (x - END_W, y - END_H / 2), lay.svg())
+        self.assertIn('.ldiff svg rect.end{fill:var(--wire)}', render_lad.CSS)          # in the wire's colour
 
     def test_one_coil(self):
         lay = self.nets[1]

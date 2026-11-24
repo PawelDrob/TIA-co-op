@@ -1,0 +1,150 @@
+/* TIA Portal's native look: the change report's built-in theme (--theme tia, the default), and the one list of the
+   palette's names. Every colour the report, its fragment, its PNG and the block viewer draw is one of these names.
+
+   A theme of your own: copy this file, change the values you want, give it to the report with --theme <file>.
+   - One block, .ldiff { ... }; first --theme-format: 1; then one --name: colour; a line. Comments as here.
+   - A name you leave out keeps the value below. A name not below, a value that is no colour or anything else
+     is refused, with the line; nothing is drawn then.
+   - A colour: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba(), hsl(), hsla() of numbers, or transparent.
+   - A theme is for the screen: print takes these values.
+   - A host page (a VS Code webview) may set the names itself, in its own stylesheet on .ldiff: that wins over
+     the report's values, and a file in this format is such a stylesheet as it stands.
+
+   Pairs a theme must keep readable, one over the other:
+   - --text and each --scl-* over --page, --added-fill, --removed-fill, --added-word, --removed-word, --no-line
+   - each --lad-* text and --wire over --page, --added-fill, --removed-fill, --changed-fill, --moved-fill;
+     --lad-text, --lad-number, --lad-default and --eno-off over --box and --box-head; --lad-text over --jump-label
+   - --conversion beside --conversion-light, both over --box
+   - --text over --band, --field, --row, --network-number, --changed-row, --moved-row, --opened-member, --hover,
+     --selected, --button, --switch, --switch-on, --page-head; --input-text over --input
+   - --badge-text over --added, --removed, --moved, --same, --version
+   - --muted, --faint, --empty-field-text and --viewer-note over --page, --row, --band, --field
+   - --checkbox-tick over --checkbox-on, --checkbox-off-tick over --checkbox-off-on
+   - --link and --match over --page, --hover and --selected; --icon over --band and --button */
+.ldiff {
+  --theme-format: 1;
+
+  /* the page and its text */
+  --page: #fff;                    /* the page's and a pane's background, the tree's, the focus view's, a window's */
+  --text: #000;                    /* text, and SCL's semicolons and jump labels */
+  --muted: #5a5a5a;                /* text that says what a thing is: paths, kinds, counts, hints */
+  --faint: #8c8c8c;                /* gray text: line numbers, "no network", a default or inherited value */
+  --empty-field-text: #808080;     /* TIA's gray word in an empty field: "Comment" */
+  --viewer-note: #595959;          /* the block viewer's notes: the file's path, what it read calls from */
+  --link: #0a4f9e;                 /* a link in the HMI part */
+  --link-underline: #8c8c8c;       /* the underline of a link in the summary */
+  --match: #0a4f9e;                /* the found letters in the tree's and the lookup's names */
+  --page-head: #f0f0f0;            /* the page's head with its title, the viewer's bar */
+  --page-head-line: #c8c8c8;       /* the line under it */
+
+  /* TIA's bands, fields and grid */
+  --band: #d9d9d9;                 /* a band of headings: a block's head, a network's title row, a table's head */
+  --field: #e1e1e1;                /* TIA's field: a comment, a network's title, a section row, a cell that is off */
+  --row: #f0f0f0;                  /* a quiet row: column heads, "unchanged" rows, a pane's side label */
+  --network-number: #c3c3c3;       /* the "Network 2:" cell of a network's title row */
+  --line: #c8c8c8;                 /* a table's heading lines, the line between stacked panes */
+  --grid: #e1e1e1;                 /* the light grid between cells, rows and panes */
+  --edge: #b2b2b2;                 /* a stronger line: under a block's head and the column heads, the tree's edge, an input's frame */
+  --divider: #d9d9d9;              /* the line under the tree's search box */
+  --no-line: #f5f5f5;              /* an SCL side with no line opposite the other side's */
+  --opened-member: #f4f4f4;        /* a row inside an opened UDT, FB instance or array of the interface */
+
+  /* the changes */
+  --added: #3a9a4f;                /* added: a new object's badge and tree mark, an HMI outline */
+  --added-fill: #e3f4e6;           /* added: a LAD element, an SCL line, an interface row, a text */
+  --added-word: #b5e2bf;           /* a changed word in an added line or text */
+  --removed: #c0392b;              /* removed: a deleted object's badge and tree mark, an HMI outline, a warning */
+  --removed-fill: #f9e3e7;         /* removed: a LAD element, an SCL line, an interface row, a text */
+  --removed-word: #f0b9c4;         /* a changed word in a removed line or text */
+  --changed: #c99700;              /* changed: a tree mark, an HMI outline, the frame of a "differs" note */
+  --changed-fill: #fff3c2;         /* changed: a LAD element, a network's badge, a "differs" note */
+  --changed-row: #fffbe8;          /* a changed row of the interface */
+  --moved: #7a9cc6;                /* moved: a badge, a tree mark, an HMI outline, the dashes of a moved row */
+  --moved-fill: #dfe9f5;           /* moved: a LAD element, a network's badge */
+  --moved-row: #eef4fa;            /* a moved row of the interface */
+  --same: #8c8c8c;                 /* the badge of an object that did not change */
+  --same-mark: #fff;               /* the tree mark of an object that did not change */
+  --version: #6b6b6b;              /* the badge and tree mark of a change of version only */
+  --badge-text: #fff;              /* the text of a block's badge */
+  --mark-line: #8c8c8c;            /* the frame of a small mark: the legend's swatches, the tree's marks, a badge */
+  --off-over-mark: #0000000f;      /* laid over a mark's fill where a cell of the interface is off */
+
+  /* controls */
+  --button: #f0f0f0;               /* a button */
+  --button-hover: #e5e5e5;         /* a button under the pointer */
+  --button-line: #adadad;          /* a button's frame */
+  --button-text: #000;             /* a button's text */
+  --button-off-text: #a0a0a0;      /* the text of a button that is off */
+  --switch: #fbfbfb;               /* the viewer's Drawing | Source buttons */
+  --switch-on: #d9d9d9;            /* the one of them that is pressed */
+  --input: #fff;                   /* a text box: the tree's search, the lookup */
+  --input-text: #000;              /* its text */
+  --focus: #3d8ee0;                /* the frame of what has the focus, of a pressed toggle */
+  --hover: #e5f1fb;                /* a tree's or the lookup's row under the pointer */
+  --selected: #cce4f7;             /* the open object in the tree, the lookup's row, a change picked, a toggle on */
+  --change-hover: #f3f8fd;         /* an HMI change under the pointer */
+  --icon: #222;                    /* the fold arrows, the focus buttons' lines, the arrow back to the top */
+  --tree-icon: #444;               /* the tree's fold arrows */
+  --window-line: #8c8c8c;          /* the frame of a window over the page: the minimap, the lookup, "Loading" */
+  --shadow: rgba(0,0,0,.25);       /* the shadow under such a window and under the button back to the top */
+  --backdrop: rgba(0,0,0,.18);     /* over the page behind the lookup */
+  --minimap-view: rgba(0,0,0,.08); /* the minimap's frame of what the pane shows */
+  --minimap-view-line: #3c3c3c;    /* its line */
+  --error-fill: #fde7e9;           /* the viewer: why a file cannot be drawn, an object's file not found */
+  --error-line: #c42b1c;           /* its frame */
+
+  /* the interface table's check boxes, as TIA's */
+  --checkbox: #fff;
+  --checkbox-line: #8c8c8c;
+  --checkbox-on: #2f7fd0;          /* a box that is ticked */
+  --checkbox-on-line: #1d5fa3;
+  --checkbox-tick: #fff;
+  --checkbox-off: #e7e8e8;         /* a box that cannot be set */
+  --checkbox-off-line: #b5b5b5;
+  --checkbox-off-on: #f7f9fb;      /* such a box, ticked */
+  --checkbox-off-on-line: #7e7e7e;
+  --checkbox-off-tick: #666;
+
+  /* LAD, as TIA draws it */
+  --wire: #1a1a1a;                 /* a wire, the power rail, a contact's and a coil's lines, the rung's end mark */
+  --lad-text: #1a1a1a;             /* an operand, a box's title and type, a pin's name, a jump label's name */
+  --lad-comment: #7b1e6b;          /* an operand's comment above it */
+  --lad-value: #13866f;            /* a constant's value above its name */
+  --lad-constant: #2b6cb0;         /* a literal, the name of a constant */
+  --lad-default: #8c8c8c;          /* the default value at a pin with nothing on it */
+  --lad-number: #16a0a0;           /* a called block's number, %DB7 of an instance */
+  --eno-off: #a0a0a0;              /* an ENO that is not generated, and its line through the box */
+  --pin-open: #888;                /* a pin's stub at the box's edge with no wire drawn to it */
+  --box: #e6e8eb;                  /* a box */
+  --box-line: #9aa3ad;             /* its frame */
+  --box-head: #d3d7dc;             /* a box's head, the cell of its type */
+  --box-cell-line: #b5bcc4;        /* the frame of a cell in a box: a Switch case, a Calculate expression */
+  --compare-type: #d9dde2;         /* the type between a compare contact's bars */
+  --expression: #eef0f2;           /* a Calculate box's expression field */
+  --calculator: #f4f5f6;           /* the calculator in a Calculate box's head */
+  --calculator-line: #555;         /* its frame and keys */
+  --conversion: #a9a9a9;           /* TIA's conversion mark at an input */
+  --conversion-light: #d3d3d3;     /* its light lower half */
+  --jump-label: #dfe0e8;           /* a network's jump label */
+  --jump-label-line: #000;         /* the lines inside its top and bottom edge */
+
+  /* SCL, as TIA's editor colours its words */
+  --scl-keyword: #0000ff;          /* a statement's keyword, AND, OR, XOR */
+  --scl-region: #c91ffe;           /* REGION and END_REGION */
+  --scl-constant: #005989;         /* a constant as written, a region's name */
+  --scl-comment: #187e2b;          /* a comment */
+  --scl-operand: #4c3f88;          /* an operand */
+  --scl-local-constant: #02284e;   /* a local constant */
+  --scl-block-call: #670667;       /* the block or instance a call calls */
+  --scl-instruction: #51120f;      /* an instruction called as a function */
+  --scl-parameter: #350034;        /* a parameter's name before := or => */
+  --scl-operator: #414141;         /* an operator, punctuation, NOT, MOD */
+
+  /* the HMI part */
+  --screen-surround: #7f7f7f;      /* around a screen in its pane */
+  --screen-edge: #555;             /* the line round a screen */
+  --object-selected: #0a64d2;      /* the frame of an object picked on a screen */
+  --checker: #e6e6e6;              /* behind a graphic's clear parts: a checkerboard of this */
+  --checker-light: #fff;           /* and this */
+  --swatch-line: #666;             /* the frame of a colour value's swatch */
+}

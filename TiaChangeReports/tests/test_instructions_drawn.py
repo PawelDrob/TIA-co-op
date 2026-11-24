@@ -67,7 +67,7 @@ def strings(view):
 def type_cells(view):
     """(left, right) of the type cells of a box drawn at x 0."""
     return [(float(x), float(x) + float(w)) for x, w in
-            re.findall(r'<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="[\d.]+" fill="%s" stroke' % render_lad.C_BOXHEAD,
+            re.findall(r'<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="[\d.]+" class="l-type"',
                        ''.join(view.draw(0, 100)))]
 
 

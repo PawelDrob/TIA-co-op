@@ -689,9 +689,9 @@ class EnoSetting(unittest.TestCase):
                     drawn = [''.join(view(src)[0].draw(0, 100))
                              for src in (self.sd(instr, generated, pins), self.xml(instr, 'false' if generated else 'true', pins))]
                     self.assertEqual(drawn[0], drawn[1])
-                    (fill,) = re.findall(r'fill="([^"]+)"[^>]*>ENO</text>', drawn[0])
-                    self.assertEqual(fill == render_lad.C_OFF, not generated)
-                    self.assertEqual('stroke="%s"' % render_lad.C_OFF in drawn[0], not generated)
+                    (kind,) = re.findall(r'class="([^"]+)"[^>]*>ENO</text>', drawn[0])
+                    self.assertEqual(kind == render_lad.C_OFF, not generated)
+                    self.assertEqual('class="%s" stroke-width' % render_lad.C_OFF in drawn[0], not generated)
 
     def test_the_setting_changed_is_a_change_marked_alike_from_both_formats(self):
         """A box's ENO generated, then not, or the other way: a real change, though no row of the two-format run makes it alone (the

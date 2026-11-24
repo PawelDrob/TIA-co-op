@@ -231,7 +231,10 @@ class TheKindsAsReadFromTia(unittest.TestCase):
                          [('operand', '#statÜbung'), ('operator', ':='), ('operand', '#statÄnderung')])
 
     def test_each_kind_has_the_colour_read_from_tia(self):
-        self.assertEqual({k: v[1] for k, v in scl_colours.KINDS.items()}, {
+        """Each kind's name of the palette has, in TIA's native theme, the colour read from TIA's editor."""
+        from TiaChangeReports.theme import NATIVE
+        long = lambda c: '#' + ''.join(x * 2 for x in c[1:]) if len(c) == 4 else c     # noqa: E731  #000 is #000000
+        self.assertEqual({k: long(NATIVE[v[1]]) for k, v in scl_colours.KINDS.items()}, {
             'keyword': '#0000ff', 'region': '#c91ffe', 'constant': '#005989', 'comment': '#187e2b',
             'operand': '#4c3f88', 'local constant': '#02284e', 'block call': '#670667', 'instruction': '#51120f',
             'parameter': '#350034', 'operator': '#414141', 'semicolon': '#000000', 'label': '#000000'})
@@ -324,8 +327,8 @@ class TextAndMarksUnchanged(unittest.TestCase):
     def test_the_page_marks_only_a_span_with_no_class_and_prints_its_colours(self):
         """page.CSS: the changed word's background on a span with no class only, so a colour span inside it keeps
         none of its own; an SCL table's cells print their colours and backgrounds."""
-        self.assertIn('.ldiff table.scl td.del span:not([class]){background:var(--del-word)}', page.CSS)
-        self.assertIn('.ldiff table.scl td.ins span:not([class]){background:var(--add-word)}', page.CSS)
+        self.assertIn('.ldiff table.scl td.del span:not([class]){background:var(--removed-word)}', page.CSS)
+        self.assertIn('.ldiff table.scl td.ins span:not([class]){background:var(--added-word)}', page.CSS)
         self.assertNotIn('.ldiff table.scl td.del span{', page.CSS)
         self.assertRegex(page.CSS, r'@media print\{[^}]*\.ldiff table\.scl td[^}]*\{print-color-adjust:exact')
 

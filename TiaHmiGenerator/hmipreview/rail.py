@@ -1,7 +1,9 @@
 """The project tree (rail) shared by the change report (TiaChangeReports page.py) and the
 HMI preview: one markup, one script, one style, used by both.
 
-  BASE_CSS, CSS, JS     static/ldiff.css (the colours and font of .ldiff), static/rail.css, static/rail.js
+  THEME_CSS             static/tia-theme.css: the palette of every colour of .ldiff, TIA's native theme (TiaChangeReports
+                        theme.py reads it, and a theme of the user's own in its format)
+  BASE_CSS, CSS, JS     static/ldiff.css (the font of .ldiff), static/rail.css, static/rail.js
                         (ldiffRail(root, options): folding, search, Ctrl+K lookup, key list, Ctrl+B strip)
   LAUNCHER              the lookup window, outside the rail
   node(top, folders)    the tree node of folders below top, made as needed
@@ -23,6 +25,7 @@ def _read(name):
         return f.read()
 
 
+THEME_CSS = _read('tia-theme.css')
 BASE_CSS = _read('ldiff.css')
 CSS = _read('rail.css')
 JS = _read('rail.js')

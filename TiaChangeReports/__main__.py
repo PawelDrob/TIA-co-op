@@ -1,6 +1,7 @@
 """python TiaChangeReports <before> <after> [<before> <after> ...] [--git REPO REV1 [REV2] ...] -o out.html
                          [--block NAME ...] [--network TITLE ...] [--all] [--new-blocks-listed] [--fragment] [--png out.png [--width N]] [--lang en-US]
-                         [--only plc|hmi] [--before-set tia|generated] [--after-set tia|generated] [--json]
+                         [--only plc|hmi] [--before-set tia|generated] [--after-set tia|generated] [--theme tia|FILE]
+                         [--json]
 
 (from the repo root)
 
@@ -47,6 +48,10 @@ paste into a report. --png also writes a screenshot of the page (headless Edge o
 taller than 16000 px in several, out-1.png, out-2.png, ..., cut between blocks (a taller block between networks),
 listed after the page; a LAD network drawn below 70 % side by side is drawn there before above after at the
 full width.
+--theme: the colours, TIA's native look (tia, the default) or a theme file of the user's own in the format of
+TiaHmiGenerator\hmipreview\static\tia-theme.css (theme.py); the page, the fragment and the PNG take it, the page keeps
+it. A theme file that cannot be read, or holds a line that is no name of the palette or no colour, is a usage error,
+named with its line on stderr.
 --json prints the result as one JSON object (page, before, after, blocks; plcTags when a table changed; skipped when a
 file was; otherFiles when any; acrossFormats when a block is .s7dcl on one side and SimaticML on the other; png: the PNGs)
 instead of the list.
@@ -80,7 +85,7 @@ from TiaChangeReports.compare import compare_snapshots     # noqa: E402
 from TiaChangeReports.page import FROM_COMMITS, FROM_WORKING_TREE, NET_NOT_SHOWN, NOT_SHOWN, across_names, listed, render  # noqa: E402
 from TiaChangeReports.source import GitSnapshot, git_snapshots, not_compared, skipped, snapshot  # noqa: E402
 from TiaChangeReports.otherfiles import other_files        # noqa: E402
-from TiaChangeReports import hmi, plctags, s7dcl           # noqa: E402
+from TiaChangeReports import hmi, plctags, s7dcl, theme as themes   # noqa: E402
 
 
 def main(argv=None):
@@ -110,6 +115,7 @@ def main(argv=None):
     p.add_argument('--before-set', choices=('tia', 'generated'), default='tia',
                    help='HMI before side: the TIA exports (default) or with the generated documents in their place')
     p.add_argument('--after-set', choices=('tia', 'generated'), default='tia', help='HMI after side, as --before-set')
+    p.add_argument('--theme', help="the colours: tia, TIA's native look (default), or a theme file (tia-theme.css's format)")
     a = p.parse_args(argv)
     s7dcl.LANG = a.lang
     if len(a.paths) % 2:
@@ -130,6 +136,11 @@ def main(argv=None):
         if why:
             print('cannot write %s %s: %s' % (opt, os.path.abspath(path), why), file=sys.stderr)
             return 2
+    try:
+        theme = themes.load(a.theme)
+    except themes.ThemeError as ex:
+        print('--theme %s' % ex, file=sys.stderr)
+        return 2
     plc_on, hmi_on = a.only != 'hmi', a.only != 'plc' and not (a.block or a.network)
     tags_on = plc_on and not (a.block or a.network)
     inputs = [(lambda b=b, af=af: (snapshot(b), snapshot(af)), lambda b=b, af=af: hmi.sides_of(b, af, folders=True))
@@ -189,7 +200,7 @@ def main(argv=None):
     html = render(diffs, '; '.join(lb), '; '.join(la), fragment=a.fragment, title=a.title,
                   full=full, hmi=part, lang=a.lang, draw_added_removed=a.draw_added_removed, plc_tags=tag_part,
                   not_compared=not_compared_files, source_note=_source_note(a.git),
-                  other_files=[p for p in others if p not in named], across=across)
+                  other_files=[p for p in others if p not in named], across=across, theme=theme)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, 'w', encoding='utf-8') as f:
         f.write(html)

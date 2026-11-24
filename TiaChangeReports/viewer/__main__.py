@@ -1,4 +1,4 @@
-"""python TiaChangeReports\\viewer <file> [--html out.html] [--lang en-US]
+"""python TiaChangeReports\\viewer <file> [--html out.html] [--lang en-US] [--theme tia|FILE]
 python TiaChangeReports\\viewer --register | --unregister | --register-xml | --unregister-xml
 
 (from anywhere; python: the .venv's, pythonw.exe for no console)
@@ -6,7 +6,8 @@ python TiaChangeReports\\viewer --register | --unregister | --register-xml | --u
 <file>: a block export, .s7dcl (its .s7res beside it) or the SimaticML .xml of a block. Opens a page in the default
 browser with the block drawn as the change report draws it, and a switch to the file's text. A file it cannot draw
 opens on its text, with why. --html: writes the page to out.html instead, nothing opened. --lang: the language of
-titles and comments (default en-US, else the first language with a text).
+titles and comments (default en-US, else the first language with a text). --theme: the colours, as the change
+report's --theme (TIA's native look by default, or a theme file); a faulty theme file is a usage error.
 --register: a double-click on an .s7dcl opens it here, for the current user; --unregister takes that back.
 --register-xml: "Open with" on an .xml file lists the viewer, for the current user, and what a double-click on one opens
 stays; --unregister-xml takes that back. Neither touches what --register wrote, nor --register what they wrote.
@@ -20,7 +21,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 
-from TiaChangeReports import s7dcl                                  # noqa: E402
+from TiaChangeReports import s7dcl, theme as themes                # noqa: E402
 from TiaChangeReports.viewer import browser, register, view      # noqa: E402
 
 
@@ -29,6 +30,7 @@ def main(argv=None, open_page=browser.open_page, message=browser.message):
     p.add_argument('file', nargs='?', help='a block export: .s7dcl, or the SimaticML .xml of a block')
     p.add_argument('--html', metavar='OUT', help='write the page to OUT, open nothing')
     p.add_argument('--lang', default='en-US', help='text language of titles and comments (default en-US)')
+    p.add_argument('--theme', help="the colours: tia, TIA's native look (default), or a theme file (tia-theme.css's format)")
     todo = p.add_mutually_exclusive_group()
     todo.add_argument('--register', action='store_true', help='open .s7dcl files here on a double-click')
     todo.add_argument('--unregister', action='store_true', help='take --register back')
@@ -47,7 +49,11 @@ def main(argv=None, open_page=browser.open_page, message=browser.message):
     if not a.file:
         p.error('give a block export, or --register')
     s7dcl.LANG = a.lang
-    html, title = view.page(a.file)
+    try:
+        theme = themes.load(a.theme)
+    except themes.ThemeError as ex:
+        p.error('--theme %s' % ex)
+    html, title = view.page(a.file, theme)
     if a.html:
         with open(a.html, 'w', encoding='utf-8') as f:
             f.write(html)

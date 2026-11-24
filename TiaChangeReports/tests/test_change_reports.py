@@ -3646,16 +3646,16 @@ class DisabledCellsMoreKinds(unittest.TestCase):
         self.assertEqual([c for _, c in rs['arr[1]'][3:8]], ['o~', 'x~', 'x~', 'x~', 'o~'])
         html = iface.html(None, parse_block(src(DIS_ARR, '', 'A')))
         self.assertEqual(re.findall(r'data-u style="[^"]*"><span class="tw">[^<]*</span>([^<]+)<', html), ['arr[1]', 'q'])
-        from TiaChangeReports import page
-        self.assertIn(':has(>td.nm[data-u])>td{background-color:#f4f4f4}', page.CSS)
+        from TiaChangeReports import page, theme
+        self.assertIn(':has(>td.nm[data-u])>td{background-color:var(--opened-member)}', page.CSS)
+        self.assertEqual(theme.NATIVE['--opened-member'], '#f4f4f4')
 
     def test_disabled_ticked_box_as_tia(self):
         """TIA's disabled ticked box: near-white, gray border, dark gray tick, as in a global DB."""
-        from TiaChangeReports import page
-        with open(page.__file__, encoding='utf-8') as f:
-            css = f.read()
-        self.assertIn('.cb.dis.on{background:#f7f9fb;border-color:#7e7e7e}', css)
-        self.assertIn('.cb.dis.on::after{border-color:#666}', css)
+        from TiaChangeReports import page, theme
+        self.assertIn('.cb.dis.on{background:var(--checkbox-off-on);border-color:var(--checkbox-off-on-line)}', page.CSS)
+        self.assertIn('.cb.dis.on::after{border-color:var(--checkbox-off-tick)}', page.CSS)
+        self.assertEqual([theme.NATIVE['--checkbox-off-' + k] for k in ('on', 'on-line', 'tick')], ['#f7f9fb', '#7e7e7e', '#666'])
 
 
 # ---------------------------------------------------------------- TIA network titles, no paths, panning
@@ -3976,7 +3976,7 @@ class NeutralLook(unittest.TestCase):
             sel = re.sub(r'^\s*@media[^{]*\{', '', rule).split('{')[0].strip()     # the rules inside an @media
             if sel:
                 for part in sel.split(','):
-                    self.assertTrue(part.strip().startswith('.ldiff'), part)
+                    self.assertTrue(part.strip().startswith(('.ldiff', ':where(.ldiff)')), part)
 
 
 class ScrollToTop(unittest.TestCase):
@@ -4173,9 +4173,9 @@ class NetworkTagsAndFoldAll(unittest.TestCase):
 
     def test_tags_in_the_legend_colours(self):
         html = render([compare_blocks(fb(('SCL', 'A', FAULTS)), fb(('SCL', 'A', FAULTS_EDITED)))], 'b', 'a')
-        for state, colour in (('new', 'add'), ('deleted', 'del'), ('changed', 'chg')):
-            self.assertIn('.ldiff .nwt .st.%s{background:var(--%s-bg)}' % (state, colour), html)
-        self.assertIn('.ldiff .sw.chg{background:var(--chg-bg)}', html)
+        for state, colour in (('new', 'added'), ('deleted', 'removed'), ('changed', 'changed')):
+            self.assertIn('.ldiff .nwt .st.%s{background:var(--%s-fill)}' % (state, colour), html)
+        self.assertIn('.ldiff .sw.chg{background:var(--changed-fill)}', html)
 
     def test_buttons_in_the_header_of_a_block_with_networks(self):
         d = compare_blocks(fb(('SCL', 'A', FAULTS), ('SCL', 'B', TIMERS)), fb(('SCL', 'A', FAULTS_EDITED), ('SCL', 'B', TIMERS)))
@@ -4302,13 +4302,13 @@ class ProjectTree(unittest.TestCase):
         self.assertEqual(self.tree(render([compare_blocks(src(), src(LAD_SCL))], 'b', 'a')), [(0, 'T', '[FB]')])
 
     def test_fragment_as_before_every_object_with_the_summary(self):
-        from TiaChangeReports import page
+        from TiaChangeReports import page, theme
         frag = render(self.diffs(), 'b', 'a', fragment=True)
         for gone in ('class="rail"', 'ldiff-rail', '.ldiff .rail', 'class="pn"'):
             self.assertNotIn(gone, frag)
         self.assertIn('<table class="sum">', frag)
         self.assertEqual(frag, '<div class="ldiff"><style>%s</style>%s<script>%s</script></div>' % (
-            page.CSS, frag.split('</style>', 1)[1].rsplit('<script>', 1)[0], page.JS))
+            theme.css() + page.CSS, frag.split('</style>', 1)[1].rsplit('<script>', 1)[0], page.JS))
         self.assertNotIn('class="rail"', render([], 'b', 'a'))                      # nothing to show: no tree
 
     def test_page_one_object_summary_and_every_object_in_print(self):
@@ -4411,7 +4411,7 @@ class ObjectLauncher(unittest.TestCase):
         self.assertEqual(js.count('.sort(function(x,y){return y[0]-x[0]'), 1)
         self.assertIn('found=rank(q)', js)
         self.assertNotIn('Alt+Space', page.tree_html(ProjectTree().diffs()))
-        for rule in ('.ldiff .lch .new .mk{background:var(--add)}', '.ldiff .tree mark,.ldiff .lch mark{',
+        for rule in ('.ldiff .lch .new .mk{background:var(--added)}', '.ldiff .tree mark,.ldiff .lch mark{',
                      '.ldiff .lch li.act{', '.ldiff .lch .pt{'):
             self.assertIn(rule, page.RAIL_CSS)
 
@@ -4628,7 +4628,7 @@ class FocusFillsTheWindow(unittest.TestCase):
         from TiaChangeReports import page
         rules = self.rules()
         self.assertEqual(rules['.ldiff .fcs'],
-                         'position:fixed;inset:0;z-index:35;overflow:auto;overscroll-behavior:contain;background:#fff;'
+                         'position:fixed;inset:0;z-index:35;overflow:auto;overscroll-behavior:contain;background:var(--page);'
                          'padding:0 16px 16px')
         self.assertIn('.ldiff .pb{overflow:hidden;padding:4px 2px;box-sizing:border-box}', page.CSS)
         for sel in rules:
@@ -4703,7 +4703,7 @@ class KeysAndLookups(unittest.TestCase):
                       fj)                                                         # the network's tags
         self.assertIn("go:function(n){if(!cur||cur.n!=n)open(n)}", fj)             # Enter: into focus
         self.assertIn("row:function(k){var l=ns[k].lk;return ['net',l.k,'',l.g]}", fj)
-        self.assertIn('.ldiff .lch .st.deleted{background:var(--del-bg)}', page.RAIL_CSS)
+        self.assertIn('.ldiff .lch .st.deleted{background:var(--removed-fill)}', page.RAIL_CSS)
 
     def test_a_key_for_every_button_in_its_tooltip(self):
         from TiaChangeReports import page
@@ -6070,8 +6070,8 @@ class MovedNetworks(unittest.TestCase):
         from TiaChangeReports.page import summary_html
         d = compare_blocks(fb(MOVE, *STAY), fb(*STAY, MOVE))
         html = render([d], 'b', 'a')
-        self.assertIn('.ldiff .nwt .st.moved{background:var(--mov-bg)}', html)
-        self.assertIn('.ldiff .lch .st.moved{background:var(--mov-bg)}', html)
+        self.assertIn('.ldiff .nwt .st.moved{background:var(--moved-fill)}', html)
+        self.assertIn('.ldiff .lch .st.moved{background:var(--moved-fill)}', html)
         self.assertIn("g=s[no[1]?1:0].querySelectorAll('.st')", html)            # the lookup: the tags of one half (99)
         self.assertNotIn('<td class="b del">', html)                             # not drawn removed / added
         self.assertIn('<td>changed</td><td></td><td></td><td>1</td></tr>', summary_html([d]))    # + Properties
@@ -6944,7 +6944,7 @@ class JumpListSwitchCalculate(unittest.TestCase):
         self.assertEqual((v.title, v.sub, v.expr), ('CALCULATE', 'DInt', 'OUT :=  (IN1 + IN2) * (IN1 - IN2)'))
         self.assertGreaterEqual(v.rowy[1], EXPR_ROW + 18)              # IN1 below the expression row
         self.assertEqual(v.rowy[1], v.rowy_r[1])                        # OUT on the IN1 row
-        self.assertIn('fill="%s" text-anchor="end" font-size="11">ENO<' % C_OFF, calc.svg())
+        self.assertIn('class="%s" text-anchor="end" font-size="11">ENO<' % C_OFF, calc.svg())
         sd = parse_block(_jumps_sd())
         for k, n in enumerate(sd.networks):                           # the SD export drawn the same
             lay = Layout(n.rungs, sd.interface)
@@ -7146,7 +7146,7 @@ class BoxDetailsLikeTia(unittest.TestCase):
         jb = parse_block(_jumps_sd())
         jl, sw = (self._view(Layout(jb.networks[k].rungs, jb.interface), i) for k, i in ((2, 'JumpList'), (0, 'Switch')))
         self.assertEqual((jl.conv, sw.conv), ({1}, set()))              # USInt at JMP_LIST's K (UInt), as TIA shows it
-        self.assertEqual(Layout(jb.networks[2].rungs, jb.interface).svg().count('fill="%s"' % C_CONV), 1)
+        self.assertEqual(Layout(jb.networks[2].rungs, jb.interface).svg().count('class="%s"' % C_CONV), 1)
 
     def test_no_conversion_mark_at_the_index_of_mux_and_demux(self):
         """MUX / DEMUX K is an index, not of the box's type: no mark for an Int there; IN<n> is of the type."""
@@ -7212,7 +7212,7 @@ class NetworkJumpLabels(unittest.TestCase):
         self.assertIn('stepY', html)
 
     def test_drawn_over_the_network(self):
-        from TiaChangeReports.render_lad import C_LABEL, CELL, FILL, LABEL_H, X0
+        from TiaChangeReports.render_lad import C_LABEL, CELL, LABEL_H, X0
         b = parse_block(_xml_src(_jumps(), 'Jumps'))
         n = b.networks[3]
         plain = Layout(n.rungs, b.interface)
@@ -7220,7 +7220,7 @@ class NetworkJumpLabels(unittest.TestCase):
         self.assertEqual(check(lay), [])
         self.assertEqual((lay.wiring(), lay.ys), (plain.wiring(), plain.ys))      # the logic's coordinates kept
         svg = lay.svg()
-        box = '<rect x="%d" y="2" width="%d" height="%d" fill="%%s"/>' % (X0 - 1, CELL, LABEL_H)
+        box = '<rect x="%d" y="2" width="%d" height="%d" class="%%s"/>' % (X0 - 1, CELL, LABEL_H)
         self.assertIn(box % C_LABEL, svg)
         self.assertIn('text-anchor="middle" font-size="11">stepA</text></g><g transform="translate(0,%d)">'
                       % (LABEL_H), svg)                                 # the rail starts under the box
@@ -7228,14 +7228,13 @@ class NetworkJumpLabels(unittest.TestCase):
         self.assertEqual(int(height.search(svg).group(1)), int(height.search(plain.svg()).group(1)) + LABEL_H)
         self.assertNotIn('class="jl"', plain.svg())
         for mark in ('changed', 'added', 'removed'):
-            self.assertIn(box % FILL[mark], Layout(n.rungs, b.interface, label='stepA', mark=mark).svg())
+            self.assertIn(box % ('hl ' + mark), Layout(n.rungs, b.interface, label='stepA', mark=mark).svg())
 
     def test_on_the_page(self):
         from TiaChangeReports.page import network_html
-        from TiaChangeReports.render_lad import FILL
         d = compare_blocks(_jumps_sd(), _jumps_sd(('Label(stepA)', 'Label(stepX)')))
         html = network_html(d.nets[0], d.before, d.after)
-        self.assertEqual(html.count('fill="%s"/>' % FILL['removed']) + html.count('fill="%s"/>' % FILL['added']), 2)
+        self.assertEqual(html.count('"hl removed"') + html.count('"hl added"'), 2)
         self.assertIn('>stepA</text>', html)
         self.assertIn('>stepX</text>', html)
 
@@ -7363,11 +7362,9 @@ class ChangedOperandsAsCode(unittest.TestCase):
 
     def test_jump_label_renamed_on_the_page(self):
         from TiaChangeReports.page import network_html
-        from TiaChangeReports.render_lad import FILL
         d = compare_blocks(_jumps_sd(), _jumps_sd(('Label(stepA)', 'Label(stepX)')))
         html = network_html(d.nets[0], d.before, d.after)
-        self.assertEqual((html.count('fill="%s"/>' % FILL['removed']), html.count('fill="%s"/>' % FILL['added']),
-                          html.count('fill="%s"/>' % FILL['changed'])), (1, 1, 0))
+        self.assertEqual((html.count('"hl removed"'), html.count('"hl added"'), html.count('"hl changed"')), (1, 1, 0))
 
 
 class OnlyTheVariableAtAPin(unittest.TestCase):

@@ -56,18 +56,23 @@ TOP = 8
 GAP = 10                 # vertical gap between bands
 MAXCMT = 4               # comment lines shown at most
 
-C_WIRE = '#1a1a1a'
-C_CMT = '#7b1e6b'
-C_VAL = '#13866f'        # value of a constant
-C_CST = '#2b6cb0'        # literal, name of a constant
-C_DEF = '#8c8c8c'        # default value of an unassigned pin
-C_NUM = '#16a0a0'        # block number in a call box head
-C_OP = '#1a1a1a'
-C_BOX = '#e6e8eb'
-C_BOXHEAD = '#d3d7dc'
-FILL = {'added': '#e3f4e6', 'removed': '#f9e3e7', 'changed': '#fff3c2', 'moved': '#dfe9f5'}   # as page.py's SCL
-C_LABEL = '#dfe0e8'      # jump label box
-LABEL_Y = 2              # its top; the rail starts at its bottom
+# The SVG holds no colour: each part it draws carries a class, and CSS below gives the class its fill or stroke from a
+# name of the palette (TiaHmiGenerator\hmipreview\static\tia-theme.css), so a theme changes nothing the renderer writes.
+# A text's kind (the second of an operand line's (text, kind, bold)) is the class of its <text>.
+C_WIRE = 'l-wire'        # a wire, a contact's and a coil's lines, the power rail, the end mark
+C_CMT = 'l-cmt'          # an operand's comment
+C_VAL = 'l-val'          # value of a constant
+C_CST = 'l-cst'          # literal, name of a constant
+C_DEF = 'l-def'          # default value of an unassigned pin
+C_NUM = 'l-num'          # block number in a call box head
+C_OP = 'l-text'          # an operand and the drawing's other text: a box's title, a pin's name
+C_OFF = 'l-off'          # an ENO that is not generated: its name, and the line through the box
+C_PIN = 'l-pin'          # a pin's stub at the box's edge with no wire drawn to it
+C_CONV = 'l-conv'        # TIA's conversion mark at an input (its lower right half l-conv-light)
+C_LABEL = 'l-label'      # the jump label's box, in a mark's fill (class "hl <mark>") when the label changed
+C_LABEL_LINE = 'l-label-line'
+MARKS = ('added', 'removed', 'changed', 'moved')      # the kinds of mark, each a class beside "hl"
+LABEL_Y = 2              # the jump label's top; the rail starts at its bottom
 LABEL_H = 30
 
 # Arial advance widths per 1000 em
@@ -112,14 +117,34 @@ def wrap(s, width, size=FONT, bold=False, maxlines=None):
     return lines
 
 
-def _t(x, y, s, color=C_OP, anchor='middle', bold=False, size=FONT):
+def _t(x, y, s, kind=C_OP, anchor='middle', bold=False, size=FONT):
     w = ' font-weight="bold"' if bold else ''
-    return '<text x="%.1f" y="%.1f" fill="%s" text-anchor="%s" font-size="%s"%s>%s</text>' % (
-        x, y, color, anchor, size, w, escape(s))
+    return '<text x="%.1f" y="%.1f" class="%s" text-anchor="%s" font-size="%s"%s>%s</text>' % (
+        x, y, kind, anchor, size, w, escape(s))
 
 
-def _ln(x1, y1, x2, y2, color=C_WIRE, w=1.2):
-    return '<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="%s"/>' % (x1, y1, x2, y2, color, w)
+def _ln(x1, y1, x2, y2, part=C_WIRE, w=1.2):
+    return '<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" class="%s" stroke-width="%s"/>' % (x1, y1, x2, y2, part, w)
+
+
+# Each class of the drawing and the names of the palette it is drawn in. A mark (class "hl" and its kind) under what
+# changed, and the jump label's box in a mark's fill when the label changed.
+CSS = """
+.ldiff svg .l-wire{stroke:var(--wire)} .ldiff svg rect.end{fill:var(--wire)}
+.ldiff svg .l-text{fill:var(--lad-text)} .ldiff svg .l-cmt{fill:var(--lad-comment)} .ldiff svg .l-val{fill:var(--lad-value)}
+.ldiff svg .l-cst{fill:var(--lad-constant)} .ldiff svg .l-def{fill:var(--lad-default)} .ldiff svg .l-num{fill:var(--lad-number)}
+.ldiff svg text.l-off{fill:var(--eno-off)} .ldiff svg line.l-off{stroke:var(--eno-off)}
+.ldiff svg .l-pin{stroke:var(--pin-open)}
+.ldiff svg .l-box{fill:var(--box);stroke:var(--box-line)} .ldiff svg .l-head{fill:var(--box-head)}
+.ldiff svg .l-type{fill:var(--box-head);stroke:var(--box)} .ldiff svg .l-cell{fill:var(--box-head);stroke:var(--box-cell-line)}
+.ldiff svg .l-cmptype{fill:var(--compare-type)}
+.ldiff svg .l-expr{fill:var(--expression);stroke:var(--box-cell-line)}
+.ldiff svg .l-calc{fill:var(--calculator);stroke:var(--calculator-line)} .ldiff svg .l-calc-key{fill:var(--calculator-line)}
+.ldiff svg .l-conv{fill:var(--conversion)} .ldiff svg .l-conv-light{fill:var(--conversion-light)}
+.ldiff svg .l-label{fill:var(--jump-label)} .ldiff svg .l-label-line{stroke:var(--jump-label-line)}
+.ldiff svg .hl.added{fill:var(--added-fill)} .ldiff svg .hl.removed{fill:var(--removed-fill)}
+.ldiff svg .hl.changed{fill:var(--changed-fill)} .ldiff svg .hl.moved{fill:var(--moved-fill)}
+"""
 
 
 # ---------------------------------------------------------------- operand labels
@@ -199,15 +224,12 @@ STUB = 41                               # TIA's open ENO of a box below the netw
 END_IN = 5.4                            # a rung that runs to the network's end stops this short of its last cell
 END_H = 5.4                             # the end mark: a bar this tall, centred on the wire,
 END_W = 1.8                             # as TIA's: as thick as its wire, half again the report's (_ln)
-C_CONV = '#a9a9a9'                      # conversion mark: a gray square, its lower right half light
-C_CONV_LIGHT = '#d3d3d3'
 ELEMENTARY = {t.lower() for t in (
     'Bool Byte Word DWord LWord SInt Int DInt LInt USInt UInt UDInt ULInt Real LReal Time LTime S5Time Date TOD '
     'Time_Of_Day LTOD LTime_Of_Day DT Date_And_Time LDT DTL Char WChar String WString').split()}
 ALIASES = {'tod': 'time_of_day', 'ltod': 'ltime_of_day', 'dt': 'date_and_time'}   # one type, two names
 EXPR_ROW = 34                           # Calculate: the expression row between EN and IN1
 PAIR_GAP = 5                            # between a type cell and the 'to' beside it
-C_OFF = '#a0a0a0'                       # an ENO that is not generated
 _ZERO = {'bool': 'false', 'time': 'T#0ms', 'ltime': 'LT#0ns', 'real': '0.0', 'lreal': '0.0', 'string': "''",
          'wstring': "WSTRING#''", 'byte': '16#00', 'word': '16#0000', 'dword': '16#0000_0000'}
 _ZERO.update({t: '0' for t in ('sint', 'int', 'dint', 'lint', 'usint', 'uint', 'udint', 'ulint',
@@ -729,7 +751,7 @@ class View:
             if k == 'compare':
                 out.append(_t(cx, y - 2, CMP[ins], C_OP, bold=True, size=9))
                 if typ:
-                    out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="9" fill="#d9dde2"/>'
+                    out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="9" class="l-cmptype"/>'
                                % (cx - g + 1.5, y + 2, 2 * g - 3))
                     out.append(_t(cx, y + 9.5, typ, C_OP, bold=True, size=8))
                 out += _stack_down(self.bot, cx, y + h + 12)
@@ -750,13 +772,13 @@ class View:
             if self.el.instr in SQUARE_COILS:
                 b = g + 6
                 out += [_ln(x, y, cx - b, y), _ln(cx + b, y, self.wire_end(x), y)]
-                out += ['<path d="M%.1f %.1f H%.1f V%.1f H%.1f" fill="none" stroke="%s" stroke-width="1.6"/>'
+                out += ['<path d="M%.1f %.1f H%.1f V%.1f H%.1f" class="%s" fill="none" stroke-width="1.6"/>'
                         % (cx + s * (b - 3), y - h, cx + s * b, y + h, cx + s * (b - 3), C_WIRE) for s in (-1, 1)]
             else:
                 out += [_ln(x, y, cx - g - reach, y), _ln(cx + g + reach, y, self.wire_end(x), y),
-                        '<path d="M%.1f %.1f A %d %d 0 0 0 %.1f %.1f" fill="none" stroke="%s" stroke-width="1.6"/>'
+                        '<path d="M%.1f %.1f A %d %d 0 0 0 %.1f %.1f" class="%s" fill="none" stroke-width="1.6"/>'
                         % (cx - g, y - h, r, r, cx - g, y + h, C_WIRE),
-                        '<path d="M%.1f %.1f A %d %d 0 0 1 %.1f %.1f" fill="none" stroke="%s" stroke-width="1.6"/>'
+                        '<path d="M%.1f %.1f A %d %d 0 0 1 %.1f %.1f" class="%s" fill="none" stroke-width="1.6"/>'
                         % (cx + g, y - h, r, r, cx + g, y + h, C_WIRE)]
             lines = self._coil_lines()
             for s, yt in zip(lines, (y - 2, y + 10) if self.tall else (y + 4,)):
@@ -773,15 +795,14 @@ class View:
         bt = y - self.head
         bb = self._box_bottom(y)
         out.append(_ln(x, y, bx, y))
-        out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" stroke="#9aa3ad"/>'
-                   % (bx, bt, self.bw, bb - bt, C_BOX))
-        out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"/>'
-                   % (bx + .5, bt + .5, self.bw - 1, self.head - 6, C_BOXHEAD))
+        out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" class="l-box"/>' % (bx, bt, self.bw, bb - bt))
+        out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" class="l-head"/>'
+                   % (bx + .5, bt + .5, self.bw - 1, self.head - 6))
         if self.expr:
             out += self._draw_expression(bx, bt, y)
         for r in sorted(self.relrows):                    # a Switch case: its relation in a cell of its own
-            out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="14" fill="%s" stroke="#b5bcc4"/>'
-                       % (bx + .5, y + self.rowy[r] - 7, tw(self.lefts[r][0]) + 8, C_BOXHEAD))
+            out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="14" class="l-cell"/>'
+                       % (bx + .5, y + self.rowy[r] - 7, tw(self.lefts[r][0]) + 8))
         if inbox:
             out.append(inbox)
         ty = bt + 12
@@ -796,8 +817,8 @@ class View:
             for k, s in enumerate(x for x in (self.sub, self.second) if x):
                 top = ty + 3 + 14 * k
                 h = 14 if self.second or self.notes else bt + self.head - 6 - ty - 3
-                out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" stroke="%s"/>'
-                           % (bx + (self.bw - sw) / 2, top, sw, h, C_BOXHEAD, C_BOX))
+                out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" class="l-type"/>'
+                           % (bx + (self.bw - sw) / 2, top, sw, h))
                 out.append(_t(bx + self.bw / 2, top + 11, s, C_OP, bold=True))
         for k, s in enumerate(self.notes):                # a setting TIA's look leaves out, the two versions differ in
             out.append(_t(bx + self.bw / 2, ty + 14 + 14 * (bool(self.sub) + bool(self.second) + k), s))
@@ -815,7 +836,7 @@ class View:
                 out.append(_t(bx + 4, py + 4, self._label(r, n), C_OP, 'start'))
             if r:
                 wired = r in self.wirepins
-                out.append(_ln(bx - 8, py, bx, py, C_WIRE if wired else '#888', 1.2 if wired else 1))
+                out.append(_ln(bx - 8, py, bx, py, C_WIRE if wired else C_PIN, 1.2 if wired else 1))
                 out += _stack_up(L, bx - 10, py + 4, 'end')
             if r in self.conv:
                 out += _conversion(bx, py)
@@ -827,7 +848,7 @@ class View:
             if off:                                       # ENO := EN, drawn through the box as TIA
                 out.append(_ln(bx + tw(self.lefts[0][0]) + 9, y, bx + self.bw - tw(n) - 9, y, C_OFF, 1))
             if r or self.noeno:
-                out.append(_ln(bx + self.bw, py, bx + self.bw + 8, py, '#888', 1))
+                out.append(_ln(bx + self.bw, py, bx + self.bw + 8, py, C_PIN, 1))
                 out += _stack_up(L, bx + self.bw + 10, py + 4, 'start')
         out += _stack_down(self.under, bx + self.bw / 2, self._under_y(y))
         return out
@@ -863,8 +884,8 @@ class View:
         out = []
         for k, s in enumerate((a, b)):
             w = tw(s, FONT, True) + 8
-            out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" stroke="%s"/>'
-                       % (x, ty + 3, w, 14 if self.notes else bt + self.head - 6 - ty - 3, C_BOXHEAD, C_BOX))
+            out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" class="l-type"/>'
+                       % (x, ty + 3, w, 14 if self.notes else bt + self.head - 6 - ty - 3))
             out.append(_t(x + w / 2, ty + 14, s, C_OP, bold=True))
             x += w
             if not k:
@@ -886,20 +907,19 @@ class View:
         head (TIA's button to edit the expression)."""
         ex, ey, ew, eh = self._expr_box(bx, y)
         ix, iy = bx + self.bw - 17, bt + 5
-        return ['<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="#eef0f2" stroke="#b5bcc4"/>'
-                % (ex, ey, ew, eh),
-                '<rect x="%.1f" y="%.1f" width="11" height="13" fill="#f4f5f6" stroke="#555"/>' % (ix, iy),
-                '<rect x="%.1f" y="%.1f" width="7" height="3" fill="#555"/>' % (ix + 2, iy + 2)] + \
-            ['<rect x="%.1f" y="%.1f" width="2" height="2" fill="#555"/>' % (ix + 2 + 2.5 * c, iy + 7 + 3 * r)
+        return ['<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" class="l-expr"/>' % (ex, ey, ew, eh),
+                '<rect x="%.1f" y="%.1f" width="11" height="13" class="l-calc"/>' % (ix, iy),
+                '<rect x="%.1f" y="%.1f" width="7" height="3" class="l-calc-key"/>' % (ix + 2, iy + 2)] + \
+            ['<rect x="%.1f" y="%.1f" width="2" height="2" class="l-calc-key"/>' % (ix + 2 + 2.5 * c, iy + 7 + 3 * r)
              for r in range(2) for c in range(3)]
 
 
 def _conversion(bx, py):
     """TIA's conversion mark at an input: a gray square on the pin over the box edge, its lower right half light."""
     x1, y1 = bx - 7, py - 4
-    return ['<rect x="%.1f" y="%.1f" width="10" height="9" fill="%s"/>' % (x1, y1, C_CONV),
-            '<path d="M%.1f %.1fL%.1f %.1fL%.1f %.1fZ" fill="%s"/>' % (x1 + 2, y1 + 8, x1 + 9, y1 + 1, x1 + 9, y1 + 8,
-                                                                     C_CONV_LIGHT)]
+    return ['<rect x="%.1f" y="%.1f" width="10" height="9" class="%s"/>' % (x1, y1, C_CONV),
+            '<path d="M%.1f %.1fL%.1f %.1fL%.1f %.1fZ" class="l-conv-light"/>' % (x1 + 2, y1 + 8, x1 + 9, y1 + 1,
+                                                                                x1 + 9, y1 + 8)]
 
 
 # ---------------------------------------------------------------- network layout
@@ -915,8 +935,8 @@ class Layout:
     lines where possible; the rung feeding a box pin sets the height of that pin row (the box grows). wiring() returns
     the drawn lines and the element terminals; svg() draws exactly those and the end marks of ends(), which are no
     lines; verify.py reads the logic back from them. callees: name -> Interface of a called FB / FC (compare.Callees);
-    without it a call box shows its pins as written. label: the network's jump label, drawn over it, filled with
-    FILL[mark] unless mark is 'same' (compare.NetPair.label_state); wiring() and marks() stay in the coordinates below
+    without it a call box shows its pins as written. label: the network's jump label, drawn over it, in the fill of
+    mark unless mark is 'same' (compare.NetPair.label_state); wiring() and marks() stay in the coordinates below
     it. other: {element id: the other version's element} (diff.NetDiff.other), for the type settings the two differ
     in."""
 
@@ -1275,15 +1295,14 @@ class Layout:
         inbox = {}
         body = []
         for eid, st, layer, x, y, w, h in self.marks(status, other, side, partner):
-            r = '<rect class="hl %s" x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"/>' % (
-                st, x, y, w, h, FILL[st])
+            r = '<rect class="hl %s" x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>' % (st, x, y, w, h)
             if layer == 'under':
                 body.append(r)                            # below every line: no wire is cut
             else:
                 inbox[eid] = inbox.get(eid, '') + r
-        body += [_ln(*segs[0], color=C_WIRE, w=2.2)] + [_ln(*sg) for sg in segs[1:]]
-        body += ['<rect class="end" x="%.1f" y="%.1f" width="%s" height="%s" fill="%s"/>'
-                 % (x - END_W, y - END_H / 2, END_W, END_H, C_WIRE) for x, y in self.ends()]
+        body += [_ln(*segs[0], w=2.2)] + [_ln(*sg) for sg in segs[1:]]
+        body += ['<rect class="end" x="%.1f" y="%.1f" width="%s" height="%s"/>'
+                 % (x - END_W, y - END_H / 2, END_W, END_H) for x, y in self.ends()]
         for el, ex, y in self._placed():
             st = status.get(el.eid, 'same')
             body.append('<g class="el"><title>%s</title>' % escape(_tip(el, other.get(el.eid), st)))
@@ -1299,15 +1318,14 @@ class Layout:
 
     def _label_svg(self, side=None):
         """The jump label box (module doc); side: as marks, for a renamed label."""
-        fill = FILL.get(side if self.mark == 'changed' and side else self.mark, C_LABEL)
+        mark = side if self.mark == 'changed' and side else self.mark
         x, y = X0 - 1, LABEL_Y
         tip = {'changed': 'Jump label renamed', 'added': 'Jump label added', 'removed': 'Jump label removed'}
-        return ('<g class="jl"><title>%s</title><rect x="%d" y="%d" width="%d" height="%d" fill="%s"/>%s%s'
-                '<text x="%.1f" y="%d" fill="%s" text-anchor="middle" font-size="%d">%s</text></g>'
-                % (escape(tip.get(self.mark, 'Jump label')), x, y, CELL, LABEL_H, fill,
-                   _ln(x, y + 4, x + CELL, y + 4, color='#000', w=2),
-                   _ln(x, y + LABEL_H - 4, x + CELL, y + LABEL_H - 4, color='#000', w=2),
-                   x + CELL / 2.0, y + 20, C_OP, FONT, escape(self.label)))
+        return ('<g class="jl"><title>%s</title><rect x="%d" y="%d" width="%d" height="%d" class="%s"/>%s%s%s</g>'
+                % (escape(tip.get(self.mark, 'Jump label')), x, y, CELL, LABEL_H,
+                   'hl ' + mark if mark in MARKS else C_LABEL, _ln(x, y + 4, x + CELL, y + 4, C_LABEL_LINE, w=2),
+                   _ln(x, y + LABEL_H - 4, x + CELL, y + LABEL_H - 4, C_LABEL_LINE, w=2),
+                   _t(x + CELL / 2.0, y + 20, self.label)))
 
 
 def _tip(el, other, st):

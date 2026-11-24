@@ -1,4 +1,4 @@
-/* HMI preview: the change report's project tree on the left (rail.css, rail.js, colours ldiff.css), the
+/* HMI preview: the change report's project tree on the left (rail.css, rail.js, colours tia-theme.css), the
    header across the top, the screen with the findings list below it, the panel on the right: the
    object's properties (props.css), else the diff's change list or the view's own properties; the event
    log in a strip along the bottom. Only the panels scroll, never the page. */
@@ -40,17 +40,17 @@ button.small { font-size: 10px; padding: 0 4px; }
 #status::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%;
   background: #b2b2b2; }
 #status.live::before { background: #3a9a4f; }
-#status.lost::before { background: var(--del); }
+#status.lost::before { background: var(--removed); }
 .fc { font-weight: 600; }
-.ldiff .fc.warning { border-color: var(--chg); background: var(--chg-bg); }
-.ldiff .fc.error { border-color: var(--del); background: var(--del-bg); }
+.ldiff .fc.warning { border-color: var(--changed); background: var(--changed-fill); }
+.ldiff .fc.error { border-color: var(--removed); background: var(--removed-fill); }
 
 /* screen */
 .body { flex: 1 1 auto; display: flex; min-height: 0; }
 /* the screen fills the view; the findings list lies below it, as the change list below the screen in the change
    report, reached by scrolling or the findings count */
 #main { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; overflow-y: auto; }
-#notice { flex: none; padding: 3px 12px; color: var(--error); background: var(--del-bg); border-bottom: 1px solid var(--line); }
+#notice { flex: none; padding: 3px 12px; color: var(--error); background: var(--removed-fill); border-bottom: 1px solid var(--line); }
 #notice:empty { display: none; }
 #canvas { flex: none; max-height: 100%; overflow: auto; padding: 12px; background: #f4f4f4; }
 #screen { display: block; background: #fff; box-shadow: 0 0 0 1px #999; }
@@ -133,13 +133,13 @@ button.small { font-size: 10px; padding: 0 4px; }
 #findings .ffold.open .ht::before { content: '\25BE'; }
 #findings .mk { flex: none; display: inline-block; width: 9px; height: 9px; border: 1px solid #8c8c8c; background: #fff;
   align-self: center; }
-#findings .mk.error { background: var(--del); } #findings .mk.warning { background: var(--chg); }
+#findings .mk.error { background: var(--removed); } #findings .mk.warning { background: var(--changed); }
 #findings .mk.planned { background: var(--planned); }
 #findings .fused a { color: #0a4f9e; }
 
 /* Inspect mode: the corner of an object with findings (findings.js lists them) */
 .finding-mark { pointer-events: none; }
-.finding-mark.error { fill: var(--del); } .finding-mark.warning { fill: var(--chg); }
+.finding-mark.error { fill: var(--removed); } .finding-mark.warning { fill: var(--changed); }
 body:not(.inspect) .layer-findings { display: none; }
 
 /* canvas */

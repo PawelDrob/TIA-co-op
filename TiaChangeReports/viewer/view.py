@@ -1,7 +1,7 @@
 """The viewer's page of one block export: the block drawn in one column, as the change report draws it, and the source
 text of its file; a file it cannot read shows its source with the reason.
 
-page(path) -> (html, title). Self-contained: nothing is fetched. The drawing is the report's: its styles and script
+page(path, theme=None) -> (html, title), theme a theme.Theme (None: TIA's native one). Self-contained: nothing is fetched. The drawing is the report's: its styles and script
 (page.CSS, page.JS), the interface table (iface.html), the ladder in its frame (render_lad.Layout, page._lad_pane), the
 text of an SCL network (s7dcl.scl_lines) in the colours of TIA's SCL editor (scl_colours). The title bar, comment
 field and text table are the report's classes in one column, written here. A LAD network's SVG is the one the report
@@ -13,7 +13,7 @@ from dataclasses import replace
 from html import escape
 from types import SimpleNamespace
 
-from TiaChangeReports import iface
+from TiaChangeReports import iface, theme as themes
 from TiaChangeReports.compare import BlockDiff, Callees
 from TiaChangeReports.page import CSS, FOLD_ALL, JS, _lad_pane, _line_html, folds, version_html
 from TiaChangeReports.scl_colours import of_network
@@ -129,7 +129,7 @@ def _type_html(name, itf, root, table):
     head = 'Members of %s %s, from %s.' % (kind, escape(name), escape(path))
     if not table:
         return '<div class="of">%s</div><div class="empty">The %s declares no members.</div>' % (head, kind)
-    return ('<div class="of">%s A start value in black is the DB\'s own, one in grey the %s\'s default.</div>%s'
+    return ('<div class="of">%s A start value drawn plain is the DB\'s own, one drawn faint the %s\'s default.</div>%s'
             % (head, kind, table))
 
 
@@ -196,22 +196,23 @@ def why_unreadable(ex, path):
 
 # The viewer's own look, around the report's: a bar with the file and the switch, the report's block in one column.
 PAGE_CSS = """
-body{margin:0;background:#fff;font:13px/1.45 "Segoe UI",Arial,Helvetica,sans-serif;color:#000}
-.vbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;background:#f0f0f0;
-  border-bottom:1px solid #c8c8c8;padding:6px 16px}
-.vbar .file{font-size:12.5px;color:#595959;word-break:break-all}
+body{margin:0;background:var(--page);font:13px/1.45 "Segoe UI",Arial,Helvetica,sans-serif;color:var(--text)}
+.vbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;background:var(--page-head);
+  border-bottom:1px solid var(--page-head-line);padding:6px 16px}
+.vbar .file{font-size:12.5px;color:var(--viewer-note);word-break:break-all}
 .vbar .sw{display:inline-flex;margin-left:auto}
-.vbar .sw button{font:12px "Segoe UI",Arial,sans-serif;color:#000;background:#fbfbfb;border:1px solid #adadad;padding:3px 14px;
-  cursor:pointer}
+.vbar .sw button{font:12px "Segoe UI",Arial,sans-serif;color:var(--button-text);background:var(--switch);border:1px solid var(--button-line);
+  padding:3px 14px;cursor:pointer}
 .vbar .sw button+button{border-left:0}
-.vbar .sw button[aria-pressed=true]{background:#d9d9d9;font-weight:600}
-.vbar .sw button:disabled{color:#a0a0a0;cursor:default}
+.vbar .sw button[aria-pressed=true]{background:var(--switch-on);font-weight:600}
+.vbar .sw button:disabled{color:var(--button-off-text);cursor:default}
 main{padding:0 16px 40px}
-.why{margin:12px 0;padding:8px 12px;background:#fde7e9;border:1px solid #c42b1c;white-space:pre-wrap;word-break:break-word}
+.why{margin:12px 0;padding:8px 12px;background:var(--error-fill);border:1px solid var(--error-line);white-space:pre-wrap;
+  word-break:break-word}
 .view[hidden]{display:none}
-.read{margin:4px 0 0;font-size:12px;color:#595959}
-.ldiff .of{padding:3px 8px;font-size:12px;color:#595959;word-break:break-word}
-.ldiff .of.none{background:#fde7e9;color:#000}
+.read{margin:4px 0 0;font-size:12px;color:var(--viewer-note)}
+.ldiff .of{padding:3px 8px;font-size:12px;color:var(--viewer-note);word-break:break-word}
+.ldiff .of.none{background:var(--error-fill);color:var(--text)}
 .ldiff .nwt,.ldiff .nwc,.ldiff .panes{grid-template-columns:1fr}
 .ldiff .nwc .side{padding-left:30px}
 .ldiff .src .nw table.scl td{white-space:pre-wrap}
@@ -237,8 +238,9 @@ if(location.hash=='#source')show('source',false)})();
 """
 
 
-def page(path):
-    """(html, title) of the viewer's page of path. A file the readers cannot draw opens on its source, with why."""
+def page(path, theme=None):
+    """(html, title) of the viewer's page of path, in theme's colours. A file the readers cannot draw opens on its
+    source, with why."""
     path = os.path.abspath(path)
     drawing, why, title = None, None, os.path.basename(path)
     try:
@@ -263,5 +265,5 @@ def page(path):
     html = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, '
             'initial-scale=1"><title>%s</title><style>%s</style><style>%s</style></head><body>%s<main>%s%s</main>'
             '<script>%s</script></body></html>'
-            % (escape(title), CSS, PAGE_CSS, bar, shown, source, SWITCH_JS))
+            % (escape(title), themes.css(theme, page=True) + CSS, PAGE_CSS, bar, shown, source, SWITCH_JS))
     return html, title

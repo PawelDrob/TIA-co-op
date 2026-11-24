@@ -91,22 +91,24 @@ it, so a mark that cuts a coloured word gives two spans of its colour (TextAndMa
 import re
 from html import escape
 
-# kind: (class, colour as read, what). A kind without a class is TIA's black, the text's own colour: no span.
+# kind: (class, the name of the palette it is drawn in, what). TIA's colours as read are the names' values in TIA's
+# native theme (TiaHmiGenerator\hmipreview\static\tia-theme.css). A kind without a class is TIA's black, the text's
+# own colour: no span.
 KINDS = {
-    'keyword': ('sk', '#0000ff', 'a keyword of a statement, and AND, OR, XOR'),
-    'region': ('sr', '#c91ffe', 'REGION and END_REGION'),
-    'constant': ('sc', '#005989', 'a constant as written (Bool, number, time, date, string, typed), a region\'s name'),
-    'comment': ('sm', '#187e2b', 'a comment: //, (* *), a multilingual (/* */)'),
-    'operand': ('so', '#4c3f88', 'an operand, local or global, with its members, index and slice'),
-    'local constant': ('sl', '#02284e', 'a local constant: a #name the interface declares in VAR CONSTANT'),
-    'block call': ('sb', '#670667', 'the block or instance a call calls: #instance(, "FC"(, "DB"('),
-    'instruction': ('si', '#51120f', 'an instruction called as a function: MAX(, SQRT('),
-    'parameter': ('sp', '#350034', 'a name before := or => with a parenthesis open: IN :=, Q =>'),
-    'operator': ('sx', '#414141', 'an operator or punctuation, and NOT and MOD'),
-    'semicolon': (None, '#000000', 'the semicolon ending a statement'),
-    'label': (None, '#000000', 'a jump label, where it stands and after GOTO'),
+    'keyword': ('sk', '--scl-keyword', 'a keyword of a statement, and AND, OR, XOR'),
+    'region': ('sr', '--scl-region', 'REGION and END_REGION'),
+    'constant': ('sc', '--scl-constant', 'a constant as written (Bool, number, time, date, string, typed), a region\'s name'),
+    'comment': ('sm', '--scl-comment', 'a comment: //, (* *), a multilingual (/* */)'),
+    'operand': ('so', '--scl-operand', 'an operand, local or global, with its members, index and slice'),
+    'local constant': ('sl', '--scl-local-constant', 'a local constant: a #name the interface declares in VAR CONSTANT'),
+    'block call': ('sb', '--scl-block-call', 'the block or instance a call calls: #instance(, "FC"(, "DB"('),
+    'instruction': ('si', '--scl-instruction', 'an instruction called as a function: MAX(, SQRT('),
+    'parameter': ('sp', '--scl-parameter', 'a name before := or => with a parenthesis open: IN :=, Q =>'),
+    'operator': ('sx', '--scl-operator', 'an operator or punctuation, and NOT and MOD'),
+    'semicolon': (None, '--text', 'the semicolon ending a statement'),
+    'label': (None, '--text', 'a jump label, where it stands and after GOTO'),
 }
-CSS = ''.join('.ldiff table.scl .%s{color:%s}' % (c, col) for c, col, _ in KINDS.values() if c) + '\n'
+CSS = ''.join('.ldiff table.scl .%s{color:var(%s)}' % (c, name) for c, name, _ in KINDS.values() if c) + '\n'
 
 # The tokenizer's own lists; the tests go over them (test_scl_colours: WhereATokenEnds, TheLiteralsAsATable,
 # HalfWrittenNetworks).

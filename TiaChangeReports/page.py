@@ -9,7 +9,7 @@ import sys
 from html import escape, unescape
 from urllib.parse import quote
 
-from . import scl_colours
+from . import render_lad, scl_colours, theme as themes
 from .render_lad import Layout
 from .s7dcl import scl_lines
 from .source import LEFT_OUT, UNREADABLE
@@ -19,7 +19,9 @@ if WINCC not in sys.path:
     sys.path.insert(0, WINCC)
 from hmipreview import rail   # noqa: E402  the project tree, shared with the HMI preview
 
-CSS = '\n' + rail.BASE_CSS    # the colours and font, shared with the HMI preview (hmipreview/static/ldiff.css)
+# Every colour is a name of the palette (theme.py; hmipreview/static/tia-theme.css), its block put before CSS by render
+# and the viewer for the theme of the page. The font, shared with the HMI preview (hmipreview/static/ldiff.css):
+CSS = '\n' + rail.BASE_CSS
 
 # Inside a host page (one such page boxes every section, draws a grid on every cell, makes th text
 # white): what the host sets on bare elements and on the text the fragment inherits stops at the fragment, back to
@@ -37,19 +39,19 @@ CSS += """
 .ldiff button{display:inline-block;width:auto;height:auto;min-width:0;min-height:0;margin:0;border-radius:0;
   box-shadow:none;text-align:center;text-transform:none;letter-spacing:normal;word-spacing:normal;text-indent:0;
   text-shadow:none;vertical-align:baseline}
-.ldiff svg{display:inline;max-width:none;max-height:none;overflow:hidden;vertical-align:baseline;fill:#000;stroke:none}
+.ldiff svg{display:inline;max-width:none;max-height:none;overflow:hidden;vertical-align:baseline;fill:var(--text);stroke:none}
 """
 
 CSS += """
 .ldiff .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin:6px 0 10px;font-size:12.5px;color:var(--muted)}
 .ldiff .bar .k{display:inline-flex;align-items:center;gap:6px}
-.ldiff .sw{display:inline-block;width:16px;height:11px;border:1px solid #8c8c8c}
-.ldiff .sw.add{background:var(--add-bg)} .ldiff .sw.del{background:var(--del-bg)}
-.ldiff .sw.chg{background:var(--chg-bg)}
-.ldiff .sw.mov{background:var(--mov-bg)}
-.ldiff button{font:12px "Segoe UI",Arial,sans-serif;color:#000;background:#f0f0f0;border:1px solid #adadad;padding:2px 10px;cursor:pointer}
-.ldiff button:hover{background:#e5e5e5}
-.ldiff .nw{border:1px solid var(--band);margin:10px 0;background:#fff}
+.ldiff .sw{display:inline-block;width:16px;height:11px;border:1px solid var(--mark-line)}
+.ldiff .sw.add{background:var(--added-fill)} .ldiff .sw.del{background:var(--removed-fill)}
+.ldiff .sw.chg{background:var(--changed-fill)}
+.ldiff .sw.mov{background:var(--moved-fill)}
+.ldiff button{font:12px "Segoe UI",Arial,sans-serif;color:var(--button-text);background:var(--button);border:1px solid var(--button-line);padding:2px 10px;cursor:pointer}
+.ldiff button:hover{background:var(--button-hover)}
+.ldiff .nw{border:1px solid var(--band);margin:10px 0;background:var(--page)}
 .ldiff .nwh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;background:var(--band);padding:3px 8px}
 .ldiff .nwh b{font-size:13px}
 .ldiff .nwh .tag{margin-left:auto;font:10.5px Consolas,monospace;color:var(--muted);letter-spacing:.05em}
@@ -59,46 +61,47 @@ CSS += """
 .ldiff .pb{overflow:hidden;padding:4px 2px;box-sizing:border-box}
 .ldiff .pb svg.lad{display:block;width:var(--fw,100%);height:auto;cursor:zoom-in}
 .ldiff .nw.zoom .pb svg.lad{width:auto;max-width:none}
-.ldiff .empty{padding:18px 12px;color:#8c8c8c;font-style:italic}
+.ldiff .empty{padding:18px 12px;color:var(--faint);font-style:italic}
 .ldiff table.scl{border-collapse:collapse;width:100%;font:12px/1.4 Consolas,"Courier New",monospace;table-layout:fixed}
 .ldiff table.scl td{padding:0 6px;vertical-align:top;white-space:break-spaces;word-break:normal;overflow-wrap:anywhere;border:0}
-.ldiff table.scl td.ln{width:3.2em;color:#8c8c8c;text-align:right;user-select:none;border-right:1px solid var(--grid);white-space:nowrap}
-.ldiff table.scl td.del{background:var(--del-bg)} .ldiff table.scl td.ins{background:var(--add-bg)}
-.ldiff table.scl td.del span:not([class]){background:var(--del-word)}
-.ldiff table.scl td.ins span:not([class]){background:var(--add-word)}
-.ldiff table.scl td.nil{background:#f5f5f5}
+.ldiff table.scl td.ln{width:3.2em;color:var(--faint);text-align:right;user-select:none;border-right:1px solid var(--grid);white-space:nowrap}
+.ldiff table.scl td.del{background:var(--removed-fill)} .ldiff table.scl td.ins{background:var(--added-fill)}
+.ldiff table.scl td.del span:not([class]){background:var(--removed-word)}
+.ldiff table.scl td.ins span:not([class]){background:var(--added-word)}
+.ldiff table.scl td.nil{background:var(--no-line)}
 .ldiff table.scl tr.skip td{background:var(--row);color:var(--muted);font:italic 11.5px "Segoe UI",Arial,sans-serif;text-align:center;cursor:pointer}
 .ldiff table.scl tr.ctx{display:none}
 .ldiff .nw.all table.scl tr.ctx{display:table-row} .ldiff .nw.all table.scl tr.skip{display:none}
 """
 CSS += scl_colours.CSS      # the words of an SCL line in TIA's colours: a class per kind, the changed word a plain span
+CSS += render_lad.CSS       # a ladder's parts, each a class of its SVG
 
 # Block header as TIA's "Block title:" band; tables as TIA's table editors: grey column heads,
 # light grid, section rows in the field grey. Box columns as narrow as their headings' words; an interface table still
 # wider than the report scrolls sideways in its frame, not the page (1000 px window, tree open).
 CSS += """
 .ldiff .blk{margin:16px 0 24px}
-.ldiff .bh{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;background:var(--band);border-bottom:1px solid #b2b2b2;
+.ldiff .bh{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;background:var(--band);border-bottom:1px solid var(--edge);
   padding:3px 8px}
 .ldiff .bh b{font-size:15px}
 .ldiff .bh .paths{margin-left:auto;font-size:12px;color:var(--muted);word-break:break-all}
-.ldiff .bh .st{font:bold 11px Arial;padding:0 6px;border-radius:2px;color:#fff}
-.ldiff .ver{font-weight:bold;white-space:nowrap} .ldiff .ver i{font:bold 10.5px Arial;color:var(--chg)}
-.ldiff .ver i.rel{color:var(--add)}
-.ldiff .lib{white-space:nowrap} .ldiff .lib.differs{background:var(--chg-bg);border:1px solid var(--chg);padding:0 5px}
-.ldiff .bh .st.new{background:var(--add)} .ldiff .bh .st.deleted{background:var(--del)} .ldiff .bh .st.same{background:#8c8c8c}
-.ldiff .bh .st.version{background:#6b6b6b} .ldiff .bh .st.moved{background:var(--mov)}
+.ldiff .bh .st{font:bold 11px Arial;padding:0 6px;border-radius:2px;color:var(--badge-text)}
+.ldiff .ver{font-weight:bold;white-space:nowrap} .ldiff .ver i{font:bold 10.5px Arial;color:var(--changed)}
+.ldiff .ver i.rel{color:var(--added)}
+.ldiff .lib{white-space:nowrap} .ldiff .lib.differs{background:var(--changed-fill);border:1px solid var(--changed);padding:0 5px}
+.ldiff .bh .st.new{background:var(--added)} .ldiff .bh .st.deleted{background:var(--removed)} .ldiff .bh .st.same{background:var(--same)}
+.ldiff .bh .st.version{background:var(--version)} .ldiff .bh .st.moved{background:var(--moved)}
 .ldiff section.blk.mvd.mvd{display:none}
 .ldiff details.mvd{margin:8px 0} .ldiff details.mvd summary{cursor:pointer}
 .ldiff details.oth summary{cursor:pointer} .ldiff details.oth>div{margin-top:6px;overflow-wrap:anywhere}
-.ldiff .bh .nsh{background:var(--chg-bg);border:1px solid var(--chg);padding:0 5px}
+.ldiff .bh .nsh{background:var(--changed-fill);border:1px solid var(--changed);padding:0 5px}
 .ldiff .bh .fa{display:inline-flex;gap:4px}
 .ldiff .bh .fa button{padding:0 7px;font-size:11px;line-height:16px}
 @media print{.ldiff .bh .fa{display:none}}
 .ldiff table.sum{border-collapse:collapse;width:100%;font-size:13px;margin:6px 0 4px}
 .ldiff table.sum th{background:var(--band);font-weight:normal;text-align:left;padding:2px 8px;border:1px solid var(--line)}
 .ldiff table.sum td{border:1px solid var(--grid);padding:2px 8px}
-.ldiff table.sum a{color:#000;text-decoration:underline;text-decoration-color:#8c8c8c}
+.ldiff table.sum a{color:var(--text);text-decoration:underline;text-decoration-color:var(--link-underline)}
 .ldiff table.itf{border-collapse:collapse;width:100%;font-size:12.5px}
 .ldiff table.itf td{border-bottom:1px solid var(--row);padding:2px 8px;vertical-align:top;white-space:pre-wrap}
 .ldiff table.itf tr.sec td{background:var(--field);border-top:1px solid var(--line)}
@@ -107,20 +110,20 @@ CSS += """
 .ldiff table.itf td.c{text-align:center;width:56px;padding:2px 4px} .ldiff table.itf tr.hd td.c{font-size:10.5px;line-height:1.2}
 .ldiff .itfw{overflow-x:auto} @media print{.ldiff .itfw{overflow:visible}}
 .ldiff table.itf .tw{display:inline-block;width:14px;font-size:11px}
-.ldiff table.itf .cb{display:inline-block;width:12px;height:12px;border:1px solid #8c8c8c;border-radius:2px;background:#fff;vertical-align:-2px;position:relative}
-.ldiff table.itf .cb.on{background:#2f7fd0;border-color:#1d5fa3}
-.ldiff table.itf .cb.on::after{content:'';position:absolute;left:3.5px;top:0.5px;width:3px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.ldiff table.itf .cb.dis{border-color:#b5b5b5;background:#e7e8e8} .ldiff table.itf .cb.dis.on{background:#f7f9fb;border-color:#7e7e7e} .ldiff table.itf .cb.dis.on::after{border-color:#666}
+.ldiff table.itf .cb{display:inline-block;width:12px;height:12px;border:1px solid var(--checkbox-line);border-radius:2px;background:var(--checkbox);vertical-align:-2px;position:relative}
+.ldiff table.itf .cb.on{background:var(--checkbox-on);border-color:var(--checkbox-on-line)}
+.ldiff table.itf .cb.on::after{content:'';position:absolute;left:3.5px;top:0.5px;width:3px;height:7px;border:solid var(--checkbox-tick);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.ldiff table.itf .cb.dis{border-color:var(--checkbox-off-line);background:var(--checkbox-off)} .ldiff table.itf .cb.dis.on{background:var(--checkbox-off-on);border-color:var(--checkbox-off-on-line)} .ldiff table.itf .cb.dis.on::after{border-color:var(--checkbox-off-tick)}
 .ldiff table.itf .tx .cb{margin:0 3px}
-.ldiff table.itf .dflt,.ldiff table.itf .inh{color:#8c8c8c}
+.ldiff table.itf .dflt,.ldiff table.itf .inh{color:var(--faint)}
 .ldiff table.itf tr.skip td{text-align:left}
-.ldiff table.itf tr.ins td{background:var(--add-bg)} .ldiff table.itf tr.del td{background:var(--del-bg)}
+.ldiff table.itf tr.ins td{background:var(--added-fill)} .ldiff table.itf tr.del td{background:var(--removed-fill)}
 .ldiff table.itf tr.del td.nm{text-decoration:line-through}
-.ldiff table.itf tr.chg td{background:#fffbe8}
-.ldiff table.itf tr.mov td{background:#eef4fa;border-top:2px dashed var(--mov);border-bottom:2px dashed var(--mov)}
+.ldiff table.itf tr.chg td{background:var(--changed-row)}
+.ldiff table.itf tr.mov td{background:var(--moved-row);border-top:2px dashed var(--moved);border-bottom:2px dashed var(--moved)}
 .ldiff table.itf td.dis{background-color:var(--field)}
-.ldiff table.itf tr.ins td.dis,.ldiff table.itf tr.del td.dis,.ldiff table.itf tr.chg td.dis,.ldiff table.itf tr.mov td.dis{background-image:linear-gradient(#0000000f,#0000000f)}
-.ldiff table.itf tr:not(.ins):not(.del):not(.chg):not(.mov):has(>td.nm[data-u])>td{background-color:#f4f4f4}
+.ldiff table.itf tr.ins td.dis,.ldiff table.itf tr.del td.dis,.ldiff table.itf tr.chg td.dis,.ldiff table.itf tr.mov td.dis{background-image:linear-gradient(var(--off-over-mark),var(--off-over-mark))}
+.ldiff table.itf tr:not(.ins):not(.del):not(.chg):not(.mov):has(>td.nm[data-u])>td{background-color:var(--opened-member)}
 .ldiff table.itf .ex{font-size:11.5px;color:var(--muted);white-space:normal}
 .ldiff table.itf td.tn{white-space:nowrap} .ldiff table.itf tr.del td.tn>span{text-decoration:line-through}
 .ldiff table tr.ctx{display:none}
@@ -194,30 +197,30 @@ r.querySelectorAll('.nw').forEach(function(n){
 # stay with what follows, a LAD network that fits a page is not split (a longer one, SCL and the Interface table break
 # where they must); a fold row says "N unchanged lines" without "(click to show all)".
 CSS += """
-.ldiff .nwt{position:relative;display:grid;grid-template-columns:1fr 1fr;background:#d9d9d9;padding:2px 0;
-  font:13px/1.55 Consolas,"Courier New",monospace;color:#000;cursor:pointer;user-select:none}
+.ldiff .nwt{position:relative;display:grid;grid-template-columns:1fr 1fr;background:var(--band);padding:2px 0;
+  font:13px/1.55 Consolas,"Courier New",monospace;color:var(--text);cursor:pointer;user-select:none}
 .ldiff .nwt::before,.ldiff .ht::before{content:'';position:absolute;left:8px;top:50%;margin-top:-3px;border:5px solid transparent;
-  border-top:6px solid #222;border-bottom:0}
-.ldiff .nw.fold .nwt::before,.ldiff .hc.shut .ht::before{left:10px;margin-top:-5px;border:5px solid transparent;border-left:6px solid #222;border-right:0}
+  border-top:6px solid var(--icon);border-bottom:0}
+.ldiff .nw.fold .nwt::before,.ldiff .hc.shut .ht::before{left:10px;margin-top:-5px;border:5px solid transparent;border-left:6px solid var(--icon);border-right:0}
 .ldiff .nwt .side{display:flex;align-items:stretch;min-width:0;padding:0 8px 0 24px}
-.ldiff .nwt .no{font-weight:bold;background:#c3c3c3;padding:0 12px 0 6px;white-space:nowrap}
-.ldiff .nwt .ti{flex:1 1 auto;min-width:0;background:#e1e1e1;padding:0 8px;white-space:pre-wrap}
-.ldiff .nwt .st{align-self:center;margin-left:10px;font:bold 11px/1.4 Arial;padding:0 6px;border:1px solid #8c8c8c;
-  border-radius:2px;color:#000}
-.ldiff .nwt .st.new{background:var(--add-bg)} .ldiff .nwt .st.deleted{background:var(--del-bg)}
-.ldiff .nwt .st.changed{background:var(--chg-bg)} .ldiff .nwt .st.moved{background:var(--mov-bg)}
+.ldiff .nwt .no{font-weight:bold;background:var(--network-number);padding:0 12px 0 6px;white-space:nowrap}
+.ldiff .nwt .ti{flex:1 1 auto;min-width:0;background:var(--field);padding:0 8px;white-space:pre-wrap}
+.ldiff .nwt .st{align-self:center;margin-left:10px;font:bold 11px/1.4 Arial;padding:0 6px;border:1px solid var(--mark-line);
+  border-radius:2px;color:var(--text)}
+.ldiff .nwt .st.new{background:var(--added-fill)} .ldiff .nwt .st.deleted{background:var(--removed-fill)}
+.ldiff .nwt .st.changed{background:var(--changed-fill)} .ldiff .nwt .st.moved{background:var(--moved-fill)}
 .ldiff .nwc{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--grid)}
 .ldiff .nwc .side{min-width:0;padding:4px 8px 5px 30px}
 .ldiff .nwc .side+.side{border-left:1px solid var(--grid)}
 .ldiff .nwc .cf{display:block;min-height:1.55em;background:var(--field);padding:0 8px;
   font:13px/1.55 Consolas,"Courier New",monospace;white-space:pre-wrap}
-.ldiff .nwc .cf.none{color:#808080}
-.ldiff .nwt .ti.del,.ldiff .nwc .cf.del{background:var(--del-bg)} .ldiff .nwt .ti.ins,.ldiff .nwc .cf.ins{background:var(--add-bg)}
-.ldiff .nwt .ti.del span,.ldiff .nwc .cf.del span{background:var(--del-word)}
-.ldiff .nwt .ti.ins span,.ldiff .nwc .cf.ins span{background:var(--add-word)}
-.ldiff .tx{display:inline-block;max-width:100%;padding:0 3px} .ldiff .tx.del{background:var(--del-bg)}
-.ldiff .tx.ins{background:var(--add-bg)}
-.ldiff .tx.del span:not([class]){background:var(--del-word)} .ldiff .tx.ins span:not([class]){background:var(--add-word)}
+.ldiff .nwc .cf.none{color:var(--empty-field-text)}
+.ldiff .nwt .ti.del,.ldiff .nwc .cf.del{background:var(--removed-fill)} .ldiff .nwt .ti.ins,.ldiff .nwc .cf.ins{background:var(--added-fill)}
+.ldiff .nwt .ti.del span,.ldiff .nwc .cf.del span{background:var(--removed-word)}
+.ldiff .nwt .ti.ins span,.ldiff .nwc .cf.ins span{background:var(--added-word)}
+.ldiff .tx{display:inline-block;max-width:100%;padding:0 3px} .ldiff .tx.del{background:var(--removed-fill)}
+.ldiff .tx.ins{background:var(--added-fill)}
+.ldiff .tx.del span:not([class]){background:var(--removed-word)} .ldiff .tx.ins span:not([class]){background:var(--added-word)}
 @media print{.ldiff .ti.del,.ldiff .ti.ins,.ldiff .cf.del,.ldiff .cf.ins,.ldiff .tx,.ldiff table.scl td,.ldiff table.hd td,
   .ldiff table.itf tr td{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 .ldiff .nw.fold>:not(.nwt){display:none}
@@ -227,17 +230,17 @@ CSS += """
 .ldiff .nw.zoom .pb{cursor:grab}
 .ldiff .nw.zoom .pb svg.lad{cursor:inherit}
 .ldiff .nw.zoom .pb.drag{cursor:grabbing;user-select:none}
-.ldiff .mm{position:absolute;right:22px;bottom:22px;background:#fff;border:1px solid #8c8c8c;opacity:.35;
-  box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:crosshair;transition:opacity .15s}
+.ldiff .mm{position:absolute;right:22px;bottom:22px;background:var(--page);border:1px solid var(--window-line);opacity:.35;
+  box-shadow:0 1px 4px var(--shadow);cursor:crosshair;transition:opacity .15s}
 .ldiff .mm:hover{opacity:.92}
 .ldiff .mm svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
-.ldiff .mm .vw{position:absolute;border:1.5px solid #3c3c3c;background:rgba(0,0,0,.08);pointer-events:none}
+.ldiff .mm .vw{position:absolute;border:1.5px solid var(--minimap-view-line);background:var(--minimap-view);pointer-events:none}
 .ldiff .top{display:none;position:fixed;right:16px;bottom:16px;z-index:20;width:32px;height:32px;padding:0;
-  box-shadow:0 1px 4px rgba(0,0,0,.25)}
+  box-shadow:0 1px 4px var(--shadow)}
 .ldiff .top.show{display:block}
-.ldiff .top::before{content:'';position:absolute;left:9px;top:8px;width:12px;border-top:2px solid #222}
+.ldiff .top::before{content:'';position:absolute;left:9px;top:8px;width:12px;border-top:2px solid var(--icon)}
 .ldiff .top::after{content:'';position:absolute;left:9px;top:13px;border:6px solid transparent;
-  border-bottom:7px solid #222;border-top:0}
+  border-bottom:7px solid var(--icon);border-top:0}
 """
 
 # Network title folds its network; a zoomed ladder pans by drag (both panes follow through the scroll sync above),
@@ -296,7 +299,7 @@ CSS += """
 .ldiff table.itf tr.mf-hid{display:none!important}
 .ldiff table.itf tr.mf-pa>td:first-child{cursor:pointer}
 .ldiff table.itf tr.mf-shut.mf-holds>td:first-child::after{content:'holds a change';margin-left:8px;padding:0 5px;font-size:11px;
-  background:var(--chg-bg);border:1px solid var(--chg);white-space:nowrap}
+  background:var(--changed-fill);border:1px solid var(--changed);white-space:nowrap}
 """
 JS += """
 (function(){var r=document.currentScript&&document.currentScript.closest('.ldiff');if(!r)return;
@@ -708,10 +711,10 @@ LEGEND = ('<div class="bar"><span class="k"><span class="sw add"></span>added</s
 # (.nw, .panes), so the halves line up with the panes; a block a summary link jumps to stops below it.
 CSS += """
 .ldiff .cols{position:sticky;top:0;z-index:10;display:grid;grid-template-columns:1fr 1fr;
-  background:var(--row);border:1px solid var(--band);border-bottom-color:#b2b2b2;font-size:12.5px;color:var(--muted)}
+  background:var(--row);border:1px solid var(--band);border-bottom-color:var(--edge);font-size:12.5px;color:var(--muted)}
 .ldiff .cols .side{min-width:0;padding:3px 8px;word-break:break-all}
 .ldiff .cols .side+.side{border-left:1px solid var(--grid)}
-.ldiff .cols b{color:#000;font-weight:600;margin-right:8px}
+.ldiff .cols b{color:var(--text);font-weight:600;margin-right:8px}
 .ldiff .bh{scroll-margin-top:32px}
 """
 
@@ -892,10 +895,10 @@ FOCUS_CSS = """
   display:flex;align-items:center;justify-content:center}
 .ldiff .nwt .fl{position:absolute;right:33px;top:50%;width:24px;height:18px;margin-top:-9px;padding:0;
   display:none;align-items:center;justify-content:center}
-.ldiff .nwt .fx svg,.ldiff .nwt .fl svg{fill:none;stroke:#222;stroke-width:1.5}
+.ldiff .nwt .fx svg,.ldiff .nwt .fl svg{fill:none;stroke:var(--icon);stroke-width:1.5}
 .ldiff .nwt .fx .i,.ldiff .fcs .nwt .fx .o{display:none} .ldiff .fcs .nwt .fx .i{display:inline}
 .ldiff .nwph{margin:10px 0}
-.ldiff .fcs{position:fixed;inset:0;z-index:35;overflow:auto;overscroll-behavior:contain;background:#fff;padding:0 16px 16px}
+.ldiff .fcs{position:fixed;inset:0;z-index:35;overflow:auto;overscroll-behavior:contain;background:var(--page);padding:0 16px 16px}
 .ldiff .fcs[hidden]{display:none}
 .ldiff .fcs:focus{outline:none}
 .ldiff .fcs.lad .nwt .fl{display:flex} .ldiff .fcs.lad .nwt .side+.side{padding-right:8px}
@@ -919,7 +922,7 @@ FOCUS_CSS = """
 .ldiff :is(.fcs.stk,.nw.stk) .pane>.sl{display:block;position:absolute;left:0;top:0;bottom:0;width:22px;padding:6px 0;
   writing-mode:vertical-rl;transform:rotate(180deg);text-align:end;background:var(--row);border-left:1px solid var(--grid);
   font-size:12px;line-height:21px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ldiff :is(.fcs.stk,.nw.stk) .pane>.sl b{color:#000;font-weight:600;margin-inline-end:8px}
+.ldiff :is(.fcs.stk,.nw.stk) .pane>.sl b{color:var(--text);font-weight:600;margin-inline-end:8px}
 .ldiff :is(.fcs.stk,.nw.stk) .empty{padding:4px 10px;font-size:11.5px}
 .ldiff .fcs.lad{display:flex;flex-direction:column;overflow:hidden;padding:0}
 .ldiff .fcs.lad>.cols{flex:none}
@@ -1111,14 +1114,16 @@ def _names_html(head, names, folded):
 
 
 def render(diffs, before_label, after_label, fragment=False, title=None, full=False, hmi=None, lang='en-US',
-           draw_added_removed=True, plc_tags=None, not_compared=(), source_note=None, other_files=(), across=()):
+           draw_added_removed=True, plc_tags=None, not_compared=(), source_note=None, other_files=(), across=(),
+           theme=None):
     """diffs: [compare.BlockDiff]. fragment: only the <div class="ldiff"> (with its style and script). hmi: an
     hmi.HmiPart, its objects after the blocks (tree, sections, summary). draw_added_removed: as listed(). plc_tags: a
     plctags.PlcTagPart, its tables between the blocks and the HMI objects. not_compared: [(path, why)] of the files
     not compared: named, and the page does not say "No changes." over them. source_note: stands
     under the page's title, what a report of a git repo cannot see. other_files: the changed files it does not read
     (otherfiles.py), the same as not_compared. across: the names of the blocks read from .s7dcl on one side and
-    SimaticML on the other (across_names), after "No changes." where nothing changed."""
+    SimaticML on the other (across_names), after "No changes." where nothing changed. theme: a theme.Theme, None
+    TIA's native one; its block of the palette goes into the <style>, on :root for a page of its own."""
     from . import hmi as hmipart
     others = (plc_tags.items if plc_tags else []) + (hmi.items if hmi else [])
     n = len(diffs) + len(others)
@@ -1141,7 +1146,8 @@ def render(diffs, before_label, after_label, fragment=False, title=None, full=Fa
     rail = (tree_html(diffs, others) + LAUNCHER + LOADING % n + '<script>%s</script>' % WAIT_JS
             if n and not fragment else '')
     frag = '<div class="ldiff"%s><style>%s</style>%s%s%s<script>%s</script></div>' % (
-        '' if fragment else ' data-page', CSS + (RAIL_CSS + FOCUS_CSS if rail else '') + (hmipart.css() if hmi else ''),
+        '' if fragment else ' data-page',
+        themes.css(theme, page=not fragment) + CSS + (RAIL_CSS + FOCUS_CSS if rail else '') + (hmipart.css() if hmi else ''),
         rail, ''.join(body), hmi.data_html(lang) if hmi else '',
         JS + (RAIL_JS + FOCUS_JS if rail else '') + (hmipart.js() if hmi else ''))
     if fragment:
@@ -1152,9 +1158,10 @@ def render(diffs, before_label, after_label, fragment=False, title=None, full=Fa
                  'HMI changes' if hmi else 'PLC tag changes')
     return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1"><title>%s</title><style>'
-            'body{margin:0;background:#fff;font:13px/1.45 "Segoe UI",Arial,Helvetica,sans-serif;color:#000}'
+            'body{margin:0;background:var(--page);font:13px/1.45 "Segoe UI",Arial,Helvetica,sans-serif;color:var(--text)}'
             'main{padding:0 16px 40px}'
-            'header{background:#f0f0f0;border-bottom:1px solid #c8c8c8;margin:0 -16px 8px;padding:8px 16px}'
+            'header{background:var(--page-head);border-bottom:1px solid var(--page-head-line);margin:0 -16px 8px;'
+            'padding:8px 16px}'
             'h1{font-size:17px;margin:0}header p{margin:2px 0 0}'
             'main:has(>.ldiff>.rail){margin-left:260px}main:has(>.ldiff.rail-off){margin-left:28px}'
             'main:has(>.ldiff.flat){margin-left:0}@media print{main{margin-left:0!important}}@page{size:A4 landscape}'
