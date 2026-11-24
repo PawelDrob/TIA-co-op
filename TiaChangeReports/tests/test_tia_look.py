@@ -506,10 +506,10 @@ class RungEndsLikeTia(unittest.TestCase):
         return lay.right - END_IN
 
     def test_the_bar(self):
-        self.assertEqual((END_IN, END_H, END_W, STUB), (5.4, 5.4, 1.2, 41))
+        self.assertEqual((END_IN, END_H, END_W, STUB), (5.4, 5.4, 1.8, 41))
         lay = self.nets[1]
         x, y = lay.ends()[0]
-        self.assertIn('<rect class="end" x="%.1f" y="%.1f" width="1.2" height="5.4" fill="#1a1a1a"/>'
+        self.assertIn('<rect class="end" x="%.1f" y="%.1f" width="1.8" height="5.4" fill="#1a1a1a"/>'
                       % (x - END_W, y - END_H / 2), lay.svg())
 
     def test_one_coil(self):
