@@ -4,7 +4,7 @@ title: Testing
 description: What each test suite covers and what it fakes, what the commit hook runs across tools, and what only a real TIA can show.
 tags: [dev, testing]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-23T13:44:22-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T17:30:00-05:00 }
 ---
 
 # Testing
@@ -19,10 +19,10 @@ No suite the hook runs needs TIA, a window or a person, so anyone can run them a
 |---|---|---|
 | `TiaBridge\Tests\*.Tests.ps1` (Pester 3.4) | The tools' logic, the MCP loop over piped JSON, repo mapping, save rules, guards. `WriteGate.Tests.ps1` fails for a new tool until it is classified as write or read | Fake Openness objects, no TIA |
 | `TiaBridge\Tests\parse.ps1` | Every script parses in PowerShell 5.1 and is ASCII | |
-| `TiaChangeReports\tests\` | Readers, diff, layout and page. `verify.py` rebuilds the nets from the drawn lines and matches them to the parsed network. The block viewer too: its drawing against the report's, and its registration for a double-click, written to a key of the test's own under `HKEY_CURRENT_USER` and removed after. Page scripts, as the folds, in headless Edge or Chrome, skipped without one. The two formats against each other (`twoformats.py`) on three commits. The SCL colours (`test_scl_colours.py`) over every SCL network of the fixtures; over the project repos the environment variable `TIA_CR_SCL_REPOS` names (paths apart by `;`), such as the benchmark project's, only when it is set | Real export formats with a made-up plant (`tests\fixtures\`); a stand-in for the default browser; for the two formats, real files of the two-format benchmark run (`tests\fixtures\twoformats\`); for the SCL colours, a real export of the benchmark project in both formats (`tests\fixtures\scl-colours\`) |
+| `TiaChangeReports\tests\` | Readers, diff, layout and page. `verify.py` rebuilds the nets from the drawn lines and matches them to the parsed network. The block viewer too: its drawing against the report's, and its registration for a double-click, written to a key of the test's own under `HKEY_CURRENT_USER` and removed after. Page scripts, as the folds, in headless Edge or Chrome, skipped without one; there too the themes (`test_theme.py`): the forms of colour a theme takes and the form the page writes, held to the browser's own reading, and a trial palette that every element follows. The two formats against each other (`twoformats.py`) on three commits. The SCL colours (`test_scl_colours.py`) over every SCL network of the fixtures; over the project repos the environment variable `TIA_CR_SCL_REPOS` names (paths apart by `;`), such as the benchmark project's, only when it is set | Real export formats with a made-up plant (`tests\fixtures\`); a stand-in for the default browser; for the two formats, real files of the two-format benchmark run (`tests\fixtures\twoformats\`); for the SCL colours, a real export of the benchmark project in both formats (`tests\fixtures\scl-colours\`); for the user's own theme file, a path that is not there, set in `TIA_CR_USER_THEME` |
 | `TiaHmiGenerator\Tests\` | Validator rules, generator runs, the preview server over HTTP, and drawing through headless Edge or Chrome, skipped with a reason when neither is found | A fixture project repo built on disk (`Tests\fixture.py`) |
 | `TiaHmiGenerator\catalogue\build.py --check` | The catalogue and its generated page agree with their inputs | |
-| `TiaArchiveCompare\runner\tests\` | A whole run, with the report step for real | `fake.FakeExporter` for TIA, `tests\fake_bridge.py` for the bridge |
+| `TiaArchiveCompare\runner\tests\` | A whole run, with the report step for real | `fake.FakeExporter` for TIA, `tests\fake_bridge.py` for the bridge; for the user's own theme file, a path that is not there, set in `TIA_CR_USER_THEME` |
 | `TiaArchiveCompare\window\tests\` | The window's model, with no window and no process | |
 | `TiaArchiveCompare\package\tests\` | Which tracked files the download holds, and its version against the tag and the bridge's | A made-up repo for the versions |
 | `TiaAgentStatus\tests\` | Rows, orphans, labels, notifications, the page. One test starts a real bridge with no tools | A fake process table, a fake [herdr](https://herdr.dev) |

@@ -33,23 +33,26 @@ JUMPS = os.path.join(HERE, 'fixtures', 'Jumps.s7dcl')
 # The files whose colours the palette holds: each must keep none of its own.
 SOURCES = ['TiaChangeReports/render_lad.py', 'TiaChangeReports/scl_colours.py', 'TiaChangeReports/page.py',
            'TiaChangeReports/viewer/view.py', 'TiaChangeReports/hmi.css', 'TiaHmiGenerator/hmipreview/static/ldiff.css',
-           'TiaHmiGenerator/hmipreview/static/rail.css']
+           'TiaHmiGenerator/hmipreview/static/rail.css', 'TiaHmiGenerator/hmipreview/static/rail.js']
 ROOT = os.path.dirname(os.path.dirname(HERE))
 LAYOUT = {'--fw', '--fh', '--mb', '--width-in-pane'}                # custom properties of the layout, no colours
 
-# A colour outside the palette is found two ways.
-# 1. By its property, with no list of CSS's names: a property that takes a colour and nothing else (color,
-#    background-color, border-color and each *-color; an SVG's fill, stroke, stop-color, flood-color,
-#    lighting-color), in CSS or as an attribute, with any value but the palette's var(--name), none, transparent,
-#    currentColor and inherit.
-#    In a source, var(%s) is a template: the page it writes is checked with the name.
+# A colour outside the palette is found three ways.
+# 1. By its property, with no list of CSS's names: a property that takes a colour and nothing else (PROPERTY: color,
+#    each *-color as background-color, stop-color or lighting-color, bgcolor, fill, stroke), in CSS or as an attribute
+#    of an element, with any value but the palette's var(--name), none, transparent, currentColor and inherit.
+#    In a source, var(%s) is a template: the page it writes is checked with the name. On a page it is a finding.
 # 2. Anywhere else, so in a shorthand (border, background, outline, box-shadow, ...), a gradient or a filter: #hex, a
 #    colour function (COLOUR), or a word of CSS Color 4's lists of named and system colours in a declaration's value
 #    (COLOUR_NAME; not a word of a text, "drawn faint"). A value of a property that names properties (transition) is no
 #    colour. In a source the names are not looked for in a script (a JS string), whose words they are ("window").
+# 3. In a script, what it gives an element's style (script_css): style.backgroundColor = ..., style.background = ...,
+#    setAttribute('fill', ...), style.setProperty('border-color', ...), and the declarations of a cssText or a style
+#    attribute, each read as the CSS declaration it makes and checked by 1 and 2, names too. A colour a script gives
+#    from a variable (style.color = c) is found as well: its value is no var(--name).
+PROPERTY = r'(?:[a-z-]*-)?color|bgcolor|fill|stroke'
 KEYWORDS = {'none', 'transparent', 'currentcolor', 'inherit'}
-COLOUR_PROPERTY = re.compile(r'(?<![\w-])((?:[a-z-]*-)?color|fill|stroke)\s*[:=]\s*"?([^;{}<>"\n]*?)\s*(?=[;}"\n]|$)',
-                             re.I)
+COLOUR_PROPERTY = re.compile(r'(?<![\w-])(%s)\s*[:=]\s*"?([^;{}<>"\n]*?)\s*(?=[;}"\n]|$)' % PROPERTY, re.I)
 PALETTE_VALUE = re.compile(r'var\((--[a-z0-9-]+|%s)\)')
 NAMED = (
     # the named colours (148)
@@ -78,17 +81,45 @@ COLOUR_NAME = re.compile(r'(?<![\w-])(?!transition|will-change)[a-z-]+\s*[:=]\s*
                          r'(?<![\w-])(?:%s)(?![\w-])' % '|'.join(NAMED), re.I)
 
 
-def colours_in(text, names=True):
+def colours_in(text, names=True, source=False):
     """The colours text, CSS or what drawn_css makes of a page, holds outside the palette: each a piece of text around
-    it. names: look for colour names in values too."""
+    it. names: look for colour names in values too. source: text of a source, where var(%s) is a template."""
     out = list(COLOUR.finditer(text)) + (list(COLOUR_NAME.finditer(text)) if names else [])
+    allowed = theme.NAMES + (['%s'] if source else [])
     for m in COLOUR_PROPERTY.finditer(text):
-        words = re.sub(r'\s*!important$', '', m.group(2), flags=re.I).split()
+        words = re.sub(r'\s*!important$', '', m.group(2).strip('\'`'), flags=re.I).split()
         palette = [PALETTE_VALUE.fullmatch(w) for w in words]
-        if not words or any(w.lower() not in KEYWORDS and not (v and v.group(1) in theme.NAMES + ['%s'])
+        if not words or any(w.lower() not in KEYWORDS and not (v and v.group(1) in allowed)
                             for w, v in zip(words, palette)):
             out.append(m)
     return sorted({text[max(0, m.start() - 60):m.end() + 10] for m in out})
+
+
+def script_css(js):
+    """The CSS declarations a script gives an element's style, a line each, the quotes taken out of the value:
+    style.backgroundColor = 'x' is background-color:x, setAttribute('fill', 'x') fill:x; a cssText or a style
+    attribute is its declarations."""
+    def value(v):
+        return re.sub(r'[\'"`]', '', v).strip()
+    out = []
+    for m in re.finditer(r'\.style\.([a-zA-Z]+)\s*\+?=\s*([^;}\n]*)', js):
+        prop = re.sub('([A-Z])', lambda c: '-' + c.group(1).lower(), m.group(1))
+        out.append(value(m.group(2)) if prop == 'css-text' else '%s:%s' % (prop, value(m.group(2))))
+    for m in re.finditer(r'\b(?:setAttribute|setProperty)\(\s*[\'"`]([\w-]+)[\'"`]\s*,\s*([^;}\n]*)\)', js):
+        out.append(value(m.group(2)) if m.group(1) == 'style' else '%s:%s' % (m.group(1), value(m.group(2))))
+    return '\n'.join(out)
+
+
+def source_colours(rel, src):
+    """The colours a source file holds outside the palette: a Python file's in its strings, a script's in what it
+    gives an element's style too (script_css), a stylesheet's as it stands."""
+    if rel.endswith('.py'):
+        return (colours_in('\n'.join(strings(src)), names=False, source=True) +
+                colours_in('\n'.join(strings(src, scripts=False)), source=True) +
+                colours_in(script_css('\n'.join(strings(src, only_scripts=True))), source=True))
+    if rel.endswith('.js'):
+        return colours_in(src, names=False, source=True) + colours_in(script_css(src), source=True)
+    return colours_in(src, source=True)
 
 
 def quiet(f, *a):
@@ -124,12 +155,14 @@ def hmi_sides(folder):
 
 
 def drawn_css(html):
-    """What of an HTML page can hold a colour, but its script: the text of each <style>, each style="..." and each
-    colour attribute of an element (fill, stroke, ...)."""
+    """What of an HTML page can hold a colour: the text of each <style>, each style="...", each colour attribute of an
+    element (PROPERTY: fill, stroke, ...), and what each <script> gives an element's style (script_css)."""
+    scripts = re.findall(r'<script\b[^>]*>(.*?)</script>', html, flags=re.S)
     html = re.sub(r'<script\b.*?</script>', '', html, flags=re.S)
     out = re.findall(r'<style>(.*?)</style>', html, re.S)
     out += re.findall(r'\sstyle="([^"]*)"', html)
-    out += ['%s:%s' % m for m in re.findall(r'\s(fill|stroke|stop-color|flood-color|color|bgcolor)="([^"]*)"', html)]
+    out += ['%s:%s' % m for m in re.findall(r'\s(%s)="([^"]*)"' % PROPERTY, html, re.I)]
+    out += [script_css(js) for js in scripts]
     return '\n'.join(out)
 
 
@@ -141,18 +174,17 @@ def colours_outside(html, *blocks):
     return colours_in(drawn_css(html))
 
 
-def strings(src, scripts=True):
+def strings(src, scripts=True, only_scripts=False):
     """The strings of a Python source but its docstrings: its CSS, HTML and SVG, not its prose. scripts: with the
-    strings of a name ending in JS (JS, FOCUS_JS, ...)."""
+    strings of a name ending in JS (JS, FOCUS_JS, ...). only_scripts: those alone."""
     tree = ast.parse(src)
     docs = {id(n.body[0].value) for n in ast.walk(tree)
             if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef)) and n.body and isinstance(n.body[0], ast.Expr)}
-    if not scripts:
-        docs |= {id(c) for n in ast.walk(tree) if isinstance(n, (ast.Assign, ast.AugAssign))
-                 and any(isinstance(t, ast.Name) and t.id.endswith('JS') for t in getattr(n, 'targets', None) or [n.target])
-                 for c in ast.walk(n.value)}
+    js = {id(c) for n in ast.walk(tree) if isinstance(n, (ast.Assign, ast.AugAssign))
+          and any(isinstance(t, ast.Name) and t.id.endswith('JS') for t in getattr(n, 'targets', None) or [n.target])
+          for c in ast.walk(n.value)}
     return [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)
-            and id(n) not in docs]
+            and id(n) not in docs and (id(n) in js if only_scripts else scripts or id(n) not in js)]
 
 
 def trial_values():
@@ -172,7 +204,8 @@ def theme_file(folder, values, name='trial.css', head='--theme-format: 1;'):
 
 class NoColourOutsideThePalette(unittest.TestCase):
     """The page, the fragment and the viewer's page write no colour but in the palette's block (theme.css): none in
-    any style and no colour attribute in the SVG. none, transparent and currentColor are no colours."""
+    any style, no colour attribute in the SVG and none a script gives. none, transparent, currentColor and inherit are
+    no colours."""
 
     @classmethod
     def setUpClass(cls):
@@ -224,26 +257,41 @@ class NoColourOutsideThePalette(unittest.TestCase):
             prop, value = re.split('[:=]', put.replace('"', ''), maxsplit=1)
             for rule in ('.ldiff a{%s:%s}', '.ldiff a:hover{%s:%s}', '.ldiff .fv b:focus-visible{%s:%s;cursor:auto}'):
                 self.assertTrue(colours_outside('<style>%s</style>' % rule % (prop, value)), (rule, put))
-            if prop in ('fill', 'stroke', 'color', 'style'):                          # an attribute of an element
+            if prop == 'style' or re.fullmatch(PROPERTY, prop):                  # an attribute of an element
                 self.assertTrue(colours_outside('<svg><rect %s="%s"/></svg>' % (prop, value)), put)
+        for attr in ('lighting-color="#ff0000"', 'bgcolor="notaname"', 'fill="var(%s)"'):
+            self.assertTrue(colours_outside('<svg><feDiffuseLighting %s/></svg>' % attr), attr)
         self.assertEqual(colours_outside('<p>&#8203;#inAuto 16#00FF, drawn white</p><style>.x{fill:none;'
                                          'stroke:currentColor;background:transparent;border-color:var(--grid)}'
                                          '.y:hover{color:inherit;border:1px solid var(--grid) !important;'
                                          'transition:background .1s}.ldiff-color:hover{x:y}</style>'
                                          '<svg><rect fill="none" stroke="var(--wire)"/></svg>'), [])
 
+    def test_a_colour_a_script_gives_is_found(self):
+        """A script's colour by each of its spellings, names too, on a page, in a Python source's script and in a .js
+        source; what the report's scripts give a style today is none."""
+        for put in ("e.style.color='crimson'", "e.style.backgroundColor='crimson'", "e.style.borderColor = 'red'",
+                    "e.style.background='crimson'", "e.style.boxShadow='0 0 2px tomato'", 'e.style.color=c',
+                    "e.style.outlineColor='#123'", "e.setAttribute('fill','crimson')",
+                    "e.setAttribute('stroke', \"rgb(1,2,3)\")", "e.style.setProperty('background-color','crimson')",
+                    "e.style.setProperty('--wire','red')", "e.style.cssText='background:crimson'",
+                    "e.style.cssText+='color:var(--vscode-foo)'", "e.setAttribute('style','border:1px solid red')"):
+            js = 'function f(e,c){var w=1;%s;e.style.height=w+"px"}' % put
+            self.assertTrue(colours_outside('<script>%s</script>' % js), put)
+            self.assertTrue(source_colours('x.py', 'FOCUS_JS = %r\n' % js), put)
+            self.assertTrue(source_colours('x.js', js), put)
+        clean = ("q.style.width=z?w*z+'px':'';q.style.maxWidth=z?'none':w+'px';e.style.color='var(--wire)';"
+                 "s.style.setProperty('--mb','min('+g+'px,'+100*g/wide+'%)');lin.setAttribute('aria-label',c.ph);"
+                 "de.style.overflow='hidden';var window=1,menu=window")
+        self.assertEqual(colours_outside('<script>%s</script>' % clean), [])
+        self.assertEqual(source_colours('x.js', clean), [])
+
     def test_each_source_file_holds_no_colour(self):
         """The files whose colours the palette took over (SOURCES), read as they are: a colour in one fails here even
         where no page draws it."""
         for rel in SOURCES:
             with open(os.path.join(ROOT, rel), encoding='utf-8') as f:
-                src = f.read()
-            if rel.endswith('.py'):
-                hits = colours_in('\n'.join(strings(src)), names=False)
-                hits += colours_in('\n'.join(strings(src, scripts=False)))
-            else:
-                hits = colours_in(src)
-            self.assertEqual(hits, [], rel)
+                self.assertEqual(source_colours(rel, f.read()), [], rel)
 
 
 class TheNames(unittest.TestCase):

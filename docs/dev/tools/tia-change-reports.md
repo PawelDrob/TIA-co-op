@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T17:16:30-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T17:30:00-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -107,7 +107,7 @@ A self-contained HTML file: nothing is fetched. A summary table and a project tr
 
 ## Colours and themes
 
-Every colour the page, the fragment, the PNG and the block viewer draw is a name of one palette: a CSS custom property on `.ldiff`. The palette and TIA's native theme, its default, are one file, `TiaHmiGenerator\hmipreview\static\tia-theme.css`, beside `ldiff.css` and `rail.css` that the report shares with the HMI preview. It has a line for each name, saying what the name colours and which pairs a theme must keep readable. `theme.py` reads it and a theme of the user's own in its format, and writes the palette's block into a page's `<style>`. `test_theme.py` holds the rest to it: no colour stands outside that block, in any style or in the SVG. A property that takes only a colour (`color`, each `*-color`, `fill`, `stroke`) is found by its value, anything but a name of the palette, `none`, `transparent`, `currentColor` and `inherit`; a colour inside a shorthand or a gradient by its hex, its function or CSS Color 4's lists of named and system colours.
+Every colour the page, the fragment, the PNG and the block viewer draw is a name of one palette: a CSS custom property on `.ldiff`. The palette and TIA's native theme, its default, are one file, `TiaHmiGenerator\hmipreview\static\tia-theme.css`, beside `ldiff.css` and `rail.css` that the report shares with the HMI preview. It has a line for each name, saying what the name colours and which pairs a theme must keep readable. `theme.py` reads it and a theme of the user's own in its format, and writes the palette's block into a page's `<style>`. `test_theme.py` holds the rest to it: no colour stands outside that block, in any style, in the SVG or in what a script gives an element's style. A property that takes only a colour (`color`, each `*-color`, `bgcolor`, `fill`, `stroke`) is found by its value, anything but a name of the palette, `none`, `transparent`, `currentColor` and `inherit`; a colour inside a shorthand or a gradient by its hex, its function or CSS Color 4's lists of named and system colours. A script's `style.backgroundColor = ...`, `setAttribute('fill', ...)`, `setProperty(...)` or `cssText` is read as the declaration it makes and checked the same way.
 
 - **What the renderer writes holds names and no colour.** A ladder's parts carry classes (`l-wire`, `l-box`, `hl added`, ...), and `render_lad.CSS` gives each its `fill` or `stroke` from a name. So a theme changes only the palette's block: the same rendering serves every theme, and a cache of fragments needs no theme in its key. An SVG copied out of the page alone has no colours: its shapes and text fill black, its lines do not show. `--png` is the way to a picture.
 - **The report's own values are written `:where(.ldiff)`,** specificity 0. In a page of its own they go on `:root` instead, so that the page's head and body take them too.
