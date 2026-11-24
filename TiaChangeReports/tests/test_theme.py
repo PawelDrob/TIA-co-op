@@ -239,7 +239,8 @@ class NoColourOutsideThePalette(unittest.TestCase):
         self.assertEqual(colours_outside('<style>%s</style>' % hmipart.css()), [])
 
     def test_the_drawing_writes_no_colour(self):
-        """What the renderer writes, read in its source: no fill or stroke but none, no colour in a string."""
+        """What the renderer writes, read in its source: no fill or stroke attribute but none, no string that is a hex
+        colour (test_each_source_file_holds_no_colour reads the rest)."""
         with open(render_lad.__file__, encoding='utf-8') as f:
             src = f.read()
         self.assertEqual(re.findall(r'(?:fill|stroke)="(?!none")[^"]*"', src), [])
@@ -269,7 +270,8 @@ class NoColourOutsideThePalette(unittest.TestCase):
 
     def test_a_colour_a_script_gives_is_found(self):
         """A script's colour by each of its spellings, names too, on a page, in a Python source's script and in a .js
-        source; what the report's scripts give a style today is none."""
+        source; what a script gives a style the way the report's scripts do (a width, --mb, aria-label, var(--wire)) is
+        no finding."""
         for put in ("e.style.color='crimson'", "e.style.backgroundColor='crimson'", "e.style.borderColor = 'red'",
                     "e.style.background='crimson'", "e.style.boxShadow='0 0 2px tomato'", 'e.style.color=c',
                     "e.style.outlineColor='#123'", "e.setAttribute('fill','crimson')",
@@ -328,7 +330,8 @@ class TheNames(unittest.TestCase):
         self.assertEqual(rows, theme.NAMES)
 
     def test_the_marks_are_one_set(self):
-        """A ladder's marks and the background of an SCL line, an interface row and a badge are the same four names."""
+        """A ladder's four marks are drawn in the palette's --added-fill, --removed-fill, --changed-fill and --moved-fill,
+        and render_lad keeps no FILL of its own."""
         for mark in render_lad.MARKS:
             self.assertIn('.ldiff svg .hl.%s{fill:var(--%s-fill)}' % (mark, mark), render_lad.CSS)
         self.assertFalse(hasattr(render_lad, 'FILL'))
@@ -378,8 +381,9 @@ class ThemeFiles(unittest.TestCase):
         self.assertIn('--shadow:rgba(0,0,0,0.25);--backdrop:rgba(0,0,0,0.18);', theme.css())
 
     def test_another_form_is_refused(self):
-        """Values the browser takes neither (TheFormsOfColour holds the two to one set), and NOT_TAKEN: the forms of
-        CSS Color a theme does not take, a colour's name, hsl() and the rest."""
+        """Values of no form a theme takes (var(), url(), markup, !important, a malformed rgb()), OTHER_SCRIPTS, which
+        TheFormsOfColour holds to the browser, and NOT_TAKEN: the forms of CSS Color the browser takes and a theme does
+        not, a colour's name, hsl() and the rest."""
         for value in ('var(--vscode-editor-foreground)', '#12', 'rgb(1,2)', 'url(x.png)', '#fff</style>', 'rgb(a,b,c)',
                       '#ff00ff !important', 'hsl(1,2,3)', 'rgb(1%,2,3)', 'rgb(1 2,3)', 'rgb(10deg,2,3)', 'rgb(1/2/3)',
                       'rgb(1 2 3 4)', 'rgb(1., 2, 3)') + OTHER_SCRIPTS + NOT_TAKEN:
@@ -501,8 +505,8 @@ class InEdge(unittest.TestCase):
 
 class TheFormsOfColour(InEdge):
     """What a theme takes is what the browser takes, over values near the forms a theme takes (generated_values()),
-    by Edge's CSS.supports('color', ...): a theme never refuses what a browser draws. NOT_TAKEN the browser takes and a
-    theme refuses, by their form."""
+    by Edge's CSS.supports('color', ...): a theme never refuses a value of its forms that the browser draws. NOT_TAKEN
+    the browser takes and a theme refuses, by their form."""
 
     def test_a_theme_takes_what_the_browser_takes(self):
         values = generated_values()
@@ -582,10 +586,12 @@ class TheOptions(unittest.TestCase):
             with open(out, encoding='utf-8') as f:
                 self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', f.read())
             err = io.StringIO()
+            bad_out = os.path.join(d, 'bad.html')
             with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as e:
-                viewer_cli.main([JUMPS, '--html', out, '--theme', theme_file(d, {'--nope': '#000'}, 'bad.css')])
+                viewer_cli.main([JUMPS, '--html', bad_out, '--theme', theme_file(d, {'--nope': '#000'}, 'bad.css')])
             self.assertEqual(e.exception.code, 2)
             self.assertIn('bad.css:3: --nope is no name of the palette', err.getvalue())
+            self.assertFalse(os.path.exists(bad_out))
 
 
 class TheDefaultTheme(unittest.TestCase):
@@ -673,13 +679,15 @@ class TheDefaultTheme(unittest.TestCase):
 PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'border-right-color',
          'border-bottom-color', 'border-left-color', 'outline-color', 'box-shadow', 'text-decoration-color', 'fill',
          'stroke', 'caret-color', 'column-rule-color']
-# An HMI screen (svg.hs but its change outlines, .dl) and a colour value's swatch (.cs) take no theme: the project's
-# colours, render.js's own marks on a screen in colours of their own, and TIA's text and background (theme.SCREEN;
-# ATrialPalette.test_a_screen_takes_no_theme reads those). A moment after load, so that the HMI part has drawn the open
-# object.
+# An HMI screen (svg.hs but its change outlines, .dl, and the frame of the object picked, .obj.sel>.body) and a
+# colour value's swatch (.cs) take no theme: the project's colours, render.js's own marks on a screen in colours of
+# their own, and TIA's text and background (theme.SCREEN). The line round a screen (svg.hs's box-shadow) and a swatch's
+# frame take it. ATrialPalette.test_a_screen_takes_no_theme reads a screen's. A moment after load, so that the HMI part
+# has drawn the open object; then, with pick, the first change is clicked.
 PROBE = """<script>addEventListener('load',function(){setTimeout(function(){var P=%s,o=[];
+if(%s){var c=document.querySelector('.hc');if(c)c.click()}
 [].forEach.call(document.querySelectorAll('%s'),function(e){if(e.closest('script,style,.cs'))return;
- if(%s&&e.closest('svg.hs')&&!e.closest('.dl'))return;
+ if(%s&&e.closest('svg.hs')&&!e.closest('.dl')&&!e.matches('.obj.sel>.body'))return;
  var svg=e instanceof SVGElement;
  [null,'::before','::after'].forEach(function(p){var c=getComputedStyle(e,p);if(p&&c.content=='none')return;
   P.forEach(function(k){if(!svg&&(k=='fill'||k=='stroke'))return;var v=c.getPropertyValue(k);o.push([e.tagName.toLowerCase()+'.'+(e.getAttribute('class')||'')+
@@ -688,10 +696,10 @@ var x=document.createElement('pre');x.id='colours';x.textContent=JSON.stringify(
 </script>"""
 
 
-def computed(edge, html, folder, name, inside='body', screen=False):
+def computed(edge, html, folder, name, inside='body', screen=False, pick=False):
     """[(element, property, value)] of every element of html at or inside the selector inside; screen: an HMI
-    screen's too."""
-    probe = PROBE % (json.dumps(PROPS), '%s,%s *' % (inside, inside), 'false' if screen else 'true')
+    screen's too; pick: after the first change of the HMI part is clicked, its object picked."""
+    probe = PROBE % (json.dumps(PROPS), json.dumps(pick), '%s,%s *' % (inside, inside), 'false' if screen else 'true')
     i = html.rfind('</body>')
     html = html[:i] + probe + html[i:]
     path = os.path.join(folder, name)
@@ -749,7 +757,8 @@ class ATrialPalette(unittest.TestCase):
 
     def test_a_screen_takes_no_theme(self):
         """An HMI screen with no BackColor of its own and an object not drawn: its background and the label that says
-        so are TIA's white and black under any theme, as on a page of TIA's; a change outline on it takes the theme."""
+        so are TIA's white and black under any theme, as on a page of TIA's; the line round it, a change outline on it
+        and the frame of the object picked take the theme."""
         from TiaChangeReports.tests.test_hmi_part import ROOT_ATTRS, rect, screen
         odd = ('<Hmi.Screen.NoSuchThing ID="3" CompositionName="ScreenItems"><AttributeList><Height>40</Height>'
                '<Left>100</Left><ObjectName>odd</ObjectName><Top>10</Top><Width>120</Width></AttributeList>'
@@ -763,7 +772,8 @@ class ATrialPalette(unittest.TestCase):
             sides.append(os.path.dirname(os.path.dirname(folder)))
         for spec in (self.trial.name, 'tia'):
             html = report(self.tmp.name, '--theme', spec, name='screen.html', sides=sides)
-            got = computed(self.edge, html, self.tmp.name, 'screen-%s.html' % (spec != 'tia'), 'svg.hs', screen=True)
+            got = computed(self.edge, html, self.tmp.name, 'screen-%s.html' % (spec != 'tia'), 'svg.hs', screen=True,
+                           pick=True)
             self.assertEqual({v for el, k, v in got if el == 'svg.hs' and k == 'background-color'},
                              {'rgb(255, 255, 255)'}, spec)
             self.assertIn('text.line tag-label', {el for el, k, v in got}, spec)       # "not drawn: NoSuchThing"
@@ -774,6 +784,14 @@ class ATrialPalette(unittest.TestCase):
                         if k == 'stroke' and re.match(r'(rect|circle)\.(added|changed|moved)', el)}
             self.assertTrue(outlines, spec)
             self.assertEqual(outlines <= self.allowed, spec != 'tia', (spec, outlines))
+            frames = {v for el, k, v in got if k == 'outline-color' and el.split('.')[1].startswith('body')}
+            picked = (rgb(self.values['--object-selected']) if spec != 'tia'
+                      else 'rgb(%d, %d, %d)' % theme.NATIVE['--object-selected'][:3])
+            self.assertIn(picked, frames, spec)                                         # .obj.sel>.body
+            line = (rgb(self.values['--screen-edge']) if spec != 'tia'
+                    else 'rgb(%d, %d, %d)' % theme.NATIVE['--screen-edge'][:3])
+            self.assertEqual({v for el, k, v in got if el == 'svg.hs' and k == 'box-shadow'},
+                             {'%s 0px 0px 0px 1px' % line}, spec)                    # the line round the screen
 
     def test_the_png(self):
         """--png draws the page in a headless browser, on the screen: the theme's colours, not print's."""

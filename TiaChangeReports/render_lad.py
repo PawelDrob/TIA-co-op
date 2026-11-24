@@ -59,7 +59,7 @@ MAXCMT = 4               # comment lines shown at most
 # The SVG holds no colour: each part it draws carries a class, and CSS below gives the class its fill or stroke from a
 # name of the palette (TiaHmiGenerator\hmipreview\static\tia-theme.css), so a theme changes nothing the renderer writes.
 # A text's kind (the second of an operand line's (text, kind, bold)) is the class of its <text>.
-C_WIRE = 'l-wire'        # a wire, a contact's and a coil's lines, the power rail, the end mark
+C_WIRE = 'l-wire'        # a wire, a contact's and a coil's lines, the power rail (the end mark, rect.end: --wire too)
 C_CMT = 'l-cmt'          # an operand's comment
 C_VAL = 'l-val'          # value of a constant
 C_CST = 'l-cst'          # literal, name of a constant

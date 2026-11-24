@@ -2,8 +2,8 @@
 
 The palette and TIA's native theme, the value of each name no theme gives, are one file:
 TiaHmiGenerator\\hmipreview\\static\\tia-theme.css (rail.THEME_CSS), a line for each name. A theme of the user's own is
-a file in its format (read; the format and what is refused: that file's head). A faulty one raises ThemeError with its
-line, so a theme is never drawn in part.
+a file in its format (read; the format and what is refused: that file's head). A faulty one raises ThemeError naming its
+line, and one that is not there or cannot be read raises it saying why, so a theme is never drawn in part.
 
   load(spec)            -> Theme: 'tia' TIA's native theme, a path the theme file there, None the user's default
                            theme (user_theme()) when that file is there, else TIA's
@@ -20,7 +20,8 @@ line, so a theme is never drawn in part.
                            that no character of a theme file reaches the page; the browser takes each case of it and
                            reads the colour it was read from (TheWrittenForm)
   is_colour(value)      -> whether a theme takes the value
-  css(theme, page)      -> the palette's block for a page's <style>: TIA's values, then the theme's for the screen
+  css(theme, page)      -> the palette's block for a page's <style>: TIA's values, then the theme's for the screen,
+                           then an HMI screen's own colours, TIA's (SCREEN)
   NATIVE, NAMES         -> {name: TIA's colour (red, green, blue, alpha)}, the names in the file's order
 
 What the renderer writes holds names and no colour, so the theme is only this block. It is written :where(.ldiff),
@@ -224,7 +225,8 @@ def _block(sel, values):
 
 # An HMI screen takes no theme (tia-theme.css's head). What it would take from the page is held in TIA's values here,
 # whatever the theme and whatever a host sets: the fill and colour of its text (render.js's labels have no fill of their
-# own) and the background a screen with no BackColor shows. Its change outlines (.dl) take the theme.
+# own) and the background a screen with no BackColor shows. The line round it (--screen-edge), its change outlines
+# (.dl) and the frame of the object picked (.obj.sel>.body) take the theme.
 SCREEN = '.ldiff svg.hs'
 SCREEN_COLOURS = (('color', '--text'), ('fill', '--text'), ('background-color', '--page'))
 
@@ -236,4 +238,4 @@ def css(theme=None, page=False):
     out = _block(sel, NATIVE) + '\n'
     if theme is not None and theme.values:
         out += '@media screen{%s}\n' % _block(sel, theme.values)
-    return out + '%s{%s}\n' % (SCREEN, ';'.join('%s:%s' % (p, written(NATIVE[n])) for p, n in SCREEN_COLOURS))
+    return out + _block(SCREEN, {p: NATIVE[n] for p, n in SCREEN_COLOURS}) + '\n'

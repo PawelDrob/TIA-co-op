@@ -4,7 +4,8 @@
    render.js draws it, takes no theme: the project's colours, and the preview's own marks on them in colours of its
    own (flashing, a pattern, frames, the hatch of what is not drawn); its labels and the background of a screen with
    no colour of its own keep this file's --text and --page whatever a theme gives them (theme.py, SCREEN). Only the
-   outlines of its changes take the theme. Nor do the HMI preview's own panels and Archive Compare's window.
+   line round it, the outlines of its changes and the frame of the object picked take the theme. Nor do the HMI
+   preview's own panels and Archive Compare's window.
 
    A theme of your own: a file %LOCALAPPDATA%\tia-co-op\theme.css with this block's --theme-format line and only the
    lines you change, not a copy of the whole file; every report and the block viewer given no --theme draw in it.
@@ -18,11 +19,10 @@
      the report's values, and a file in this format is such a stylesheet as it stands.
 
    Pairs a theme must keep readable, one over the other (every rule that sets a text's colour, gone over once):
-   - --text and each --scl-* over --page, --added-fill, --removed-fill, --added-word, --removed-word, --no-line
-   - --text over --changed-fill and --moved-fill: a network's badge, a "differs" note, the legend's swatches, a
-     mark in the lookup
+   - --text and each --scl-* over --page, --added-fill, --removed-fill, --added-word, --removed-word
+   - --text over --changed-fill and --moved-fill: a network's badge, a "differs" note, a mark in the lookup
    - each --lad-* text and --wire over --page, --added-fill, --removed-fill, --changed-fill, --moved-fill;
-     --lad-text, --lad-number, --lad-default and --eno-off over --box and --box-head; --lad-text over --jump-label,
+     --lad-text and --eno-off over --box; --lad-text and --lad-number over --box-head; --lad-text over --jump-label,
      --compare-type and --expression
    - --conversion beside --conversion-light, both over --box
    - --text over --band, --field, --row, --network-number, --changed-row, --moved-row, --opened-member, --hover,
@@ -32,13 +32,15 @@
      --switch-on; --button-off-text over --button and --switch
    - --badge-text over --added, --removed, --moved, --same, --version
    - --changed and --added as text (a library version "in work", "released") over --page, --band and
-     --changed-fill (a "differs" note); --removed as text (an HMI warning) over --page
-   - --muted over --page, --row, --band, --field, --hover, --selected and --change-hover; --muted and --faint over
+     --changed-fill (a "differs" note); --removed as text (an HMI warning) over --page, --change-hover and
+     --selected
+   - --muted over --page, --row, --band, --hover, --selected and --change-hover; --muted and --faint over
      the interface's rows too: --added-fill, --removed-fill, --changed-row, --moved-row, --opened-member;
-     --faint over --page, --row, --field; --empty-field-text over --field; --viewer-note over --page and --page-head
+     --faint over --page; --empty-field-text over --field; --viewer-note over --page and --page-head
    - --checkbox-tick over --checkbox-on, --checkbox-off-tick over --checkbox-off-on
-   - --link over --page; --match over --page, --hover and --selected; --icon over --band, --row, --button and an
-     HMI change's --page, --change-hover and --selected */
+   - --link over --page, --change-hover and --selected; --match over --page, --hover and --selected; --icon over
+     --band, --button and an HMI change's --page, --change-hover and --selected; --tree-icon over --page and
+     --hover */
 .ldiff {
   --theme-format: 1;
 
@@ -85,7 +87,7 @@
   --version: #6b6b6b;              /* the badge and tree mark of a change of version only */
   --badge-text: #fff;              /* the text of a block's badge */
   --mark-line: #8c8c8c;            /* the frame of a small mark: the legend's swatches, the tree's marks, a badge */
-  --off-over-mark: #0000000f;      /* laid over a mark's fill where a cell of the interface is off */
+  --off-over-mark: #0000000f;      /* laid over a mark's fill where a cell of a PLC tag table is off */
 
   /* controls */
   --button: #f0f0f0;               /* a button */
@@ -112,16 +114,16 @@
   --error-line: #c42b1c;           /* its frame */
 
   /* the interface table's check boxes, as TIA's */
-  --checkbox: #fff;
-  --checkbox-line: #8c8c8c;
+  --checkbox: #fff;                /* a box */
+  --checkbox-line: #8c8c8c;        /* its frame */
   --checkbox-on: #2f7fd0;          /* a box that is ticked */
-  --checkbox-on-line: #1d5fa3;
-  --checkbox-tick: #fff;
+  --checkbox-on-line: #1d5fa3;     /* its frame */
+  --checkbox-tick: #fff;           /* its tick */
   --checkbox-off: #e7e8e8;         /* a box that cannot be set */
-  --checkbox-off-line: #b5b5b5;
+  --checkbox-off-line: #b5b5b5;    /* its frame */
   --checkbox-off-on: #f7f9fb;      /* such a box, ticked */
-  --checkbox-off-on-line: #7e7e7e;
-  --checkbox-off-tick: #666;
+  --checkbox-off-on-line: #7e7e7e; /* its frame */
+  --checkbox-off-tick: #666;       /* its tick */
 
   /* LAD, as TIA draws it */
   --wire: #1a1a1a;                 /* a wire, the power rail, a contact's and a coil's lines, the rung's end mark */
