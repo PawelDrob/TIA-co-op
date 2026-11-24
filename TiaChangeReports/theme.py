@@ -95,7 +95,7 @@ def _number(text, whole):
 
 def colour(value):
     """(red, green, blue, alpha) of value as the browser reads it: red, green and blue whole numbers 0 to 255, rounded
-    half up, alpha 0 to 1 as written; None for a value a theme does not take."""
+    half up, alpha 0 to 1 kept in full, not rounded to 8 bits; None for a value a theme does not take."""
     v = value.strip(_WS).lower()
     if not v.isascii():
         return None
@@ -108,14 +108,14 @@ def colour(value):
     if not _RGB.fullmatch(v):
         return None
     parts = re.split(r'{S}*[,/]{S}*|{S}+'.format(S=_S), v[v.index('(') + 1:v.rindex(')')].strip(_WS))
-    rgb = [int(math.floor(min(255.0, max(0.0, _number(p, 255))) + 0.5)) for p in parts[:3]]
+    rgb = [math.floor(min(255.0, max(0.0, _number(p, 255))) + 0.5) for p in parts[:3]]
     alpha = min(1.0, max(0.0, _number(parts[3], 1))) if len(parts) == 4 else 1.0
     return (rgb[0], rgb[1], rgb[2], alpha)
 
 
 def written(c):
-    """The colour c, (red, green, blue, alpha), as the page holds it: rgba() of whole numbers and an alpha written in
-    full, with no exponent, so that TIA's .25 stays .25."""
+    """The colour c, (red, green, blue, alpha), as the page holds it: rgba() of whole numbers and the alpha in full,
+    with no exponent, so that TIA's .25 is 0.25 and not rounded to 8 bits as a hex pair would be."""
     alpha = format(Decimal(repr(float(c[3]))), 'f')
     return 'rgba(%d,%d,%d,%s)' % (c[0], c[1], c[2], alpha[:-2] if alpha.endswith('.0') else alpha)
 
@@ -178,11 +178,11 @@ def read(text, where, names=None):
         elif names is not None and name not in names:
             raise ThemeError('%s:%d: %s is no name of the palette (the names: %s)'
                              % (where, line(at), name, NATIVE_FILE))
-        elif colour(value) is None:
+        elif (c := colour(value)) is None:
             raise ThemeError('%s:%d: %s: %r is not a form of colour a theme takes; those are %s, no colour names, '
                              'no hsl() or var()' % (where, line(at), name, value, FORMS))
         else:
-            values[name] = colour(value)
+            values[name] = c
         seen[name] = line(at)
     if not seen:
         raise ThemeError('%s:%d: a theme starts with --theme-format: %d;' % (where, line(m.end()), FORMAT))

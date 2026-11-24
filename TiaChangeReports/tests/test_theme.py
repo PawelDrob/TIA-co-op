@@ -37,12 +37,58 @@ SOURCES = ['TiaChangeReports/render_lad.py', 'TiaChangeReports/scl_colours.py', 
 ROOT = os.path.dirname(os.path.dirname(HERE))
 LAYOUT = {'--fw', '--fh', '--mb', '--width-in-pane'}                # custom properties of the layout, no colours
 
-NAMED = ('black|white|red|green|blue|gray|grey|silver|yellow|orange|purple|navy|teal|maroon|olive|lime|aqua|fuchsia|'
-         'pink|brown|gold|cyan|magenta|darkgray|darkgrey|lightgray|lightgrey|whitesmoke|gainsboro|dimgray|dimgrey')
-# A colour as CSS or SVG writes it: #hex, a colour function, or a colour's name in a declaration's value or an
-# attribute's (not a word of a text: "drawn faint").
-COLOUR = re.compile(r'(?<![&\w-])#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(|'
-                    r'[a-z-]+\s*[:=]\s*["\']?[^;{}<>"\'\n]*?(?<![\w-])(?:%s)(?![\w-])' % NAMED, re.I)
+# A colour outside the palette is found two ways.
+# 1. By its property, with no list of CSS's names: a property that takes a colour and nothing else (color,
+#    background-color, border-color and each *-color; an SVG's fill, stroke, stop-color, flood-color,
+#    lighting-color), in CSS or as an attribute, with any value but the palette's var(--name), none, transparent,
+#    currentColor and inherit.
+#    In a source, var(%s) is a template: the page it writes is checked with the name.
+# 2. Anywhere else, so in a shorthand (border, background, outline, box-shadow, ...), a gradient or a filter: #hex, a
+#    colour function (COLOUR), or a word of CSS Color 4's lists of named and system colours in a declaration's value
+#    (COLOUR_NAME; not a word of a text, "drawn faint"). A value of a property that names properties (transition) is no
+#    colour. In a source the names are not looked for in a script (a JS string), whose words they are ("window").
+KEYWORDS = {'none', 'transparent', 'currentcolor', 'inherit'}
+COLOUR_PROPERTY = re.compile(r'(?<![\w-])((?:[a-z-]*-)?color|fill|stroke)\s*[:=]\s*"?([^;{}<>"\n]*?)\s*(?=[;}"\n]|$)',
+                             re.I)
+PALETTE_VALUE = re.compile(r'var\((--[a-z0-9-]+|%s)\)')
+NAMED = (
+    # the named colours (148)
+    'aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood '
+    'cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod '
+    'darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon '
+    'darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray '
+    'dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green '
+    'greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon '
+    'lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon '
+    'lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta '
+    'maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen '
+    'mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive '
+    'olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru '
+    'pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell '
+    'sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise '
+    'violet wheat white whitesmoke yellow yellowgreen '
+    # the system colours (19), and those CSS Color 4 keeps deprecated (23)
+    'accentcolor accentcolortext activetext buttonborder buttonface buttontext canvas canvastext field fieldtext '
+    'graytext highlight highlighttext linktext mark marktext selecteditem selecteditemtext visitedtext activeborder '
+    'activecaption appworkspace background buttonhighlight buttonshadow captiontext inactiveborder inactivecaption '
+    'inactivecaptiontext infobackground infotext menu menutext scrollbar threeddarkshadow threedface threedhighlight '
+    'threedlightshadow threedshadow window windowframe windowtext').split()
+COLOUR = re.compile(r'(?<![&\w-])#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(', re.I)
+COLOUR_NAME = re.compile(r'(?<![\w-])(?!transition|will-change)[a-z-]+\s*[:=]\s*["\']?[^;{}<>"\'\n]*?'
+                         r'(?<![\w-])(?:%s)(?![\w-])' % '|'.join(NAMED), re.I)
+
+
+def colours_in(text, names=True):
+    """The colours text, CSS or what drawn_css makes of a page, holds outside the palette: each a piece of text around
+    it. names: look for colour names in values too."""
+    out = list(COLOUR.finditer(text)) + (list(COLOUR_NAME.finditer(text)) if names else [])
+    for m in COLOUR_PROPERTY.finditer(text):
+        words = re.sub(r'\s*!important$', '', m.group(2), flags=re.I).split()
+        palette = [PALETTE_VALUE.fullmatch(w) for w in words]
+        if not words or any(w.lower() not in KEYWORDS and not (v and v.group(1) in theme.NAMES + ['%s'])
+                            for w, v in zip(words, palette)):
+            out.append(m)
+    return sorted({text[max(0, m.start() - 60):m.end() + 10] for m in out})
 
 
 def quiet(f, *a):
@@ -92,15 +138,19 @@ def colours_outside(html, *blocks):
     for b in blocks:
         assert b in html, b[:80]
         html = html.replace(b, '')
-    text = drawn_css(html)
-    return sorted({text[max(0, m.start() - 60):m.end() + 10] for m in COLOUR.finditer(text)})
+    return colours_in(drawn_css(html))
 
 
-def strings(src):
-    """The strings of a Python source but its docstrings: its CSS, HTML and SVG, not its prose."""
+def strings(src, scripts=True):
+    """The strings of a Python source but its docstrings: its CSS, HTML and SVG, not its prose. scripts: with the
+    strings of a name ending in JS (JS, FOCUS_JS, ...)."""
     tree = ast.parse(src)
     docs = {id(n.body[0].value) for n in ast.walk(tree)
             if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef)) and n.body and isinstance(n.body[0], ast.Expr)}
+    if not scripts:
+        docs |= {id(c) for n in ast.walk(tree) if isinstance(n, (ast.Assign, ast.AugAssign))
+                 and any(isinstance(t, ast.Name) and t.id.endswith('JS') for t in getattr(n, 'targets', None) or [n.target])
+                 for c in ast.walk(n.value)}
     return [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)
             and id(n) not in docs]
 
@@ -163,12 +213,24 @@ class NoColourOutsideThePalette(unittest.TestCase):
         self.assertEqual(re.findall(r'''['"]#[0-9a-fA-F]{3,8}['"]''', src), [])
 
     def test_a_literal_put_back_is_found(self):
-        """The check finds a colour in each form a source could write one."""
+        """The check finds a colour in each form a source could write one, in a rule for :hover too: by its property
+        (a name the list does not hold, a system colour, a name of another palette) and in a shorthand by the list."""
         for put in ('color:#0a4f9e', 'fill="#1a1a1a"', 'background:rgba(0,0,0,.18)', 'border:1px solid gray',
-                    'stroke:hsl(0 0% 50%)', 'style="background:white"'):
-            self.assertTrue(colours_outside('<style>.ldiff a{%s}</style><svg><rect %s/></svg>' % (put, put)), put)
-        self.assertEqual(colours_outside('<p>&#8203;#inAuto 16#00FF</p><style>.x{fill:none;stroke:currentColor;'
-                                         'background:transparent;border-color:var(--grid)}</style>'), [])
+                    'stroke:hsl(0 0% 50%)', 'style="background:white"', 'color:crimson', 'background-color:notaname',
+                    'color:CanvasText', 'fill="tomato"', 'stroke:var(--vscode-editor-foreground)',
+                    'color:var(--wire, red)', 'border:1px solid darkred', 'outline:2px dotted Highlight',
+                    'background:lightblue', 'box-shadow:0 0 2px rebeccapurple', 'filter:drop-shadow(0 0 1px olive)',
+                    'background-image:linear-gradient(papayawhip, var(--page))'):
+            prop, value = re.split('[:=]', put.replace('"', ''), maxsplit=1)
+            for rule in ('.ldiff a{%s:%s}', '.ldiff a:hover{%s:%s}', '.ldiff .fv b:focus-visible{%s:%s;cursor:auto}'):
+                self.assertTrue(colours_outside('<style>%s</style>' % rule % (prop, value)), (rule, put))
+            if prop in ('fill', 'stroke', 'color', 'style'):                          # an attribute of an element
+                self.assertTrue(colours_outside('<svg><rect %s="%s"/></svg>' % (prop, value)), put)
+        self.assertEqual(colours_outside('<p>&#8203;#inAuto 16#00FF, drawn white</p><style>.x{fill:none;'
+                                         'stroke:currentColor;background:transparent;border-color:var(--grid)}'
+                                         '.y:hover{color:inherit;border:1px solid var(--grid) !important;'
+                                         'transition:background .1s}.ldiff-color:hover{x:y}</style>'
+                                         '<svg><rect fill="none" stroke="var(--wire)"/></svg>'), [])
 
     def test_each_source_file_holds_no_colour(self):
         """The files whose colours the palette took over (SOURCES), read as they are: a colour in one fails here even
@@ -177,8 +239,10 @@ class NoColourOutsideThePalette(unittest.TestCase):
             with open(os.path.join(ROOT, rel), encoding='utf-8') as f:
                 src = f.read()
             if rel.endswith('.py'):
-                src = '\n'.join(strings(src))
-            hits = [m.group(0) for m in COLOUR.finditer(src)]
+                hits = colours_in('\n'.join(strings(src)), names=False)
+                hits += colours_in('\n'.join(strings(src, scripts=False)))
+            else:
+                hits = colours_in(src)
             self.assertEqual(hits, [], rel)
 
 
@@ -245,8 +309,8 @@ class ThemeFiles(unittest.TestCase):
         self.assertTrue(css.endswith('@media screen{:where(.ldiff){--wire:rgba(0,255,0,1)}}\n'), css[-200:])
 
     def test_each_form_of_colour(self):
-        """Each read into numbers as the browser reads it: a percentage of 255, rounded half up, none 0, the alpha as
-        written."""
+        """Each read into numbers as the browser reads it: a percentage of 255, rounded half up, none 0, the alpha in
+        full."""
         for value, c in (('#abc', (170, 187, 204, 1.0)), ('#abcd', (170, 187, 204, 221 / 255)),
                          ('#a1b2c3', (161, 178, 195, 1.0)), ('#A1B2C3D4', (161, 178, 195, 212 / 255)),
                          ('rgb(1,2,3)', (1, 2, 3, 1.0)), ('rgba(1, 2, 3, .5)', (1, 2, 3, .5)),
