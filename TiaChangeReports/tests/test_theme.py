@@ -16,7 +16,7 @@ from pathlib import Path
 
 from TiaChangeReports import __main__ as cli
 from TiaChangeReports import hmi as hmipart
-from TiaChangeReports import page, render_lad, theme
+from TiaChangeReports import page, render_lad, scl_colours, theme
 from TiaChangeReports.tests import host_styles
 from TiaChangeReports.viewer import __main__ as viewer_cli
 from TiaChangeReports.viewer import view
@@ -45,13 +45,31 @@ def quiet(f, *a):
         return f(*a)
 
 
-def report(folder, *extra, name='plant.html'):
-    """The page (or with --fragment the fragment) of fixtures\\plant v1 -> v2: summary, interface, LAD, SCL, the tree."""
+def report(folder, *extra, name='plant.html', sides=(os.path.join(PLANT, 'v1'), os.path.join(PLANT, 'v2'))):
+    """The page (or with --fragment the fragment) of fixtures\\plant v1 -> v2: summary, interface, LAD, SCL, the tree;
+    or of other sides."""
     out = os.path.join(folder, name)
-    code = quiet(cli.main, [os.path.join(PLANT, 'v1'), os.path.join(PLANT, 'v2'), '-o', out] + list(extra))
+    code = quiet(cli.main, list(sides) + ['-o', out] + list(extra))
     assert code == 0, code
     with open(out, encoding='utf-8') as f:
         return f.read()
+
+
+def hmi_sides(folder):
+    """Two folders of an HMI project: a screen changed (a rectangle moved), one new, a tag table changed."""
+    from TiaChangeReports.tests.test_hmi_part import rect, screen, tag_table
+    out = []
+    for side, left, files in (('b', 10, {}), ('a', 50, {'Gate.xml': screen('Gate', 12)})):
+        files = dict(files, **{'Filler.xml': screen('Filler', 10, rect('lamp', left=left) + rect('door', 200))})
+        for name, text in files.items():
+            os.makedirs(os.path.join(folder, side, 'hmi', 'screens'), exist_ok=True)
+            with open(os.path.join(folder, side, 'hmi', 'screens', name), 'w', encoding='utf-8') as f:
+                f.write(text)
+        os.makedirs(os.path.join(folder, side, 'hmi', 'tags'), exist_ok=True)
+        with open(os.path.join(folder, side, 'hmi', 'tags', 'Plant.xml'), 'w', encoding='utf-8') as f:
+            f.write(tag_table('Plant', [('Motor', '100 ms' if side == 'b' else '1 s')]))
+        out.append(os.path.join(folder, side))
+    return out
 
 
 def drawn_css(html):
@@ -107,10 +125,15 @@ class NoColourOutsideThePalette(unittest.TestCase):
         cls.page = report(cls.tmp.name)
         cls.frag = report(cls.tmp.name, '--fragment', name='plant.fragment.html')
         cls.jumps = view.page(JUMPS)[0]
+        cls.hmi = report(cls.tmp.name, name='hmi.html', sides=hmi_sides(cls.tmp.name))
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
+
+    def test_an_hmi_page(self):
+        self.assertIn('data-key="screen:Filler"', self.hmi)
+        self.assertEqual(colours_outside(self.hmi, theme.css(page=True)), [])
 
     def test_the_page(self):
         self.assertIn('class="rail"', self.page)                               # the tree's CSS with it
@@ -143,8 +166,8 @@ class NoColourOutsideThePalette(unittest.TestCase):
                                          'background:transparent;border-color:var(--grid)}</style>'), [])
 
     def test_each_source_file_holds_no_colour(self):
-        """The files of the palette's ticket (438), read as they are: a colour in one fails here even where no page
-        draws it."""
+        """The files whose colours the palette took over (SOURCES), read as they are: a colour in one fails here even
+        where no page draws it."""
         for rel in SOURCES:
             with open(os.path.join(ROOT, rel), encoding='utf-8') as f:
                 src = f.read()
@@ -170,7 +193,7 @@ class TheNames(unittest.TestCase):
 
     def test_each_name_is_used_and_each_used_name_is_one(self):
         used = set(re.findall(r'var\((--[a-z0-9-]+)\)', self.css()))
-        used |= {name for _, name, _ in __import__('TiaChangeReports.scl_colours', fromlist=['KINDS']).KINDS.values()}
+        used |= {name for _, name, _ in scl_colours.KINDS.values()}
         self.assertEqual(sorted(set(theme.NAMES) - used), [])
         self.assertEqual(sorted(used - set(theme.NAMES) - LAYOUT), [])
 
@@ -188,7 +211,7 @@ class TheNames(unittest.TestCase):
         self.assertEqual(rows, theme.NAMES)
 
     def test_the_marks_are_one_set(self):
-        """FILL of the ladder and the background of an SCL line, an interface row and a badge are the same four."""
+        """A ladder's marks and the background of an SCL line, an interface row and a badge are the same four names."""
         for mark in render_lad.MARKS:
             self.assertIn('.ldiff svg .hl.%s{fill:var(--%s-fill)}' % (mark, mark), render_lad.CSS)
         self.assertFalse(hasattr(render_lad, 'FILL'))
@@ -270,6 +293,14 @@ class TheOptions(unittest.TestCase):
             good = report(d, '--theme', theme_file(d, {'--wire': '#123456'}, 'good.css'))
             self.assertIn('@media screen{:where(:root){--wire:#123456}}', good)
 
+    def test_the_help(self):
+        for main in (cli.main, viewer_cli.main):
+            text = io.StringIO()
+            with contextlib.redirect_stdout(text), self.assertRaises(SystemExit):
+                main(['--help'])
+            self.assertIn(r'default: your theme file %LOCALAPPDATA%\tia-co-op\theme.css when there, else tia',
+                          ' '.join(text.getvalue().split()))
+
     def test_the_viewer(self):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, 'v.html')
@@ -336,13 +367,16 @@ class TheDefaultTheme(unittest.TestCase):
 PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'border-right-color',
          'border-bottom-color', 'border-left-color', 'outline-color', 'box-shadow', 'text-decoration-color', 'fill',
          'stroke', 'caret-color', 'column-rule-color']
+# An HMI screen (svg.hs but its change outlines, .dl) and a colour value's swatch (.cs) are in the project's colours,
+# no theme's. A moment after load, so that the HMI part has drawn the open object.
 PROBE = """<script>addEventListener('load',function(){setTimeout(function(){var P=%s,o=[];
-[].forEach.call(document.querySelectorAll('%s'),function(e){if(e.closest('script,style'))return;
+[].forEach.call(document.querySelectorAll('%s'),function(e){if(e.closest('script,style,.cs'))return;
+ if(e.closest('svg.hs')&&!e.closest('.dl'))return;
  var svg=e instanceof SVGElement;
  [null,'::before','::after'].forEach(function(p){var c=getComputedStyle(e,p);if(p&&c.content=='none')return;
   P.forEach(function(k){if(!svg&&(k=='fill'||k=='stroke'))return;var v=c.getPropertyValue(k);o.push([e.tagName.toLowerCase()+'.'+(e.getAttribute('class')||'')+
    (p||''),k,v])})})});
-var x=document.createElement('pre');x.id='colours';x.textContent=JSON.stringify(o);document.body.appendChild(x)},0)})
+var x=document.createElement('pre');x.id='colours';x.textContent=JSON.stringify(o);document.body.appendChild(x)},1000)})
 </script>"""
 
 
@@ -398,6 +432,19 @@ class ATrialPalette(unittest.TestCase):
         self.assert_follows(html, 'trial-page.html')
         default = report(self.tmp.name, name='default.html')
         self.assertEqual(html.replace(theme.css(self.trial, page=True), ''), default.replace(theme.css(page=True), ''))
+
+    def test_an_hmi_page(self):
+        """The HMI part's own chrome: the toolbar, the panes, the change list, the outlines on a screen."""
+        html = report(self.tmp.name, '--theme', self.trial.name, name='trial-hmi.html', sides=hmi_sides(self.tmp.name))
+        self.assert_follows(html, 'trial-hmi-page.html')
+
+    def test_the_png(self):
+        """--png draws the page in a headless browser, on the screen: the theme's colours, not print's."""
+        png = os.path.join(self.tmp.name, 'trial.png')
+        report(self.tmp.name, '--theme', self.trial.name, '--png', png, name='trial-png.html')
+        from PIL import Image
+        img = Image.open(png).convert('RGB')
+        self.assertEqual('rgb(%d, %d, %d)' % img.getpixel((img.width - 1, img.height - 1)), rgb(self.values['--page']))
 
     def test_the_fragment(self):
         html = report(self.tmp.name, '--fragment', '--theme', self.trial.name, name='trial.fragment.html')

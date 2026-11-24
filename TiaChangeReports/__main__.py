@@ -116,7 +116,7 @@ def main(argv=None):
     p.add_argument('--before-set', choices=('tia', 'generated'), default='tia',
                    help='HMI before side: the TIA exports (default) or with the generated documents in their place')
     p.add_argument('--after-set', choices=('tia', 'generated'), default='tia', help='HMI after side, as --before-set')
-    p.add_argument('--theme', help="the colours: tia, TIA's native look (default), or a theme file (tia-theme.css's format)")
+    p.add_argument('--theme', help=themes.HELP)
     a = p.parse_args(argv)
     s7dcl.LANG = a.lang
     if len(a.paths) % 2:

@@ -1,9 +1,8 @@
 """The report's colours: one palette of names, each a CSS custom property on .ldiff, and the themes that give them values.
 
 The palette and TIA's native theme, its default, are one file: TiaHmiGenerator\\hmipreview\\static\\tia-theme.css (rail.
-THEME_CSS), a line for each name. A theme of the user's own is a file in its format (read): one block .ldiff { ... },
-first --theme-format: 1;, then --name: colour; lines. A name it leaves out keeps TIA's value; anything else is refused
-with its line (ThemeError), so a theme is never drawn in part.
+THEME_CSS), a line for each name. A theme of the user's own is a file in its format (read; the format and what is
+refused: that file's head). A faulty one raises ThemeError with its line, so a theme is never drawn in part.
 
   load(spec)            -> Theme: 'tia' TIA's native theme, a path the theme file there, None the user's default
                            theme (USER_THEME) when that file is there, else TIA's
@@ -29,7 +28,9 @@ if WINCC not in sys.path:
 from hmipreview import rail   # noqa: E402  the palette's file, shared with the HMI preview
 
 FORMAT = 1                      # the format this report reads; a name renamed or removed makes the next one
-BUILT_IN = {'tia': os.path.join(rail.STATIC, 'tia-theme.css')}
+NATIVE_FILE = os.path.join(rail.STATIC, 'tia-theme.css')
+HELP = ("the colours: tia, TIA's native look, or a theme file in tia-theme.css's format; "     # argparse: %% is %
+        "default: your theme file %%LOCALAPPDATA%%\\tia-co-op\\theme.css when there, else tia")
 
 
 def user_theme(env=os.environ):
@@ -114,7 +115,7 @@ def read(text, where, names=None):
             raise ThemeError('%s:%d: %s is given twice (line %d)' % (where, line(at), name, seen[name]))
         elif names is not None and name not in names:
             raise ThemeError('%s:%d: %s is no name of the palette (the names: %s)'
-                             % (where, line(at), name, BUILT_IN['tia']))
+                             % (where, line(at), name, NATIVE_FILE))
         elif not is_colour(value):
             raise ThemeError('%s:%d: %s: %r is no colour; a colour is #rgb, #rrggbb (with alpha #rgba, #rrggbbaa), '
                              'rgb(), rgba(), hsl(), hsla() of numbers, or transparent' % (where, line(at), name, value))
@@ -126,25 +127,25 @@ def read(text, where, names=None):
     return values
 
 
-NATIVE = read(rail.THEME_CSS, BUILT_IN['tia'])
+NATIVE = read(rail.THEME_CSS, NATIVE_FILE)
 NAMES = list(NATIVE)
 
 
 def load(spec=None):
-    """The theme spec names: a built-in's name ('tia'), else a theme file; None: USER_THEME when it is a file, else
+    """The theme spec names: 'tia', else a theme file; None: USER_THEME when it is a file, else
     TIA's. Raises ThemeError for a file that cannot be read or is no theme, OSError's text in it."""
     if spec is None:
         if not os.path.isfile(USER_THEME):
             return Theme('tia', {})
         spec = USER_THEME
-    if spec in BUILT_IN:
+    if spec == 'tia':
         return Theme(spec, {})
     try:
         with open(spec, encoding='utf-8-sig') as f:
             text = f.read()
     except (OSError, UnicodeDecodeError) as ex:
         raise ThemeError('%s: no theme of that name (%s) and no theme file there: %s'
-                         % (spec, ', '.join(BUILT_IN), getattr(ex, 'strerror', None) or ex))
+                         % (spec, 'tia', getattr(ex, 'strerror', None) or ex))
     return Theme(os.path.abspath(spec), read(text, spec, NAMES))
 
 

@@ -32,7 +32,7 @@ def main(argv=None, open_page=browser.open_page, message=browser.message):
     p.add_argument('file', nargs='?', help='a block export: .s7dcl, or the SimaticML .xml of a block')
     p.add_argument('--html', metavar='OUT', help='write the page to OUT, open nothing')
     p.add_argument('--lang', default='en-US', help='text language of titles and comments (default en-US)')
-    p.add_argument('--theme', help="the colours: tia, TIA's native look (default), or a theme file (tia-theme.css's format)")
+    p.add_argument('--theme', help=themes.HELP)
     todo = p.add_mutually_exclusive_group()
     todo.add_argument('--register', action='store_true', help='open .s7dcl files here on a double-click')
     todo.add_argument('--unregister', action='store_true', help='take --register back')

@@ -13,6 +13,7 @@
 
    Pairs a theme must keep readable, one over the other:
    - --text and each --scl-* over --page, --added-fill, --removed-fill, --added-word, --removed-word, --no-line
+   - --text over --changed-fill and --moved-fill: a network's badge, a "differs" note, the legend's swatches
    - each --lad-* text and --wire over --page, --added-fill, --removed-fill, --changed-fill, --moved-fill;
      --lad-text, --lad-number, --lad-default and --eno-off over --box and --box-head; --lad-text over --jump-label
    - --conversion beside --conversion-light, both over --box
