@@ -2,8 +2,9 @@
    of your own), and the one list of the palette's names. Every colour the report, its fragment, its PNG and the block
    viewer draw is one of these names, but an HMI screen and a value's colour swatch. A screen, as the HMI preview's
    render.js draws it, takes no theme: the project's colours, and the preview's own marks on them in colours of its
-   own (flashing, a pattern, frames, the hatch of what is not drawn). Nor do the HMI preview's own panels and Archive
-   Compare's window.
+   own (flashing, a pattern, frames, the hatch of what is not drawn); its labels and the background of a screen with
+   no colour of its own keep this file's --text and --page whatever a theme gives them (theme.py, SCREEN). Only the
+   outlines of its changes take the theme. Nor do the HMI preview's own panels and Archive Compare's window.
 
    A theme of your own: a file %LOCALAPPDATA%\tia-co-op\theme.css with this block's --theme-format line and only the
    lines you change, not a copy of the whole file; every report and the block viewer given no --theme draw in it.
@@ -16,18 +17,28 @@
    - A host page (a VS Code webview) may set the names itself, in its own stylesheet on .ldiff: that wins over
      the report's values, and a file in this format is such a stylesheet as it stands.
 
-   Pairs a theme must keep readable, one over the other:
+   Pairs a theme must keep readable, one over the other (every rule that sets a text's colour, gone over once):
    - --text and each --scl-* over --page, --added-fill, --removed-fill, --added-word, --removed-word, --no-line
-   - --text over --changed-fill and --moved-fill: a network's badge, a "differs" note, the legend's swatches
+   - --text over --changed-fill and --moved-fill: a network's badge, a "differs" note, the legend's swatches, a
+     mark in the lookup
    - each --lad-* text and --wire over --page, --added-fill, --removed-fill, --changed-fill, --moved-fill;
-     --lad-text, --lad-number, --lad-default and --eno-off over --box and --box-head; --lad-text over --jump-label
+     --lad-text, --lad-number, --lad-default and --eno-off over --box and --box-head; --lad-text over --jump-label,
+     --compare-type and --expression
    - --conversion beside --conversion-light, both over --box
    - --text over --band, --field, --row, --network-number, --changed-row, --moved-row, --opened-member, --hover,
-     --selected, --button, --switch, --switch-on, --page-head; --input-text over --input
+     --selected, --change-hover, --page-head and --error-fill (the viewer's "cannot be drawn", an instance it
+     cannot read); --input-text over --input
+   - --button-text over --button, --button-hover, --selected (an HMI toolbar's button that is on), --switch and
+     --switch-on; --button-off-text over --button and --switch
    - --badge-text over --added, --removed, --moved, --same, --version
-   - --muted, --faint, --empty-field-text and --viewer-note over --page, --row, --band, --field
+   - --changed and --added as text (a library version "in work", "released") over --page, --band and
+     --changed-fill (a "differs" note); --removed as text (an HMI warning) over --page
+   - --muted over --page, --row, --band, --field, --hover, --selected and --change-hover; --muted and --faint over
+     the interface's rows too: --added-fill, --removed-fill, --changed-row, --moved-row, --opened-member;
+     --faint over --page, --row, --field; --empty-field-text over --field; --viewer-note over --page and --page-head
    - --checkbox-tick over --checkbox-on, --checkbox-off-tick over --checkbox-off-on
-   - --link and --match over --page, --hover and --selected; --icon over --band and --button */
+   - --link over --page; --match over --page, --hover and --selected; --icon over --band, --row, --button and an
+     HMI change's --page, --change-hover and --selected */
 .ldiff {
   --theme-format: 1;
 

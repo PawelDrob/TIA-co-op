@@ -222,11 +222,18 @@ def _block(sel, values):
     return '%s{%s}' % (sel, ';'.join('%s:%s' % (name, written(c)) for name, c in values.items()))
 
 
+# An HMI screen takes no theme (tia-theme.css's head). What it would take from the page is held in TIA's values here,
+# whatever the theme and whatever a host sets: the fill and colour of its text (render.js's labels have no fill of their
+# own) and the background a screen with no BackColor shows. Its change outlines (.dl) take the theme.
+SCREEN = '.ldiff svg.hs'
+SCREEN_COLOURS = (('color', '--text'), ('fill', '--text'), ('background-color', '--page'))
+
+
 def css(theme=None, page=False):
-    """The palette's block for a <style>: TIA's values, then the values of theme (a Theme; None: TIA's) for the
-    screen."""
+    """The palette's block for a <style>: TIA's values, then the values of theme (a Theme; None: TIA's) for
+    @media screen, then an HMI screen's own colours (SCREEN), TIA's."""
     sel = ':where(:root)' if page else ':where(.ldiff)'
     out = _block(sel, NATIVE) + '\n'
     if theme is not None and theme.values:
         out += '@media screen{%s}\n' % _block(sel, theme.values)
-    return out
+    return out + '%s{%s}\n' % (SCREEN, ';'.join('%s:%s' % (p, written(NATIVE[n])) for p, n in SCREEN_COLOURS))

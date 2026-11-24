@@ -18,7 +18,7 @@
 .ldiff .hb{overflow:auto;max-height:calc(100vh - 140px);padding:6px;background:var(--screen-surround)}
 .ldiff.flat .hb,.ldiff:not(.one) .hb{max-height:none;overflow:hidden}
 .ldiff.one:not(.flat) .hps.fit .hb{scrollbar-gutter:stable}
-.ldiff .hb svg.hs{display:block;background:var(--page);box-shadow:0 0 0 1px var(--screen-edge);max-width:none}
+.ldiff .hb svg.hs{display:block;box-shadow:0 0 0 1px var(--screen-edge);max-width:none}
 .ldiff .hps.fit .hb svg.hs,.ldiff.flat .hb svg.hs,.ldiff:not(.one) .hb svg.hs{width:var(--width-in-pane);height:auto}
 .ldiff .hp .empty{background:var(--page)}
 .ldiff .hb.hg{background:var(--page);max-height:none}
@@ -27,6 +27,7 @@
 .ldiff .hs .layer.tpl{opacity:.55}
 .ldiff .hs .obj{cursor:pointer}
 .ldiff .hs .obj.sel>.body{outline:2px solid var(--object-selected)}
+.ldiff .hs .dl{color:var(--text);fill:var(--text)}
 .ldiff .hs .dl rect,.ldiff .hs .dl circle{fill:none;stroke-width:3;pointer-events:none}
 .ldiff .hs .dl circle{stroke-width:2}
 .ldiff .hs .dl .added{stroke:var(--added)} .ldiff .hs .dl .removed{stroke:var(--removed);stroke-dasharray:6 3}

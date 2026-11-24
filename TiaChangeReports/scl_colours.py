@@ -92,8 +92,8 @@ import re
 from html import escape
 
 # kind: (class, the name of the palette it is drawn in, what). TIA's colours as read are the names' values in TIA's
-# native theme (TiaHmiGenerator\hmipreview\static\tia-theme.css). A kind without a class is TIA's black, the text's
-# own colour: no span.
+# native theme (TiaHmiGenerator\hmipreview\static\tia-theme.css). A kind without a class is drawn in --text, the
+# text's own colour: no span.
 KINDS = {
     'keyword': ('sk', '--scl-keyword', 'a keyword of a statement, and AND, OR, XOR'),
     'region': ('sr', '--scl-region', 'REGION and END_REGION'),

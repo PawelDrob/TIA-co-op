@@ -51,8 +51,8 @@ full width.
 --theme: the colours, TIA's native look (tia) or a theme file of the user's own in the format of
 TiaHmiGenerator\\hmipreview\\static\\tia-theme.css (theme.py); the page, the fragment and the PNG take it, the page
 keeps it. Without --theme: the user's default theme, %LOCALAPPDATA%\\tia-co-op\\theme.css, when that file is there,
-else tia. A theme file that cannot be read, or holds a line that is no name of the palette or a value of another
-form, is a usage error, named with its line on stderr; so is such a default theme.
+else tia. A theme file that is not there or cannot be read is a usage error that says why on stderr; one that holds a
+line that is no name of the palette or a value of another form is one that names that line; so is such a default theme.
 --json prints the result as one JSON object (page, before, after, blocks; plcTags when a table changed; skipped when a
 file was; otherFiles when any; acrossFormats when a block is .s7dcl on one side and SimaticML on the other; png: the PNGs)
 instead of the list.

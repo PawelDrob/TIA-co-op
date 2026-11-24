@@ -1,10 +1,10 @@
 """The report's colours from one palette (theme.py; the palette and TIA's native theme: TiaHmiGenerator\\hmipreview\\
 static\\tia-theme.css): no colour of what the report draws stands outside the palette's block (NoColourOutsideThePalette);
 every name is used and can take a host's value (TheNames); a theme of the user's own changes every colour of the page,
-the fragment and the viewer, and nothing the renderer writes (ATrialPalette, in Edge); a faulty theme file is refused
-with its line (ThemeFiles, TheOptions); a theme takes what the browser takes of its forms (TheFormsOfColour), and the
-page holds each colour in one form the browser reads as the colour read (TheWrittenForm). The trial palette, every name
-a colour of its own, lives here only."""
+the fragment and the viewer, and nothing the renderer writes (ATrialPalette, in Edge), but an HMI screen; a faulty
+theme file is refused with its line, or why it cannot be read (ThemeFiles, TheOptions); a theme takes what the browser
+takes of its forms (TheFormsOfColour), and the page holds each colour in one form the browser reads as the colour read
+(TheWrittenForm). The trial palette, every name a colour of its own, lives here only."""
 import ast
 import contextlib
 import io
@@ -353,8 +353,10 @@ class ThemeFiles(unittest.TestCase):
 
     def test_what_it_leaves_out_keeps_tias_value(self):
         css = theme.css(theme.Theme('my.css', {'--wire': (0, 255, 0, 1.0)}))
-        self.assertTrue(css.startswith(theme.css()), css[:200])                # TIA's whole block first
-        self.assertTrue(css.endswith('@media screen{:where(.ldiff){--wire:rgba(0,255,0,1)}}\n'), css[-200:])
+        native, screen = theme.css().splitlines(keepends=True)                 # TIA's whole block, a screen's own
+        self.assertEqual(css, native + '@media screen{:where(.ldiff){--wire:rgba(0,255,0,1)}}\n' + screen)
+        self.assertEqual(screen, '.ldiff svg.hs{color:rgba(0,0,0,1);fill:rgba(0,0,0,1);'
+                                 'background-color:rgba(255,255,255,1)}\n')
 
     def test_each_form_of_colour(self):
         """Each read into numbers as the browser reads it: a percentage of 255, rounded half up, none 0, the alpha in
@@ -672,11 +674,12 @@ PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'b
          'border-bottom-color', 'border-left-color', 'outline-color', 'box-shadow', 'text-decoration-color', 'fill',
          'stroke', 'caret-color', 'column-rule-color']
 # An HMI screen (svg.hs but its change outlines, .dl) and a colour value's swatch (.cs) take no theme: the project's
-# colours, and render.js's own marks on a screen in colours of their own. A moment after load, so that the HMI part
-# has drawn the open object.
+# colours, render.js's own marks on a screen in colours of their own, and TIA's text and background (theme.SCREEN;
+# ATrialPalette.test_a_screen_takes_no_theme reads those). A moment after load, so that the HMI part has drawn the open
+# object.
 PROBE = """<script>addEventListener('load',function(){setTimeout(function(){var P=%s,o=[];
 [].forEach.call(document.querySelectorAll('%s'),function(e){if(e.closest('script,style,.cs'))return;
- if(e.closest('svg.hs')&&!e.closest('.dl'))return;
+ if(%s&&e.closest('svg.hs')&&!e.closest('.dl'))return;
  var svg=e instanceof SVGElement;
  [null,'::before','::after'].forEach(function(p){var c=getComputedStyle(e,p);if(p&&c.content=='none')return;
   P.forEach(function(k){if(!svg&&(k=='fill'||k=='stroke'))return;var v=c.getPropertyValue(k);o.push([e.tagName.toLowerCase()+'.'+(e.getAttribute('class')||'')+
@@ -685,9 +688,10 @@ var x=document.createElement('pre');x.id='colours';x.textContent=JSON.stringify(
 </script>"""
 
 
-def computed(edge, html, folder, name, inside='body'):
-    """[(element, property, value)] of every element of html at or inside the selector inside."""
-    probe = PROBE % (json.dumps(PROPS), '%s,%s *' % (inside, inside))
+def computed(edge, html, folder, name, inside='body', screen=False):
+    """[(element, property, value)] of every element of html at or inside the selector inside; screen: an HMI
+    screen's too."""
+    probe = PROBE % (json.dumps(PROPS), '%s,%s *' % (inside, inside), 'false' if screen else 'true')
     i = html.rfind('</body>')
     html = html[:i] + probe + html[i:]
     path = os.path.join(folder, name)
@@ -742,6 +746,34 @@ class ATrialPalette(unittest.TestCase):
         """The HMI part's own chrome: the toolbar, the panes, the change list, the outlines on a screen."""
         html = report(self.tmp.name, '--theme', self.trial.name, name='trial-hmi.html', sides=hmi_sides(self.tmp.name))
         self.assert_follows(html, 'trial-hmi-page.html')
+
+    def test_a_screen_takes_no_theme(self):
+        """An HMI screen with no BackColor of its own and an object not drawn: its background and the label that says
+        so are TIA's white and black under any theme, as on a page of TIA's; a change outline on it takes the theme."""
+        from TiaChangeReports.tests.test_hmi_part import ROOT_ATTRS, rect, screen
+        odd = ('<Hmi.Screen.NoSuchThing ID="3" CompositionName="ScreenItems"><AttributeList><Height>40</Height>'
+               '<Left>100</Left><ObjectName>odd</ObjectName><Top>10</Top><Width>120</Width></AttributeList>'
+               '</Hmi.Screen.NoSuchThing>')
+        sides = []
+        for side, items in (('b', rect('lamp')), ('a', rect('lamp', left=50) + odd)):
+            folder = os.path.join(self.tmp.name, 'screen', side, 'hmi', 'screens')
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, 'Filler.xml'), 'w', encoding='utf-8') as f:
+                f.write(screen('Filler', 10, items).replace(ROOT_ATTRS, ROOT_ATTRS.split('</BackColor>')[1]))
+            sides.append(os.path.dirname(os.path.dirname(folder)))
+        for spec in (self.trial.name, 'tia'):
+            html = report(self.tmp.name, '--theme', spec, name='screen.html', sides=sides)
+            got = computed(self.edge, html, self.tmp.name, 'screen-%s.html' % (spec != 'tia'), 'svg.hs', screen=True)
+            self.assertEqual({v for el, k, v in got if el == 'svg.hs' and k == 'background-color'},
+                             {'rgb(255, 255, 255)'}, spec)
+            self.assertIn('text.line tag-label', {el for el, k, v in got}, spec)       # "not drawn: NoSuchThing"
+            self.assertEqual({v for el, k, v in got if k == 'fill' and el.startswith('text.')}, {'rgb(0, 0, 0)'}, spec)
+            self.assertEqual({v for el, k, v in got if k == 'color' and (el == 'svg.hs' or el.startswith('text.'))},
+                             {'rgb(0, 0, 0)'}, spec)
+            outlines = {v for el, k, v in got
+                        if k == 'stroke' and re.match(r'(rect|circle)\.(added|changed|moved)', el)}
+            self.assertTrue(outlines, spec)
+            self.assertEqual(outlines <= self.allowed, spec != 'tia', (spec, outlines))
 
     def test_the_png(self):
         """--png draws the page in a headless browser, on the screen: the theme's colours, not print's."""
