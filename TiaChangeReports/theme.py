@@ -1,8 +1,9 @@
 """The report's colours: one palette of names, each a CSS custom property on .ldiff, and the themes that give them values.
 
-The palette and TIA's native theme, its default, are one file: TiaHmiGenerator\\hmipreview\\static\\tia-theme.css (rail.
-THEME_CSS), a line for each name. A theme of the user's own is a file in its format (read; the format and what is
-refused: that file's head). A faulty one raises ThemeError with its line, so a theme is never drawn in part.
+The palette and TIA's native theme, the value of each name no theme gives, are one file:
+TiaHmiGenerator\\hmipreview\\static\\tia-theme.css (rail.THEME_CSS), a line for each name. A theme of the user's own is
+a file in its format (read; the format and what is refused: that file's head). A faulty one raises ThemeError with its
+line, so a theme is never drawn in part.
 
   load(spec)            -> Theme: 'tia' TIA's native theme, a path the theme file there, None the user's default
                            theme (user_theme()) when that file is there, else TIA's
@@ -72,7 +73,8 @@ _DECL = re.compile(r'(--[a-z0-9-]+){S}*:{S}*(.*)'.format(S=_S), re.S)
 
 
 class ThemeError(ValueError):
-    """A theme file that cannot be read: str() is '<file>:<line>: <what>'."""
+    """A theme file that is no theme: str() is '<file>:<line>: <what>'; one that is not there or does not read:
+    '<file>: <what>'."""
 
 
 class Theme:
@@ -195,19 +197,24 @@ NAMES = list(NATIVE)
 
 def load(spec=None):
     """The theme spec names: 'tia', else a theme file; None: user_theme() when it is a file, else TIA's. Raises
-    ThemeError for a file that cannot be read or is no theme, OSError's text in it."""
+    ThemeError for a file that is not there, does not read (a folder, not UTF-8, a lock: why in it) or is no theme."""
     if spec is None:
         spec = user_theme()
         if not os.path.isfile(spec):
             return Theme('tia', {})
     if spec == 'tia':
         return Theme(spec, {})
+    if not os.path.exists(spec):
+        raise ThemeError('%s: no theme of that name (tia) and no theme file there' % spec)
+    if os.path.isdir(spec):
+        raise ThemeError('%s: the theme file cannot be read: it is a folder' % spec)
     try:
         with open(spec, encoding='utf-8-sig') as f:
             text = f.read()
-    except (OSError, UnicodeDecodeError) as ex:
-        raise ThemeError('%s: no theme of that name (%s) and no theme file there: %s'
-                         % (spec, 'tia', getattr(ex, 'strerror', None) or ex))
+    except UnicodeDecodeError as ex:
+        raise ThemeError('%s: the theme file cannot be read: it is not UTF-8 (%s)' % (spec, ex))
+    except OSError as ex:
+        raise ThemeError('%s: the theme file cannot be read: %s' % (spec, ex.strerror or ex))
     return Theme(os.path.abspath(spec), read(text, spec, NAMES))
 
 

@@ -413,6 +413,14 @@ class ThemeFiles(unittest.TestCase):
             with self.assertRaises(theme.ThemeError) as e:
                 theme.load(os.path.join(d, 'none.css'))
             self.assertIn('no theme of that name (tia) and no theme file there', str(e.exception))
+            latin = os.path.join(d, 'latin.css')
+            with open(latin, 'wb') as f:
+                f.write(b'.ldiff {\n  --theme-format: 1;\n  --wire: #f\xe9f;\n}\n')
+            for path, why in ((latin, 'it is not UTF-8'), (d, 'it is a folder')):
+                with self.assertRaises(theme.ThemeError) as e:
+                    theme.load(path)
+                self.assertIn('%s: the theme file cannot be read: %s' % (path, why), str(e.exception))
+                self.assertNotIn('no theme file there', str(e.exception))
 
 
 # Values of forms of CSS Color a theme does not take, each one the browser takes: a theme refuses them by their form.
@@ -663,8 +671,9 @@ class TheDefaultTheme(unittest.TestCase):
 PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'border-right-color',
          'border-bottom-color', 'border-left-color', 'outline-color', 'box-shadow', 'text-decoration-color', 'fill',
          'stroke', 'caret-color', 'column-rule-color']
-# An HMI screen (svg.hs but its change outlines, .dl) and a colour value's swatch (.cs) are in the project's colours,
-# no theme's. A moment after load, so that the HMI part has drawn the open object.
+# An HMI screen (svg.hs but its change outlines, .dl) and a colour value's swatch (.cs) take no theme: the project's
+# colours, and render.js's own marks on a screen in colours of their own. A moment after load, so that the HMI part
+# has drawn the open object.
 PROBE = """<script>addEventListener('load',function(){setTimeout(function(){var P=%s,o=[];
 [].forEach.call(document.querySelectorAll('%s'),function(e){if(e.closest('script,style,.cs'))return;
  if(e.closest('svg.hs')&&!e.closest('.dl'))return;

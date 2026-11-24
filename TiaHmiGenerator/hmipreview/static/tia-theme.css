@@ -1,7 +1,9 @@
-/* TIA Portal's native look: the change report's built-in theme (--theme tia, the default), and the one list of the
-   palette's names. Every colour the report, its fragment, its PNG and the block viewer draw is one of these names,
-   but an HMI screen and a value's colour swatch, drawn in the project's colours; the HMI preview's own panels and
-   Archive Compare's window take no theme.
+/* TIA Portal's native look: the change report's built-in theme (--theme tia; the default when you have no theme file
+   of your own), and the one list of the palette's names. Every colour the report, its fragment, its PNG and the block
+   viewer draw is one of these names, but an HMI screen and a value's colour swatch. A screen, as the HMI preview's
+   render.js draws it, takes no theme: the project's colours, and the preview's own marks on them in colours of its
+   own (flashing, a pattern, frames, the hatch of what is not drawn). Nor do the HMI preview's own panels and Archive
+   Compare's window.
 
    A theme of your own: a file %LOCALAPPDATA%\tia-co-op\theme.css with this block's --theme-format line and only the
    lines you change, not a copy of the whole file; every report and the block viewer given no --theme draw in it.
