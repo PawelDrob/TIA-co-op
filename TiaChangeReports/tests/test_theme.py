@@ -9,6 +9,9 @@ import io
 import json
 import os
 import re
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from html import unescape
@@ -335,7 +338,28 @@ class TheDefaultTheme(unittest.TestCase):
     def test_the_place(self):
         self.assertEqual(theme.user_theme({'LOCALAPPDATA': r'C:\Users\u\AppData\Local'}),
                          r'C:\Users\u\AppData\Local\tia-co-op\theme.css')
+        self.assertEqual(theme.user_theme({'LOCALAPPDATA': r'C:\Users\u\AppData\Local', theme.ENV: r'C:\t\theme.css'}),
+                         r'C:\t\theme.css')
         self.assertEqual(theme.load().name, 'tia')                                   # not there: TIA's
+
+    def test_a_child_process_reads_not_the_users_file(self):
+        """The test package sets ENV, so a report a test starts as a child process reads no file of the user's: here
+        a faulty one in the LOCALAPPDATA the child is given, which stops the report once ENV is gone."""
+        self.put({'--wire': 'green'})
+        local = os.path.join(self.tmp.name, 'local')
+        shutil.copytree(os.path.dirname(theme.USER_THEME), os.path.join(local, 'tia-co-op'))
+        out = os.path.join(self.tmp.name, 'child.html')
+        run = lambda env: subprocess.run(                                               # noqa: E731
+            [sys.executable, '-X', 'utf8', '-m', 'TiaChangeReports', os.path.join(PLANT, 'v1'),
+             os.path.join(PLANT, 'v2'), '-o', out], cwd=ROOT, capture_output=True, text=True,
+            env=dict(env, LOCALAPPDATA=local))
+        r = run(os.environ)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(out, encoding='utf-8') as f:
+            self.assertNotIn('@media screen', f.read())
+        r = run({k: v for k, v in os.environ.items() if k != theme.ENV})
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn(os.path.join(local, 'tia-co-op', 'theme.css') + ':3: --wire: ', r.stderr)
 
     def test_the_report(self):
         self.put({'--wire': '#123456'})
@@ -361,6 +385,17 @@ class TheDefaultTheme(unittest.TestCase):
         said = []
         self.assertEqual(viewer_cli.main([JUMPS], open_page=lambda p: self.fail('opened'), message=said.append), 2)
         self.assertIn('%s:3: --wire: ' % theme.USER_THEME, said[0])
+
+    def test_a_faulty_one_with_html(self):
+        """--html opens nothing, so the viewer runs from a console: a usage error on stderr, no message box."""
+        self.put({'--wire': 'green'})
+        out, err = os.path.join(self.tmp.name, 'v.html'), io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as e:
+            viewer_cli.main([JUMPS, '--html', out], message=lambda m: self.fail('a message box: %s' % m))
+        self.assertEqual(e.exception.code, 2)
+        self.assertIn('cannot read the default theme %s:3: --wire: ' % theme.USER_THEME, err.getvalue())
+        self.assertIn('--theme tia draws without it', err.getvalue())
+        self.assertFalse(os.path.exists(out))
 
 
 # Every element's colours in the browser, its ::before and ::after too, the page's head and body with them.

@@ -9,7 +9,9 @@ refused: that file's head). A faulty one raises ThemeError with its line, so a t
   USER_THEME            -> %LOCALAPPDATA%\\tia-co-op\\theme.css: a theme file in the user's profile, read by every
                            report and viewer page given no --theme, so that those the user does not start by hand
                            (the bridge's change_report, the dashboard's report run, Archive Compare, a double-click
-                           in the Explorer) draw in it too
+                           in the Explorer) draw in it too. The environment variable ENV, when set, is its path
+                           instead: the test packages set it, so that no report a test starts, as a child process
+                           too, reads the user's file
   css(theme, page)      -> the palette's block for a page's <style>: TIA's values, then the theme's for the screen
   NATIVE, NAMES         -> {name: TIA's value}, the names in the file's order
 
@@ -33,9 +35,13 @@ HELP = ("the colours: tia, TIA's native look, or a theme file in tia-theme.css's
         "default: your theme file %%LOCALAPPDATA%%\\tia-co-op\\theme.css when there, else tia")
 
 
+ENV = 'TIA_CR_USER_THEME'
+
+
 def user_theme(env=os.environ):
-    """Where the user's default theme is kept: tia-co-op\\theme.css in their local application data."""
-    return os.path.join(env.get('LOCALAPPDATA') or os.path.expanduser('~'), 'tia-co-op', 'theme.css')
+    """Where the user's default theme is kept: ENV's path when set, else tia-co-op\\theme.css in their local
+    application data."""
+    return env.get(ENV) or os.path.join(env.get('LOCALAPPDATA') or os.path.expanduser('~'), 'tia-co-op', 'theme.css')
 
 
 USER_THEME = user_theme()

@@ -40,8 +40,18 @@ Yourself, from the clone's folder, after [first setup](../docs/user/setup.md):
 
 `--help` lists the rest. It needs `TiaHmiGenerator` beside it, which the clone holds, and Edge or Chrome only for `--png`.
 
-**Colours of your own.** The report draws in TIA's colours. For your own, copy
-`TiaHmiGenerator\hmipreview\static\tia-theme.css` to `%LOCALAPPDATA%\tia-co-op\theme.css` and change the values you
-want. Every report and the block viewer then draw in them, also the reports the agent and Archive Compare make.
+**Colours of your own.** The report draws in TIA's colours. For your own, write `%LOCALAPPDATA%\tia-co-op\theme.css`
+with the `--theme-format` line and only the lines you change; the names and TIA's values are in
+`TiaHmiGenerator\hmipreview\static\tia-theme.css`:
+
+```css
+.ldiff {
+  --theme-format: 1;
+  --wire: #0057b8;
+}
+```
+
+A name you leave out keeps TIA's value, also when that value changes in a later version. Every report and the block
+viewer then draw in your colours, also the reports the agent and Archive Compare make.
 `--theme <file>` takes another theme for one report, `--theme tia` TIA's colours. A faulty file stops the report and
 names its line.
