@@ -43,8 +43,8 @@ From the clone's folder, after [first setup](../../docs/user/setup.md):
 .venv\Scripts\python.exe -X utf8 TiaChangeReports\viewer <file>.s7dcl
 ```
 
-The page opens in your default browser. `--html <out.html>` writes the page instead of opening it. `--help` lists the
-rest.
+The page opens in your default browser. `--html <out.html>` writes the page instead of opening it. It draws in your
+colours as [the change report](../README.md#how-to-use) does, `--theme` too. `--help` lists the rest.
 
 **Double-click.** To open `.s7dcl` files in the viewer by a double-click, for your Windows user only:
 

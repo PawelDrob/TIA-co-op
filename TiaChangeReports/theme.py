@@ -5,7 +5,12 @@ THEME_CSS), a line for each name. A theme of the user's own is a file in its for
 first --theme-format: 1;, then --name: colour; lines. A name it leaves out keeps TIA's value; anything else is refused
 with its line (ThemeError), so a theme is never drawn in part.
 
-  load(spec)            -> Theme: None or 'tia' TIA's native theme, else the theme file at that path
+  load(spec)            -> Theme: 'tia' TIA's native theme, a path the theme file there, None the user's default
+                           theme (USER_THEME) when that file is there, else TIA's
+  USER_THEME            -> %LOCALAPPDATA%\\tia-co-op\\theme.css: a theme file in the user's profile, read by every
+                           report and viewer page given no --theme, so that those the user does not start by hand
+                           (the bridge's change_report, the dashboard's report run, Archive Compare, a double-click
+                           in the Explorer) draw in it too
   css(theme, page)      -> the palette's block for a page's <style>: TIA's values, then the theme's for the screen
   NATIVE, NAMES         -> {name: TIA's value}, the names in the file's order
 
@@ -25,6 +30,14 @@ from hmipreview import rail   # noqa: E402  the palette's file, shared with the 
 
 FORMAT = 1                      # the format this report reads; a name renamed or removed makes the next one
 BUILT_IN = {'tia': os.path.join(rail.STATIC, 'tia-theme.css')}
+
+
+def user_theme(env=os.environ):
+    """Where the user's default theme is kept: tia-co-op\\theme.css in their local application data."""
+    return os.path.join(env.get('LOCALAPPDATA') or os.path.expanduser('~'), 'tia-co-op', 'theme.css')
+
+
+USER_THEME = user_theme()
 
 _HEX = re.compile(r'#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$')
 _NUM = r'[+-]?(?:\d+\.?\d*|\.\d+)(?:%|deg)?'
@@ -118,10 +131,14 @@ NAMES = list(NATIVE)
 
 
 def load(spec=None):
-    """The theme spec names: None or a built-in's name ('tia'), else a theme file. Raises ThemeError for a file that
-    cannot be read or is no theme, OSError's text in it."""
-    if spec is None or spec in BUILT_IN:
-        return Theme(spec or 'tia', {})
+    """The theme spec names: a built-in's name ('tia'), else a theme file; None: USER_THEME when it is a file, else
+    TIA's. Raises ThemeError for a file that cannot be read or is no theme, OSError's text in it."""
+    if spec is None:
+        if not os.path.isfile(USER_THEME):
+            return Theme('tia', {})
+        spec = USER_THEME
+    if spec in BUILT_IN:
+        return Theme(spec, {})
     try:
         with open(spec, encoding='utf-8-sig') as f:
             text = f.read()

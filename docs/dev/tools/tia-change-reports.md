@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T14:31:32-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T15:56:00-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -97,12 +97,141 @@ Each cause prints with its kind: a reader that reads a format otherwise, a field
 | `render_lad.py`, `verify.py` | The drawing and its self-check |
 | `page.py` | The page or fragment: summary, block sections, project tree, script |
 | `scl_colours.py` | The words of an SCL line in the colours of TIA's SCL editor |
+| `theme.py` | The palette's block for a page, a theme file read and checked |
 | `hmi.py`, `hmi.js`, `hmi.css` | The HMI part |
 | `twoformats.py` | The two formats against each other: facts of a report, the two checks, their causes |
 
 ## The page
 
 A self-contained HTML file: nothing is fetched. A summary table and a project tree in TIA's folders lead to the block sections, with `Before` and `After` columns from their sources. The HMI part stores its documents gzipped and base64-encoded in the page, and draws an object when it opens. `--fragment` writes only the `<div class="ldiff">`, and `--png` a screenshot through headless Edge or Chrome.
+
+## Colours and themes
+
+Every colour the page, the fragment, the PNG and the block viewer draw is a name of one palette: a CSS custom property on `.ldiff`. The palette and TIA's native theme, its default, are one file, `TiaHmiGenerator\hmipreview\static\tia-theme.css`, beside `ldiff.css` and `rail.css` that the report shares with the HMI preview. It has a line for each name, saying what the name colours and which pairs a theme must keep readable. `theme.py` reads it and a theme of the user's own in its format, and writes the palette's block into a page's `<style>`. `test_theme.py` holds the rest to it: no colour stands outside that block, in any style or in the SVG.
+
+- **What the renderer writes holds names and no colour.** A ladder's parts carry classes (`l-wire`, `l-box`, `hl added`, ...), and `render_lad.CSS` gives each its `fill` or `stroke` from a name. So a theme changes only the palette's block: the same rendering serves every theme, and a cache of fragments needs no theme in its key. An SVG copied out of the page alone has no colours: its shapes and text fill black, its lines do not show. `--png` is the way to a picture.
+- **The report's own values are written `:where(.ldiff)`,** specificity 0. In a page of its own they go on `:root` instead, so that the page's head and body take them too.
+- **A theme file** is given with `--theme <file>` on the report or the viewer, or kept as the user's default in `%LOCALAPPDATA%	ia-co-op	heme.css`, which both read when given no `--theme`; `--theme tia` draws without it. So every report draws in it, those the bridge, the dashboard and Archive Compare start too. Its values come after TIA's, inside `@media screen`: print takes TIA's values, paper being white. Its format and what is refused are at the head of `tia-theme.css`. A standalone page keeps the theme it was made with.
+- **A host gives a theme** in its own stylesheet: `.ldiff { --name: value; ... }`. It wins over the report's values wherever it stands, the fragment's `<style>` included. A theme file is such a stylesheet as it stands. A value there may be any CSS colour, `var(--vscode-...)` among them, as no name is mixed or computed from another (`test_theme.TheNames`).
+
+### Following a VS Code theme
+
+Following a VS Code theme is the extension's job (tia-vscode 02 to 04); this table is what it maps from. A webview gets the running theme's colours as `var(--vscode-<id>)`, where `<id>` is a theme colour id with `.` as `-`, and a class on `body`: `vscode-light`, `vscode-dark` or `vscode-high-contrast`. That much is in [VS Code's webview guide](https://code.visualstudio.com/api/extension-guides/webview), checked 2026-11-24. The guide does not name `vscode-high-contrast-light`, which element carries the variables, or whether they change when the user switches theme. Those want checking in a running VS Code.
+
+A webview gets no syntax colours: a theme's token colours are not among those variables. So LAD's and SCL's word colours have stand-ins at best (`symbolIcon.*`, `debugTokenExpression.*`). Where the table says *per kind*, no VS Code colour fits, and the extension needs a value of its own for light, dark and high contrast themes.
+
+| Name | VS Code colour id |
+|---|---|
+| `--page` | `editor.background` |
+| `--text` | `editor.foreground` |
+| `--muted` | `descriptionForeground` |
+| `--faint` | `editorLineNumber.foreground` |
+| `--empty-field-text` | `input.placeholderForeground` |
+| `--viewer-note` | `descriptionForeground` |
+| `--link` | `textLink.foreground` |
+| `--link-underline` | `textLink.foreground` |
+| `--match` | `list.highlightForeground` |
+| `--page-head` | `editorGroupHeader.tabsBackground` |
+| `--page-head-line` | `editorGroupHeader.tabsBorder` |
+| `--band` | `sideBarSectionHeader.background` |
+| `--field` | `input.background` |
+| `--row` | `editorWidget.background` |
+| `--network-number` | `badge.background` |
+| `--line` | `panel.border` |
+| `--grid` | `tree.indentGuidesStroke` |
+| `--edge` | `widget.border` |
+| `--divider` | `panel.border` |
+| `--no-line` | `diffEditor.diagonalFill` |
+| `--opened-member` | `tree.tableOddRowsBackground` |
+| `--added` | `gitDecoration.addedResourceForeground` |
+| `--added-fill` | `diffEditor.insertedLineBackground` |
+| `--added-word` | `diffEditor.insertedTextBackground` |
+| `--removed` | `gitDecoration.deletedResourceForeground` |
+| `--removed-fill` | `diffEditor.removedLineBackground` |
+| `--removed-word` | `diffEditor.removedTextBackground` |
+| `--changed` | `gitDecoration.modifiedResourceForeground` |
+| `--changed-fill` | *per kind* |
+| `--changed-row` | *per kind* |
+| `--moved` | `gitDecoration.renamedResourceForeground` |
+| `--moved-fill` | *per kind* |
+| `--moved-row` | *per kind* |
+| `--same` | `disabledForeground` |
+| `--same-mark` | `editor.background` |
+| `--version` | `descriptionForeground` |
+| `--badge-text` | `badge.foreground` |
+| `--mark-line` | `widget.border` |
+| `--off-over-mark` | *per kind* |
+| `--button` | `button.secondaryBackground` |
+| `--button-hover` | `button.secondaryHoverBackground` |
+| `--button-line` | `button.border` |
+| `--button-text` | `button.secondaryForeground` |
+| `--button-off-text` | `disabledForeground` |
+| `--switch` | `button.secondaryBackground` |
+| `--switch-on` | `inputOption.activeBackground` |
+| `--input` | `input.background` |
+| `--input-text` | `input.foreground` |
+| `--focus` | `focusBorder` |
+| `--hover` | `list.hoverBackground` |
+| `--selected` | `list.activeSelectionBackground` |
+| `--change-hover` | `list.hoverBackground` |
+| `--icon` | `icon.foreground` |
+| `--tree-icon` | `icon.foreground` |
+| `--window-line` | `editorWidget.border` |
+| `--shadow` | `widget.shadow` |
+| `--backdrop` | *per kind* |
+| `--minimap-view` | `minimapSlider.background` |
+| `--minimap-view-line` | `minimapSlider.activeBackground` |
+| `--error-fill` | `inputValidation.errorBackground` |
+| `--error-line` | `inputValidation.errorBorder` |
+| `--checkbox` | `checkbox.background` |
+| `--checkbox-line` | `checkbox.border` |
+| `--checkbox-on` | `button.background` |
+| `--checkbox-on-line` | `button.background` |
+| `--checkbox-tick` | `button.foreground` |
+| `--checkbox-off` | `checkbox.disabled.background` |
+| `--checkbox-off-line` | `checkbox.border` |
+| `--checkbox-off-on` | `checkbox.disabled.background` |
+| `--checkbox-off-on-line` | `checkbox.border` |
+| `--checkbox-off-tick` | `checkbox.disabled.foreground` |
+| `--wire` | `editor.foreground` |
+| `--lad-text` | `editor.foreground` |
+| `--lad-comment` | *per kind* |
+| `--lad-value` | `debugTokenExpression.value` |
+| `--lad-constant` | `debugTokenExpression.number` |
+| `--lad-default` | `editorInlayHint.foreground` |
+| `--lad-number` | `debugTokenExpression.number` |
+| `--eno-off` | `disabledForeground` |
+| `--pin-open` | `editorLineNumber.foreground` |
+| `--box` | `editorWidget.background` |
+| `--box-line` | `editorWidget.border` |
+| `--box-head` | `sideBarSectionHeader.background` |
+| `--box-cell-line` | `editorWidget.border` |
+| `--compare-type` | `sideBarSectionHeader.background` |
+| `--expression` | `input.background` |
+| `--calculator` | `button.secondaryBackground` |
+| `--calculator-line` | `icon.foreground` |
+| `--conversion` | *per kind* |
+| `--conversion-light` | *per kind* |
+| `--jump-label` | *per kind* |
+| `--jump-label-line` | `editor.foreground` |
+| `--scl-keyword` | `symbolIcon.keywordForeground` |
+| `--scl-region` | *per kind* |
+| `--scl-constant` | `symbolIcon.constantForeground` |
+| `--scl-comment` | *per kind* |
+| `--scl-operand` | `symbolIcon.variableForeground` |
+| `--scl-local-constant` | `symbolIcon.constantForeground` |
+| `--scl-block-call` | `symbolIcon.functionForeground` |
+| `--scl-instruction` | `symbolIcon.methodForeground` |
+| `--scl-parameter` | `debugTokenExpression.name` |
+| `--scl-operator` | `symbolIcon.operatorForeground` |
+| `--screen-surround` | *per kind* |
+| `--screen-edge` | `widget.border` |
+| `--object-selected` | `focusBorder` |
+| `--checker` | *per kind* |
+| `--checker-light` | *per kind* |
+| `--swatch-line` | `widget.border` |
+
+The `diffEditor.*` backgrounds are translucent by VS Code's own description. Drawn over `--page`, as the report draws them, they read as VS Code's diff editor does.
 
 ## Who calls it
 

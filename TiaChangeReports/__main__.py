@@ -48,10 +48,11 @@ paste into a report. --png also writes a screenshot of the page (headless Edge o
 taller than 16000 px in several, out-1.png, out-2.png, ..., cut between blocks (a taller block between networks),
 listed after the page; a LAD network drawn below 70 % side by side is drawn there before above after at the
 full width.
---theme: the colours, TIA's native look (tia, the default) or a theme file of the user's own in the format of
-TiaHmiGenerator\hmipreview\static\tia-theme.css (theme.py); the page, the fragment and the PNG take it, the page keeps
-it. A theme file that cannot be read, or holds a line that is no name of the palette or no colour, is a usage error,
-named with its line on stderr.
+--theme: the colours, TIA's native look (tia) or a theme file of the user's own in the format of
+TiaHmiGenerator\\hmipreview\\static\\tia-theme.css (theme.py); the page, the fragment and the PNG take it, the page
+keeps it. Without --theme: the user's default theme, %LOCALAPPDATA%\\tia-co-op\\theme.css, when that file is there,
+else tia. A theme file that cannot be read, or holds a line that is no name of the palette or no colour, is a usage
+error, named with its line on stderr; so is such a default theme.
 --json prints the result as one JSON object (page, before, after, blocks; plcTags when a table changed; skipped when a
 file was; otherFiles when any; acrossFormats when a block is .s7dcl on one side and SimaticML on the other; png: the PNGs)
 instead of the list.
@@ -139,7 +140,7 @@ def main(argv=None):
     try:
         theme = themes.load(a.theme)
     except themes.ThemeError as ex:
-        print('--theme %s' % ex, file=sys.stderr)
+        print(('--theme %s' if a.theme else 'the default theme %s (--theme tia draws without it)') % ex, file=sys.stderr)
         return 2
     plc_on, hmi_on = a.only != 'hmi', a.only != 'plc' and not (a.block or a.network)
     tags_on = plc_on and not (a.block or a.network)

@@ -7,7 +7,9 @@ python TiaChangeReports\\viewer --register | --unregister | --register-xml | --u
 browser with the block drawn as the change report draws it, and a switch to the file's text. A file it cannot draw
 opens on its text, with why. --html: writes the page to out.html instead, nothing opened. --lang: the language of
 titles and comments (default en-US, else the first language with a text). --theme: the colours, as the change
-report's --theme (TIA's native look by default, or a theme file); a faulty theme file is a usage error.
+report's --theme (tia, TIA's native look, or a theme file; without it the user's default theme,
+%LOCALAPPDATA%\\tia-co-op\\theme.css, when that file is there); a faulty theme file is a usage error, a faulty default
+theme said in a message box, exit code 2.
 --register: a double-click on an .s7dcl opens it here, for the current user; --unregister takes that back.
 --register-xml: "Open with" on an .xml file lists the viewer, for the current user, and what a double-click on one opens
 stays; --unregister-xml takes that back. Neither touches what --register wrote, nor --register what they wrote.
@@ -52,7 +54,10 @@ def main(argv=None, open_page=browser.open_page, message=browser.message):
     try:
         theme = themes.load(a.theme)
     except themes.ThemeError as ex:
-        p.error('--theme %s' % ex)
+        if a.theme:
+            p.error('--theme %s' % ex)
+        message('The block viewer cannot read the default theme %s. --theme tia draws without it.' % ex)
+        return 2
     html, title = view.page(a.file, theme)
     if a.html:
         with open(a.html, 'w', encoding='utf-8') as f:

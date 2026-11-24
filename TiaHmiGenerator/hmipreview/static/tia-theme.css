@@ -1,7 +1,8 @@
 /* TIA Portal's native look: the change report's built-in theme (--theme tia, the default), and the one list of the
    palette's names. Every colour the report, its fragment, its PNG and the block viewer draw is one of these names.
 
-   A theme of your own: copy this file, change the values you want, give it to the report with --theme <file>.
+   A theme of your own: copy this file to %LOCALAPPDATA%\tia-co-op\theme.css and change the values you want; every
+   report and the block viewer given no --theme draw in it. --theme <file> takes another for one report.
    - One block, .ldiff { ... }; first --theme-format: 1; then one --name: colour; a line. Comments as here.
    - A name you leave out keeps the value below. A name not below, a value that is no colour or anything else
      is refused, with the line; nothing is drawn then.

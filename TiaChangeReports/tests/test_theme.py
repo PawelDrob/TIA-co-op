@@ -181,6 +181,12 @@ class TheNames(unittest.TestCase):
             for m in re.finditer(re.escape(f), css):
                 self.assertNotRegex(css[m.start():css.find(')', m.start()) + 1], r'var\(--(?!fw|fh|mb|width)', f)
 
+    def test_the_dev_docs_table_has_each_name_once(self):
+        """docs\\dev\\tools\\tia-change-reports.md: the names against VS Code's colours, in the palette's order."""
+        with open(os.path.join(ROOT, 'docs', 'dev', 'tools', 'tia-change-reports.md'), encoding='utf-8') as f:
+            rows = re.findall(r'^\| `(--[a-z0-9-]+)` \| (?:`[a-zA-Z.]+`|\*per kind\*) \|$', f.read(), re.M)
+        self.assertEqual(rows, theme.NAMES)
+
     def test_the_marks_are_one_set(self):
         """FILL of the ladder and the background of an SCL line, an interface row and a badge are the same four."""
         for mark in render_lad.MARKS:
@@ -275,6 +281,55 @@ class TheOptions(unittest.TestCase):
                 viewer_cli.main([JUMPS, '--html', out, '--theme', theme_file(d, {'--nope': '#000'}, 'bad.css')])
             self.assertEqual(e.exception.code, 2)
             self.assertIn('bad.css:3: --nope is no name of the palette', err.getvalue())
+
+
+class TheDefaultTheme(unittest.TestCase):
+    """%LOCALAPPDATA%\\tia-co-op\\theme.css (theme.USER_THEME; the tests point it at a folder of their own): the report
+    and the viewer given no --theme draw in it when it is there; --theme tia draws without it; a faulty one stops
+    them, named."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.kept = theme.USER_THEME
+        theme.USER_THEME = os.path.join(self.tmp.name, 'tia-co-op', 'theme.css')
+
+    def tearDown(self):
+        theme.USER_THEME = self.kept
+        self.tmp.cleanup()
+
+    def put(self, values):
+        os.makedirs(os.path.dirname(theme.USER_THEME))
+        theme_file(os.path.dirname(theme.USER_THEME), values, 'theme.css')
+
+    def test_the_place(self):
+        self.assertEqual(theme.user_theme({'LOCALAPPDATA': r'C:\Users\u\AppData\Local'}),
+                         r'C:\Users\u\AppData\Local\tia-co-op\theme.css')
+        self.assertEqual(theme.load().name, 'tia')                                   # not there: TIA's
+
+    def test_the_report(self):
+        self.put({'--wire': '#123456'})
+        self.assertIn('@media screen{:where(:root){--wire:#123456}}', report(self.tmp.name))
+        self.assertNotIn('@media screen', report(self.tmp.name, '--theme', 'tia', name='tia.html'))
+
+    def test_the_viewer(self):
+        self.put({'--wire': '#123456'})
+        out = os.path.join(self.tmp.name, 'v.html')
+        quiet(viewer_cli.main, [JUMPS, '--html', out])
+        with open(out, encoding='utf-8') as f:
+            self.assertIn('@media screen{:where(:root){--wire:#123456}}', f.read())
+
+    def test_a_faulty_one(self):
+        self.put({'--wire': 'green'})
+        out, err = os.path.join(self.tmp.name, 'r.html'), io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = cli.main([os.path.join(PLANT, 'v1'), os.path.join(PLANT, 'v2'), '-o', out])
+        self.assertEqual(code, 2)
+        self.assertIn('the default theme %s:3: --wire: ' % theme.USER_THEME, err.getvalue())
+        self.assertIn('--theme tia draws without it', err.getvalue())
+        self.assertFalse(os.path.exists(out))
+        said = []
+        self.assertEqual(viewer_cli.main([JUMPS], open_page=lambda p: self.fail('opened'), message=said.append), 2)
+        self.assertIn('%s:3: --wire: ' % theme.USER_THEME, said[0])
 
 
 # Every element's colours in the browser, its ::before and ::after too, the page's head and body with them.
