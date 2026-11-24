@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-21T04:36:06-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T14:24:09-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -56,7 +56,7 @@ Not coloured: STL, a LAD or FBD network shown as text, the interface, and the ti
 
 **Drawing** (`render_lad.py`). Every element takes a cell; a wire node sits at the longest path from the rail; rows go in export order, first-fit below what they attach to. An FB or FC call lays out its pins from the called block's interface when the input holds it.
 
-**Self-check** (`verify.py`). `Layout.wiring()` returns the drawn lines. `verify` rebuilds the nets from them and requires a one-to-one match with the parsed network, and reports crossings without a junction, loose lines, overlaps and lines through elements. It shows the drawing holds the logic of the code, however close it looks to TIA.
+**Self-check** (`verify.py`). `Layout.wiring()` returns the drawn lines. `verify` rebuilds the nets from them and requires a one-to-one match with the parsed network, and reports crossings without a junction, loose lines, overlaps and lines through elements. TIA's end mark at a rung's end (`Layout.ends()`) is drawing, not a line: `verify` reports one that touches any line but the end of the one it closes, or stands in an element of another rung. It shows the drawing holds the logic of the code, however close it looks to TIA.
 
 ## What it leaves out
 

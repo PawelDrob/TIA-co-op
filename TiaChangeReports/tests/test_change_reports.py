@@ -6498,14 +6498,15 @@ class EmptyNetwork(unittest.TestCase):
     """An empty LAD network is drawn as TIA does, its power rail and an empty rung, not as a text."""
 
     def test_rail_and_an_empty_rung(self):
-        from TiaChangeReports.render_lad import X0
+        from TiaChangeReports.render_lad import END_IN, X0
         (n,) = parse_block(src(EMPTY_NW, '', 'E')).networks
         lay = Layout(n.rungs, None)
         segs, terms = lay.wiring()
         rail, rung = segs
         self.assertEqual((rail[0], rail[2]), (X0, X0))                  # the rail
         self.assertEqual((rung[0], rung[1], rung[3]), (X0, lay.ys[0], lay.ys[0]))
-        self.assertEqual(rung[2], lay.right)                            # across the network, as a rung of coils
+        self.assertEqual(rung[2], lay.right - END_IN)                   # across the network, as a rung of coils
+        self.assertEqual(lay.ends(), [(rung[2], rung[1])])              # to TIA's end mark
         self.assertTrue(rail[1] < rung[1] < rail[3])
         self.assertEqual(terms, [])
         self.assertEqual(check(lay), [])
@@ -7117,17 +7118,18 @@ class BoxDetailsLikeTia(unittest.TestCase):
         self.assertIn('font-size="11" font-weight="bold">USInt</text>', svg)
 
     def test_open_eno_runs_on_in_the_top_rung_and_stops_short_below(self):
-        from TiaChangeReports.render_lad import STUB
+        from TiaChangeReports.render_lad import END_IN, STUB
         _, (net, calc) = self._boxes()
         self.assertEqual(check(net), [])
         mv, call = self._view(net, 'Move'), self._view(net, 'CALL')
         segs, _ = net.wiring()
         ymove = net.ys[0]
-        self.assertTrue(any(s[1] == s[3] == ymove and s[2] == net.right for s in segs))   # to the network's end
+        self.assertTrue(any(s[1] == s[3] == ymove and s[2] == net.right - END_IN for s in segs))  # to the network's end
         self.assertGreater(net.right, net._elx(mv.el.eid) + mv.w)
         self.assertTrue(call.eno_stub and not mv.eno_stub)
         x = net._elx(call.el.eid) + call.lw + call.bw
         self.assertIn('x1="%.1f" y1="%.1f" x2="%.1f"' % (x, net.ys[1], x + STUB), net.svg())
+        self.assertEqual(net.ends(), [(net.right - END_IN, ymove), (x + STUB, net.ys[1])])   # each with TIA's end mark
         self.assertEqual(check(calc), [])
 
     def test_conversion_mark_where_the_operand_type_differs(self):

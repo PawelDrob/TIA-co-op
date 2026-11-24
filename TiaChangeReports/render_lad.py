@@ -1,8 +1,14 @@
 """Draw a LAD network as TIA Portal does, as inline SVG.
 
-Layout (from TIA screenshots at 100%: an FB call, R_TRIG, SR, TON and branches ending on other nodes):
+Layout (from TIA screenshots at 100%: an FB call, R_TRIG, SR, TON and branches ending on other nodes; the rung ends from
+zzBenEnds, zzBenContacts, zzLadControl and zzLadConvert):
 - power rail on the left, no right rail; one rung (text RUNG ... END_RUNG) = one horizontal line; an empty network
-  (an empty rung) the rail and a line one cell long;
+  (an empty rung) the rail and a line to the network's end;
+- a rung's end as TIA's: a rung that ends in a coil, the top rung after an open ENO and an empty rung run on to the
+  network's end, END_IN short of its last cell (inside the last coil's cell), and close there with TIA's end mark, a bar
+  END_H tall and END_W wide, its right edge where the wire ends; an open ENO below the top rung closes with the same bar
+  STUB past its box; a box without ENO (JumpList, Switch) ends at its box with nothing after it. The bar is drawing, no
+  wire: wiring() leaves it out, ends() gives it, verify.py checks that it touches no other line;
 - a jump label: a gray box one cell wide over the rail, a black line inside its top and bottom edge, the name
   centered; the rail starts under it. A renamed, added or removed label: the box filled with the diff mark;
 - every element takes a cell, wire nodes sit at the longest-path column, so elements after a node line up;
@@ -17,7 +23,7 @@ Layout (from TIA screenshots at 100%: an FB call, R_TRIG, SR, TON and branches e
   instance's comment, else the called block's comment; an unassigned pin shows its default value in gray; the type
   of a box (SrcType, ...) bold in a cell of its own under the title; no add-pin star (the editor's handle, not for
   a report); the conversion mark at an input fed an operand of another elementary type; an open ENO (the rung ends
-  at the box) runs on to the network's end in its top rung and ends in a short stub below it;
+  at the box) runs on to the network's end in its top rung and ends in a short stub below it, each with the end mark;
 - as the LAD help draws them: P_TRIG / N_TRIG with CLK and Q on the rung, the edge memory below the box;
   IN_RANGE / OUT_RANGE with the rung through the box, no EN / ENO, pins MIN, VAL, MAX; two types each in a cell of their
   own, 'to' between them (CONV, ROUND, NORM_X, ...), '**' for EXPT; in the coil RET, above it the return value (RLO, TRUE,
@@ -188,7 +194,10 @@ _SRC_TO_DEST = ('SrcType', 'to', 'DestType')
 TYPE_PAIRS = {'Round': _SRC_TO_DEST, 'Ceil': _SRC_TO_DEST, 'ceil': _SRC_TO_DEST, 'Floor': _SRC_TO_DEST, 'Trunc': _SRC_TO_DEST,
               'trunc': _SRC_TO_DEST, 'Expt': ('DestType', '**', 'SrcType')}
 PIN_TYPES = {('JumpList', 'k'): 'UInt'}  # input types an instruction fixes; others: its SrcType
-STUB = 50                               # TIA's open ENO of a box below the network's top rung
+STUB = 41                               # TIA's open ENO of a box below the network's top rung, to its end mark
+END_IN = 5.4                            # a rung that runs to the network's end stops this short of its last cell
+END_H = 5.4                             # the end mark: a bar this tall, centred on the wire,
+END_W = 1.8                             # as wide as TIA's wire is thick
 C_CONV = '#a9a9a9'                      # conversion mark: a gray square, its lower right half light
 C_CONV_LIGHT = '#d3d3d3'
 ELEMENTARY = {t.lower() for t in (
@@ -347,6 +356,7 @@ class View:
         self.callees = callees
         self.wirepins = {}
         self.eno_stub = False                             # a box: set by Layout, an open ENO below the top rung
+        self.end_x = None                                 # set by Layout: where its rung ends, in its cell
         k = el.kind
         self.tall = 0
         if k in ('contact', 'coil'):
@@ -738,11 +748,11 @@ class View:
             h, r, reach = (15, 18, 7.4) if self.tall else (9, 11, 4)
             if self.el.instr in SQUARE_COILS:
                 b = g + 6
-                out += [_ln(x, y, cx - b, y), _ln(cx + b, y, x + self.w, y)]
+                out += [_ln(x, y, cx - b, y), _ln(cx + b, y, self._out_x(x), y)]
                 out += ['<path d="M%.1f %.1f H%.1f V%.1f H%.1f" fill="none" stroke="%s" stroke-width="1.6"/>'
                         % (cx + s * (b - 3), y - h, cx + s * b, y + h, cx + s * (b - 3), C_WIRE) for s in (-1, 1)]
             else:
-                out += [_ln(x, y, cx - g - reach, y), _ln(cx + g + reach, y, x + self.w, y),
+                out += [_ln(x, y, cx - g - reach, y), _ln(cx + g + reach, y, self._out_x(x), y),
                         '<path d="M%.1f %.1f A %d %d 0 0 0 %.1f %.1f" fill="none" stroke="%s" stroke-width="1.6"/>'
                         % (cx - g, y - h, r, r, cx - g, y + h, C_WIRE),
                         '<path d="M%.1f %.1f A %d %d 0 0 1 %.1f %.1f" fill="none" stroke="%s" stroke-width="1.6"/>'
@@ -794,7 +804,7 @@ class View:
         if above:
             out += _stack_up(above, cx, yb)
         if not self.noeno:                                # on to the cell's end, or TIA's short open end
-            out.append(_ln(bx + self.bw, y, bx + self.bw + STUB if self.eno_stub else x + self.w, y))
+            out.append(_ln(bx + self.bw, y, bx + self.bw + STUB if self.eno_stub else self._out_x(x), y))
         if self.expr:
             ex, ey, ew, eh = self._expr_box(bx, y)
             out.append(_t(ex + ew / 2, ey + 14, self.expr, C_OP))
@@ -820,6 +830,10 @@ class View:
                 out += _stack_up(L, bx + self.bw + 10, py + 4, 'start')
         out += _stack_down(self.under, bx + self.bw / 2, self._under_y(y))
         return out
+
+    def _out_x(self, x):
+        """Where the wire it draws on its rung, right of it, ends: its cell's end, or its rung's end inside the cell."""
+        return x + self.w if self.end_x is None else min(x + self.w, self.end_x)
 
     def _box_bottom(self, y):
         return y + self.below - 6 - len(self.under) * LINE
@@ -1117,9 +1131,34 @@ class Layout:
             bottom = max([bd[3] for bd in bands] + [bottom])
 
         self.info, self.ys, self.home = info, ys, home
+        self._ends()
         self.height = max([bd[3] for bd in bands] + [TOP]) + TOP
         self.width = max([i['end'] for i in info] + [right] +
                          [self._elx(eid) + v.w for eid, v in self.views.items()]) + 30
+
+    def _ends(self):
+        """i['mark']: the x where a rung with no end node closes with the end mark (module doc), else None. At the
+        network's end: a rung that ends in a coil, an empty rung, the top rung after an open ENO; at the end of its stub:
+        an open ENO below the top rung. A box without ENO, or a rung that ends in a contact, has none. The last
+        element's own wire stops at the mark (View.end_x)."""
+        end = self.right - END_IN
+        for i in self.info:
+            i['mark'] = None
+            if i['e'] is not None:
+                continue
+            last = i['placed'][-1] if i['placed'] else None
+            if last is None:
+                i['mark'] = end
+            elif isinstance(last[0], str):
+                continue
+            elif last[0].kind == 'coil' or (last[0].kind == 'box' and not self.views[last[0].eid].noeno):
+                v = self.views[last[0].eid]
+                i['mark'] = last[1] + v.lw + v.bw + STUB if v.eno_stub else end
+                v.end_x = i['mark']
+
+    def ends(self):
+        """[(x, y)] of every end mark, in rung order: its right edge, on the wire (module doc)."""
+        return [(i['mark'], self.ys[k]) for k, i in enumerate(self.info) if i['mark'] is not None]
 
     def _elx(self, eid):
         for i in self.info:
@@ -1181,8 +1220,8 @@ class Layout:
                     segs.append((cur, y, ex, y))
                 if i.get('to_pin'):
                     segs.append((ex, y, i['to_pin'], y))
-            elif i['end'] > cur:                          # an empty rung, the top rung after an open ENO
-                segs.append((cur, y, i['end'], y))
+            elif i['mark'] is not None and i['mark'] > cur:   # an empty rung, the top rung after an open ENO
+                segs.append((cur, y, i['mark'], y))
         for n, yl in vert.items():
             if len(yl) > 1 and n in x:
                 segs.append((x[n], min(yl), x[n], max(yl)))
@@ -1234,6 +1273,8 @@ class Layout:
             else:
                 inbox[eid] = inbox.get(eid, '') + r
         body += [_ln(*segs[0], color=C_WIRE, w=2.2)] + [_ln(*sg) for sg in segs[1:]]
+        body += ['<rect class="end" x="%.1f" y="%.1f" width="%s" height="%s" fill="%s"/>'
+                 % (x - END_W, y - END_H / 2, END_W, END_H, C_WIRE) for x, y in self.ends()]
         for el, ex, y in self._placed():
             st = status.get(el.eid, 'same')
             body.append('<g class="el"><title>%s</title>' % escape(_tip(el, other.get(el.eid), st)))

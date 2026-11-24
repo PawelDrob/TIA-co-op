@@ -3,13 +3,16 @@ call box, R_TRIG, compare contacts, SR, TON, a branch from the node where anothe
 example machine of our own. From the repo root: python -m unittest discover -s TiaChangeReports/tests -t .
 """
 import os
+import re
 import tempfile
 import unittest
 
 from TiaChangeReports.compare import Callees
-from TiaChangeReports.render_lad import C_CMT, C_CST, C_DEF, C_VAL, LINE, Layout, display_operand, operand_lines
+from TiaChangeReports.render_lad import (C_CMT, C_CST, C_DEF, C_VAL, END_H, END_IN, END_W, LINE, STUB, X0, Layout,
+                                         display_operand, operand_lines)
 from TiaChangeReports.s7dcl import parse_block
 from TiaChangeReports.source import BlockSource, FolderSnapshot, from_file
+from TiaChangeReports.tests.test_change_reports import FIXTURE_SD, _fixture, _xml_src
 from TiaChangeReports.verify import check
 
 V1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'plant', 'v1')
@@ -289,6 +292,299 @@ class AgainstTia(unittest.TestCase):
         ton = _view(self.lay(self.pfd, 4), 'TON')
         self.assertEqual((ton.title, ton.sub), ('TON', 'Time'))
         self.assertEqual(dict(ton.rights)['ET'], [('T#0ms', C_DEF, False)])
+
+
+ENDS = '''FUNCTION_BLOCK "Ends"
+    VAR
+        a : Bool;
+        b : Bool;
+        q : Bool;
+        r : Bool;
+        n : Int;
+        m : Int;
+    END_VAR
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            Coil( #q )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            R_Coil( #r )
+            Coil( #q )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            wire#w1
+            Coil( #q )
+        END_RUNG
+        RUNG wire#w1
+            S_Coil( #r )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            Move(
+                in := #n,
+                out1 => #m
+            )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            wire#w1
+            Coil( #q )
+        END_RUNG
+        RUNG wire#w1
+            Move(
+                in := #n,
+                out1 => #m
+            )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            JumpList(
+                k := #n,
+                dst0 => lblA,
+                dst1 => lblB
+            )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            {
+                S7_Templates := "SrcType := Int";
+                CASE0 := "==";
+            }
+            Switch(
+                k := #n,
+                case0 := #m,
+                else => lblC,
+                dst0 => lblA
+            )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            JumpCoil( lblA )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            I_JumpCoil( lblB )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            ReturnCoil( #b )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        Label(lblA)
+        RUNG wire#powerrail
+            Coil( #q )
+        END_RUNG
+    END_NETWORK
+    { S7_Language := "LAD" }
+    NETWORK
+        RUNG wire#powerrail
+            Contact( #a )
+            wire#w1
+            S_Coil( #q )
+        END_RUNG
+        RUNG wire#w1
+            R_Coil( #r )
+        END_RUNG
+        RUNG wire#powerrail
+            Contact( #b )
+            Coil( #r )
+        END_RUNG
+    END_NETWORK
+END_FUNCTION_BLOCK
+'''
+
+
+def _empty_network():
+    """The SimaticML fixture with its first network emptied, as TIA exports a network with nothing in it."""
+    text = _fixture()
+    i, j = text.index('<NetworkSource><FlgNet'), text.index('</FlgNet></NetworkSource>') + 25
+    return text[:i] + '<NetworkSource />' + text[j:]
+
+
+def _wires_at(svg, y):
+    """(x1, x2) of every black line drawn along y."""
+    out = []
+    for m in re.finditer(r'<line x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)" stroke="#1a1a1a"', svg):
+        x1, y1, x2, y2 = map(float, m.groups())
+        if abs(y1 - y) < .06 and abs(y2 - y) < .06:
+            out.append((min(x1, x2), max(x1, x2)))
+    return out
+
+
+def _bars(svg):
+    """(right edge, wire y) of every end mark drawn."""
+    return [(float(x) + float(w), float(y) + float(h) / 2) for x, y, w, h in
+            re.findall(r'<rect class="end" x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)"', svg)]
+
+
+class RungEndsLikeTia(unittest.TestCase):
+    """A rung's end as TIA draws it (TIA's screen at 100%: zzBenEnds, zzBenContacts, zzLadControl, zzLadConvert): a
+    rung that runs to the network's end stops END_IN short of its last cell and closes with a bar END_H tall and END_W
+    wide, its right edge where the wire ends; an open ENO below the top rung ends STUB past its box with the same bar; a
+    box without ENO ends at its box, with nothing after it."""
+
+    @classmethod
+    def setUpClass(cls):
+        b = parse_block(BlockSource('Ends', ENDS, '', 'Ends.s7dcl'))
+        cls.nets = {n.index: Layout(n.rungs, b.interface, label=n.label) for n in b.networks}
+
+    def assert_ends(self, lay, want):
+        """want: [(x, y)] of the rung ends, in rung order; every one drawn as a bar, no wire on its rung past it, and the
+        drawing reads back as the code."""
+        self.assertEqual([(round(x, 1), y) for x, y in lay.ends()], [(round(x, 1), y) for x, y in want])
+        svg = lay.svg()
+        self.assertEqual(sorted((round(x, 1), round(y, 1)) for x, y in _bars(svg)),
+                         sorted((round(x, 1), round(y, 1)) for x, y in want))
+        for x, y in want:
+            wires = _wires_at(svg, y)
+            self.assertTrue(any(abs(x2 - x) < .06 for _, x2 in wires), (x, y, wires))        # the wire ends at the bar
+            self.assertFalse([w for w in wires if w[1] > x + .06], (x, y))                  # and nothing runs past it
+        self.assertEqual(check(lay), [])
+
+    def network_end(self, lay):
+        return lay.right - END_IN
+
+    def test_the_bar(self):
+        self.assertEqual((END_IN, END_H, END_W, STUB), (5.4, 5.4, 1.8, 41))
+        lay = self.nets[1]
+        x, y = lay.ends()[0]
+        self.assertIn('<rect class="end" x="%.1f" y="%.1f" width="1.8" height="5.4" fill="#1a1a1a"/>'
+                      % (x - END_W, y - END_H / 2), lay.svg())
+
+    def test_one_coil(self):
+        lay = self.nets[1]
+        self.assert_ends(lay, [(self.network_end(lay), lay.ys[0])])
+        coil = _view(lay, 'Coil')
+        self.assertEqual(lay._elx(coil.el.eid) + coil.w, lay.right)                    # the bar inside the coil's cell
+
+    def test_coils_in_a_row(self):
+        lay = self.nets[2]
+        self.assert_ends(lay, [(self.network_end(lay), lay.ys[0])])
+
+    def test_a_coil_on_a_branch_below(self):
+        lay = self.nets[3]
+        self.assert_ends(lay, [(self.network_end(lay), lay.ys[0]), (self.network_end(lay), lay.ys[1])])
+
+    def test_an_open_eno_in_the_top_rung(self):
+        lay = self.nets[4]
+        self.assert_ends(lay, [(self.network_end(lay), lay.ys[0])])
+
+    def test_an_open_eno_below(self):
+        lay = self.nets[5]
+        mv = _view(lay, 'Move')
+        stub = lay._elx(mv.el.eid) + mv.lw + mv.bw + STUB
+        self.assert_ends(lay, [(self.network_end(lay), lay.ys[0]), (stub, lay.ys[1])])
+
+    def test_a_box_without_eno(self):
+        for nw in (6, 7):
+            with self.subTest(nw):
+                self.assert_ends(self.nets[nw], [])
+
+    def test_jump_and_return_coils(self):
+        for nw in (8, 9, 10):
+            with self.subTest(nw):
+                lay = self.nets[nw]
+                self.assert_ends(lay, [(self.network_end(lay), lay.ys[0])])
+
+    def test_a_coil_under_a_jump_label(self):
+        lay = self.nets[11]
+        self.assert_ends(lay, [(self.network_end(lay), lay.ys[0])])
+        self.assertIn('translate(', lay.svg().split('<rect class="end"')[0])           # inside the label's shift
+
+    def test_several_rungs_from_the_rail(self):
+        lay = self.nets[12]
+        self.assert_ends(lay, [(self.network_end(lay), lay.ys[k]) for k in range(3)])
+
+    def test_an_empty_network(self):
+        for rungs in ([], parse_block(_xml_src(_empty_network())).networks[0].rungs):
+            lay = Layout(rungs, None)
+            self.assert_ends(lay, [(self.network_end(lay), lay.ys[0])])
+            self.assertEqual(_wires_at(lay.svg(), lay.ys[0]), [(X0, self.network_end(lay))])
+
+    def test_both_formats_alike(self):
+        """The fixture's networks from SimaticML and from .s7dcl: a coil, a coil on a branch, a box on the rail. Only the
+        rows differ, as SimaticML's operands carry comments."""
+        xml, sd = parse_block(_xml_src()), parse_block(BlockSource('Main', FIXTURE_SD, None, 'Main.s7dcl'))
+
+        def ends(lay):
+            rows = sorted(set(lay.ys.values()))
+            return [(round(x, 1), rows.index(y)) for x, y in lay.ends()]
+        for nx, ns in zip(xml.networks, sd.networks):
+            with self.subTest(nx.index):
+                lx, ls = Layout(nx.rungs, xml.interface), Layout(ns.rungs, sd.interface)
+                self.assertTrue(ends(lx))
+                self.assertEqual(ends(lx), ends(ls))
+                self.assertEqual(len(_bars(lx.svg())), len(ends(lx)))
+
+    def test_no_diff_mark_on_the_run_or_the_bar(self):
+        """An added coil is filled over its cell, as before; the run past a box to the network's end carries no mark."""
+        lay = self.nets[4]
+        mv = _view(lay, 'Move')
+        marks = lay.marks({mv.el.eid: 'added', _view(lay, 'Contact').el.eid: 'added'}, {})
+        x, y = lay.ends()[0]
+        self.assertFalse([m for m in marks if m[3] < x <= m[3] + m[5] and m[4] <= y <= m[4] + m[6]])
+
+
+class EndMarkChecked(unittest.TestCase):
+    """verify.check: an end mark touching a line other than the end of the one it closes would read as a junction or a
+    cut, one in an element of another rung would cover its texts."""
+
+    def moved(self, lay, k, to):
+        """The layout with its k-th end mark at to."""
+        marks = lay.ends()
+        marks[k] = to
+        lay.ends = lambda: marks
+        return check(lay)
+
+    def test_a_bar_on_a_wire(self):
+        lay = Layout([], None)
+        x, y = lay.ends()[0]
+        self.assertEqual(check(lay), [])
+        self.assertIn('end mark on a line at (%.0f, %.0f)' % (x - 100, y), self.moved(lay, 0, (x - 100, y)))
+
+    def test_a_bar_on_a_vertical_connector(self):
+        b = parse_block(BlockSource('Ends', ENDS, '', 'Ends.s7dcl'))
+        lay = Layout(b.networks[2].rungs, b.interface)                    # the coil on a branch below
+        (_, y0), (x, y1) = lay.ends()
+        vx = lay.x[lay.g.find(lay.info[1]['s'])]
+        self.assertEqual(check(lay), [])
+        for to in ((vx, (y0 + y1) / 2), (vx + END_W / 2, y1)):        # on the connector, and at its foot
+            self.assertIn('end mark on a line at (%.0f, %.0f)' % to, self.moved(lay, 1, to))
+
+    def test_a_bar_in_an_element_of_another_rung(self):
+        b = parse_block(BlockSource('Ends', ENDS, '', 'Ends.s7dcl'))
+        lay = Layout(b.networks[2].rungs, b.interface)
+        (x, y0), _ = lay.ends()
+        self.assertTrue([p for p in self.moved(lay, 1, (x, y0 + 12)) if p.startswith('end mark in Coil(')])
 
 
 if __name__ == '__main__':
