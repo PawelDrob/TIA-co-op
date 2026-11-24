@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T16:17:42-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T16:23:12-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -111,7 +111,7 @@ Every colour the page, the fragment, the PNG and the block viewer draw is a name
 
 - **What the renderer writes holds names and no colour.** A ladder's parts carry classes (`l-wire`, `l-box`, `hl added`, ...), and `render_lad.CSS` gives each its `fill` or `stroke` from a name. So a theme changes only the palette's block: the same rendering serves every theme, and a cache of fragments needs no theme in its key. An SVG copied out of the page alone has no colours: its shapes and text fill black, its lines do not show. `--png` is the way to a picture.
 - **The report's own values are written `:where(.ldiff)`,** specificity 0. In a page of its own they go on `:root` instead, so that the page's head and body take them too.
-- **A theme of the user's own** (how it is given: the README and `--help`) is read in `theme.py` alone, so that every report draws in it, those the bridge, the dashboard and Archive Compare start too. Its values come after TIA's, inside `@media screen`: print takes TIA's values, paper being white. Its format and what is refused are at the head of `tia-theme.css`. A standalone page keeps the theme it was made with. The environment variable `TIA_CR_USER_THEME`, when set, is the path read in place of the user's file: the test packages of the report and of Archive Compare's runner set it, so that no report a test starts, as a child process too, reads the user's file.
+- **A theme of the user's own** (how it is given: the README and `--help`) is read in `theme.py` alone, so that every report draws in it, those the bridge, the dashboard and Archive Compare start too. Its values come after TIA's, inside `@media screen`: print takes TIA's values, paper being white. Its format and what is refused are at the head of `tia-theme.css`. A standalone page keeps the theme it was made with. The environment variable `TIA_CR_USER_THEME`, when set, is the path read in place of the user's file: the test packages of the report and of Archive Compare's runner set it, and so do the bridge's `Report.Tests.ps1` and `BackgroundSmoke.ps1` and Archive Compare's window `check.py`, so that no report a test or check starts, as a child process too, reads the user's file.
 - **A host gives a theme** in its own stylesheet: `.ldiff { --name: value; ... }`. It wins over the report's values wherever it stands, the fragment's `<style>` included. A value in a host's stylesheet may be any CSS colour, `var(--vscode-...)` among them, as no name is mixed or computed from another (`test_theme.TheNames`). A theme file is such a stylesheet as it stands, but it takes plain colours only: `theme.py` refuses `var()` there.
 
 ### Following a VS Code theme

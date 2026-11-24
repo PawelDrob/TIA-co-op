@@ -52,10 +52,13 @@ function New-ReportRepo([string]$Name, [int]$Commits = 2) {
     $repo
 }
 
+# The report reads no default theme of the user's (%LOCALAPPDATA%\tia-co-op\theme.css): TIA_CR_USER_THEME, a path that
+# is not there, takes its place (TiaChangeReports\theme.py), so it draws in TIA's native theme whatever the PC holds.
 function Invoke-Report([string]$Repo, [hashtable]$Arguments = @{}) {
     Initialize-BridgeContext @{ maxResponseChars = 20000 }
     Set-BridgeProject -Name 'P' -Path 'C:\P.ap20' -Repo $Repo
-    Invoke-ChangeReportTool ([pscustomobject]$Arguments)
+    $env:TIA_CR_USER_THEME = Join-Path $TestDrive 'no-user-theme\theme.css'
+    try { Invoke-ChangeReportTool ([pscustomobject]$Arguments) } finally { Remove-Item Env:\TIA_CR_USER_THEME }
 }
 
 function Get-ShortSha([string]$Repo, [string]$Rev) { (& git -C $Repo rev-parse --short $Rev).Trim() }
