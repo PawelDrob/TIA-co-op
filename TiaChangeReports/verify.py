@@ -7,8 +7,9 @@ check(layout) -> [problem text]:
 - crossing: two lines crossing without a junction (TIA never draws that; it would read as a connection);
 - dangling: a drawn line that connects to no element;
 - overlap: two elements (with their texts) overlapping; a line running through an element;
-- end mark: TIA's bar at a rung's end (Layout.ends) is drawing, no wire: it touches no line but the one it closes, at
-  that line's end, and stands in no element of another rung.
+- end mark: TIA's bar at a rung's end (Layout.ends) is drawing, no wire: it stands where a wire ends (a line's end, or
+  an element's out terminal, where its own wire ends), touches no line but the one it closes, at that line's end, and
+  stands in no element of another rung.
 
 python -m TiaChangeReports.verify <export.s7dcl | export.xml | folder> ...   (from the repo root) checks every LAD network,
 OBs and other SimaticML exports included.
@@ -144,24 +145,29 @@ def check(lay):
                     probs.append('line through %s' % _name(names[eid]))
             elif x1 + 2 < s[0] < x2 - 2 and min(s[1], s[3]) < y2 - 2 and max(s[1], s[3]) > y1 + 2:
                 probs.append('line through %s' % _name(names[eid]))
-    probs += _end_marks(lay, segs, rects, names)
+    probs += _end_marks(lay, segs, terms, rects, names)
     return probs
 
 
-def _end_marks(lay, segs, rects, names):
-    """The problems of the end marks: the bar's box, (x - END_W, y - END_H / 2) to (x, y + END_H / 2), on a line other
-    than the end of the horizontal one it closes, or on an element of another rung (rects: as check's, with its y)."""
+def _end_marks(lay, segs, terms, rects, names):
+    """The problems of the end marks: the bar, its box (x - END_W, y - END_H / 2) to (x, y + END_H / 2), where no wire
+    ends (no out terminal and no horizontal line ends at (x, y)), on a line other than the end of the horizontal one it
+    closes, or on an element of another rung (rects: as check's, with its y)."""
     probs = []
     eps = .6
     for mx, my in lay.ends():
         x1, x2, y1, y2 = mx - END_W, mx, my - END_H / 2, my + END_H / 2
+        ended = any(t[0] == 'out' and abs(t[3] - mx) < eps and abs(t[4] - my) < eps for t in terms)
         for s in segs:
             sx1, sx2, sy1, sy2 = min(s[0], s[2]), max(s[0], s[2]), min(s[1], s[3]), max(s[1], s[3])
             if not (sx1 <= x2 + eps and x1 - eps <= sx2 and sy1 <= y2 + eps and y1 - eps <= sy2):
                 continue
             closes = sy1 == sy2 and abs(sy1 - my) < eps and abs(sx2 - mx) < eps and sx1 < mx     # however short
+            ended = ended or closes
             if not closes:
                 probs.append('end mark on a line at (%.0f, %.0f)' % (mx, my))
+        if not ended:
+            probs.append("end mark at no wire's end at (%.0f, %.0f)" % (mx, my))
         for rx1, ry1, rx2, ry2, eid, ey in rects:
             if abs(ey - my) > eps and rx1 < x2 and x1 < rx2 and ry1 < y2 and y1 < ry2:
                 probs.append('end mark in %s' % _name(names[eid]))
