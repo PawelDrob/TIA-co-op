@@ -243,14 +243,20 @@ class ThemeFiles(unittest.TestCase):
         self.assertTrue(css.endswith('@media screen{:where(.ldiff){--wire:#00ff00}}\n'), css[-200:])
 
     def test_each_form_of_colour(self):
-        for value in ('#abc', '#abcd', '#a1b2c3', '#a1b2c3d4', 'rgb(1,2,3)', 'rgba(1, 2, 3, .5)', 'rgb(1 2 3 / 50%)',
-                      'hsl(120deg 50% 50%)', 'hsla(120, 50%, 50%, 0.3)', 'transparent', 'TRANSPARENT'):
+        for value in ('#abc', '#abcd', '#a1b2c3', '#A1B2C3D4', 'rgb(1,2,3)', 'rgba(1, 2, 3, .5)', 'rgb(1 2 3 / 50%)',
+                      'RGB(10%, 20%, 30%)', 'rgb(none 2% 3)', 'transparent', 'TRANSPARENT'):
             self.assertEqual(self.read('.ldiff{--theme-format:1;--wire:%s}' % value), {'--wire': value}, value)
 
     def test_no_colour_is_refused(self):
-        for value in ('green', 'var(--vscode-editor-foreground)', '#12', 'rgb(1,2)', 'url(x.png)', '#fff</style>',
-                      'rgb(a,b,c)', '', '#ff00ff !important'):
-            self.refused('.ldiff {\n --theme-format: 1;\n --wire: %s;\n}' % value, 3, 'is no colour')
+        """Values the browser takes neither (TheFormsOfColour holds the two to one set), and NOT_TAKEN: the forms of
+        CSS Color a theme does not take, a colour's name, hsl() and the rest."""
+        for value in ('var(--vscode-editor-foreground)', '#12', 'rgb(1,2)', 'url(x.png)', '#fff</style>', 'rgb(a,b,c)',
+                      '#ff00ff !important', 'hsl(1,2,3)', 'rgb(1%,2,3)', 'rgb(1 2,3)', 'rgb(10deg,2,3)', 'rgb(1/2/3)',
+                      'rgb(1 2 3 4)', 'rgb(1., 2, 3)') + NOT_TAKEN:
+            self.refused('.ldiff {\n --theme-format: 1;\n --wire: %s;\n}' % value, 3,
+                         '--wire: %r is not a form of colour a theme takes; those are #rgb, #rgba, #rrggbb, #rrggbbaa, '
+                         'rgb(), rgba() or transparent, no colour names, no hsl() or var()' % value)
+        self.refused('.ldiff {\n --theme-format: 1;\n --wire: ;\n}', 3, "--wire: '' is not a form of colour")
 
     def test_a_name_it_does_not_know(self):
         self.refused('.ldiff {\n --theme-format: 1;\n\n --wires: #000;\n}', 4, '--wires is no name of the palette')
@@ -279,6 +285,77 @@ class ThemeFiles(unittest.TestCase):
             with self.assertRaises(theme.ThemeError) as e:
                 theme.load(os.path.join(d, 'none.css'))
             self.assertIn('no theme of that name (tia) and no theme file there', str(e.exception))
+
+
+# Values of forms of CSS Color a theme does not take, each one the browser takes: a theme refuses them by their form.
+NOT_TAKEN = ('green', 'white', 'currentColor', 'hsl(120, 50%, 50%)', 'hsl(120deg 50% 50%)', 'hwb(1 2% 3%)',
+             'color-mix(in srgb, red, blue)', 'rgb(calc(1) 2 3)', 'rgb(from red r g b)')
+
+
+def generated_values():
+    """Values near the forms a theme takes, many a little off: hex of each length and with a letter that is no digit;
+    rgb() and rgba() with numbers as CSS writes them and as it does not, percentages, an angle and none, in the comma
+    form and the space form, their separators mixed, with an alpha and without."""
+    out = ['#' + '0aF9b1C2e'[:n] for n in range(10)] + ['#' + 'aF9b1C2e'[:n] + 'g' for n in (2, 3, 5, 7)]
+    out += ['##fff', '#-12', 'transparent', 'Transparent', 'transparen', 'transparent0']
+    first = ['1', '255', '300', '-1', '+1', '1.5', '.5', '1.', '1e2', '1E-1', '1e', '1%', '1.5%', '1deg', 'none', 'a']
+    rest = ['2', '2%', 'none']
+    gaps = [',', ' , ', ' ']
+    alphas = ['', ',.5', ', 50%', ',none', ' / .5', '/50%', ' / none', ',', ' /', ', .5, 1', ' / 1.']
+    out += ['%s(%s%s%s%s%s%s)' % (fn, a, g1, b, g2, c, alpha) for fn in ('rgb', 'rgba') for a in first for b in rest
+            for c in rest for g1 in gaps for g2 in gaps for alpha in alphas]
+    out += ['RGB(1, 2, 3)', 'Rgba(1 2 3 / 1)', 'rgb (1, 2, 3)', 'rgb( 1 , 2 , 3 )', 'rgb(1,2)', 'rgb(1,2,3,4,5)',
+            'rgb()', 'rgb(1 2 3 4)', 'rgb(1 / 2 / 3)', 'rgba(1, 2, 3, 4%)', 'rgba(1%, 2%, 3%, .5)']
+    return out
+
+
+class TheFormsOfColour(unittest.TestCase):
+    """What a theme takes is what the browser takes, over values near the forms a theme takes (generated_values()),
+    by Edge's CSS.supports('color', ...): a value the browser refused would leave the property that uses it unset, a
+    wire's stroke none, and the drawing would lose the wire with nothing said. NOT_TAKEN the browser takes and a theme
+    refuses, by their form."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.edge = host_styles.browser()
+        if cls.edge is None:
+            raise unittest.SkipTest('no Edge or Chrome')
+        cls.tmp = tempfile.TemporaryDirectory()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.edge.close(ignore_errors=True)
+        cls.tmp.cleanup()
+
+    def supported(self, values):
+        """[whether the browser takes each of values as a colour]."""
+        script = ('<script>var x=document.createElement("pre");x.id="ok";x.textContent=JSON.stringify(%s.map('
+                  'function(c){return CSS.supports("color",c)}));document.body.appendChild(x)</script>'
+                  % json.dumps(values).replace('</', '<\\/'))
+        path = os.path.join(self.tmp.name, 'forms.html')
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('<!doctype html><html><body>%s</body></html>' % script)
+        m = re.search(r'<pre id="ok">(.*?)</pre>', self.edge.dump_dom(Path(path).as_uri(), size=(200, 200)), re.S)
+        self.assertTrue(m, 'no answer from Edge')
+        got = json.loads(unescape(m.group(1)))
+        self.assertEqual(len(got), len(values))
+        return got
+
+    def test_a_theme_takes_what_the_browser_takes(self):
+        values = generated_values()
+        got = self.supported(values)
+        differ = [(v, b) for v, b in zip(values, got) if theme.is_colour(v) != b]
+        self.assertEqual(differ[:20], [], '%d of %d differ: (value, the browser takes it)' % (len(differ), len(values)))
+        self.assertGreater(sum(got), 500)                                       # many taken, many refused
+        self.assertGreater(len(got) - sum(got), 500)
+
+    def test_the_forms_a_theme_does_not_take(self):
+        self.assertEqual(self.supported(list(NOT_TAKEN)), [True] * len(NOT_TAKEN))
+        self.assertEqual([v for v in NOT_TAKEN if theme.is_colour(v)], [])
+
+    def test_tias_values(self):
+        values = list(theme.NATIVE.values())
+        self.assertEqual(self.supported(values), [True] * len(values))
 
 
 class TheOptions(unittest.TestCase):
@@ -318,22 +395,22 @@ class TheOptions(unittest.TestCase):
 
 
 class TheDefaultTheme(unittest.TestCase):
-    """%LOCALAPPDATA%\\tia-co-op\\theme.css (theme.USER_THEME; the tests point it at a folder of their own): the report
-    and the viewer given no --theme draw in it when it is there; --theme tia draws without it; a faulty one stops
-    them, named."""
+    """%LOCALAPPDATA%\\tia-co-op\\theme.css (theme.user_theme(); the tests point it at a folder of their own through
+    theme.ENV): the report and the viewer given no --theme draw in it when it is there; --theme tia draws without it;
+    a faulty one stops them, named."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.kept = theme.USER_THEME
-        theme.USER_THEME = os.path.join(self.tmp.name, 'tia-co-op', 'theme.css')
+        self.kept = os.environ[theme.ENV]
+        self.path = os.environ[theme.ENV] = os.path.join(self.tmp.name, 'tia-co-op', 'theme.css')
 
     def tearDown(self):
-        theme.USER_THEME = self.kept
+        os.environ[theme.ENV] = self.kept
         self.tmp.cleanup()
 
     def put(self, values):
-        os.makedirs(os.path.dirname(theme.USER_THEME))
-        theme_file(os.path.dirname(theme.USER_THEME), values, 'theme.css')
+        os.makedirs(os.path.dirname(self.path))
+        theme_file(os.path.dirname(self.path), values, 'theme.css')
 
     def test_the_place(self):
         self.assertEqual(theme.user_theme({'LOCALAPPDATA': r'C:\Users\u\AppData\Local'}),
@@ -347,13 +424,13 @@ class TheDefaultTheme(unittest.TestCase):
         a faulty one in the LOCALAPPDATA the child is given, which stops the report once ENV is gone."""
         self.put({'--wire': 'green'})
         local = os.path.join(self.tmp.name, 'local')
-        shutil.copytree(os.path.dirname(theme.USER_THEME), os.path.join(local, 'tia-co-op'))
+        shutil.copytree(os.path.dirname(self.path), os.path.join(local, 'tia-co-op'))
         out = os.path.join(self.tmp.name, 'child.html')
         run = lambda env: subprocess.run(                                               # noqa: E731
             [sys.executable, '-X', 'utf8', '-m', 'TiaChangeReports', os.path.join(PLANT, 'v1'),
              os.path.join(PLANT, 'v2'), '-o', out], cwd=ROOT, capture_output=True, text=True,
             env=dict(env, LOCALAPPDATA=local))
-        r = run(os.environ)
+        r = run(dict(os.environ, **{theme.ENV: self.kept}))           # as the test package sets it
         self.assertEqual(r.returncode, 0, r.stderr)
         with open(out, encoding='utf-8') as f:
             self.assertNotIn('@media screen', f.read())
@@ -379,12 +456,12 @@ class TheDefaultTheme(unittest.TestCase):
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
             code = cli.main([os.path.join(PLANT, 'v1'), os.path.join(PLANT, 'v2'), '-o', out])
         self.assertEqual(code, 2)
-        self.assertIn('the default theme %s:3: --wire: ' % theme.USER_THEME, err.getvalue())
+        self.assertIn('the default theme %s:3: --wire: ' % self.path, err.getvalue())
         self.assertIn('--theme tia draws without it', err.getvalue())
         self.assertFalse(os.path.exists(out))
         said = []
         self.assertEqual(viewer_cli.main([JUMPS], open_page=lambda p: self.fail('opened'), message=said.append), 2)
-        self.assertIn('%s:3: --wire: ' % theme.USER_THEME, said[0])
+        self.assertIn('%s:3: --wire: ' % self.path, said[0])
 
     def test_a_faulty_one_with_html(self):
         """--html opens nothing, so the viewer runs from a console: a usage error on stderr, no message box."""
@@ -393,7 +470,7 @@ class TheDefaultTheme(unittest.TestCase):
         with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as e:
             viewer_cli.main([JUMPS, '--html', out], message=lambda m: self.fail('a message box: %s' % m))
         self.assertEqual(e.exception.code, 2)
-        self.assertIn('cannot read the default theme %s:3: --wire: ' % theme.USER_THEME, err.getvalue())
+        self.assertIn('cannot read the default theme %s:3: --wire: ' % self.path, err.getvalue())
         self.assertIn('--theme tia draws without it', err.getvalue())
         self.assertFalse(os.path.exists(out))
 

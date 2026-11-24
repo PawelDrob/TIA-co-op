@@ -23,4 +23,3 @@ else:
 # holds. test_theme points it at a file of its own.
 from TiaChangeReports import theme as _theme  # noqa: E402
 os.environ[_theme.ENV] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'no-user-theme', 'theme.css')
-_theme.USER_THEME = _theme.user_theme()

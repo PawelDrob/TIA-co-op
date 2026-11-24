@@ -5,13 +5,16 @@ THEME_CSS), a line for each name. A theme of the user's own is a file in its for
 refused: that file's head). A faulty one raises ThemeError with its line, so a theme is never drawn in part.
 
   load(spec)            -> Theme: 'tia' TIA's native theme, a path the theme file there, None the user's default
-                           theme (USER_THEME) when that file is there, else TIA's
-  USER_THEME            -> %LOCALAPPDATA%\\tia-co-op\\theme.css: a theme file in the user's profile, read by every
+                           theme (user_theme()) when that file is there, else TIA's
+  user_theme()          -> %LOCALAPPDATA%\\tia-co-op\\theme.css: a theme file in the user's profile, read by every
                            report and viewer page given no --theme, so that those the user does not start by hand
                            (the bridge's change_report, the dashboard's report run, Archive Compare, a double-click
                            in the Explorer) draw in it too. The environment variable ENV, when set, is its path
                            instead: the test packages set it, so that no report a test starts, as a child process
                            too, reads the user's file
+  is_colour(value)      -> whether a theme takes the value: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb() and rgba() as CSS
+                           Color writes them, or transparent. Each such value the browser takes too
+                           (test_theme.TheFormsOfColour): one it refused would draw nothing where it stands
   css(theme, page)      -> the palette's block for a page's <style>: TIA's values, then the theme's for the screen
   NATIVE, NAMES         -> {name: TIA's value}, the names in the file's order
 
@@ -44,11 +47,17 @@ def user_theme(env=os.environ):
     return env.get(ENV) or os.path.join(env.get('LOCALAPPDATA') or os.path.expanduser('~'), 'tia-co-op', 'theme.css')
 
 
-USER_THEME = user_theme()
-
-_HEX = re.compile(r'#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$')
-_NUM = r'[+-]?(?:\d+\.?\d*|\.\d+)(?:%|deg)?'
-_FUNC = re.compile(r'(?:rgba?|hsla?)\(\s*%s(?:\s*[,/]?\s*%s){2,3}\s*\)$' % (_NUM, _NUM), re.I)
+# The forms of CSS Color 4 a theme takes. A number as CSS writes it ("1." is none); rgb() and rgba() alike, either with
+# commas, three numbers or three percentages and an alpha after a comma, or with spaces, numbers, percentages and none
+# mixed and an alpha after /.
+_HEX = re.compile(r'#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$', re.I)
+_N = r'[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?'
+_P = _N + '%'
+_A = '(?:%s|%s)' % (_P, _N)
+_C = '(?:%s|%s|none)' % (_P, _N)
+_RGB = re.compile(r'rgba?\(\s*(?:(?:{N}\s*,\s*{N}\s*,\s*{N}|{P}\s*,\s*{P}\s*,\s*{P})(?:\s*,\s*{A})?'
+                  r'|{C}\s+{C}\s+{C}(?:\s*/\s*(?:{A}|none))?)\s*\)$'.format(N=_N, P=_P, A=_A, C=_C), re.I)
+FORMS = '#rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba() or transparent'
 _DECL = re.compile(r'(--[a-z0-9-]+)\s*:\s*(.*)$', re.S)
 
 
@@ -67,7 +76,7 @@ class Theme:
 
 
 def is_colour(value):
-    return bool(_HEX.match(value) or _FUNC.match(value) or value.lower() == 'transparent')
+    return bool(_HEX.match(value) or _RGB.match(value) or value.lower() == 'transparent')
 
 
 def _blank_comments(text, where):
@@ -123,8 +132,8 @@ def read(text, where, names=None):
             raise ThemeError('%s:%d: %s is no name of the palette (the names: %s)'
                              % (where, line(at), name, NATIVE_FILE))
         elif not is_colour(value):
-            raise ThemeError('%s:%d: %s: %r is no colour; a colour is #rgb, #rrggbb (with alpha #rgba, #rrggbbaa), '
-                             'rgb(), rgba(), hsl(), hsla() of numbers, or transparent' % (where, line(at), name, value))
+            raise ThemeError('%s:%d: %s: %r is not a form of colour a theme takes; those are %s, no colour names, '
+                             'no hsl() or var()' % (where, line(at), name, value, FORMS))
         else:
             values[name] = value
         seen[name] = line(at)
@@ -138,12 +147,12 @@ NAMES = list(NATIVE)
 
 
 def load(spec=None):
-    """The theme spec names: 'tia', else a theme file; None: USER_THEME when it is a file, else
-    TIA's. Raises ThemeError for a file that cannot be read or is no theme, OSError's text in it."""
+    """The theme spec names: 'tia', else a theme file; None: user_theme() when it is a file, else TIA's. Raises
+    ThemeError for a file that cannot be read or is no theme, OSError's text in it."""
     if spec is None:
-        if not os.path.isfile(USER_THEME):
+        spec = user_theme()
+        if not os.path.isfile(spec):
             return Theme('tia', {})
-        spec = USER_THEME
     if spec == 'tia':
         return Theme(spec, {})
     try:

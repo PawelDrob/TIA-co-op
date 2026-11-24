@@ -1,13 +1,15 @@
 /* TIA Portal's native look: the change report's built-in theme (--theme tia, the default), and the one list of the
-   palette's names. Every colour the report, its fragment, its PNG and the block viewer draw is one of these names.
+   palette's names. Every colour the report, its fragment, its PNG and the block viewer draw is one of these names,
+   but an HMI screen and a value's colour swatch, drawn in the project's colours; the HMI preview's own panels and
+   Archive Compare's window take no theme.
 
    A theme of your own: a file %LOCALAPPDATA%\tia-co-op\theme.css with this block's --theme-format line and only the
    lines you change, not a copy of the whole file; every report and the block viewer given no --theme draw in it.
    --theme <file> takes another for one report.
    - One block, .ldiff { ... }; first --theme-format: 1; then one --name: colour; a line. Comments as here.
-   - A name you leave out keeps the value below. A name not below, a value that is no colour or anything else
+   - A name you leave out keeps the value below. A name not below, a value of another form or anything else
      is refused, with the line; nothing is drawn then.
-   - A colour: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba(), hsl(), hsla() of numbers, or transparent.
+   - A colour: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba() or transparent; no colour names, no hsl() or var().
    - A theme is for the screen: print takes these values.
    - A host page (a VS Code webview) may set the names itself, in its own stylesheet on .ldiff: that wins over
      the report's values, and a file in this format is such a stylesheet as it stands.

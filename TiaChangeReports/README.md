@@ -51,6 +51,7 @@ with the `--theme-format` line and only the lines you change; the names and TIA'
 }
 ```
 
+A colour is `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()` or `transparent`, not a name such as `white`.
 A name you leave out keeps TIA's value, also when that value changes in a later version. Every report and the block
 viewer then draw in your colours, also the reports the agent and Archive Compare make.
 `--theme <file>` takes another theme for one report, `--theme tia` TIA's colours. A faulty file stops the report and
