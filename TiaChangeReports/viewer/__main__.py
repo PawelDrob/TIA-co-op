@@ -54,7 +54,7 @@ def main(argv=None, open_page=browser.open_page, message=browser.message):
     try:
         theme = themes.load(a.theme)
     except themes.ThemeError as ex:
-        if a.theme:
+        if a.theme is not None:
             p.error('--theme %s' % ex)
         said = 'cannot read the default theme %s. --theme tia draws without it.' % ex
         if a.html:                                                # a console's run, opening nothing

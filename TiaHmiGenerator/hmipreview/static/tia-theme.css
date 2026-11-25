@@ -48,8 +48,8 @@
   --page: #fff;                    /* the page's and a pane's background, the tree's, the focus view's, a window's */
   --text: #000;                    /* text, and SCL's semicolons and jump labels */
   --muted: #5a5a5a;                /* text that says what a thing is: paths, kinds, counts, hints */
-  --faint: #8c8c8c;                /* gray text: line numbers, "no network", a default or inherited value */
-  --empty-field-text: #808080;     /* TIA's gray word in an empty field: "Comment" */
+  --faint: #8c8c8c;                /* text that steps back: line numbers, "no network", a default or inherited value */
+  --empty-field-text: #808080;     /* the word TIA writes in an empty field: "Comment" */
   --viewer-note: #595959;          /* the block viewer's notes: the file's path, what it read calls from */
   --link: #0a4f9e;                 /* a link in the HMI part */
   --link-underline: #8c8c8c;       /* the underline of a link in the summary */
@@ -63,7 +63,7 @@
   --row: #f0f0f0;                  /* a quiet row: column heads, "unchanged" rows, a pane's side label */
   --network-number: #c3c3c3;       /* the "Network 2:" cell of a network's title row */
   --line: #c8c8c8;                 /* a table's heading lines, the line between stacked panes */
-  --grid: #e1e1e1;                 /* the light grid between cells, rows and panes */
+  --grid: #e1e1e1;                 /* the grid between cells, rows and panes */
   --edge: #b2b2b2;                 /* a stronger line: under a block's head and the column heads, the tree's edge, an input's frame */
   --divider: #d9d9d9;              /* the line under the tree's search box */
   --no-line: #f5f5f5;              /* an SCL side with no line opposite the other side's */

@@ -559,7 +559,7 @@ class NotInTheCatalogue(unittest.TestCase):
         self.assertEqual(box(v), ('NEWBOX', '', ['EN', 'OUT'], ['ENO', 'IN_NAME']))
 
     def test_generate_eno_changed_reads_as_a_change(self):
-        """ENO is drawn gray and marked, as on any box."""
+        """ENO is drawn in --eno-off and marked, as on any box."""
         off = '{ S7_GenerateENO := FALSE }\n'
         body = 'NewBox(\n in := #a,\n out => #o\n)'
         d = compare_blocks(sd_source(body), sd_source(off + body))
@@ -581,10 +581,11 @@ class NotInTheCatalogue(unittest.TestCase):
 
 
 class EnoSetting(unittest.TestCase):
-    """TIA's ENO setting (instructions.ENO_SETTING): ENO generated, or not (ENO := EN, drawn gray). SimaticML writes it as
+    """TIA's ENO setting (instructions.ENO_SETTING): ENO generated, or not (ENO := EN, drawn in --eno-off). SimaticML writes it as
     DisabledENO, .s7dcl as S7_GenerateENO := "TRUE" where ENO is generated and nothing where it is not: zzBenBoxes network 1,
     the pragma on Add and Mul and none on Move, DisabledENO "false", "false" and "true". A box without the setting, and every
-    box of an F-block, carries neither: its ENO reads as not said (None), drawn black, alike from both formats."""
+    box of an F-block, carries neither: its ENO reads as not said (None), drawn in --lad-text, alike from both
+    formats."""
 
     F_SD = '{\n    S7_Safety := "TRUE"\n}\n'
 
@@ -674,7 +675,8 @@ class EnoSetting(unittest.TestCase):
         self.assertLess(p.after.body.index('S7_GenerateENO'), p.after.body.index('Move('))
 
     def test_an_f_blocks_box_reads_as_not_said(self):
-        """zzFMath's Add: in an F-block neither format writes the setting; its ENO reads alike from both, drawn black."""
+        """zzFMath's Add: in an F-block neither format writes the setting; its ENO reads alike from both, drawn in
+        --lad-text."""
         _, s = self.read(self.sd('Add', False, safety=True))
         net, x = self.read(self.xml('Add', None, safety=True))
         self.assertEqual((s.no_eno, x.no_eno), (None, None))
@@ -682,7 +684,8 @@ class EnoSetting(unittest.TestCase):
         self.assertEqual(s.sig(), x.sig())
 
     def test_an_open_eno_not_generated_is_drawn_gray_from_both_formats(self):
-        """zzBenLarge's MOVE, its ENO open: gray in TIA, with a line from EN through the box; and an ADD so. Generated: black."""
+        """zzBenLarge's MOVE, its ENO open: gray in TIA, with a line from EN through the box; and an ADD so. Generated:
+        --lad-text."""
         for instr, pins in (('Move', ('in', 'out1')), ('Add', ('in1', 'out'))):
             for generated in (True, False):
                 with self.subTest(instr, generated=generated):

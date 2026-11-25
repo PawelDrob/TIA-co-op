@@ -10,36 +10,38 @@ zzBenEnds, zzBenContacts, zzLadControl and zzLadConvert):
   ends; an open ENO below the top rung closes with the same bar STUB past its box; a box without ENO (JumpList, Switch)
   ends at its box with nothing after it. The bar is drawing, no wire: wiring() leaves it out, ends() gives it, verify.py
   checks that it stands where a wire ends and touches no other line;
-- a jump label: a gray box one cell wide over the rail, a black line inside its top and bottom edge, the name
-  centered; the rail starts under it. A renamed, added or removed label: the box filled with the diff mark;
+- a jump label: a box in --jump-label one cell wide over the rail, a line in --jump-label-line inside its top and bottom
+  edge, the name centered; the rail starts under it. A renamed, added or removed label: the box filled with the diff
+  mark;
 - every element takes a cell, wire nodes sit at the longest-path column, so elements after a node line up;
 - a branch starts under its start node, its elements left-aligned, a line runs on to its end node; branches are
   stacked in the first free band below, vertical connectors at the node columns;
 - coils right-aligned at the end of the network; boxes stay where they are in the rung;
-- boxes: inputs on the left, outputs on the right, each side with its own row spacing (an output row sits just
-  low enough for its operand text); an FB / FC call whose block is in the snapshot: pins in the declaration order
-  of its interface, the in-outs on the left below the inputs, marked with a two-way arrow; a call of a system block no
-  export holds: in the export's order, the in-outs the catalogue names marked below the inputs; otherwise as written;
-  a call box shows the block number and the quoted name in its head, the instance above it and above that the
-  instance's comment, else the called block's comment; an unassigned pin shows its default value in gray; the type
-  of a box (SrcType, ...) bold in a cell of its own under the title; no add-pin star (the editor's handle, not for
-  a report); the conversion mark at an input fed an operand of another elementary type; an open ENO (the rung ends
-  at the box) runs on to the network's end in its top rung and ends in a short stub below it, each with the end mark;
+- boxes: inputs on the left, outputs on the right, each side with its own row spacing (an output row sits just low
+  enough for its operand text); an FB / FC call whose block is in the snapshot: pins in the declaration order of its
+  interface, the in-outs on the left below the inputs, marked with a two-way arrow; a call of a system block no export
+  holds: in the export's order, the in-outs the catalogue names marked below the inputs; otherwise as written; a call
+  box shows the block number and the quoted name in its head, the instance above it and above that the instance's
+  comment, else the called block's comment; an unassigned pin shows its default value in --lad-default; the type of a
+  box (SrcType, ...) bold in a cell of its own under the title; no add-pin star (the editor's handle, not for a report);
+  the conversion mark at an input fed an operand of another elementary type; an open ENO (the rung ends at the box) runs
+  on to the network's end in its top rung and ends in a short stub below it, each with the end mark;
 - as the LAD help draws them: P_TRIG / N_TRIG with CLK and Q on the rung, the edge memory below the box;
   IN_RANGE / OUT_RANGE with the rung through the box, no EN / ENO, pins MIN, VAL, MAX; two types each in a cell of their
   own, 'to' between them (CONV, ROUND, NORM_X, ...), '**' for EXPT; in the coil RET, above it the return value (RLO, TRUE,
   FALSE or its operand). A type in the export's case: TIA's screen writes Time where the help's drawing writes TIME;
-- above an operand its comment (purple; a member inside a UDT or a global DB: from the UDT or DB when the snapshot
-  holds it; a whole global DB: its number, teal) and its name; compare contacts show the relation and type between the bars, in1 above, in2 below (constant: value
-  teal, comment purple, name blue; a literal blue). Names quoted only where TIA shows quotes.
-- diff marks as the SCL line diff: square fills without outline, under every line (no wire is cut); an added,
-  removed or moved element is filled whole, a changed one only where it changed (its operand, the variable at a pin
-  of a box, the name of a pin without one or of one only this version has, the operand above an SR / RS, the name of a
-  renamed called block, the head for other templates, the symbol of a contact, compare or coil for another relation,
-  type or kind), red before and green after, as a changed SCL line. Each thing has its mark, whatever else changed with
-  it. What is drawn otherwise though the element is the same (an operand's comment, a constant's value, a conversion
-  mark, the title, number or comment of a call's box) is marked as changed; the network does not count as changed for
-  it: the declaration it comes from tells that change.
+- above an operand its comment (--lad-comment; a member inside a UDT or a global DB: from the UDT or DB when the
+  snapshot holds it; a whole global DB: its number, --lad-number) and its name (--lad-text); compare contacts show the
+  relation and type between the bars, in1 above, in2 below (constant: value --lad-value, comment --lad-comment, name
+  --lad-constant; a literal --lad-constant). Names quoted only where TIA shows quotes.
+- diff marks as the SCL line diff: square fills without outline, under every line (no wire is cut); an added, removed or
+  moved element is filled whole, a changed one only where it changed (its operand, the variable at a pin of a box, the
+  name of a pin without one or of one only this version has, the operand above an SR / RS, the name of a renamed called
+  block, the head for other templates, the symbol of a contact, compare or coil for another relation, type or kind),
+  --removed-fill before and --added-fill after, as a changed SCL line. Each thing has its mark, whatever else changed
+  with it. What is drawn otherwise though the element is the same (an operand's comment, a constant's value, a
+  conversion mark, the title, number or comment of a call's box) is marked as changed; the network does not count as
+  changed for it: the declaration it comes from tells that change.
 """
 import re
 from html import escape
@@ -472,7 +474,7 @@ class View:
 
         def lines(n, v, m):
             if v.strip() and jump and re.match(r'(dst\d+|else)$', n or '', re.I):
-                return [(v.strip(), C_OP, False)]              # a jump label, black as TIA shows it
+                return [(v.strip(), C_OP, False)]              # a jump label, in --lad-text as TIA shows it
             if v.strip():
                 return operand_lines(v, self.itf, lw, types=self.callees)
             dv = default_value(m.value, m.type) if m is not None else None
@@ -915,7 +917,8 @@ class View:
 
 
 def _conversion(bx, py):
-    """TIA's conversion mark at an input: a gray square on the pin over the box edge, its lower right half light."""
+    """TIA's conversion mark at an input: a square in --conversion on the pin over the box edge, its lower right half
+    in --conversion-light."""
     x1, y1 = bx - 7, py - 4
     return ['<rect x="%.1f" y="%.1f" width="10" height="9" class="%s"/>' % (x1, y1, C_CONV),
             '<path d="M%.1f %.1fL%.1f %.1fL%.1f %.1fZ" class="l-conv-light"/>' % (x1 + 2, y1 + 8, x1 + 9, y1 + 1,

@@ -571,6 +571,22 @@ class TheOptions(unittest.TestCase):
             good = report(d, '--theme', theme_file(d, {'--wire': '#123456'}, 'good.css'))
             self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', good)
 
+    def test_an_empty_theme(self):
+        """--theme "" is a usage error of --theme, not a faulty default theme."""
+        with tempfile.TemporaryDirectory() as d:
+            for main, args in ((cli.main, [os.path.join(PLANT, 'v1'), os.path.join(PLANT, 'v2'), '-o']),
+                               (viewer_cli.main, [JUMPS, '--html'])):
+                out, err = os.path.join(d, 'out.html'), io.StringIO()
+                with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                    try:
+                        code = main(args + [out, '--theme', ''])
+                    except SystemExit as e:
+                        code = e.code
+                self.assertEqual(code, 2)
+                self.assertIn("--theme '': no theme of that name (tia) and no theme file there", err.getvalue())
+                self.assertNotIn('default theme', err.getvalue())
+                self.assertFalse(os.path.exists(out))
+
     def test_the_help(self):
         for main in (cli.main, viewer_cli.main):
             text = io.StringIO()

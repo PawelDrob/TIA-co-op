@@ -51,7 +51,7 @@ position has rows in TheRulesAsAGrid (test_the_grid_holds_every_rule_that_goes_b
     |------------------------------|------|-------------------------------------------------------|--------------------|
     | a member, a call after a dot | yes  | the neighbour before is "."                           | block call before  |
     |                              |      |                                                       | "(", else operand  |
-    | a DB's data not after a dot  | no   | a DB's data (after a dot the rule above holds)        | black              |
+    | a DB's data not after a dot  | no   | a DB's data (after a dot the rule above holds)        | none               |
     | a data type of a type test   | yes  | not called; the neighbour before is "=" or "<>", the  | constant           |
     |                              |      | one before that the ")" closing the "(" after a word  |                    |
     |                              |      | of TYPE_TESTS (a stopper forgets that "("); a word or |                    |
@@ -70,7 +70,7 @@ position has rows in TheRulesAsAGrid (test_the_grid_holds_every_rule_that_goes_b
     |                              |      | depth counted over lines; a stopper sets it to 0)     |                    |
     | ENO                          | no   |                                                       | operand            |
     | a jump label where it stands | yes  | the first neighbour of its line, before ":"           | label              |
-    | (none)                       |      | any other word                                        | black              |
+    | (none)                       |      | any other word                                        | none               |
 
 So a word's own text (REGION_WORDS to KEYWORDS) goes before the label, call and parameter rules: NOT( is an operator,
 IF( a keyword, TRUE: a constant.
@@ -80,10 +80,10 @@ as one constant, with a type word of the list DATA_TYPES; an absolute address of
 before REGION; a } inside a pragma's quoted value; a type test compared with a type test (the second called, so an
 instruction). Where the grammar reads otherwise, this tokenizer's own way, as accepted: a number, an address or a DB's
 data and a word written with no space between them one token (1TO, %M1.0AND; the grammar reads two, and TIA writes
-the space); a parameter named like a DB's data black, as a DB's data (#f(DBW2 := 1); the grammar reads a parameter).
-Not settled by any picture (NotSettledByAPicture): a call on an array element of instances (#arr[1](, #arr an
-operand), an address after a quoted tag ("Tag":P, P black), NULL (black), a type test as a CASE selector (its labels
-black).
+the space); a parameter named like a DB's data of no colour of its own, as a DB's data (#f(DBW2 := 1); the grammar
+reads a parameter). Not settled by any picture (NotSettledByAPicture): a call on an array element of instances
+(#arr[1](, #arr an operand), an address after a quoted tag ("Tag":P, P of no colour of its own), NULL (none), a type
+test as a CASE selector (its labels none).
 
 html(tokens, marks) writes one line: a span with the kind's class around a coloured word, none around a word whose kind
 has no class; a plain <span> around each range of marks (the changed words, page._word_marks) with the colours inside
@@ -250,7 +250,7 @@ def _cut(text, state):
         i, state['end'] = stop, None
     while i < len(text):
         m = _TOKEN.match(text, i)
-        if m is None:                           # nothing the tokenizer takes: one character in the text's black
+        if m is None:                           # nothing the tokenizer takes: one character of no colour of its own
             out.append(('other', text[i]))
             i += 1
             continue
@@ -433,7 +433,8 @@ RULES = [
 
 
 def _name_kind(name):
-    """The kind of a word, #name, quoted name or DB's data (a _Name): the first of RULES that applies; none, black."""
+    """The kind of a word, #name, quoted name or DB's data (a _Name): the first of RULES that applies; None:
+    no colour of its own."""
     for _, _, rule in RULES:
         kind = rule(name)
         if kind is not _SKIP:

@@ -699,7 +699,7 @@ class WhereATokenEnds(unittest.TestCase):
     def test_a_word_like_token_followed_by_a_word_character_is_whole(self):
         """Each token of the tables of scl_colours.WORD_LIKE (a literal other than a string, an address, a DB's data,
         a word, a #name quoted or not) followed directly by "_", a letter or a digit is one token, the character in it:
-        never a token with a black tail."""
+        never a token with a tail of no colour of its own."""
         for tok in self.tokens():
             if (tok[-1] in '"\')' and not tok.startswith('#')) or tok.startswith('('):
                 continue                         # a string, a quoted name, a comment: no word goes on after them
@@ -854,8 +854,8 @@ class HalfWrittenNetworks(unittest.TestCase):
                 self.assertIn((None, 'Int'), got[1])
 
     def test_a_dbs_data_not_after_a_dot_is_black(self):
-        """No rule but the member's makes a DB's data (each of db_parts()) an operand: elsewhere it is black, called or
-        after GOTO too."""
+        """No rule but the member's makes a DB's data (each of db_parts()) an operand: elsewhere it has no colour of its
+        own, called or after GOTO too."""
         for part in db_parts():
             for line in ('#x := %s;', '#x := %s(1);', 'GOTO %s;'):
                 with self.subTest(line % part):

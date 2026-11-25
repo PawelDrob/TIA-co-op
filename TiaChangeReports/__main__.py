@@ -140,7 +140,7 @@ def main(argv=None):
     try:
         theme = themes.load(a.theme)
     except themes.ThemeError as ex:
-        print(('--theme %s' if a.theme else 'the default theme %s (--theme tia draws without it)') % ex, file=sys.stderr)
+        print(('--theme %s' if a.theme is not None else 'the default theme %s (--theme tia draws without it)') % ex, file=sys.stderr)
         return 2
     plc_on, hmi_on = a.only != 'hmi', a.only != 'plc' and not (a.block or a.network)
     tags_on = plc_on and not (a.block or a.network)

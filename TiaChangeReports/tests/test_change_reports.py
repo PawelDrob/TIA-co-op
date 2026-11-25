@@ -3114,8 +3114,9 @@ class InnerMemberChanged(unittest.TestCase):
         self.assertIn('<span class="tx ins">1 = released</span>', cells[-1])
 
     def test_changed_comment_marks_its_changed_words(self):
-        """A changed text as a changed network title, before light red, after light green, the changed
-        words stronger; a gray inherited text (above) or boxes are tinted whole."""
+        """A changed text as a changed network title, before in --removed-fill, after in --added-fill, the
+        changed words in --removed-word and --added-word; an inherited text in --faint (above) or boxes are tinted
+        whole."""
         b = parse_block(src(DB_START, DB_RES, 'D'))
         a = parse_block(src(DB_START, DB_RES.replace('1 = released', '2 = released and acknowledged'), 'D'))
         for blk in (b, a):
@@ -3206,8 +3207,8 @@ class SetpointDefault(unittest.TestCase):
         self.assertEqual(self.ticked(SETP, 'n', 'e', 't', 'on', 'off'), [False, True, True, True, False])
 
     def plain_number(self, typ):
-        """A type TIA keeps as a number in a global DB: box empty, enabled, its start value 0 gray text in a white cell;
-        in SimaticML false is no setting."""
+        """A type TIA keeps as a number in a global DB: box empty, enabled, its start value 0 a default (--faint) in a cell of no
+        fill; in SimaticML false is no setting."""
         from TiaChangeReports.simaticml import _attrs
         text = 'DATA_BLOCK "P"\n    VAR\n        x : %s;\n    END_VAR\nEND_DATA_BLOCK\n' % typ
         m = parse_block(src(text, '', 'P')).interface.root.children['x']
@@ -3434,7 +3435,7 @@ def _cbs(cell):
 class InnerRowBoxes(unittest.TestCase):
     """A member inside a UDT instance or array that a DB start value names shows TIA's boxes disabled,
     ticked from the UDT's settings (an array element: the array's) as far as its parent allows; its start value and
-    comment gray when they come from the type; the type's other members under it, folded."""
+    comment in --faint when they come from the type; the type's other members under it, folded."""
 
     def _rows(self, bt=DB, at=DB_START, types=ESTOP_ATTRS, safety=False):
         b, a = (parse_block(src(('{ S7_Safety := "True" }\n' if safety else '') + t, DB_RES, 'D')) for t in (bt, at))
@@ -3453,7 +3454,7 @@ class InnerRowBoxes(unittest.TestCase):
         self.assertEqual([_cbs(c) for c in q[3:8]], ['o~', 'x~', 'o~', 'x~', 'o~'])     # ReadOnly in the UDT
         self.assertEqual([_cbs(c) for c in r[3:8]], ['o~', 'x~', 'x~', 'x~', 'x~'])     # Setpoint in the UDT
         self.assertEqual([_cbs(c) for c in rs['e'][1][3:8]], ['o', 'x', 'x', 'x', 'x'])  # the instance: enabled
-        self.assertEqual(q[2], '<span class="dflt">TRUE</span>')                        # the UDT's default, gray
+        self.assertEqual(q[2], '<span class="dflt">TRUE</span>')                        # the UDT's default, --faint
         self.assertIn('class="inh">estop ok', q[8])
 
     def test_the_parent_limits_them(self):
@@ -3541,11 +3542,11 @@ END_DATA_BLOCK
 
 
 class DisabledCellsLikeTia(unittest.TestCase):
-    """TIA's disabled boxes drawn disabled, not blank, as in an FB and an F-DB. No cell gray: TIA grays its disabled
-    cells, the interface table does not (the maintainer's pick of 2026-11-18)."""
+    """TIA's disabled boxes drawn disabled, not blank, as in an FB and an F-DB. No cell in --field: TIA grays its
+    disabled cells, the interface table does not (the maintainer's pick of 2026-11-18)."""
 
     def _cells(self, text, name):
-        """name -> [(gray?, boxes or text)] of a new block's interface table (every row shown)."""
+        """name -> [(in --field?, boxes or text)] of a new block's interface table (every row shown)."""
         out = {}
         for body in re.findall(r'<tr[^>]*>(.*?)</tr>', iface.html(None, parse_block(src(text, '', name))), re.S):
             cells = re.findall(r'<td([^>]*)>(.*?)</td>', body, re.S)
@@ -3560,7 +3561,7 @@ class DisabledCellsLikeTia(unittest.TestCase):
         gray = {k: ''.join('g' if g else '.' for g, _ in v) for k, v in rs.items()}
         boxes = {k: [c for _, c in v[4:8]] for k, v in rs.items()}
         # name, type, value, retain, accessible, writable, visible, setpoint, comment
-        self.assertEqual({g for v in gray.values() for g in v}, {'.'})                 # no cell gray
+        self.assertEqual({g for v in gray.values() for g in v}, {'.'})                 # no cell in --field
         self.assertEqual(boxes['hid'], ['o', 'o~', 'o~', 'o~'])                          # not accessible
         self.assertEqual((boxes['cfg'], rs['cfg'][2][1]), (['x', 'x', 'x', 'o'], ''))     # a UDT input: no value
         for io in ('io', 'ioArr'):                                    # structured in-out: empty, as in TIA
@@ -3577,13 +3578,13 @@ class DisabledCellsLikeTia(unittest.TestCase):
             text = ('{ S7_Safety := "True" }\n' if safety else '') + DIS_DB
             rs = self._cells(text, 'S')
             self.assertEqual([c for _, c in rs['hid'][3:8]], ['o~' if safety else 'o', 'o', 'o~', 'o~', 'o~'])
-            self.assertFalse(any(g for v in rs.values() for g, _ in v))                 # no cell gray
+            self.assertFalse(any(g for v in rs.values() for g, _ in v))                 # no cell in --field
             self.assertEqual([c for _, c in rs['e'][3:8]], ['o~' if safety else 'o', 'x', 'x', 'x', 'o' if safety else 'x'])
             self.assertEqual(rs['e'][2][1], '')                                         # a UDT: no start value
             self.assertEqual([c for _, c in rs['Static'][3:8]], ['o~'] * 5)
 
     def test_gray_cells_keep_the_diff_colour(self):
-        """The PLC tag table's gray cells (plctags.py); the interface has none."""
+        """The PLC tag table's cells that are off, in --field (plctags.py); the interface has none."""
         from TiaChangeReports import page
         with open(page.__file__, encoding='utf-8') as f:
             css = f.read()
@@ -3638,8 +3639,8 @@ class DisabledCellsMoreKinds(unittest.TestCase):
 
     def test_an_opened_member_has_its_row_grey_and_no_cell_grey(self):
         """An array element or member of a UDT type inside a DB, the maintainer's pick of 2026-11-18 over TIA's look:
-        one lighter grey behind the row (data-u), no cell gray, the boxes drawn disabled as TIA does. Not the DB's own
-        members."""
+        --opened-member behind the row (data-u), no cell in --field, the boxes drawn disabled as TIA does. Not the DB's
+        own members."""
         rs = self._cells(DIS_ARR, 'A')
         for n in ('arr[1]', 'q'):
             self.assertEqual([g for g, _ in rs[n]], [False] * 9, n)
@@ -3651,7 +3652,7 @@ class DisabledCellsMoreKinds(unittest.TestCase):
         self.assertEqual(theme.NATIVE['--opened-member'], theme.colour('#f4f4f4'))
 
     def test_disabled_ticked_box_as_tia(self):
-        """TIA's disabled ticked box: near-white, gray border, dark gray tick, as in a global DB."""
+        """TIA's disabled ticked box, as in a global DB: --checkbox-off-on, its frame and tick in their names."""
         from TiaChangeReports import page, theme
         self.assertIn('.cb.dis.on{background:var(--checkbox-off-on);border-color:var(--checkbox-off-on-line)}', page.CSS)
         self.assertIn('.cb.dis.on::after{border-color:var(--checkbox-off-tick)}', page.CSS)
@@ -6907,7 +6908,7 @@ class JumpListSwitchCalculate(unittest.TestCase):
                              [e.sig() for r in x.rungs for e in r.items if isinstance(e, Element)])
         self.assertIn('{ S7_Templates := "SrcType := USInt"; CASE0 := "=="; CASE1 := "==" }',
                       rungs_text(xb.networks[0].rungs))
-        self.assertTrue(_jump_box(sb, 1).no_eno)                       # no S7_GenerateENO: ENO gray, as in TIA
+        self.assertTrue(_jump_box(sb, 1).no_eno)                       # no S7_GenerateENO: ENO in --eno-off, as in TIA
         gen = parse_block(_jumps_sd(('S7_Expression := "(IN1 + IN2) * (IN1 - IN2)"',
                                      'S7_Expression := "IN1";\n S7_GenerateENO := TRUE')))
         self.assertFalse(_jump_box(gen, 1).no_eno)
@@ -7339,7 +7340,7 @@ class HmiStyleLeavesLadMarks(unittest.TestCase):
 
 
 class ChangedOperandsAsCode(unittest.TestCase):
-    """What changed in a LAD network is marked as a changed SCL line: red before, green after."""
+    """What changed in a LAD network is marked as a changed SCL line: --removed-fill before, --added-fill after."""
 
     def test_contact_operand(self):
         d, lb, la = _marked(MARK, MARK.replace('Contact( #b )', 'Contact( #q )'))

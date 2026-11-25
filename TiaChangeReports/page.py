@@ -76,8 +76,8 @@ CSS += """
 CSS += scl_colours.CSS      # the words of an SCL line in TIA's colours: a class per kind, the changed word a plain span
 CSS += render_lad.CSS       # a ladder's parts, each a class of its SVG
 
-# Block header as TIA's "Block title:" band; tables as TIA's table editors: grey column heads,
-# light grid, section rows in the field grey. Box columns as narrow as their headings' words; an interface table still
+# Block header as TIA's "Block title:" band; tables as TIA's table editors: column heads in --row, the grid in
+# --grid, section rows in --field. Box columns as narrow as their headings' words; an interface table still
 # wider than the report scrolls sideways in its frame, not the page (1000 px window, tree open).
 CSS += """
 .ldiff .blk{margin:16px 0 24px}
@@ -491,7 +491,7 @@ def _lad_pane(lay, other, d, side=None):
 def _fields(pair, attr, cls, empty=''):
     """The before and after field of a title or comment: the same text unmarked on both sides; a
     changed one as a changed SCL line, before marked removed, after added, the changed words highlighted; a side
-    without the text TIA's empty field (`empty` in gray); a side without the network nothing."""
+    without the text TIA's empty field (`empty` in --empty-field-text); a side without the network nothing."""
     b, a = pair.before, pair.after
     tb, ta = getattr(b, attr) if b else '', getattr(a, attr) if a else ''
     hb, ha, mb, ma = escape(tb), escape(ta), '', ''
@@ -534,7 +534,8 @@ def _title_bar(pair):
 
 
 def _comment(pair):
-    """TIA's comment row, before | after: the comment in its field, the gray "Comment" when there is none."""
+    """TIA's comment row, before | after: the comment in its field, "Comment" in --empty-field-text when there is
+    none."""
     return '<div class="nwc">%s</div>' % ''.join(
         '<span class="side">%s</span>' % (f or '') for f in _fields(pair, 'comment', 'cf', 'Comment'))
 

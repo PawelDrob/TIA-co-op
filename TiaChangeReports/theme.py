@@ -206,7 +206,7 @@ def load(spec=None):
     if spec == 'tia':
         return Theme(spec, {})
     if not os.path.exists(spec):
-        raise ThemeError('%s: no theme of that name (tia) and no theme file there' % spec)
+        raise ThemeError('%s: no theme of that name (tia) and no theme file there' % (spec or "''"))
     if os.path.isdir(spec):
         raise ThemeError('%s: the theme file cannot be read: it is a folder' % spec)
     try:
