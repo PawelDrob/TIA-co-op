@@ -123,6 +123,20 @@ class TheFile(Files):
         self.assertNotIn('editor.background', src.colors)
         self.assertEqual(vt.palette(src, move=False)[1]['--page'], 'kind')
 
+    def test_a_token_colors_path_of_another_name(self):
+        """The path in tokenColors is read as a plist whatever its name, here .plist."""
+        self.put('t.plist', '<?xml version="1.0"?><plist version="1.0"><dict><key>settings</key><array><dict>'
+                 '<key>scope</key><string>comment</string><key>settings</key><dict>'
+                 '<key>foreground</key><string>#00ff00</string></dict></dict></array></dict></plist>')
+        src = vt.read(self.put('t.json', '{"tokenColors": "./t.plist"}'))
+        self.assertEqual(src.rules, [(['comment'], (0, 0xff, 0, 1.0), None)])
+
+    def test_a_rules_colour_of_null(self):
+        """A token rule's foreground or background of null is no colour given, as in colors."""
+        src = vt.read(self.put('t.json', '{"tokenColors": [{"scope": "comment", '
+                                         '"settings": {"foreground": null, "background": null}}]}'))
+        self.assertEqual(src.rules, [(['comment'], None, None)])
+
     def test_default_undoes_the_included_colour(self):
         """"default" as a colour, VS Code's DEFAULT_COLOR_CONFIG_VALUE: the included theme's colour is not taken."""
         base = self.put('base.json', '{"colors": {"editor.background": "#00ff00", "focusBorder": "#123456"}}')
@@ -276,8 +290,10 @@ class EveryRefusal(Files):
                      '"tokenColors" [0]: "scope" is neither a string nor a list of strings')
         self.refused('{\n  "tokenColors": {}\n}', 2,
                      '"tokenColors" is neither a list of rules nor the path of a .tmTheme')
-        src = vt.read(self.put('t.json', '{"colors": {}, "tokenColors": [{"scope": [], "settings": {}}]}'))
-        self.assertEqual((src.colors, src.rules), ({}, [([], None, None)]))
+        src = vt.read(self.put('t.json', '{"colors": {}, "tokenColors": []}'))
+        self.assertEqual((src.colors, src.rules), ({}, []))
+        src = vt.read(self.put('t.json', '{"tokenColors": [{"scope": [], "settings": {}}]}'))
+        self.assertEqual(src.rules, [([], None, None)])
 
     def test_a_rule_that_is_no_object(self):
         self.refused('{\n  "tokenColors": [\n    "comment"\n  ]\n}', 2,
