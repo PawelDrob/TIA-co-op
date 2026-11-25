@@ -48,13 +48,13 @@ paste into a report. --png also writes a screenshot of the page (headless Edge o
 taller than 16000 px in several, out-1.png, out-2.png, ..., cut between blocks (a taller block between networks),
 listed after the page; a LAD network drawn below 70 % side by side is drawn there before above after at the
 full width.
---theme: the colours, TIA's native look (tia) or a VS Code color theme file, .json or .tmTheme (vscode_theme.py);
-the page, the fragment and the PNG take it, the page keeps it and says so under its title. Without --theme: the
-user's default theme, %LOCALAPPDATA%\\tia-co-op\\theme.json, when that file is there, else tia. A theme file that is
-not there or cannot be read is a usage error that says why on stderr; one that is no color theme or holds a value that is no colour
-is one that names its file and line (in a .tmTheme, the entry); so is such a default theme. A theme that leaves a pair
-to keep readable under TIA's contrast, by colours it sets itself (tia.*) or its page, is drawn so, with a warning on
-stderr naming the pairs.
+--theme: the colours, TIA's native look (tia) or a VS Code color theme file, .json or .tmTheme (vscode_theme.py); the
+page, the fragment and the PNG take it, the page keeps it and says so under its title. Without --theme: the user's
+default theme, %LOCALAPPDATA%\\tia-co-op\\theme.json, when that file is there, else tia. A theme file that is not
+there or cannot be read is a usage error that says why on stderr; one that is no color theme or holds a value that is
+no colour is one that names its file and line (in a .tmTheme, the entry); so is such a default theme. A theme that
+leaves a pair to keep readable under TIA's contrast, by colours it sets itself (tia.*) or its page, is drawn so, with
+a warning on stderr naming the pairs.
 --json prints the result as one JSON object (page, before, after, blocks; plcTags when a table changed; skipped when a
 file was; otherFiles when any; acrossFormats when a block is .s7dcl on one side and SimaticML on the other; png: the PNGs)
 instead of the list.

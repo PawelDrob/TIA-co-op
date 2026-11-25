@@ -19,8 +19,10 @@ include (a theme file, from this one's folder or by a full path: its colors unde
 this one's). A .tmTheme, given as the file, as an include or as tokenColors, gives its settings as token rules, and
 its name where it is the file or the include and an including file gives none; so does a .json of the old form, a
 top-level list settings, whose colors and tokenColors are then not read. In those two, as in VS Code, a rule with no
-scope, or the scope "", sets editor.background and editor.foreground over what came before; in a tokenColors list it
-sets nothing. semanticTokenColors and the rest are not read: the report has no semantic tokens.
+scope sets editor.background and editor.foreground over what came before; in a tokenColors list it sets nothing. An
+include, colors, tokenColors, a rule's scope or its settings that is "", null, false or 0 is not there, as
+JavaScript's truth in VS Code's loader takes it; {} and [] are there, and refused where another form is wanted.
+semanticTokenColors and the rest are not read: the report has no semantic tokens.
 
 The kind (KINDS): of the file, else of the first file it includes that says one, the uiTheme of the first
 package.json, beside that file or up to two folders above it, that names it with a kind (an installed theme's, as VS
@@ -301,6 +303,12 @@ def _colour(value, where, what):
     return c
 
 
+def _none(value):
+    """Whether VS Code's loader, which asks JavaScript's truth of the value, takes it as not there: null, false, ""
+    and 0 (JSON holds no NaN). An empty object or list is there, as in JavaScript, unlike Python's truth."""
+    return value is None or value is False or value == '' or (type(value) in (int, float) and value == 0)
+
+
 def read(path, _seen=()):
     """The theme of the file at path, its include followed, as VS Code's loader reads it: a .tmTheme (by its name) as
     a TextMate theme, given as the file or as an include; another file as JSON, a top-level list "settings" as a
@@ -327,7 +335,7 @@ def read(path, _seen=()):
     at = lambda key: '%s:%d' % (path, j.lines[key])                      # noqa: E731
     src = Source(path)
     inc = j.get('include')
-    if inc:                                                 # "", null, false and 0 are none, as VS Code takes them
+    if not _none(inc):
         if not isinstance(inc, str):
             raise ThemeError('%s: "include": %s is not the path of a theme file' % (at('include'), json.dumps(inc)))
         full = os.path.abspath(os.path.join(os.path.dirname(path), inc))
@@ -353,7 +361,7 @@ def read(path, _seen=()):
         _settings(src, _token_rules(j['settings'], '"settings"', place('settings')), at('settings'))
         return src
     colors = j.get('colors')
-    if colors:
+    if not _none(colors):
         if not isinstance(colors, JsonObject):
             raise ThemeError('%s: "colors" is not an object of colour ids' % at('colors'))
         for key, value in colors.items():
@@ -367,15 +375,16 @@ def read(path, _seen=()):
             src.colors[key] = _colour(value, where, '"colors": "%s"' % key)
             src.where[key] = where
     tokens = j.get('tokenColors')
-    if isinstance(tokens, str) and tokens:
+    if isinstance(tokens, list):
+        src.rules += _token_rules(tokens, '"tokenColors"', place('tokenColors'))
+    elif not _none(tokens):
+        if not isinstance(tokens, str):
+            raise ThemeError('%s: "tokenColors" is neither a list of rules nor the path of a .tmTheme'
+                             % at('tokenColors'))
         tm = os.path.abspath(os.path.join(os.path.dirname(path), tokens))
         if not os.path.isfile(tm):
             raise ThemeError('%s: "tokenColors": %s is no file' % (at('tokenColors'), tm))
         _settings(src, _tm_theme(tm)[1], tm)
-    elif isinstance(tokens, list):
-        src.rules += _token_rules(tokens, '"tokenColors"', place('tokenColors'))
-    elif tokens:
-        raise ThemeError('%s: "tokenColors" is neither a list of rules nor the path of a .tmTheme' % at('tokenColors'))
     return src
 
 
@@ -400,10 +409,10 @@ def _token_rules(entries, what, place):
         name = '%s [%d]' % (what, k)
         if not isinstance(e, dict):
             raise ThemeError('%s: %s is not a rule {"scope": ..., "settings": {...}}' % (place(e, None), name))
-        settings = {} if e.get('settings') is None else e['settings']
+        settings = {} if _none(e.get('settings')) else e['settings']
         if not isinstance(settings, dict):
             raise ThemeError('%s: %s: "settings" is not an object' % (place(e, 'settings'), name))
-        scope = None if e.get('scope') == '' else e.get('scope')        # "" is no scope, as VS Code takes it
+        scope = None if _none(e.get('scope')) else e['scope']
         scope = [scope] if isinstance(scope, str) else scope
         if scope is not None and not (isinstance(scope, list) and all(isinstance(x, str) for x in scope)):
             raise ThemeError('%s: %s: "scope" is neither a string nor a list of strings' % (place(e, 'scope'), name))

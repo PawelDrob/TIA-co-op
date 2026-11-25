@@ -131,11 +131,19 @@ class TheFile(Files):
         self.assertEqual(src.colors['editor.background'], (0, 0xff, 0, 1.0))
 
     def test_what_vs_code_takes_as_none(self):
-        """An include, colors and tokenColors that are "", null, false or 0 are not there, as VS Code's if takes
-        them."""
-        for empty in ('""', 'null', 'false', '0'):
+        """An include, colors, tokenColors, a rule's scope and its settings that are "", null, false or 0 are not
+        there, as JavaScript's truth in VS Code's loader takes them. A rule with such a scope has none: in the old
+        form it sets the text."""
+        red = (0xff, 0, 0, 1.0)
+        for empty in ('""', 'null', 'false', '0', '0.0', '-0'):
             src = vt.read(self.put('t.json', '{"include": %s, "colors": %s, "tokenColors": %s}' % ((empty,) * 3)))
             self.assertEqual((src.colors, src.rules, src.files), ({}, [], [os.path.join(self.tmp.name, 't.json')]))
+            src = vt.read(self.put('t.json', '{"tokenColors": [{"scope": %s, "settings": {"foreground": "#ff0000"}},'
+                                             ' {"scope": "comment", "settings": %s}]}' % (empty, empty)))
+            self.assertEqual((src.colors, src.rules), ({}, [(None, red, None), (['comment'], None, None)]))
+            src = vt.read(self.put('t.json', '{"settings": [{"scope": %s, "settings": {"foreground": "#ff0000"}}]}'
+                                   % empty))
+            self.assertEqual(src.colors['editor.foreground'], red)
 
     def test_a_tm_themes_fault_names_its_entry(self):
         tm = self.put('t.tmTheme', '<?xml version="1.0"?><plist version="1.0"><dict><key>settings</key><array>'
@@ -254,6 +262,22 @@ class EveryRefusal(Files):
     def test_an_include_that_is_no_file(self):
         nope = os.path.join(self.tmp.name, 'nope.json')
         self.refused('{\n  "include": "./nope.json"\n}', 2, '"include": %s is no file' % nope)
+
+    def test_an_empty_object_or_list(self):
+        """{} and [] are true in JavaScript, so VS Code's loader takes them as given: where another form is wanted
+        they are refused, an include among them, which is not passed over (a rule's settings [] in TheFile); an empty
+        colors object, tokenColors list, scope list and settings object give nothing."""
+        for empty in ('{}', '[]'):
+            self.refused('{\n  "include": %s\n}' % empty, 2, '"include": %s is not the path of a theme file' % empty)
+            self.refused('{\n  "include": %s,\n  "colors": {"editor.background": "#ffffff"}\n}' % empty, 2,
+                         '"include": %s is not the path of a theme file' % empty)
+        self.refused('{\n  "colors": []\n}', 2, '"colors" is not an object of colour ids')
+        self.refused('{\n  "tokenColors": [\n    {"scope": {}, "settings": {}}\n  ]\n}', 3,
+                     '"tokenColors" [0]: "scope" is neither a string nor a list of strings')
+        self.refused('{\n  "tokenColors": {}\n}', 2,
+                     '"tokenColors" is neither a list of rules nor the path of a .tmTheme')
+        src = vt.read(self.put('t.json', '{"colors": {}, "tokenColors": [{"scope": [], "settings": {}}]}'))
+        self.assertEqual((src.colors, src.rules), ({}, [([], None, None)]))
 
     def test_a_rule_that_is_no_object(self):
         self.refused('{\n  "tokenColors": [\n    "comment"\n  ]\n}', 2,
