@@ -2,8 +2,8 @@
 trailing commas, include and a .tmTheme among it, and refused with its file and line where it is no color theme or
 holds no colour (TheFile); its kind (TheKind); a word's colour by its scope (TokenColours); the table against the dev
 doc (TheTable); a colour with an alpha laid over its ground, alpha 0 passed over or refused (Alpha); the theme's own
-tia.<name> ids (TiaIds); and every pair to keep readable over the fixture themes, each kind, which fail with a rule
-taken out (EasyToRead). The fixture themes (fixtures\\themes\\) are written for the tests."""
+tia.<name> ids (TiaIds); and every pair to keep readable over the fixture themes, each kind, some of which fail with
+the moves or the axis rule taken out (EasyToRead). The fixture themes (fixtures\\themes\\) are written for the tests."""
 import json
 import math
 import os
@@ -71,8 +71,19 @@ class TheFile(Files):
         src = vt.read(FIXTURES['teal'])
         self.assertEqual(vt.token_colour(src.rules, 'keyword.control.scl'), (0x85, 0x99, 0x00, 1.0))
         values, origin = vt.palette(src, move=False)
-        self.assertEqual((values['--page'], origin['--page']), ((0, 0x2b, 0x36, 1.0), 'tokenColors'))
+        self.assertEqual((values['--page'], origin['--page']), ((0, 0x2b, 0x36, 1.0), 'editor.background'))
         self.assertEqual(values['--text'], (0x83, 0x94, 0x96, 1.0))
+        self.assertEqual((values['--lad-text'], origin['--lad-text']), (values['--text'], 'editor.foreground'))
+
+    def test_a_tm_themes_fault_names_its_entry(self):
+        tm = self.put('t.tmTheme', '<?xml version="1.0"?><plist version="1.0"><dict><key>settings</key><array>'
+                      '<dict><key>scope</key><string>comment</string><key>settings</key><dict>'
+                      '<key>foreground</key><string>green</string></dict></dict></array></dict></plist>')
+        self.put('t.json', '{"tokenColors": "./t.tmTheme"}')
+        with self.assertRaises(theme.ThemeError) as e:
+            vt.read(os.path.join(self.tmp.name, 't.json'))
+        self.assertEqual(str(e.exception), '%s: settings [0]: "foreground": "green" is not a colour; VS Code writes '
+                                           'one as #RGB, #RGBA, #RRGGBB or #RRGGBBAA' % tm)
 
     def test_the_lines_of_a_json_text(self):
         j = vt.parse('// a\n{\n  "a": 1, /* b\n */ "b": [1, 2,],\n  "c": {"d": null,},\n}\n', 'x')
@@ -91,6 +102,9 @@ class TheFile(Files):
         self.refused('{\n  "colors": [1]\n}', 2, '"colors" is not an object')
         self.refused('{\n  "tokenColors": 5\n}', 2, '"tokenColors" is neither a list of rules nor')
         self.refused('{\n  "tokenColors": [\n    {"scope": 1, "settings": {}}\n  ]\n}', 3, '"scope" is neither')
+        self.refused('{\n  "tokenColors": [\n    {"scope": "a",\n     "settings": []}\n  ]\n}', 4,
+                     '"tokenColors" [0]: "settings" is not an object')
+        self.refused('{\n  "include": 5\n}', 2, '"include": 5 is not the path of a theme file')
 
     def test_a_value_that_is_no_colour(self):
         for value in ('"blue"', '"#12"', '"rgb(1, 2, 3)"', '"transparent"', '"#fff "', '12', '"var(--x)"'):
@@ -103,10 +117,11 @@ class TheFile(Files):
     def test_an_include_that_is_not_there_or_itself(self):
         self.refused('{\n  "include": "./nope.json"\n}', 2, '"include": ')
         a = self.put('a.json', '{"include": "./b.json"}')
-        self.put('b.json', '{\n  "include": "./a.json"\n}')
+        b = self.put('b.json', '{\n  "include": "./a.json"\n}')
         with self.assertRaises(theme.ThemeError) as e:
             vt.read(a)
-        self.assertIn('includes itself', str(e.exception))
+        self.assertEqual(str(e.exception), '%s:2: "include": %s is read already on the way here: the includes go '
+                                           'round' % (b, a))
 
     def test_an_include_of_an_absolute_path(self):
         """The user's theme.json as {"include": "<the theme's file>"}: the name and kind are the included theme's."""
@@ -131,6 +146,19 @@ class TheKind(Files):
         """An installed theme says its kind as uiTheme in its extension's package.json."""
         self.assertEqual(vt.kind_of(vt.read(FIXTURES['contrast-dark'])), 'hcDark')
         self.assertEqual(vt.kind_of(vt.read(FIXTURES['contrast-light'])), 'hcLight')
+
+    def test_a_nearer_package_json_that_names_another_theme(self):
+        """The search goes on above a package.json that does not name the file."""
+        ext = os.path.join(self.tmp.name, 'ext')
+        os.makedirs(os.path.join(ext, 'themes'))
+        with open(os.path.join(ext, 'package.json'), 'w', encoding='utf-8') as f:
+            json.dump({'contributes': {'themes': [{'uiTheme': 'hc-black', 'path': './themes/t.json'}]}}, f)
+        with open(os.path.join(ext, 'themes', 'package.json'), 'w', encoding='utf-8') as f:
+            json.dump({'contributes': {'themes': [{'uiTheme': 'vs', 'path': './other.json'}]}}, f)
+        path = os.path.join(ext, 'themes', 't.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('{"colors": {"editor.background": "#ffffff"}}')
+        self.assertEqual(vt.kind_of(vt.read(path)), 'hcDark')
 
     def test_by_the_page(self):
         self.assertEqual(vt.kind_of(vt.read(FIXTURES['paper'])), 'light')
@@ -190,6 +218,12 @@ class TheTable(unittest.TestCase):
         self.assertFalse(set(vt.ALPHA) & set(vt.VISIBLE))
         self.assertEqual(len(vt.VISIBLE), len(set(vt.VISIBLE)))
 
+    def test_what_a_pair_draws_is_visible(self):
+        """Each name drawn over another in a pair that is no part (theme.PARTS) is a text, a line or a mark, so that
+        a tia.* value of alpha 0 for it is refused; TIA's conversion mark, the fill of two halves, but."""
+        drawn = {p[0] for p in theme.PAIRS if p not in theme.PARTS}
+        self.assertEqual(drawn - set(vt.VISIBLE), {'--conversion', '--conversion-light'})
+
     def test_the_dev_docs_table(self):
         with open(os.path.join(ROOT, 'docs', 'dev', 'tools', 'tia-change-reports.md'), encoding='utf-8') as f:
             rows = re.findall(r'^\| `(--[a-z0-9-]+)` \| `(tia\.[a-z0-9-]+)` \| `(#[0-9a-f]{3,8}|rgba\([^)]*\))` \| '
@@ -203,8 +237,8 @@ class TheTable(unittest.TestCase):
 
 class Alpha(Files):
     """A theme's colour with an alpha is laid over what it stands on: a changed word's mark over its line's, the
-    rest over the page, as VS Code draws them; ALPHA's names keep it. A colour of alpha 0 from the theme's own ids is
-    passed over."""
+    rest over the page, as VS Code draws them; ALPHA's names keep it. A colour of alpha 0 from the table's ids is passed
+    over; a tia.* value of alpha 0 is refused for a text, a line or a mark, else taken."""
 
     def test_laid_over_the_ground(self):
         src = vt.read(FIXTURES['night'])
@@ -244,10 +278,17 @@ class TiaIds(Files):
         self.assertEqual((values['--lad-text'], origin['--lad-text']), ((0x20, 0x24, 0x2c, 1.0), 'tia.lad-text'))
         self.assertEqual(values['--box'], (0x11, 0x22, 0x33, 1.0))
         self.assertIn(('--lad-text', '--page'), fails(values))
+        self.assertEqual(vt.unmet(values), fails(values))
+        t = theme.load(path)
+        self.assertIn(('--lad-text', '--page'), t.unmet)
+        self.assertIn('the theme Night (test) leaves', t.warning())
+        self.assertIn('--lad-text over --page', t.warning())
+        self.assertEqual(theme.load(FIXTURES['night']).warning(), '')
 
     def test_an_id_that_is_no_name(self):
         self.refused('{\n  "colors": {\n    "tia.wires": "#000"\n  }\n}', 3,
-                     '"colors": "tia.wires" is no name of the palette (the names: docs\\dev\\tools\\tia-change-reports.md)')
+                     '"colors": "tia.wires" is no name of the palette '
+                     '(the names: docs\\dev\\tools\\tia-change-reports.md)')
 
 
 class EasyToRead(unittest.TestCase):

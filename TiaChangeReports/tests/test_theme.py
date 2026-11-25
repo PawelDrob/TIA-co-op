@@ -332,6 +332,9 @@ class TheNames(unittest.TestCase):
         self.assertEqual(len(theme.PAIRS), len(set(theme.PAIRS)))
         with self.assertRaises(ValueError):
             theme.read_pairs('/*' + chr(10) + '   - --text over --nope' + chr(10) + '*/', theme.NAMES)
+        with self.assertRaises(ValueError):                                     # a line wrapped
+            theme.read_pairs('/*' + chr(10) + '   - --text over --page,' + chr(10) + '     --band' + chr(10) + '*/',
+                             theme.NAMES)
 
     def test_each_name_is_used_and_each_used_name_is_one(self):
         used = set(re.findall(r'var\((--[a-z0-9-]+)\)', self.css()))
@@ -359,8 +362,7 @@ NOT_TAKEN = ('green', 'white', 'currentColor', 'transparent', 'rgb(1, 2, 3)', 'r
              'hwb(1 2% 3%)', 'color-mix(in srgb, red, blue)', ' #fff', '#fff ')
 
 
-# Values with a digit or a letter CSS does not have: CSS's are ASCII. Neither the browser nor a theme takes them;
-# Python's re.I without re.A would take some.
+# Values with a digit or a letter CSS does not have: CSS's are ASCII. Neither the browser nor a theme takes them.
 OTHER_SCRIPTS = ('#\uff46\uff46\uff46', '#ab\uff43', '#\u0661\u0662\u0663', '#abc\u212a', '#\u0130bc')
 
 

@@ -52,7 +52,9 @@ full width.
 fragment and the PNG take it, the page keeps it and says so under its title. Without --theme: the user's default
 theme, %LOCALAPPDATA%\\tia-co-op\\theme.json, when that file is there, else tia. A theme file that is not there or
 cannot be read is a usage error that says why on stderr; one that is no color theme or holds a value that is no colour
-is one that names its file and line; so is such a default theme.
+is one that names its file and line (in a .tmTheme, the entry); so is such a default theme. A theme that leaves a pair
+to keep readable under TIA's contrast, by colours it sets itself (tia.*) or its page, is drawn so, with a warning on
+stderr naming the pairs.
 --json prints the result as one JSON object (page, before, after, blocks; plcTags when a table changed; skipped when a
 file was; otherFiles when any; acrossFormats when a block is .s7dcl on one side and SimaticML on the other; png: the PNGs)
 instead of the list.
@@ -142,6 +144,8 @@ def main(argv=None):
     except themes.ThemeError as ex:
         print(('--theme %s' if a.theme is not None else 'the default theme %s (--theme tia draws without it)') % ex, file=sys.stderr)
         return 2
+    if theme.warning():
+        print('warning: ' + theme.warning(), file=sys.stderr)
     plc_on, hmi_on = a.only != 'hmi', a.only != 'plc' and not (a.block or a.network)
     tags_on = plc_on and not (a.block or a.network)
     inputs = [(lambda b=b, af=af: (snapshot(b), snapshot(af)), lambda b=b, af=af: hmi.sides_of(b, af, folders=True))

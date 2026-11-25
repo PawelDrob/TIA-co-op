@@ -13,8 +13,9 @@
    set the names itself, in its own stylesheet on .ldiff: that wins over the report's values.
 
    Pairs a theme must keep readable, each line the names drawn over the names they stand on (theme.PAIRS reads these
-   lines; --x-* is each name that starts so; what is in brackets says where). A VS Code theme's values are moved until
-   each pair has TIA's own contrast, at most 4.5 to 1:
+   lines; --x-* is each name that starts so; what is in brackets says where; a line is never wrapped). A VS Code
+   theme's values but its page and its tia.* colours are moved until each pair has at least TIA's own contrast, at most
+   4.5 to 1; a pair those leave under it is named in a warning:
    - --text, --scl-* over --page, --added-fill, --removed-fill, --added-word, --removed-word
    - --text over --changed-fill, --moved-fill (a network's badge, a "differs" note, a mark in the lookup)
    - --lad-*, --wire over --page, --added-fill, --removed-fill, --changed-fill, --moved-fill

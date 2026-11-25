@@ -61,6 +61,8 @@ def main(argv=None, open_page=browser.open_page, message=browser.message):
             p.error(said)
         message('The block viewer %s' % said)                     # a double-click: pythonw.exe has no console
         return 2
+    if theme.warning() and sys.stderr:
+        print('warning: ' + theme.warning(), file=sys.stderr)
     html, title = view.page(a.file, theme)
     if a.html:
         with open(a.html, 'w', encoding='utf-8') as f:

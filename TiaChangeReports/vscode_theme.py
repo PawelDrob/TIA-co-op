@@ -1,11 +1,12 @@
 """A VS Code color theme as the report's theme: the file read as VS Code reads it, its kind told, and its colours put
 onto the palette's names (theme.NAMES) by TABLE and the rules below, every pair to keep readable (theme.PAIRS) then
-moved until it reads as well as in TIA's native theme.
+moved until it has TIA's own contrast, at most 4.5 to 1.
 
   read(path)            -> Source: the theme's name, kind, colors {id: (red, green, blue, alpha)} and token rules,
-                           its include followed. ThemeError, with the file and the line, for a file that is no color
-                           theme or holds a value that is no colour
+                           its include followed. ThemeError, with the file and the line (in a .tmTheme, which has no
+                           lines, the entry), for a file that is no color theme or holds a value that is no colour
   palette(src)          -> ({name: (red, green, blue, alpha)} for every name, {name: where it came from})
+  unmet(values)         -> the pairs under their bound: those a tia.* value or the page holds there, which never move
   contrast(a, b)        -> WCAG's contrast ratio of two opaque colours
   bound(pair)           -> the contrast a pair is held to: TIA's own, at most 4.5 to 1 (WCAG's floor for text)
 
@@ -13,17 +14,18 @@ moved until it reads as well as in TIA's native theme.
                                                       lays it over fragments drawn in --theme tia
 
 The file: JSON with // and /* */ comments and trailing commas. Read of it: name, type, colors, tokenColors (a list, or
-the path of a .tmTheme), include (a theme file, from this one's folder or by a full path: its colors under this one's,
-its tokenColors before this one's). A token rule with no scope gives editor.background and editor.foreground where colors does not.
-semanticTokenColors and the rest are not read: the report has no semantic tokens.
+the path of a .tmTheme), include (a theme file, from this one's folder or by a full path: its colors under this
+one's, its tokenColors before this one's). A token rule with no scope gives editor.background and editor.foreground
+where colors does not. semanticTokenColors and the rest are not read: the report has no semantic tokens.
 
-The kind (KINDS): the type of the file or of a file it includes, else uiTheme of a package.json beside one of those
-or up to two folders above that names that file (an installed theme's), else light or dark by the page's luminance.
+The kind (KINDS): the type of the file or of a file it includes, else uiTheme of the first package.json, beside one
+of those files or up to two folders above it, that names that file (an installed theme's), else light or dark by the
+page's luminance.
 
 A name takes, in order: the theme's own tia.<name> (refused with alpha 0 for a line, a text or a mark, VISIBLE; never
-moved), else the first of TABLE's ids or token scopes (a source ending in .scl) the theme gives, a value with alpha 0
-passed over, else TABLE's rule. Every name but ALPHA's is then laid over its ground (GROUND, else the page) as the
-browser lays a colour with alpha, so that what is drawn is opaque and its contrast is known.
+moved), else the first of TABLE's ids or token scopes (a source ending in .scl) the theme gives, a value of the
+table's with alpha 0 passed over, else TABLE's rule. Every name but ALPHA's is then laid over its ground (GROUND, else
+the page) as the browser lays a colour with alpha, so that what is drawn is opaque and its contrast is known.
 """
 import json
 import math
@@ -172,33 +174,34 @@ RULES = ('axis', 'line', 'text', 'kind', 'tia')
 ALPHA = ('--shadow', '--backdrop', '--minimap-view', '--off-over-mark')
 # What a name with an alpha is laid over where it is not the page: a changed word's mark over its line's.
 GROUND = {'--added-word': '--added-fill', '--removed-word': '--removed-fill'}
-# The names that draw a line, a text or a change mark: a tia.* value of alpha 0 for one would take it off the page.
-VISIBLE = (
-    # text
+# The names that draw a text, a line or a change mark: a tia.* value of alpha 0 for one would take it off the page.
+TEXT_NAMES = (
     '--text', '--muted', '--faint', '--empty-field-text', '--viewer-note', '--link', '--match', '--badge-text',
     '--button-text', '--button-off-text', '--input-text', '--icon', '--tree-icon', '--checkbox-tick',
     '--checkbox-off-tick', '--lad-text', '--lad-comment', '--lad-value', '--lad-constant', '--lad-default',
     '--lad-number', '--eno-off', '--scl-keyword', '--scl-region', '--scl-constant', '--scl-comment', '--scl-operand',
-    '--scl-local-constant', '--scl-block-call', '--scl-instruction', '--scl-parameter', '--scl-operator',
-    # lines
+    '--scl-local-constant', '--scl-block-call', '--scl-instruction', '--scl-parameter', '--scl-operator')
+LINE_NAMES = (
     '--link-underline', '--page-head-line', '--line', '--grid', '--edge', '--divider', '--mark-line', '--button-line',
     '--focus', '--window-line', '--minimap-view-line', '--error-line', '--checkbox-line', '--checkbox-on-line',
     '--checkbox-off-line', '--checkbox-off-on-line', '--wire', '--pin-open', '--box-line', '--box-cell-line',
-    '--calculator-line', '--jump-label-line', '--screen-edge', '--object-selected', '--swatch-line',
-    # the change marks
+    '--calculator-line', '--jump-label-line', '--screen-edge', '--object-selected', '--swatch-line')
+MARK_NAMES = (
     '--added', '--added-fill', '--added-word', '--removed', '--removed-fill', '--removed-word', '--changed',
-    '--changed-fill', '--changed-row', '--moved', '--moved-fill', '--moved-row',
-)
+    '--changed-fill', '--changed-row', '--moved', '--moved-fill', '--moved-row', '--version')
+VISIBLE = TEXT_NAMES + LINE_NAMES + MARK_NAMES
 HEX_FORMS = '#RGB, #RGBA, #RRGGBB or #RRGGBBAA'
 NAMES_DOC = r'docs\dev\tools\tia-change-reports.md'        # the table of the names, their tia.* ids and TIA's values
 
 
 # --- the file: JSON with comments and trailing commas, each object's keys with their lines
 
-class Obj(dict):
+class JsonObject(dict):
     """A JSON object; lines: {key: the line it stands on}; line: the line of its {."""
-    lines = {}
-    line = 1
+
+    def __init__(self, line):
+        super().__init__()
+        self.lines, self.line = {}, line
 
 
 _TOKEN = re.compile(r'''[ \t\r\n]+|//[^\n]*|/\*.*?\*/|"(?:[^"\\\x00-\x1f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"
@@ -206,7 +209,7 @@ _TOKEN = re.compile(r'''[ \t\r\n]+|//[^\n]*|/\*.*?\*/|"(?:[^"\\\x00-\x1f]|\\(?:[
 
 
 def parse(text, where):
-    """The value of a JSON text with comments and trailing commas, its objects Obj. where: the file, for the
+    """The value of a JSON text with comments and trailing commas, its objects JsonObject. where: the file, for the
     messages."""
     toks, pos, line = [], 0, 1
     while pos < len(text):
@@ -231,14 +234,14 @@ def parse(text, where):
         t, line = toks[i]
         i += 1
         if t == '{':
-            obj, obj.lines, obj.line = Obj(), {}, line
+            obj = JsonObject(line)
             while True:
                 if i < len(toks) and toks[i][0] == '}':
                     i += 1
                     return obj
                 if i >= len(toks) or not toks[i][0].startswith('"'):
                     fail('a key in quotes or } expected')
-                key, kline = _string(toks[i][0]), toks[i][1]
+                key, kline = json.loads(toks[i][0]), toks[i][1]
                 i += 1
                 if i >= len(toks) or toks[i][0] != ':':
                     fail(': expected after %r' % key)
@@ -260,7 +263,7 @@ def parse(text, where):
                 elif i >= len(toks) or toks[i][0] != ']':
                     fail(', or ] expected')
         if t.startswith('"'):
-            return _string(t)
+            return json.loads(t)
         if t in ('true', 'false', 'null'):
             return {'true': True, 'false': False, 'null': None}[t]
         if t[0] in '-0123456789':
@@ -273,8 +276,6 @@ def parse(text, where):
         fail('%r after the value' % toks[i][0])
     return v
 
-
-_string = json.loads
 
 
 # --- what a theme gives
@@ -293,20 +294,14 @@ def _colour(value, where, what):
     c = theme.colour(value) if isinstance(value, str) else None
     if c is None:
         raise ThemeError('%s: %s: %s is not a colour; VS Code writes one as %s'
-                         % (where, what, _show(value), HEX_FORMS))
+                         % (where, what, json.dumps(value), HEX_FORMS))
     return c
-
-
-def _show(value):
-    return json.dumps(value)
 
 
 def read(path, _seen=()):
     """The theme of the file at path, its include followed. Raises ThemeError for a file that does not read, is no
     color theme, holds a value that is no colour, includes a file that is not there or itself."""
     path = os.path.abspath(path)
-    if os.path.normcase(path) in _seen:
-        raise ThemeError('%s: includes itself, through %s' % (path, ' -> '.join(_seen)))
     try:
         with open(path, encoding='utf-8-sig') as f:
             text = f.read()
@@ -315,19 +310,23 @@ def read(path, _seen=()):
     except OSError as ex:
         raise ThemeError('%s: the theme file cannot be read: %s' % (path, ex.strerror or ex))
     j = parse(text, path)
-    if not isinstance(j, Obj) or not ({'colors', 'tokenColors', 'include'} & set(j)):
+    if not isinstance(j, JsonObject) or not ({'colors', 'tokenColors', 'include'} & set(j)):
         raise ThemeError('%s:%d: not a VS Code color theme: it holds none of "colors", "tokenColors" and "include"'
-                         % (path, j.line if isinstance(j, Obj) else 1))
+                         % (path, j.line if isinstance(j, JsonObject) else 1))
     at = lambda key: '%s:%d' % (path, j.lines[key])                      # noqa: E731
     src = Source(path)
     if 'include' in j:
         inc = j['include']
         if not isinstance(inc, str):
-            raise ThemeError('%s: "include": %s is not the path of a theme file' % (at('include'), _show(inc)))
-        full = os.path.join(os.path.dirname(path), inc)
+            raise ThemeError('%s: "include": %s is not the path of a theme file' % (at('include'), json.dumps(inc)))
+        full = os.path.abspath(os.path.join(os.path.dirname(path), inc))
         if not os.path.isfile(full):
             raise ThemeError('%s: "include": %s is no file' % (at('include'), full))
-        base = read(full, _seen + (os.path.normcase(path),))
+        seen = _seen + (os.path.normcase(path),)
+        if os.path.normcase(full) in seen:
+            raise ThemeError('%s: "include": %s is read already on the way here: the includes go round'
+                             % (at('include'), full))
+        base = read(full, seen)
         src.name, src.kind, src.colors, src.where, src.rules = (base.name, base.kind, dict(base.colors),
                                                                 dict(base.where), list(base.rules))
         src.files += base.files
@@ -337,7 +336,7 @@ def read(path, _seen=()):
         src.kind = KINDS[j['type']]
     colors = j.get('colors')
     if colors is not None:
-        if not isinstance(colors, Obj):
+        if not isinstance(colors, JsonObject):
             raise ThemeError('%s: "colors" is not an object of colour ids' % at('colors'))
         for key, value in colors.items():
             if value is None:
@@ -347,45 +346,41 @@ def read(path, _seen=()):
             src.where[key] = where
     tokens = j.get('tokenColors')
     if isinstance(tokens, str):
-        src.rules += _tm_theme(os.path.join(os.path.dirname(path), tokens), at('tokenColors'))
+        src.rules += _tm_theme(os.path.abspath(os.path.join(os.path.dirname(path), tokens)), at('tokenColors'))
     elif isinstance(tokens, list):
-        src.rules += _token_rules(tokens, path, j.lines['tokenColors'])
+        line = j.lines['tokenColors']
+        src.rules += _token_rules(tokens, '"tokenColors"', lambda obj, key: '%s:%d' % (
+            path, obj.lines.get(key, obj.line) if isinstance(obj, JsonObject) else line))
     elif tokens is not None:
         raise ThemeError('%s: "tokenColors" is neither a list of rules nor the path of a .tmTheme' % at('tokenColors'))
     return src
 
 
-def _token_rules(entries, path, line):
-    """[(selectors, foreground, background)] of tokenColors' entries."""
+def _token_rules(entries, what, place):
+    """[(selectors, foreground, background)] of a list of token rules, as tokenColors and a .tmTheme's settings hold
+    them. what: the list in the messages; place(obj, key): where obj's key stands, the file and its line where the file
+    has lines."""
     out = []
     for k, e in enumerate(entries):
-        where = '%s:%d' % (path, e.line if isinstance(e, Obj) else line)
+        name = '%s [%d]' % (what, k)
         if not isinstance(e, dict):
-            raise ThemeError('%s: "tokenColors" [%d] is not a rule {"scope": ..., "settings": {...}}' % (where, k))
-        settings = e.get('settings') or {}
+            raise ThemeError('%s: %s is not a rule {"scope": ..., "settings": {...}}' % (place(e, None), name))
+        settings = {} if e.get('settings') is None else e['settings']
         if not isinstance(settings, dict):
-            raise ThemeError('%s: "tokenColors" [%d]: "settings" is not an object' % (where, k))
-        scope = e.get('scope')
-        if isinstance(scope, str):
-            sels = [s.strip() for s in scope.split(',')]
-        elif isinstance(scope, list) and all(isinstance(s, str) for s in scope):
-            sels = [p.strip() for s in scope for p in s.split(',')]
-        elif scope is None:
-            sels = None
-        else:
-            raise ThemeError('%s: "tokenColors" [%d]: "scope" is neither a string nor a list of strings' % (where, k))
-        got = []
-        for prop in ('foreground', 'background'):
-            v = settings.get(prop)
-            got.append(None if v is None else _colour(v, '%s:%d' % (path, settings.lines.get(prop, line))
-                                                      if isinstance(settings, Obj) else where,
-                                                      '"tokenColors" [%d]: "%s"' % (k, prop)))
-        out.append((sels, got[0], got[1]))
+            raise ThemeError('%s: %s: "settings" is not an object' % (place(e, 'settings'), name))
+        scope = [e['scope']] if isinstance(e.get('scope'), str) else e.get('scope')
+        if scope is not None and not (isinstance(scope, list) and all(isinstance(x, str) for x in scope)):
+            raise ThemeError('%s: %s: "scope" is neither a string nor a list of strings' % (place(e, 'scope'), name))
+        fg, bg = (None if settings.get(prop) is None else
+                  _colour(settings[prop], place(settings, prop), '%s: "%s"' % (name, prop))
+                  for prop in ('foreground', 'background'))
+        out.append((None if scope is None else [x.strip() for sel in scope for x in sel.split(',')], fg, bg))
     return out
 
 
 def _tm_theme(path, where):
-    """The token rules of a .tmTheme (a plist: settings, a list of {scope, settings})."""
+    """The token rules of a .tmTheme, a plist whose settings is a list of {scope, settings}; it has no lines, so a
+    fault is named by its entry."""
     if not os.path.isfile(path):
         raise ThemeError('%s: "tokenColors": %s is no file' % (where, path))
     try:
@@ -396,16 +391,7 @@ def _tm_theme(path, where):
     entries = pl.get('settings') if isinstance(pl, dict) else None
     if not isinstance(entries, list):
         raise ThemeError('%s: not a .tmTheme: no list "settings"' % path)
-    out = []
-    for k, e in enumerate(entries):
-        if not isinstance(e, dict) or not isinstance(e.get('settings', {}), dict):
-            raise ThemeError('%s: settings [%d] is not a rule' % (path, k))
-        scope = e.get('scope')
-        sels = [s.strip() for s in scope.split(',')] if isinstance(scope, str) else None
-        got = [None if e.get('settings', {}).get(p) is None else
-               _colour(e['settings'][p], path, 'settings [%d] %s' % (k, p)) for p in ('foreground', 'background')]
-        out.append((sels, got[0], got[1]))
-    return out
+    return _token_rules(entries, 'settings', lambda obj, key: path)
 
 
 def token_colour(rules, scope):
@@ -434,14 +420,16 @@ def kind_of(src):
         folder = os.path.dirname(path)
         for _ in range(3):
             pkg = os.path.join(folder, 'package.json')
-            if os.path.isfile(pkg):
-                k = _ui_theme(pkg, path)
-                if k:
-                    return k
-                break
+            k = os.path.isfile(pkg) and _ui_theme(pkg, path)
+            if k:
+                return k
             folder = os.path.dirname(folder)
-    page = _page_text(src)[0]
-    return 'dark' if page and luminance(page) < 0.1791 else 'light'
+    page = given(src).get('editor.background')
+    return 'dark' if page and luminance(page) < DARK_BELOW else 'light'
+
+
+# The luminance under which a page is dark: black and white stand out from it equally (WCAG's contrast).
+DARK_BELOW = 0.1791
 
 
 def _ui_theme(pkg, path):
@@ -460,13 +448,16 @@ def _ui_theme(pkg, path):
     return None
 
 
-def _page_text(src):
-    """(page, text) the theme gives: editor.background and editor.foreground, else a scope-less token rule's."""
-    page, text = src.colors.get('editor.background'), src.colors.get('editor.foreground')
+def given(src):
+    """The theme's colors, editor.background and editor.foreground taken from a token rule with no scope where colors
+    gives none, as an old TextMate theme writes them."""
+    out = dict(src.colors)
     for sels, fg, bg in src.rules:
         if sels is None:
-            page, text = page or bg, text or fg
-    return page, text
+            for key, c in (('editor.background', bg), ('editor.foreground', fg)):
+                if c is not None and key not in src.colors:
+                    out[key] = c
+    return out
 
 
 # --- colours: WCAG's luminance and contrast, OKLab for moving a colour
@@ -510,19 +501,26 @@ def _gamma(x):
     return 255 * (12.92 * x if x <= 0.0031308 else 1.055 * x ** (1 / 2.4) - 0.055)
 
 
+def _in_gamut(lab):
+    return all(-1e-6 <= v <= 1 + 1e-6 for v in _srgb_linear(lab))
+
+
+def _fitting(fits):
+    """The largest share s of 0 to 1 for which fits(s), fits(0) taken as true."""
+    if fits(1.0):
+        return 1.0
+    lo, hi = 0.0, 1.0
+    for _ in range(30):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if fits(mid) else (lo, mid)
+    return lo
+
+
 def from_oklab(L, a, b, alpha=1.0):
     """The colour at lightness L with as much of the chroma (a, b) as sRGB holds, its hue kept."""
     L = min(1.0, max(0.0, L))
-    lo, hi = 0.0, 1.0
-    if not all(-1e-6 <= v <= 1 + 1e-6 for v in _srgb_linear((L, a, b))):
-        for _ in range(30):
-            mid = (lo + hi) / 2
-            if all(-1e-6 <= v <= 1 + 1e-6 for v in _srgb_linear((L, a * mid, b * mid))):
-                lo = mid
-            else:
-                hi = mid
-        a, b = a * lo, b * lo
-    return tuple(int(math.floor(_gamma(v) + 0.5)) for v in _srgb_linear((L, a, b))) + (alpha,)
+    s = _fitting(lambda k: _in_gamut((L, a * k, b * k)))
+    return tuple(int(math.floor(_gamma(v) + 0.5)) for v in _srgb_linear((L, a * s, b * s))) + (alpha,)
 
 
 def on_axis(tia, page, text):
@@ -540,17 +538,8 @@ def on_axis(tia, page, text):
         if _in_gamut((L, a + c[1] / 2, b + c[2] / 2)) or not 0 <= L + step <= 1:
             break
         L += step
-    lo, hi = 0.0, 1.0
-    if not _in_gamut((L, a + c[1], b + c[2])):
-        for _ in range(30):
-            mid = (lo + hi) / 2
-            lo, hi = (mid, hi) if _in_gamut((L, a + c[1] * mid, b + c[2] * mid)) else (lo, mid)
-        c = (c[0], c[1] * lo, c[2] * lo)
-    return from_oklab(L, a + c[1], b + c[2], tia[3])
-
-
-def _in_gamut(lab):
-    return all(-1e-6 <= v <= 1 + 1e-6 for v in _srgb_linear(lab))
+    s = _fitting(lambda k: _in_gamut((L, a + c[1] * k, b + c[2] * k)))
+    return from_oklab(L, a + c[1] * s, b + c[2] * s, tia[3])
 
 
 def over(c, ground):
@@ -573,14 +562,14 @@ def bound(pair):
 
 def palette(src, rules=RULES, move=True):
     """({name: colour} for every name of the palette, {name: 'tia.<name>', an id, a scope or a rule}) of the theme
-    src. rules, move: the rules taken (the tests take one out to see the pairs fail)."""
+    src. rules, move: the rules and the moves taken (the tests take one out to see the pairs fail)."""
     for key in src.colors:
         if key.startswith('tia.') and '--' + key[4:] not in theme.NATIVE:
             raise ThemeError('%s: "colors": "%s" is no name of the palette (the names: %s)'
                              % (src.where[key], key, NAMES_DOC))
     kind = kind_of(src)
-    page0, text0 = (theme.colour(v) for v in KIND_PAGE[kind])
-    given_page, given_text = _page_text(src)
+    kind_page, kind_text = (theme.colour(v) for v in KIND_PAGE[kind])
+    colors = given(src)
     values, origin, fixed = {}, {}, set()
     for name in ['--page', '--text'] + [n for n in theme.NAMES if n not in ('--page', '--text')]:
         sources, rule = TABLE[name]
@@ -593,17 +582,13 @@ def palette(src, rules=RULES, move=True):
             got, fixed = (c, own), fixed | {name}
         else:
             got = next(((c, s) for s in sources
-                        for c in [token_colour(src.rules, s) if s.endswith('.scl') else src.colors.get(s)]
+                        for c in [token_colour(src.rules, s) if s.endswith('.scl') else colors.get(s)]
                         if c is not None and c[3] > 0), None)
-            if got is None and name == '--page' and given_page and given_page[3] > 0:
-                got = (given_page, 'tokenColors')
-            if got is None and name == '--text' and given_text and given_text[3] > 0:
-                got = (given_text, 'tokenColors')
             if got is None:
-                got = (_rule(rule if rule in rules else 'tia', name, kind, values, src, page0, text0), rule)
+                got = (_rule(rule if rule in rules else 'tia', name, kind, values, src, kind_page, kind_text), rule)
         c, origin[name] = got
         if name not in ALPHA and c[3] < 1:
-            c = over(c, page0 if name == '--page' else values[GROUND.get(name, '--page')])
+            c = over(c, kind_page if name == '--page' else values[GROUND.get(name, '--page')])
         values[name] = c
     if move:
         _hold_pairs(values, origin, fixed | {'--page'})
@@ -611,14 +596,13 @@ def palette(src, rules=RULES, move=True):
 
 
 def _what(name):
-    return ('a text' if VISIBLE.index(name) < VISIBLE.index('--link-underline') else
-            'a line' if VISIBLE.index(name) < VISIBLE.index('--added') else 'a change mark')
+    return 'a text' if name in TEXT_NAMES else 'a line' if name in LINE_NAMES else 'a change mark'
 
 
-def _rule(rule, name, kind, values, src, page0, text0):
+def _rule(rule, name, kind, values, src, kind_page, kind_text):
     tia = theme.NATIVE[name]
     if rule == 'kind':
-        return page0 if name == '--page' else text0
+        return kind_page if name == '--page' else kind_text
     if rule == 'text':
         return values['--text']
     if rule == 'line' and kind in HIGH_CONTRAST:
@@ -630,6 +614,12 @@ def _rule(rule, name, kind, values, src, page0, text0):
 
 
 STEP = 0.005                    # OKLab lightness: one step of a move
+THEME_WEIGHT = 3                # a move of a value the theme gave counts as three times as long as one of a rule's
+
+
+def unmet(values):
+    """The pairs under their bound in values."""
+    return [p for p in theme.PAIRS if not _holds(p, bound(p), values)]
 
 
 def _holds(pair, b, values):
@@ -637,17 +627,18 @@ def _holds(pair, b, values):
 
 
 def _hold_pairs(values, origin, fixed):
-    """Moves names, by lightness alone, until each pair holds its bound. First the parts that are no text (theme.PARTS:
-    a mark's fill, a box, a band, a line) away from what they lie on, so that the grounds stand; then every pair: the drawn
-    side, by its smallest move that breaks none of its pairs that held; where it has none, the move of either side that
-    breaks the fewest, then the smallest, a rule's value weighed before a value the theme gave. fixed: never moved."""
+    """Moves names, by lightness alone, until each pair holds its bound. First the parts that are no text
+    (theme.PARTS: a mark's fill, a box, a band, a line) away from what they lie on, so that the grounds stand; then
+    every pair: the drawn side, by its smallest move that breaks none of its pairs that held; where it has none, the
+    move of either side that breaks the fewest, then the smallest, a move of a value the theme gave weighing
+    THEME_WEIGHT times one of a rule's. fixed: never moved."""
     pairs = [(p, bound(p)) for p in theme.PAIRS]
     parts = [(p, b) for p, b in pairs if p in theme.PARTS]
     for group, sides in ((parts, 1), (pairs, 2)):
-        of = {}                 # a name's pairs a move of it keeps: first where it is drawn, then all
+        pairs_of = {}                 # a name's pairs a move of it keeps: first where it is drawn, then all
         for p, b in group:
             for n in p[:sides]:
-                of.setdefault(n, []).append((p, b))
+                pairs_of.setdefault(n, []).append((p, b))
         for _ in range(20):
             moved = False
             for p, b in group:
@@ -657,10 +648,10 @@ def _hold_pairs(values, origin, fixed):
                 for n in p[:sides]:
                     if n in fixed:
                         continue
-                    kept = [(q, bq) for q, bq in of[n] if _holds(q, bq, values)]
+                    kept = [(q, bq) for q, bq in pairs_of[n] if _holds(q, bq, values)]
                     found = _move(n, p, b, values, kept)
                     if found:
-                        key = (found[0], found[1] * (1 if origin[n] in RULES else 3))
+                        key = (found[0], found[1] * (1 if origin[n] in RULES else THEME_WEIGHT))
                         if best is None or key < best[0]:
                             best = (key, n, found[2])
                         if n == p[0] and found[0] == 0:
@@ -675,24 +666,23 @@ def _hold_pairs(values, origin, fixed):
 def _move(n, pair, b, values, kept):
     """(how many of kept it breaks, how far, the colour) of the move of n's lightness away from the other side of pair
     that makes pair hold b and breaks the fewest of kept, the smallest of those; None when none does. Away only: a move
-    keeps which side is the lighter, as the theme and the rules gave it (dark text over its fills in a dark theme)."""
-    def holds(q, bq, c):
-        return contrast(c if q[0] == n else values[q[0]], c if q[1] == n else values[q[1]]) >= bq - 1e-9
-    L, a, bb = oklab(values[n])
-    other = oklab(values[pair[1] if pair[0] == n else pair[0]])[0]
+    keeps which side is the lighter, as the theme and the rules gave it (dark badge text over its badges in a dark
+    theme)."""
+    L, a, chroma_b = oklab(values[n])
+    sign = 1 if L >= oklab(values[pair[1] if pair[0] == n else pair[0]])[0] else -1
     best = None
-    for sign in ((1,) if L >= other else (-1,)):
-        for step in range(1, int(1 / STEP) + 1):
-            if not 0 <= L + sign * (step - 1) * STEP <= 1:
-                break                                                 # this way is at black or white
-            c = from_oklab(L + sign * step * STEP, a, bb)
-            if not holds(pair, b, c):
-                continue
-            broken = sum(not holds(q, bq, c) for q, bq in kept)
-            if best is None or broken < best[0]:
-                best = (broken, step * STEP, c)
-            if broken == 0:
-                return best
+    for step in range(1, int(1 / STEP) + 1):
+        if not 0 <= L + sign * (step - 1) * STEP <= 1:
+            break                                                     # at black or white
+        trial = dict(values)
+        trial[n] = from_oklab(L + sign * step * STEP, a, chroma_b)
+        if not _holds(pair, b, trial):
+            continue
+        broken = sum(not _holds(q, bq, trial) for q, bq in kept)
+        if best is None or broken < best[0]:
+            best = (broken, step * STEP, trial[n])
+        if broken == 0:
+            return best
     return best
 
 

@@ -2,8 +2,9 @@
 
 The palette, TIA's native theme and the pairs a theme must keep readable are one file:
 TiaHmiGenerator\\hmipreview\\static\\tia-theme.css (rail.THEME_CSS), a line for each name. A theme of the user's own is
-a VS Code color theme, read onto the names by vscode_theme.py. A faulty one raises ThemeError naming its file and line,
-and one that is not there or cannot be read raises it saying why, so a theme is never drawn in part.
+a VS Code color theme, read onto the names by vscode_theme.py. A faulty one raises ThemeError naming its file and line
+(in a .tmTheme, the entry), and one that is not there or cannot be read raises it saying why, so a theme is never drawn
+in part.
 
   load(spec)            -> Theme: 'tia' TIA's native theme, a path the VS Code color theme there, None the user's
                            default theme (user_theme()) when that file is there, else TIA's
@@ -16,7 +17,7 @@ and one that is not there or cannot be read raises it saying why, so a theme is 
   colour(value)         -> (red, green, blue, alpha) of a value in one of VS Code's forms, #RGB, #RGBA, #RRGGBB and
                            #RRGGBBAA, else None
   written(c)            -> rgba(r,g,b,alpha): the one form the page holds a colour in, written from those numbers, so
-                           that no character of a theme file reaches the page (test_theme.TheWrittenForm)
+                           that no character of a theme's colour values reaches the page (test_theme.TheWrittenForm)
   css(theme, page)      -> the palette's block for a page's <style>: TIA's values, then the theme's for the screen,
                            then an HMI screen's own colours, TIA's (SCREEN)
   block(theme)          -> the theme's values alone, @media screen{.ldiff{...}}, for a host to lay over fragments
@@ -56,7 +57,8 @@ def user_theme(env=os.environ):
 
 
 _HEX = re.compile(r'#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})', re.I | re.A)
-# The palette's own file writes rgba() too, for the shadows: their alpha as TIA's, not rounded to 8 bits.
+# The palette's own file writes rgba() too, for the shadow, the backdrop and the minimap's view: their alpha as TIA's,
+# not rounded to 8 bits.
 _PALETTE_RGBA = re.compile(r'rgba\(([0-9]+),([0-9]+),([0-9]+),(0?\.[0-9]+)\)', re.A)
 
 
@@ -68,10 +70,18 @@ class ThemeError(ValueError):
 class Theme:
     """name: 'tia' or the file's path; values: {name: (red, green, blue, alpha)} for every name, TIA's native theme
     none of its own; label: what the page calls it (the theme's name, else its file's), None for TIA's; kind: light,
-    dark, hcDark or hcLight."""
+    dark, hcDark or hcLight; unmet: the pairs to keep readable it leaves under their bound (vscode_theme.unmet)."""
 
-    def __init__(self, name, values, label=None, kind='light'):
-        self.name, self.values, self.label, self.kind = name, values, label, kind
+    def __init__(self, name, values, label=None, kind='light', unmet=()):
+        self.name, self.values, self.label, self.kind, self.unmet = name, values, label, kind, list(unmet)
+
+    def warning(self):
+        """A line on the pairs this theme leaves under TIA's contrast, '' when none."""
+        if not self.unmet:
+            return ''
+        return ('the theme %s leaves %d pair%s less readable than TIA\'s colours, by colours it sets itself or its '
+                'page: %s' % (self.label, len(self.unmet), '' if len(self.unmet) == 1 else 's',
+                              ', '.join('%s over %s' % p for p in self.unmet)))
 
     def __repr__(self):
         return 'Theme(%r, %d values)' % (self.name, len(self.values))
@@ -116,8 +126,12 @@ PARTS_HEAD = 'And the parts that must stand out'
 
 def read_pairs(text, names):
     """[(drawn, ground)] of the head's lines '- --a, --b over --c, --d (where)'; --x-* is every name that starts
-    --x-."""
+    --x-. A pair's line is one line: one that starts with a name, the rest of a line wrapped, is refused."""
     head = text[:text.index('*/')].replace('\r', '')
+    wrapped = re.search(r'^ *--[a-z]', head, re.M)
+    if wrapped:
+        raise ValueError('%s: a pair\'s line goes on in the next, which the pairs do not read: %r'
+                         % (NATIVE_FILE, head[wrapped.start():head.find('\n', wrapped.start())]))
     out = []
 
     def each(names_text):
@@ -157,7 +171,8 @@ def load(spec=None):
         raise ThemeError('%s: the theme file cannot be read: it is a folder' % spec)
     src = vscode_theme.read(spec)
     values, _ = vscode_theme.palette(src)
-    return Theme(os.path.abspath(spec), values, src.name or os.path.basename(spec), vscode_theme.kind_of(src))
+    return Theme(os.path.abspath(spec), values, src.name or os.path.basename(spec), vscode_theme.kind_of(src),
+                 vscode_theme.unmet(values))
 
 
 def _block(sel, values):
