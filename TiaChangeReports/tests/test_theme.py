@@ -1,10 +1,11 @@
 """The report's colours from one palette (theme.py; the palette and TIA's native theme: TiaHmiGenerator\\hmipreview\\
 static\\tia-theme.css): no colour of what the report draws stands outside the palette's block (NoColourOutsideThePalette);
 every name is used and can take a host's value (TheNames); a theme of the user's own changes every colour of the page,
-the fragment and the viewer, and nothing the renderer writes (ATrialPalette, in Edge), but an HMI screen; a faulty
-theme file is refused with its line, or why it cannot be read (ThemeFiles, TheOptions); a theme takes what the browser
-takes of its forms (TheFormsOfColour), and the page holds each colour in one form the browser reads as the colour read
-(TheWrittenForm). The trial palette, every name a colour of its own, lives here only."""
+the fragment and the viewer, and nothing the renderer writes (ATrialPalette, in Edge), but an HMI screen and what the
+browser draws of its own (a placeholder, a focus ring, the scrollbars); a faulty theme file is refused with its line,
+or why it cannot be read (ThemeFiles, TheOptions); a theme takes what the browser takes of its forms
+(TheFormsOfColour), and the page holds each colour in one form the browser reads as the colour read (TheWrittenForm).
+The trial palette, every name a colour of its own, lives here only."""
 import ast
 import contextlib
 import io
@@ -434,7 +435,7 @@ NOT_TAKEN = ('green', 'white', 'currentColor', 'hsl(120, 50%, 50%)', 'hsl(120deg
              'color-mix(in srgb, red, blue)', 'rgb(calc(1) 2 3)', 'rgb(from red r g b)')
 
 
-# Values with a digit, a letter or a white space CSS does not have: its are ASCII, its white space no vertical tab.
+# Values with a digit, a letter or a white space CSS does not have: CSS's are ASCII, its white space has no vertical tab.
 # Neither the browser nor a theme takes them; Python's \d, \s and re.I would take some, float() the digits.
 OTHER_SCRIPTS = ('rgb(\u0661,2,3)', 'rgb(\uff11 2 3)', 'rgb(1,\u07c2,3)', 'rgba(1,2,3,.\u0665)', 'rgb(1e\uff12 2 3)',
                  '#\uff46\uff46\uff46', '#ab\uff43', 'rgb(1\u00a02\u00a03)', 'rgb(1\u30002 3)', 'rgb(1\x0b2\x0b3)',
@@ -698,7 +699,8 @@ PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'b
 # An HMI screen (svg.hs but its change outlines, .dl, and the frame of the object picked, .obj.sel>.body) and a
 # colour value's swatch (.cs) take no theme: the project's colours, render.js's own marks on a screen in colours of
 # their own, and TIA's text and background (theme.SCREEN). The line round a screen (svg.hs's box-shadow) and a swatch's
-# frame take it. ATrialPalette.test_a_screen_takes_no_theme reads a screen's. A moment after load, so that the HMI part
+# frame take it. ATrialPalette.test_a_screen_takes_no_theme reads a screen's. An element's style is read, so not what
+# the browser draws of its own: a placeholder, a focus ring, the scrollbars. A moment after load, so that the HMI part
 # has drawn the open object; then, with pick, the first change is clicked.
 PROBE = """<script>addEventListener('load',function(){setTimeout(function(){var P=%s,o=[];
 if(%s){var c=document.querySelector('.hc');if(c)c.click()}

@@ -3,7 +3,7 @@ type: Guide
 title: "SIMATIC SD guide: LAD networks"
 description: "How LAD networks are written in SIMATIC SD (.s7dcl) files for TIA Portal V20: rungs, wires, contacts, coils, boxes, calls, program control and the Calculate box, with a complete example block and the instruction set."
 tags: [tia-portal, plc, s7dcl, agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-22T02:55:40-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T19:20:26-05:00 }
 sources:
   - id: lad-doc
     resource: https://support.industry.siemens.com/cs/ww/en/view/109994073
@@ -212,7 +212,7 @@ LAD has exactly three negation instructions: `I_Contact` (negates the operand), 
 
 - `EN`/`ENO` are the rung pins of ENO boxes and are never written in text.
 - If EN is false, the box is not executed and connected outputs are untouched; ENO goes false.
-- ENO generation is a setting of some boxes: math, move, conversion, string, word logic, shift and rotate, `Calculate` (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`). Off, ENO := EN, and TIA draws ENO gray, with a line from EN through the box. The export writes `{ S7_GenerateENO := "TRUE" }` on such a box where it is on and nothing where it is off `[EXPORT]`; its SimaticML, and the boxes that carry neither the pragma nor `DisabledENO`: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML. The change report draws the ENO of those boxes black, and reads the pragma written on one of them or taken away as a change. Switch it on with `{ S7_GenerateENO := "TRUE" }` (see 8.6).
+- ENO generation is a setting of some boxes: math, move, conversion, string, word logic, shift and rotate, `Calculate` (the list: `ENO_SETTING` in `TiaChangeReports\instructions.py`). Off, ENO := EN, and TIA draws ENO gray, with a line from EN through the box. The export writes `{ S7_GenerateENO := "TRUE" }` on such a box where it is on and nothing where it is off `[EXPORT]`; its SimaticML, and the boxes that carry neither the pragma nor `DisabledENO`: [openness-plc-blocks.md](openness-plc-blocks.md), section 1, Boxes in an OB's SimaticML. The change report draws the ENO of those boxes as the drawing's text (black in TIA's colours), and reads the pragma written on one of them or taken away as a change. Switch it on with `{ S7_GenerateENO := "TRUE" }` (see 8.6).
 - The overflow-guard idiom (Add into a temp, Move copies only on ENO true) is expressed as two consecutive boxes in one rung.
 - Implicit data-type conversions inserted by the compiler have **no** textual representation.
 - Auto data type: never exported; a selected data type appears as an `S7_Templates` pragma.

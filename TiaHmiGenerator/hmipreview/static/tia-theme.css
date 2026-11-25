@@ -1,11 +1,12 @@
 /* TIA Portal's native look: the change report's built-in theme (--theme tia; the default when you have no theme file
    of your own), and the one list of the palette's names. Every colour the report, its fragment, its PNG and the block
-   viewer draw is one of these names, but an HMI screen and a value's colour swatch. A screen, as the HMI preview's
+   viewer draw is one of these names, but an HMI screen, a value's colour swatch and what the browser draws of its
+   own: a text box's placeholder, the focus ring of a button or a link, the scrollbars. A screen, as the HMI preview's
    render.js draws it, takes no theme: the project's colours, and the preview's own marks on them in colours of its
    own (flashing, a pattern, frames, the hatch of what is not drawn); its labels and the background of a screen with
    no colour of its own keep this file's --text and --page whatever a theme gives them (theme.py, SCREEN). Only the
    line round it, the outlines of its changes and the frame of the object picked take the theme. Nor do the HMI
-   preview's own panels and Archive Compare's window.
+   preview's own panels and Archive Compare's window. Whether a scrollbar follows a theme is the host's to say.
 
    A theme of your own: a file %LOCALAPPDATA%\tia-co-op\theme.css with this block's --theme-format line and only the
    lines you change, not a copy of the whole file; every report and the block viewer given no --theme draw in it.
@@ -99,7 +100,7 @@
   --switch-on: #d9d9d9;            /* the one of them that is pressed */
   --input: #fff;                   /* a text box: the tree's search, the lookup */
   --input-text: #000;              /* its text */
-  --focus: #3d8ee0;                /* the frame of what has the focus, of a pressed toggle */
+  --focus: #3d8ee0;                /* the frame of a text box with the focus, of the tree's open object, of a pressed toggle */
   --hover: #e5f1fb;                /* a tree's or the lookup's row under the pointer */
   --selected: #cce4f7;             /* the open object in the tree, the lookup's row, a change picked, a toggle on */
   --change-hover: #f3f8fd;         /* an HMI change under the pointer */
