@@ -46,9 +46,11 @@ Yourself, from the clone's folder, after [first setup](../docs/user/setup.md):
 `%USERPROFILE%\.vscode\extensions\`, VS Code's own themes under its folder's `resources\app\extensions\`. Every report
 and the block viewer then draw in the theme, also the reports the agent and Archive Compare make; a page says under its
 title, the viewer in its bar, which theme it is drawn in. What a VS Code theme has no colour for, a LAD box or a change
-mark, the report makes from the theme's own colours, and it keeps every text at least as easy to read as in TIA's
-colours, up to WCAG's 4.5 to 1. To set one of the report's colours yourself, add `"tia.<name>"` to `"colors"` in your
-`theme.json`, as `"tia.wire": "#0057b8"`; the names are in
-[the developer notes](../docs/dev/tools/tia-change-reports.md#from-a-vs-code-theme-to-the-palette).
+mark, the report makes from the theme's own colours, and it moves what it makes and takes until every text is at
+least as easy to read as in TIA's colours, up to WCAG's 4.5 to 1. To set one of the report's colours yourself, add
+`"tia.<name>"` to `"colors"` in your `theme.json`, as `"tia.wire": "#0057b8"`; the names are in
+[the developer notes](../docs/dev/tools/tia-change-reports.md#from-a-vs-code-theme-to-the-palette). A colour you set
+so, and the theme's page, are drawn as written: where one leaves a text under that bound, the
+report prints a warning that names it.
 `--theme <file>` takes another theme for one report, `--theme tia` TIA's colours. A faulty file stops the report and
 names its line, or says why it cannot be read.

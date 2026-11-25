@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T22:50:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T23:04:55-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -119,12 +119,14 @@ Every colour the page, the fragment, the PNG and the block viewer draw is a name
 
 ### A VS Code theme
 
-A theme file is a VS Code color theme as its extension publishes it, read by `vscode_theme.read`: JSON with `//` and `/* */` comments and trailing commas, as VS Code's own files are written. Of it the report reads `name`, `type`, `colors`, `tokenColors` and `include`:
+A theme file is a VS Code color theme as its extension publishes it, read by `vscode_theme.read`: JSON with `//` and `/* */` comments and trailing commas, as VS Code's own files are written, or a `.tmTheme`. Of a JSON one the report reads `name`, `type`, `colors`, `tokenColors` and `include`:
+
+- **A `.tmTheme`** (by the end of its name, in any case), a TextMate theme, given as the file or as an `include`, gives its `settings` as the token rules, as VS Code reads a theme's `path` or an `include` that is no `.json`; its `name` is the theme's name. A `.json` of the old form, a top-level list `settings` of such rules, gives them so too: as in VS Code, its `colors` and `tokenColors` are then not read, an `include` is.
 
 - **`include`** names another theme file, from the including file's folder or by a full path, followed through any depth: the including file's `colors` win over the included ones, its `tokenColors` come after theirs. A user's `theme.json` may so be `{ "include": "<the theme's file>" }` and add `tia.*` colours of its own.
-- **`tokenColors`** is a list of rules, or the path of a `.tmTheme` (a plist, read with `plistlib`). A rule with no scope gives `editor.background` and `editor.foreground` where `colors` does not, as an old TextMate theme writes them.
+- **`tokenColors`** is a list of rules, or the path of a `.tmTheme` (a plist, read with `plistlib`). A rule with no scope, or the scope `""`, gives `editor.background` and `editor.foreground` where `colors` does not, as an old TextMate theme writes them.
 - **Not read:** `semanticTokenColors` and `semanticHighlighting` (the report has no semantic tokens), `$schema`, and anything else. `null` in `colors` is no colour given.
-- **Refused** (`ThemeError`), with the file and the line, in a `.tmTheme`, which has no lines, the entry: what is not JSON, a top level that is no object, a file with none of `colors`, `tokenColors` and `include`, `colors` that is no object, `tokenColors` that is neither a list nor a path, a token rule, its `settings` or its `scope` of another form, a value in `colors` or a token rule's `foreground` or `background` that is not one of the four hex forms, an include that is no string, is not there or goes round to a file on the way, a `tia.*` id that is no name, and a `tia.*` value of alpha 0 for a name that draws a text, a line or a change mark (`vscode_theme.VISIBLE`). With the file alone: a file or a `.tmTheme` that does not read. A theme is never drawn in part.
+- **Refused** (`ThemeError`), with the file and the line, in a `.tmTheme`, which has no lines, the entry: what is not JSON, a top level that is no object, a file read as JSON with none of `colors`, `tokenColors`, `include` and a list `settings`, `colors` that is no object, `tokenColors` that is neither a list nor a path, a token rule, its `settings` or its `scope` of another form, a value in `colors` or a token rule's `foreground` or `background` that is not one of the four hex forms, an include that is no string, is not there or goes round to a file on the way, a `tia.*` id that is no name, and a `tia.*` value of alpha 0 for a name that draws a text, a line or a change mark (`vscode_theme.VISIBLE`). With the file alone: a file or a `.tmTheme` that does not read. A theme is never drawn in part.
 
 **The kind** (light, dark, high contrast dark, high contrast light) is the `type` of the file or of a file it includes, else the `uiTheme` that the first `package.json` naming that file under `contributes.themes`, beside it or up to two folders above, gives it (`light`, `dark`, `hc`, `hcDark`, `hcLight`, `vs`, `vs-dark`, `hc-black`, `hc-light`, alike in both), as an installed theme has it: most of VS Code's own files say no `type`. Else it is light or dark by the page's luminance. The kind gives the page and the text when the theme gives none (white and black, for dark `#1e1e1e` and `#d4d4d4`, Dark (Visual Studio)'s own, for high contrast dark black and white), and in high contrast the lines take `contrastBorder`, else the text, as VS Code's high contrast themes frame every part.
 

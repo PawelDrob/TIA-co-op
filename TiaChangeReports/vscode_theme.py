@@ -15,8 +15,10 @@ moved until it has TIA's own contrast, at most 4.5 to 1.
 
 The file: JSON with // and /* */ comments and trailing commas. Read of it: name, type, colors, tokenColors (a list, or
 the path of a .tmTheme), include (a theme file, from this one's folder or by a full path: its colors under this
-one's, its tokenColors before this one's). A token rule with no scope gives editor.background and editor.foreground
-where colors does not. semanticTokenColors and the rest are not read: the report has no semantic tokens.
+one's, its tokenColors before this one's). A token rule with no scope, or the scope "", gives editor.background and
+editor.foreground where colors does not. A .tmTheme, given as the file or as an include, gives its name and its
+settings as token rules; so does a .json of the old form, a top-level list settings, whose colors and tokenColors are
+then not read, as in VS Code. semanticTokenColors and the rest are not read: the report has no semantic tokens.
 
 The kind (KINDS): the type of the file or of a file it includes, else uiTheme of the first package.json, beside one
 of those files or up to two folders above it, that names that file (an installed theme's), else light or dark by the
@@ -277,7 +279,6 @@ def parse(text, where):
     return v
 
 
-
 # --- what a theme gives
 
 class Source:
@@ -299,9 +300,15 @@ def _colour(value, where, what):
 
 
 def read(path, _seen=()):
-    """The theme of the file at path, its include followed. Raises ThemeError for a file that does not read, is no
-    color theme, holds a value that is no colour, includes a file that is not there or itself."""
+    """The theme of the file at path, its include followed: a .tmTheme (by its name) as a TextMate theme, as VS Code
+    reads one as a theme's path and as an include; another file as JSON, a top-level list "settings" as a .tmTheme's.
+    Raises ThemeError for a file that does not read, is no color theme, holds a value that is no colour, includes a
+    file that is not there or itself."""
     path = os.path.abspath(path)
+    if path.lower().endswith('.tmtheme'):
+        src = Source(path)
+        src.name, src.rules = _tm_theme(path)
+        return src
     try:
         with open(path, encoding='utf-8-sig') as f:
             text = f.read()
@@ -310,9 +317,10 @@ def read(path, _seen=()):
     except OSError as ex:
         raise ThemeError('%s: the theme file cannot be read: %s' % (path, ex.strerror or ex))
     j = parse(text, path)
-    if not isinstance(j, JsonObject) or not ({'colors', 'tokenColors', 'include'} & set(j)):
-        raise ThemeError('%s:%d: not a VS Code color theme: it holds none of "colors", "tokenColors" and "include"'
-                         % (path, j.line if isinstance(j, JsonObject) else 1))
+    old = isinstance(j, JsonObject) and isinstance(j.get('settings'), list)
+    if not isinstance(j, JsonObject) or not (old or {'colors', 'tokenColors', 'include'} & set(j)):
+        raise ThemeError('%s:%d: not a VS Code color theme: it holds none of "colors", "tokenColors", "include" and a '
+                         'list "settings"' % (path, j.line if isinstance(j, JsonObject) else 1))
     at = lambda key: '%s:%d' % (path, j.lines[key])                      # noqa: E731
     src = Source(path)
     if 'include' in j:
@@ -334,6 +342,12 @@ def read(path, _seen=()):
         src.name = j['name']
     if isinstance(j.get('type'), str) and j['type'] in KINDS:
         src.kind = KINDS[j['type']]
+    place = lambda key: lambda obj, k: '%s:%d' % (                       # noqa: E731
+        path, obj.lines.get(k, obj.line) if isinstance(obj, JsonObject) else j.lines[key])
+    if old:
+        # The old form: a .tmTheme's rules as JSON. VS Code reads no colors and no tokenColors beside them.
+        src.rules += _token_rules(j['settings'], '"settings"', place('settings'))
+        return src
     colors = j.get('colors')
     if colors is not None:
         if not isinstance(colors, JsonObject):
@@ -346,11 +360,12 @@ def read(path, _seen=()):
             src.where[key] = where
     tokens = j.get('tokenColors')
     if isinstance(tokens, str):
-        src.rules += _tm_theme(os.path.abspath(os.path.join(os.path.dirname(path), tokens)), at('tokenColors'))
+        tm = os.path.abspath(os.path.join(os.path.dirname(path), tokens))
+        if not os.path.isfile(tm):
+            raise ThemeError('%s: "tokenColors": %s is no file' % (at('tokenColors'), tm))
+        src.rules += _tm_theme(tm)[1]
     elif isinstance(tokens, list):
-        line = j.lines['tokenColors']
-        src.rules += _token_rules(tokens, '"tokenColors"', lambda obj, key: '%s:%d' % (
-            path, obj.lines.get(key, obj.line) if isinstance(obj, JsonObject) else line))
+        src.rules += _token_rules(tokens, '"tokenColors"', place('tokenColors'))
     elif tokens is not None:
         raise ThemeError('%s: "tokenColors" is neither a list of rules nor the path of a .tmTheme' % at('tokenColors'))
     return src
@@ -368,7 +383,8 @@ def _token_rules(entries, what, place):
         settings = {} if e.get('settings') is None else e['settings']
         if not isinstance(settings, dict):
             raise ThemeError('%s: %s: "settings" is not an object' % (place(e, 'settings'), name))
-        scope = [e['scope']] if isinstance(e.get('scope'), str) else e.get('scope')
+        scope = None if e.get('scope') == '' else e.get('scope')        # "" is no scope, as VS Code takes it
+        scope = [scope] if isinstance(scope, str) else scope
         if scope is not None and not (isinstance(scope, list) and all(isinstance(x, str) for x in scope)):
             raise ThemeError('%s: %s: "scope" is neither a string nor a list of strings' % (place(e, 'scope'), name))
         fg, bg = (None if settings.get(prop) is None else
@@ -378,20 +394,21 @@ def _token_rules(entries, what, place):
     return out
 
 
-def _tm_theme(path, where):
-    """The token rules of a .tmTheme, a plist whose settings is a list of {scope, settings}; it has no lines, so a
-    fault is named by its entry."""
-    if not os.path.isfile(path):
-        raise ThemeError('%s: "tokenColors": %s is no file' % (where, path))
+def _tm_theme(path):
+    """(name or None, token rules) of a .tmTheme, a plist whose settings is a list of {scope, settings}; it has no
+    lines, so a fault is named by its entry."""
     try:
         with open(path, 'rb') as f:
             pl = plistlib.load(f)
+    except OSError as ex:
+        raise ThemeError('%s: the theme file cannot be read: %s' % (path, ex.strerror or ex))
     except Exception as ex:                                             # noqa: BLE001 - any fault of the plist
         raise ThemeError('%s: the .tmTheme cannot be read: %s' % (path, ex))
     entries = pl.get('settings') if isinstance(pl, dict) else None
     if not isinstance(entries, list):
         raise ThemeError('%s: not a .tmTheme: no list "settings"' % path)
-    return _token_rules(entries, 'settings', lambda obj, key: path)
+    name = pl.get('name')
+    return (name if isinstance(name, str) else None), _token_rules(entries, 'settings', lambda obj, key: path)
 
 
 def token_colour(rules, scope):
@@ -444,7 +461,8 @@ def _ui_theme(pkg, path):
     for t in themes if isinstance(themes, list) else []:
         if isinstance(t, dict) and isinstance(t.get('path'), str) and os.path.normcase(
                 os.path.normpath(os.path.join(os.path.dirname(pkg), t['path']))) == os.path.normcase(path):
-            return KINDS.get(t.get('uiTheme'))
+            ui = t.get('uiTheme')
+            return KINDS.get(ui) if isinstance(ui, str) else None
     return None
 
 

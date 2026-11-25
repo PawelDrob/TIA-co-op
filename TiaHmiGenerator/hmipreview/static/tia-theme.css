@@ -31,7 +31,7 @@
    - --badge-text over --added, --removed, --moved, --same, --version
    - --changed, --added over --page, --band, --changed-fill (as text: a library version "in work", "released", a "differs" note)
    - --removed over --page, --change-hover, --selected (as text: an HMI warning)
-   - --muted over --page, --row, --band, --hover, --selected, --change-hover
+   - --muted over --page, --row, --band, --hover, --selected, --change-hover, --page-head (the line that names the theme, under the title and in the viewer's bar)
    - --muted, --faint over --added-fill, --removed-fill, --changed-row, --moved-row, --opened-member (the interface's rows)
    - --faint over --page
    - --empty-field-text over --field

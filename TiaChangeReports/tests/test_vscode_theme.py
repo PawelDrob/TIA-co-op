@@ -75,6 +75,32 @@ class TheFile(Files):
         self.assertEqual(values['--text'], (0x83, 0x94, 0x96, 1.0))
         self.assertEqual((values['--lad-text'], origin['--lad-text']), (values['--text'], 'editor.foreground'))
 
+    def test_a_tm_theme_alone_and_included(self):
+        """VS Code loads a .tmTheme as a theme's path and as an include: so does the report, its name from the
+        plist."""
+        tm = os.path.join(THEMES, 'teal.tmTheme')
+        alone = vt.palette(vt.read(tm), move=False)[0]
+        self.assertEqual(alone, vt.palette(vt.read(FIXTURES['teal']), move=False)[0])
+        self.assertEqual(theme.load(tm).label, 'Teal (test)')
+        src = vt.read(self.put('t.json', json.dumps({'include': tm, 'colors': {'editor.background': '#102030'}})))
+        self.assertEqual((src.name, src.files), ('Teal (test)', [os.path.join(self.tmp.name, 't.json'), tm]))
+        self.assertEqual(vt.token_colour(src.rules, 'keyword.control.scl'), (0x85, 0x99, 0x00, 1.0))
+        self.assertEqual(vt.given(src)['editor.background'], (0x10, 0x20, 0x30, 1.0))   # the includer's colors win
+
+    def test_the_old_form(self):
+        """A .json of a top-level list settings, a .tmTheme's rules as JSON: read as VS Code reads it, with no colors
+        or tokenColors beside them. A rule whose scope is "" has none, as VS Code takes it."""
+        src = vt.read(self.put('t.json', json.dumps({
+            'settings': [{'scope': '', 'settings': {'background': '#202020', 'foreground': '#e0e0e0'}},
+                         {'scope': 'keyword', 'settings': {'foreground': '#ff8000'}}],
+            'colors': {'editor.background': '#ffffff'}, 'tokenColors': [{'settings': {'foreground': '#000000'}}]})))
+        self.assertEqual(vt.given(src)['editor.background'], (0x20, 0x20, 0x20, 1.0))
+        self.assertEqual(vt.given(src)['editor.foreground'], (0xe0, 0xe0, 0xe0, 1.0))
+        self.assertEqual(vt.token_colour(src.rules, 'keyword.control.scl'), (0xff, 0x80, 0x00, 1.0))
+        self.assertEqual(vt.kind_of(src), 'dark')
+        self.refused('{\n  "settings": [\n    {"scope": "a",\n     "settings": {"foreground": "red"}}\n  ]\n}', 4,
+                     '"settings" [0]: "foreground": "red" is not a colour')
+
     def test_a_tm_themes_fault_names_its_entry(self):
         tm = self.put('t.tmTheme', '<?xml version="1.0"?><plist version="1.0"><dict><key>settings</key><array>'
                       '<dict><key>scope</key><string>comment</string><key>settings</key><dict>'
@@ -98,7 +124,7 @@ class TheFile(Files):
 
     def test_what_is_no_color_theme(self):
         self.refused('[1, 2]', 1, 'not a VS Code color theme')
-        self.refused('{\n  "name": "x"\n}', 1, 'none of "colors", "tokenColors" and "include"')
+        self.refused('{\n  "name": "x"\n}', 1, 'none of "colors", "tokenColors", "include" and a list "settings"')
         self.refused('{\n  "colors": [1]\n}', 2, '"colors" is not an object')
         self.refused('{\n  "tokenColors": 5\n}', 2, '"tokenColors" is neither a list of rules nor')
         self.refused('{\n  "tokenColors": [\n    {"scope": 1, "settings": {}}\n  ]\n}', 3, '"scope" is neither')
@@ -159,6 +185,18 @@ class TheKind(Files):
         with open(path, 'w', encoding='utf-8') as f:
             f.write('{"colors": {"editor.background": "#ffffff"}}')
         self.assertEqual(vt.kind_of(vt.read(path)), 'hcDark')
+
+    def test_a_package_json_of_another_form(self):
+        """A uiTheme that is no string, as a package.json that is no theme's may hold, gives no kind: by the page."""
+        ext = os.path.join(self.tmp.name, 'ext')
+        os.makedirs(ext)
+        path = os.path.join(ext, 't.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('{"colors": {"editor.background": "#101010"}}')
+        for ui in (['vs'], {'a': 1}, 5):
+            with open(os.path.join(ext, 'package.json'), 'w', encoding='utf-8') as f:
+                json.dump({'contributes': {'themes': [{'uiTheme': ui, 'path': './t.json'}]}}, f)
+            self.assertEqual(theme.load(path).kind, 'dark', ui)
 
     def test_by_the_page(self):
         self.assertEqual(vt.kind_of(vt.read(FIXTURES['paper'])), 'light')
@@ -338,6 +376,7 @@ class EasyToRead(unittest.TestCase):
                          '--moved', '--moved-fill'):
                 d = hue(values[name], values['--page']) - hue(theme.NATIVE[name], theme.NATIVE['--page'])
                 self.assertLess(abs((d + 180) % 360 - 180), 45, (k, name, values[name]))
+
 
 if __name__ == '__main__':
     unittest.main()
