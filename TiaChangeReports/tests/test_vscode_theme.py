@@ -264,9 +264,9 @@ class EveryRefusal(Files):
         self.refused('{\n  "include": "./nope.json"\n}', 2, '"include": %s is no file' % nope)
 
     def test_an_empty_object_or_list(self):
-        """{} and [] are true in JavaScript, so VS Code's loader takes them as given: where another form is wanted
-        they are refused, an include among them, which is not passed over (a rule's settings [] in TheFile); an empty
-        colors object, tokenColors list, scope list and settings object give nothing."""
+        """{} and [] are there, as JavaScript's truth takes them, so the report does not pass them over: it refuses
+        them where another form is wanted, an include among them (a rule's settings [] in TheFile); an empty colors
+        object, tokenColors list, scope list and settings object give nothing."""
         for empty in ('{}', '[]'):
             self.refused('{\n  "include": %s\n}' % empty, 2, '"include": %s is not the path of a theme file' % empty)
             self.refused('{\n  "include": %s,\n  "colors": {"editor.background": "#ffffff"}\n}' % empty, 2,
@@ -313,8 +313,8 @@ class TheKind(Files):
 
     def test_a_package_json_over_the_files_type(self):
         """VS Code takes an installed theme's kind from its extension's uiTheme alone: it wins over the file's type.
-        The type of the user's own file wins over what an included one says, which VS Code would not see; a file
-        that says none takes the included one's, its package.json's before its type."""
+        The type of the user's own file wins over what an included one says; a file that says none takes the
+        included one's, its package.json's before its type."""
         ext = os.path.join(self.tmp.name, 'ext')
         os.makedirs(ext)
         path = os.path.join(ext, 't.json')
