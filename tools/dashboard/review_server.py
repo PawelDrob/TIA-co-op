@@ -198,15 +198,15 @@ def start_page(only=None):
             reviews, waiting, pages = reviews_html()
             try:
                 tickets, wait_tickets, topics, counts = board.tickets_html(SCRATCH, review_of, only)
-                choice = board.filter_html(counts, only)
+                filter_bar = board.filter_html(counts, only)
             except Exception as e:  # a fault there never takes the questions down
                 tickets = f'<h2>Tickets</h2><p class="fail">The tickets could not be read: {html.escape(str(e))}</p>'
-                wait_tickets, choice = None, ''
+                wait_tickets, filter_bar = None, ''
                 topics = [{'id': 'tickets', 'name': 'Tickets', 'waiting': 0, 'open': 0, 'note': 'could not be read'}]
             total = waiting + (wait_tickets or 0)
             contents = board.contents_html([{'id': 'reviews', 'name': 'Reviews', 'waiting': waiting, 'open': pages, 'note': ''}] + topics)
             _start[only] = (v, {'parts': {'summary': summary_html(waiting, wait_tickets), 'topics': contents, 'reviews': reviews,
-                                          'filter': choice, 'tickets': tickets},
+                                          'filter': filter_bar, 'tickets': tickets},
                                 'title': f'({total}) {TITLE}' if total else TITLE,
                                 'updated': datetime.now().strftime('%H:%M:%S')})
         return _start[only][1]
@@ -406,8 +406,9 @@ def ticket_panel(f, rel, text, safe):
     prototype that waits for you, that it waits in its session. ('', '') for a ticket with none of these."""
     parts, script = [], ''
     head = board.read_ticket(f, f.parents[2])      # the head, as the start page reads it
-    if board.shown_category(head):
-        parts.append(f'<p class="ticket-page">Category: {board.tag(board.shown_category(head))}</p>')
+    shown = board.shown_category(head)
+    if shown:
+        parts.append(f'<p class="ticket-page">Category: {board.tag(shown)}</p>')
     where = board.placed(f, f.parents[2])
     if where and where[0] == 'Not readable':
         parts.append(f'<p class="ticket-page fail">{board.MARKS["Not readable"][0]} Not readable on the start page: '

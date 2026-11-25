@@ -175,7 +175,7 @@ def read_ticket(path, scratch):
     return t
 
 
-def category(t):
+def filter_key(t):
     """What the filter files a ticket under: its category when it is one of CATEGORIES, else NO_CATEGORY."""
     return t['category'] if t['category'] in CATEGORIES else NO_CATEGORY
 
@@ -236,6 +236,12 @@ def open_session(path, scratch):
     return next((name for name in (prefix + num, 'audit' + prefix + num) if name in seen), '')
 
 
+def unreadable(line, value, hint):
+    """(section, note) of a ticket whose head line of this name holds value, which cannot be read: what it holds and what to
+    write instead, or that it is missing."""
+    return 'Not readable', f'{line}: ' + (f'{value} (write {hint})' if value else 'missing')
+
+
 def place(t, numbers, scratch):
     """(section, note) of an open or closed ticket; section None means closed. numbers is by_number of its effort. t['page'] is
     the state of its review page as the server reads it ('waiting', 'answered', ...), None when there is none."""
@@ -245,11 +251,11 @@ def place(t, numbers, scratch):
     if t['status'] not in OPEN:
         return 'Not readable', 'Status: ' + (t['status'] or 'missing')
     if t['type'] not in TYPES:
-        return 'Not readable', 'Type: ' + (t['type'] + ' (write %s)' % ', '.join(TYPES) if t['type'] else 'missing')
+        return unreadable('Type', t['type'], ', '.join(TYPES))
     if t['type'] == 'task' and t['category'] not in CATEGORIES:
-        return 'Not readable', 'Category: ' + (t['category'] + ' (write %s)' % ', '.join(CATEGORIES) if t['category'] else 'missing')
+        return unreadable('Category', t['category'], ', '.join(CATEGORIES))
     if ids is None:
-        return 'Not readable', 'Blocked by: ' + (t['blocked'] + ' (write ticket numbers)' if t['blocked'] else 'missing')
+        return unreadable('Blocked by', t['blocked'], 'ticket numbers')
     if len(numbers[t['num']]) > 1:            # nothing can say which of them a Blocked by means
         return 'Not readable', 'number %s is on %d tickets' % (t['num'], len(numbers[t['num']]))
     waiting = [i for i in ids if not is_closed(i, numbers, scratch)]
@@ -340,7 +346,8 @@ def row(t, title, state=''):
     """One ticket: the title opens the ticket's file, its category follows as a tag; an optional Doc: line and a review page
     that is up get small links."""
     s = '<span class="state">%s</span>' % html.escape(state) if state else ''
-    c = tag(shown_category(t)) if shown_category(t) else ''
+    c = shown_category(t)
+    c = tag(c) if c else ''
     d = '<a class="doc" href="%s">doc</a>' % doc_link(t['doc']) if t['doc'] else ''
     if t.get('page_url'):
         d += '<a class="doc" href="%s">review page</a>' % html.escape(t['page_url'])
@@ -355,11 +362,12 @@ def section(mark, cls, name, rows):
 
 def tickets_html(scratch, pages=None, only=None):
     """(html, how many tickets ask you something not on a review page, an entry per topic for contents_html, how many open
-    tickets of each category the page holds, by category()): a ticket that waits only for its review page counts once, with
+    tickets of each category the page holds, by filter_key()): a ticket that waits only for its review page counts once, with
     the reviews, in the headline. The order is the page's: efforts, then No map, then postponed efforts: what counts comes
     before what does not. pages(title) is (state, address) of the review page with that title, None when it is not up;
     without pages, no review page is known. only, a value of FILTERS, shows the tickets of that category alone, and the
-    topics count those; the headline and the counts by category count every ticket, so the filter hides nothing that waits."""
+    topics count those; the headline and the counts by category count every ticket of the efforts not postponed, so the
+    filter hides nothing that waits."""
     found = efforts(scratch)
     pages = pages or (lambda title: None)
     topics = [effort_topic(e, scratch, pages, only) for e in found if not e['postponed']]
@@ -376,16 +384,22 @@ def tickets_html(scratch, pages=None, only=None):
 
 
 def counts_html(counts):
-    """How many open tickets are of each category, in the order of FILTERS, those with none left out. '' when none is open."""
-    named = ['%s %d' % (tag(c) if c != NO_CATEGORY else 'no category', counts[c]) for c in FILTERS if counts[c]]
+    """How many open tickets are of each category, in the order of FILTERS, a category with no open ticket left out. '' when
+    none is open."""
+    named = ['%s %d' % (tag(c) if c != NO_CATEGORY else filter_name(c), counts[c]) for c in FILTERS if counts[c]]
     return '<p class="categories">Open: %s</p>' % ', '.join(named) if named else ''
+
+
+def filter_name(value):
+    """A value of FILTERS as the page names it."""
+    return 'no category' if value == NO_CATEGORY else value
 
 
 def filter_html(counts, only):
     """The filter by category of the start page: a link per category with how many open tickets the page holds of it, the one
     shown marked. Links, so a reload keeps the filter; the live update keeps it as the page's address does."""
     links = [('/', 'all', sum(counts.values()), only is None)] + [
-        ('/?category=' + c, 'no category' if c == NO_CATEGORY else c, counts[c], only == c) for c in FILTERS]
+        ('/?category=' + c, filter_name(c), counts[c], only == c) for c in FILTERS]
     return ('<nav class="filter" aria-label="Filter by category">Category: %s</nav>'
             % ' '.join('<a href="%s"%s>%s %d</a>' % (html.escape(href), ' aria-current="true"' if on else '', html.escape(name), n)
                        for href, name, n, on in links))
@@ -426,8 +440,8 @@ def effort_sections(folder, prefix, scratch, pages, only=None):
         where, note = place(t, numbers, scratch)
         in_headline += where == 'Waits for you' and (t['asks'] or t['page'] != 'waiting')
         if where is not None:
-            counts[category(t)] += 1
-        if only and category(t) != only:
+            counts[filter_key(t)] += 1
+        if only and filter_key(t) != only:
             continue
         still_open += where is not None
         title = t['title'] or t['num']
@@ -480,7 +494,7 @@ def no_map_topic(scratch, pages, only=None):
 def postponed_topic(effort, scratch, only=None):
     """A postponed effort stays one closed line: nothing of it is to be picked up, so nothing of it waits, and the counts by
     category leave it out."""
-    all_tickets = [t for t in tickets(effort['folder'], scratch) if not only or category(t) == only]
+    all_tickets = [t for t in tickets(effort['folder'], scratch) if not only or filter_key(t) == only]
     rows = [row(t, t['title'] or t['num'], t['status']) for t in all_tickets]
     ident = 'effort-' + effort['folder'].name
     return {'id': ident, 'name': effort['name'], 'waiting': 0, 'in_headline': 0, 'note': 'postponed', 'counts': Counter(),

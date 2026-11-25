@@ -4,7 +4,7 @@ title: Development dashboard
 description: How to see what waits for you while agents change this repo, answer their questions on review pages and on a ticket's page, take a page down, and reach the dashboard from another machine through tailscale serve.
 tags: [dashboard, agents, tickets, review-pages]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T18:47:02-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T18:52:01-05:00 }
 sources:
   - id: code
     resource: ../../tools/dashboard/
@@ -58,6 +58,7 @@ Open: [bug] 1, [enhancement] 3, [docs] 1, no category 1
 NO MAP
 Folders with tickets and no map.md.
 old-reader
+Open: no category 2
 ○ READY FOR AN AGENT (2)
   ...
 ```
@@ -143,9 +144,9 @@ In `map.md`:
 
 ### By category
 
-Under each effort's heading, and each folder's under No map, a line counts its open tickets by category; a ticket without one of the
-five, a `research`, `prototype` or `grilling` mostly, counts as no category. Above the tickets, **Category:** links each category
-with how many open tickets the page holds of it. A link shows only the tickets of its category, closed ones too, and **all** shows
+Under each effort's heading, and each folder's under No map, a line counts its open tickets by category, leaving out a category it
+has none of; a ticket without one of the five, a `research`, `prototype` or `grilling` mostly, counts as no category. Above the
+tickets, **Category:** links each category with how many open tickets the page holds of it, 0 too. A link shows only the tickets of its category, closed ones too, and **all** shows
 every ticket again. The filter is in the page's address (`/?category=bug`), so a reload and the live updates keep it. The headline
 and the counts by category still count every ticket: a ticket that waits for you stays in the headline when the filter hides it.
 The list of topics counts what the filter shows. The tickets of a postponed effort count in none of these numbers.
