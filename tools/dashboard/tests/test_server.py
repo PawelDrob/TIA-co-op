@@ -59,7 +59,7 @@ class DashboardTest(unittest.TestCase):
         (cls.repo / 'docs' / 'guide.md').write_text('---\ntype: How-To\n---\n# A guide\n', encoding='utf-8')
         (cls.scratch / 'private-note.md').write_text('private', encoding='utf-8')
         (cls.scratch / 'no-map' / 'issues').mkdir(parents=True)
-        (cls.scratch / 'no-map' / 'issues' / '01-old.md').write_text('# 01 Old\n\nStatus: open\nBlocked by: none\n', encoding='utf-8')
+        (cls.scratch / 'no-map' / 'issues' / '01-old.md').write_text('# 01 Old\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n', encoding='utf-8')
         (cls.scratch / 'no-map' / 'spec.md').write_text('# A spec\n', encoding='utf-8')
         for nested in ('trial/docs/copy-of-a-private-note.md', 'issues/sub/deeper.md'):
             (cls.scratch / 'no-map' / nested).parent.mkdir(parents=True)
@@ -67,7 +67,7 @@ class DashboardTest(unittest.TestCase):
         (cls.scratch / 'notes').mkdir()
         (cls.scratch / 'notes' / 'x.md').write_text('private', encoding='utf-8')
         effort_map(cls.scratch, 'alpha')
-        ticket(cls.scratch, 'alpha', '01-first.md', '# 01 First ticket\n\nType: task\nStatus: ready-for-agent\nBlocked by: none\n')
+        ticket(cls.scratch, 'alpha', '01-first.md', '# 01 First ticket\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: none\n')
         (cls.scratch / 'alpha' / 'research').mkdir()
         (cls.scratch / 'alpha' / 'research' / 'deep.md').write_text('# Research of a mapped effort\n', encoding='utf-8')
         cls.server = Server(cls.scratch)
@@ -164,7 +164,7 @@ class DashboardTest(unittest.TestCase):
         self.assertIn('1 open', topics)
 
     def test_waiting_tickets_without_a_map_count_in_the_headline(self):
-        ticket(self.scratch, 'loose-waits', '01-a.md', '# 01 A\n\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
+        ticket(self.scratch, 'loose-waits', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
         self.addCleanup(shutil.rmtree, self.scratch / 'loose-waits')
         text = self.get('/')
         self.assertIn('1 ticket waits for you.', text)
@@ -181,14 +181,52 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(self.status_code('/doc/.scratch/alpha/research/deep.md'), 200)
 
     def test_every_id_on_the_start_page_is_there_once(self):
-        ticket(self.scratch, 'alpha', '09-closed.md', '# 09 Closed\n\nStatus: done\nBlocked by: none\n')
-        ticket(self.scratch, 'no-map', '09-closed.md', '# 09 Closed\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'alpha', '09-closed.md', '# 09 Closed\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'no-map', '09-closed.md', '# 09 Closed\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
         self.addCleanup((self.scratch / 'alpha' / 'issues' / '09-closed.md').unlink)
         self.addCleanup((self.scratch / 'no-map' / 'issues' / '09-closed.md').unlink)
         ids = re.findall(r'\bid="([^"]+)"', self.get('/'))
         self.assertIn('closed-alpha', ids)
         self.assertIn('closed-no-map', ids)
         self.assertEqual(len(ids), len(set(ids)), ids)
+
+    def test_a_ticket_s_page_shows_its_category_and_a_head_it_cannot_read(self):
+        page = self.get('/doc/.scratch/alpha/issues/01-first.md')
+        self.assertIn('<p class="ticket-page">Category: <span class="tag">bug</span></p>', page)
+        self.assertNotIn('Not readable', page)
+        ticket(self.scratch, 'alpha', '08-bare.md', '# 08 Bare\n\nType: task\nStatus: ready-for-agent\nBlocked by: none\n')
+        self.addCleanup((self.scratch / 'alpha' / 'issues' / '08-bare.md').unlink)
+        page = self.get('/doc/.scratch/alpha/issues/08-bare.md')
+        self.assertIn('<p class="ticket-page fail">! Not readable on the start page: Category: missing</p>', page)
+        self.assertNotIn('class="tag"', page)
+
+    def test_the_start_page_filters_by_the_category_its_address_names(self):
+        ticket(self.scratch, 'alpha', '08-docs.md', '# 08 A guide to write\n\nType: task\nCategory: docs\nStatus: ready-for-agent\nBlocked by: none\n')
+        self.addCleanup((self.scratch / 'alpha' / 'issues' / '08-docs.md').unlink)
+        whole = self.get('/')
+        self.assertIn('First ticket', whole)
+        self.assertIn('A guide to write', whole)
+        self.assertIn('aria-current="true">all 3</a>', whole)
+        self.assertIn('dashboardBoard(null, "");', whole)
+        docs = self.get('/?category=docs')
+        self.assertNotIn('First ticket', docs)
+        self.assertIn('A guide to write', docs)
+        self.assertIn('aria-current="true">docs 1</a>', docs)
+        self.assertIn('dashboardBoard(null, "&category=docs");', docs)
+        self.assertIn('aria-current="true">all 3</a>', self.get('/?category=feature'))      # no category of the five: all
+
+    def test_the_filter_holds_through_the_live_update(self):
+        ev = Events(self.port, 'start=1&category=docs')
+        self.addCleanup(ev.close)
+        first = ev.next()
+        self.assertNotIn('First ticket', first['parts']['tickets'])
+        self.assertIn('aria-current="true">docs 0</a>', first['parts']['filter'])
+        ticket(self.scratch, 'alpha', '08-docs.md', '# 08 A guide to write\n\nType: task\nCategory: docs\nStatus: ready-for-agent\nBlocked by: none\n')
+        self.addCleanup((self.scratch / 'alpha' / 'issues' / '08-docs.md').unlink)
+        second = ev.next()
+        self.assertIn('A guide to write', second['parts']['tickets'])
+        self.assertNotIn('First ticket', second['parts']['tickets'])
+        self.assertIn('aria-current="true">docs 1</a>', second['parts']['filter'])
 
     def test_doc_links_stay_inside_docs_and_efforts(self):
         self.assertEqual(self.status_code('/doc/CLAUDE.md'), 404)
@@ -212,7 +250,7 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(code, 404)
         self.assertFalse((self.scratch / 'escaped.json').exists())
 
-    def asking_ticket(self, text='# 05 Asks you\n\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nKeep the **old** name?\n\n'
+    def asking_ticket(self, text='# 05 Asks you\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nKeep the **old** name?\n\n'
                                  '## Comments\n\n- audit, 2026-11-05: passed.\n'):
         """A ticket of the effort alpha with these very bytes, gone after the test; its address on the dashboard."""
         (self.scratch / 'alpha' / 'issues' / '05-asks.md').write_bytes(text.encode('utf-8'))
@@ -250,29 +288,29 @@ class DashboardTest(unittest.TestCase):
         self.assertNotIn('id="ticket-ask"', self.get('/doc/' + rel))
 
     def test_a_ticket_with_windows_line_ends_keeps_them(self):
-        rel = self.asking_ticket('# 05 A\r\n\r\nStatus: claimed\r\nBlocked by: none\r\n\r\n## Question for the maintainer\r\n\r\nWhich?\r\n')
+        rel = self.asking_ticket('# 05 A\r\n\r\nType: task\r\nCategory: bug\r\nStatus: claimed\r\nBlocked by: none\r\n\r\n## Question for the maintainer\r\n\r\nWhich?\r\n')
         self.assertEqual(self.answer_ticket(rel, 'Which?', 'This.')[0], 200)
         text = (self.scratch / 'alpha' / 'issues' / '05-asks.md').read_bytes().decode('utf-8')
         self.assertNotIn('\n', text.replace('\r\n', ''))
         self.assertIn('answer on the dashboard: This.\r\n', text)
 
     def test_a_ticket_with_a_byte_order_mark_and_lone_carriage_returns_keeps_both(self):
-        rel = self.asking_ticket('\ufeff# 05 A\r\rStatus: claimed\rBlocked by: none\r\r'
+        rel = self.asking_ticket('\ufeff# 05 A\r\rType: task\rCategory: bug\rStatus: claimed\rBlocked by: none\r\r'
                                  '## Question for the maintainer\r\rWhich?\r\r## Comments\r\r- one.\r')
         self.assertIn('ticketForm(', self.get('/doc/' + rel))
         code, reply = self.answer_ticket(rel, 'Which?', 'This.\nAnd that.')
         self.assertEqual(code, 200)
         raw = (self.scratch / 'alpha' / 'issues' / '05-asks.md').read_bytes()
-        self.assertEqual(raw.decode('utf-8'), '\ufeff# 05 A\r\rStatus: claimed\rBlocked by: none\r\r'
+        self.assertEqual(raw.decode('utf-8'), '\ufeff# 05 A\r\rType: task\rCategory: bug\rStatus: claimed\rBlocked by: none\r\r'
                          f'## Question for the maintainer, answered {reply["at"]}\r\rWhich?\r\r## Comments\r\r'
                          f'- one.\r- {self.who()}, {reply["at"]}, answer on the dashboard: This.\r  And that.\r')
 
     def test_a_ticket_with_unix_line_ends_keeps_them(self):
-        rel = self.asking_ticket('# 05 A\n\nStatus: claimed\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
+        rel = self.asking_ticket('# 05 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
         code, reply = self.answer_ticket(rel, 'Which?', 'This.')
         self.assertEqual(code, 200)
         self.assertEqual((self.scratch / 'alpha' / 'issues' / '05-asks.md').read_bytes().decode('utf-8'),
-                         '# 05 A\n\nStatus: claimed\nBlocked by: none\n\n'
+                         '# 05 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n\n'
                          f'## Question for the maintainer, answered {reply["at"]}\n\nWhich?\n\n## Comments\n\n'
                          f'- {self.who()}, {reply["at"]}, answer on the dashboard: This.\n')
 
@@ -300,10 +338,10 @@ class DashboardTest(unittest.TestCase):
     def test_a_ticket_that_does_not_wait_for_you_has_no_answer_box_and_takes_no_answer(self):
         effort_map(self.scratch, 'later', '# Map\n\n## Notes\n\n- Postponed for now.\n')
         self.addCleanup(shutil.rmtree, self.scratch / 'later')
-        for name, effort, head in (('blocked', 'alpha', 'Status: ready-for-agent\nBlocked by: 01\n'),   # 01 is open: ready-for-agent
-                                   ('closed', 'alpha', 'Status: done\nBlocked by: none\n'),
-                                   ('not readable', 'alpha', 'Status: sort of done\nBlocked by: none\n'),
-                                   ('postponed', 'later', 'Status: in-review\nBlocked by: none\n')):
+        for name, effort, head in (('blocked', 'alpha', 'Type: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: 01\n'),   # 01 is open: ready-for-agent
+                                   ('closed', 'alpha', 'Type: task\nCategory: bug\nStatus: done\nBlocked by: none\n'),
+                                   ('not readable', 'alpha', 'Type: task\nCategory: bug\nStatus: sort of done\nBlocked by: none\n'),
+                                   ('postponed', 'later', 'Type: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n')):
             with self.subTest(name):
                 f = self.scratch / effort / 'issues' / '05-asks.md'
                 f.parent.mkdir(exist_ok=True)
@@ -348,7 +386,7 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual((self.repo / 'docs' / 'guide.md').read_text(encoding='utf-8'), '---\ntype: How-To\n---\n# A guide\n')
 
     def test_a_ticket_whose_review_page_waits_links_it_from_the_board_and_its_page(self):
-        rel = self.asking_ticket('# 05 Looked at\n\nStatus: in-review\nBlocked by: none\nReview page: t about 05\n')
+        rel = self.asking_ticket('# 05 Looked at\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\nReview page: t about 05\n')
         self.assertIn('Nothing waits for you.', self.get('/'))
         self.page('t about 05')
         board_text = self.get('/')
@@ -629,7 +667,7 @@ class SecondServerTest(unittest.TestCase):
 
 class AnswerIntoTicketTest(unittest.TestCase):
     """The answer written into a ticket in this process, where a test can step in while it is written."""
-    TEXT = b'# 05 A\n\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n'
+    TEXT = b'# 05 A\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n'
     REL = '.scratch/alpha/issues/05-a.md'
 
     def setUp(self):

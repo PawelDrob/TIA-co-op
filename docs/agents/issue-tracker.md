@@ -3,7 +3,7 @@ type: Standard
 title: Issue tracker for agent skills
 description: Where the engineering skills keep issues, specs and wayfinder maps in this repo, as markdown files under .scratch/, the status values and ticket head those files use, and how a ticket asks the maintainer a question.
 tags: [agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-08T19:48:57-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T18:47:02-05:00 }
 sources:
   - id: dashboard
     resource: ../../tools/dashboard/board.py
@@ -34,14 +34,25 @@ The title and these lines open every ticket, within its first 16 lines. The [dev
 # 03 Read the old header
 
 Type: task
+Category: enhancement
 Status: ready-for-agent
 Blocked by: 01, other-effort/02
 ```
 
 - `Status:` holds one value and nothing after it. Narrative, commit hashes, push state and human or scheduling gates go under `## Comments`.
 - `Blocked by:` holds `none`, or comma-separated ticket numbers, `<effort>/NN` for a ticket of another effort. `to-tickets` offers titles and "None (can start immediately)": write the numbers and `none` instead. The dashboard reads that "None" as `none`; a title shows as Not readable.
-- `Type:` is optional outside a map; keep one a ticket already has.
-- `Category:` is optional: `bug` or `enhancement`, set by triage.
+- `Type:` holds the shape of the work, one of four: `task`, an execution ticket; `research`, `prototype` or `grilling`, a decision ticket. Every ticket has one, in a map or not. `to-tickets` writes none: add `Type: task`.
+- `Category:` says what an execution ticket is for, one of five. Every execution ticket has one; a decision ticket has none.
+
+  | Category | The ticket is for |
+  |---|---|
+  | `bug` | A tool does something wrong for whoever uses it |
+  | `enhancement` | Something a user cannot do or see today |
+  | `test` | A test that is flaky or missing; the tools behave as before |
+  | `docs` | A guide, README or how-to |
+  | `chore` | Refactor, CI or repo upkeep that no user sees |
+
+  Whoever files the ticket sets it, and triage confirms it. A ticket of leftovers ("what ticket N left") takes the category of its most serious item; a real bug among them gets a ticket of its own. `to-tickets` writes no `Category:` line: add one. The dashboard shows an open execution ticket without one of the five, or any open ticket without one of the four types, as Not readable.
 - `Review page:` is optional: the title of the [review page](../../.claude/skills/review-page/SKILL.md) about this ticket, as given to `--title`. While that page waits for answers, the ticket waits for the maintainer; while it is up, the ticket links to it.
 - A blocker is satisfied once its ticket is closed: `done`, `resolved` or `wontfix`. An edge stays until the maintainer overrides it. A closed ticket with no recorded dependencies has `Blocked by: none`.
 
@@ -77,7 +88,7 @@ Read the file at the referenced path. The user will normally pass the path or th
 Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
 
 - **Map**: `.scratch/<effort>/map.md` (the Notes / Decisions-so-far / Fog body).
-- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `open`/`claimed`/`resolved`.
+- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`), and a `task` takes a `Category:` line by the [Ticket head](#ticket-head); a `Status:` line records `open`/`claimed`/`resolved`.
 - **Blocking**: a `Blocked by: NN, NN` line near the top. A ticket is unblocked when every ticket it lists is closed.
 - **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins. An effort whose map Notes hold a line starting `Postponed` has no frontier until the maintainer resumes it.
 - **Claim**: set `Status: claimed` and save before any work.

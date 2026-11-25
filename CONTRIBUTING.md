@@ -20,7 +20,7 @@ The work runs on three skills in `.claude/skills/`: `/ticket` works one ticket i
 
 ## Reports and tickets
 
-An issue arrives on one of the three forms in `.github/ISSUE_TEMPLATE/`: Report a problem, Question or Feature request. Where it needs work, triage makes a local ticket ([their format](docs/agents/issue-tracker.md)) naming the issue's number, and the work runs on that ticket. A reply goes on GitHub only when the maintainer has approved it.
+An issue arrives on one of the three forms in `.github/ISSUE_TEMPLATE/`: Report a problem, Question or Feature request. Where it needs work, triage makes a local ticket ([their format](docs/agents/issue-tracker.md), its head by the [Ticket head](docs/agents/issue-tracker.md#ticket-head)) naming the issue's number, and the work runs on that ticket. A reply goes on GitHub only when the maintainer has approved it.
 
 ## Tests
 

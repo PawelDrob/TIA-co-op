@@ -26,7 +26,7 @@ class BoardTest(unittest.TestCase):
 
     def test_any_folder_with_a_map_is_an_effort_with_its_destination(self):
         effort_map(self.scratch, 'some-effort', '# Map\n\n## Destination\n\nA thing\nthat works.\n\n## Notes\n\nx\n')
-        ticket(self.scratch, 'some-effort', '01-a.md', '# 01 A ticket\n\nStatus: ready-for-agent\nBlocked by: none\n')
+        ticket(self.scratch, 'some-effort', '01-a.md', '# 01 A ticket\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertIn('<h2>Some effort tickets</h2>', text)
         self.assertIn('A thing that works.', text)
@@ -34,8 +34,8 @@ class BoardTest(unittest.TestCase):
         self.assertEqual(waiting, 0)
 
     def test_a_folder_with_tickets_and_no_map_shows_under_no_map_with_its_name(self):
-        ticket(self.scratch, 'old-feature', '01-a.md', '# 01 Old ticket\n\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich colour?\n')
-        ticket(self.scratch, 'old-feature', '02-b.md', '# 02 Other ticket\n\nStatus: ready-for-agent\nBlocked by: none\n')
+        ticket(self.scratch, 'old-feature', '01-a.md', '# 01 Old ticket\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich colour?\n')
+        ticket(self.scratch, 'old-feature', '02-b.md', '# 02 Other ticket\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertIn('id="no-map"', text)
         self.assertIn('<h2>No map</h2>', text)
@@ -46,9 +46,9 @@ class BoardTest(unittest.TestCase):
         self.assertEqual((self.entries()['No map']['waiting'], self.entries()['No map']['open']), (1, 2))
 
     def test_no_map_adds_up_its_folders_and_folders_with_something_open_come_first(self):
-        ticket(self.scratch, 'aaa-finished', '01-a.md', '# 01 A\n\nStatus: done\nBlocked by: none\n')
-        ticket(self.scratch, 'zzz-live', '01-a.md', '# 01 Z\n\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich colour?\n')
-        ticket(self.scratch, 'mmm-live', '01-a.md', '# 01 M\n\nStatus: claimed\nBlocked by: none\n')
+        ticket(self.scratch, 'aaa-finished', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'zzz-live', '01-a.md', '# 01 Z\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich colour?\n')
+        ticket(self.scratch, 'mmm-live', '01-a.md', '# 01 M\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertEqual(waiting, 1)
         self.assertEqual((self.entries()['No map']['waiting'], self.entries()['No map']['open']), (1, 2))
@@ -57,7 +57,7 @@ class BoardTest(unittest.TestCase):
 
     def test_a_folder_with_a_map_is_not_under_no_map_and_an_empty_issues_folder_shows_nothing(self):
         effort_map(self.scratch, 'mapped')
-        ticket(self.scratch, 'mapped', '01-a.md', '# 01 A\n\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'mapped', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n')
         (self.scratch / 'empty' / 'issues').mkdir(parents=True)
         (self.scratch / 'notes').mkdir()
         (self.scratch / 'notes' / 'x.md').write_text('# x', encoding='utf-8')
@@ -67,8 +67,8 @@ class BoardTest(unittest.TestCase):
         self.assertEqual(list(self.entries()), ['Mapped'])
 
     def test_a_shared_number_under_no_map_is_not_readable_for_the_open_ticket(self):
-        ticket(self.scratch, 'loose', '19-one.md', '# 19 One\n\nStatus: done\nBlocked by: none\n')
-        ticket(self.scratch, 'loose', '19-two.md', '# 19 Two\n\nStatus: ready-for-human\nBlocked by: none\n')
+        ticket(self.scratch, 'loose', '19-one.md', '# 19 One\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'loose', '19-two.md', '# 19 Two\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertIn('Not readable (1)', text)
         self.assertIn('number 19 is on 2 tickets', text)
@@ -76,17 +76,17 @@ class BoardTest(unittest.TestCase):
         self.assertEqual(waiting, 0)
 
     def test_no_map_counts_change_the_version(self):
-        ticket(self.scratch, 'loose', '01-a.md', '# 01 A\n\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'loose', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n')
         before = board.version(self.scratch)
-        ticket(self.scratch, 'loose', '02-b.md', '# 02 B\n\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'loose', '02-b.md', '# 02 B\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n')
         self.assertNotEqual(before, board.version(self.scratch))
 
     def test_each_effort_is_a_topic_that_counts_waiting_and_open(self):
         effort_map(self.scratch, 'some-effort')
-        ticket(self.scratch, 'some-effort', '01-a.md', '# 01 A\n\nStatus: ready-for-human\nBlocked by: none\n\n## Question for the maintainer\n\nWhich colour?\n')
-        ticket(self.scratch, 'some-effort', '02-b.md', '# 02 B\n\nStatus: claimed\nBlocked by: none\n')
-        ticket(self.scratch, 'some-effort', '03-c.md', '# 03 C\n\nStatus: ready-for-agent\nBlocked by: 02\n')
-        ticket(self.scratch, 'some-effort', '04-d.md', '# 04 D\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'some-effort', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n\n## Question for the maintainer\n\nWhich colour?\n')
+        ticket(self.scratch, 'some-effort', '02-b.md', '# 02 B\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n')
+        ticket(self.scratch, 'some-effort', '03-c.md', '# 03 C\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: 02\n')
+        ticket(self.scratch, 'some-effort', '04-d.md', '# 04 D\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
         text, _ = self.html()
         entry = self.entries()['Some effort']
         self.assertEqual((entry['waiting'], entry['open'], entry['note']), (1, 3, ''))
@@ -94,9 +94,9 @@ class BoardTest(unittest.TestCase):
 
     def test_topics_run_efforts_then_no_map_then_postponed(self):
         effort_map(self.scratch, 'aaa-later', '# Map\n\n## Notes\n\n- Postponed for now.\n')
-        ticket(self.scratch, 'aaa-later', '01-a.md', '# 01 A\n\nStatus: ready-for-human\nBlocked by: none\n')
+        ticket(self.scratch, 'aaa-later', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n')
         effort_map(self.scratch, 'zzz-now')
-        ticket(self.scratch, 'mmm-loose', '01-a.md', '# 01 A\n\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'mmm-loose', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n')
         self.assertEqual(list(self.entries()), ['Zzz now', 'No map', 'Aaa later'])
         text, _ = self.html()
         self.assertLess(text.index('Zzz now'), text.index('No map'))
@@ -104,8 +104,8 @@ class BoardTest(unittest.TestCase):
 
     def test_a_postponed_topic_shows_open_tickets_and_nothing_waiting(self):
         effort_map(self.scratch, 'later', '# Map\n\n## Notes\n\n- Postponed for now.\n')
-        ticket(self.scratch, 'later', '01-a.md', '# 01 A\n\nStatus: ready-for-human\nBlocked by: none\n')
-        ticket(self.scratch, 'later', '02-b.md', '# 02 B\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'later', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n')
+        ticket(self.scratch, 'later', '02-b.md', '# 02 B\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
         entry = self.entries()['Later']
         self.assertEqual((entry['waiting'], entry['open'], entry['note']), (0, 1, 'postponed'))
         self.assertIn(f'id="{entry["id"]}"', self.html()[0])
@@ -116,21 +116,21 @@ class BoardTest(unittest.TestCase):
 
     def test_every_folded_list_has_an_id_of_its_own(self):
         effort_map(self.scratch, 'mapped')
-        ticket(self.scratch, 'mapped', '01-a.md', '# 01 A\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'mapped', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
         effort_map(self.scratch, 'later', '# Map\n\n## Notes\n\n- Postponed for now.\n')
-        ticket(self.scratch, 'later', '01-a.md', '# 01 A\n\nStatus: done\nBlocked by: none\n')
-        ticket(self.scratch, 'loose', '01-a.md', '# 01 A\n\nStatus: done\nBlocked by: none\n')
-        ticket(self.scratch, 'other-loose', '01-a.md', '# 01 A\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'later', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'loose', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'other-loose', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
         ids = [i for i, _ in self.folded_lists()]
         self.assertEqual(sorted(ids), ['closed-loose', 'closed-mapped', 'closed-other-loose', 'effort-later'])
 
     def test_a_folded_list_keeps_its_id_when_other_lists_come_and_go(self):
         effort_map(self.scratch, 'parser')
-        ticket(self.scratch, 'parser', '01-a.md', '# 01 A\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'parser', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
         self.assertEqual([i for i, _ in self.folded_lists()], ['closed-parser'])
         effort_map(self.scratch, 'exporter')       # earlier on the page: its first closed ticket comes before parser's
-        ticket(self.scratch, 'exporter', '01-a.md', '# 01 A\n\nStatus: done\nBlocked by: none\n')
-        ticket(self.scratch, 'parser', '02-b.md', '# 02 B\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'exporter', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'parser', '02-b.md', '# 02 B\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
         lists = self.folded_lists()
         self.assertEqual([i for i, _ in lists], ['closed-exporter', 'closed-parser'])
         self.assertIn('Closed (2)', lists[1][1])
@@ -155,7 +155,7 @@ class BoardTest(unittest.TestCase):
 
     def test_a_ticket_written_by_to_tickets_is_readable(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '07-a.md', '# 07: Title\n\n**What to build:** x\n\n**Blocked by:** none\n\n**Status:** ready-for-human\n')
+        ticket(self.scratch, 'e', '07-a.md', '# 07: Title\n\n**What to build:** x\n\n**Type:** task\n\n**Category:** docs\n\n**Blocked by:** none\n\n**Status:** ready-for-human\n')
         text, waiting = self.html()
         self.assertEqual(self.section_of(text, '>Title<'), ['Yours to start'])
         self.assertEqual(waiting, 0)
@@ -163,7 +163,7 @@ class BoardTest(unittest.TestCase):
     def test_an_open_grilling_waits_for_a_person_and_an_open_task_does_not(self):
         effort_map(self.scratch, 'e')
         ticket(self.scratch, 'e', '01-g.md', '# 01 G\n\nType: grilling\nStatus: open\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '02-t.md', '# 02 T\n\nType: task\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-t.md', '# 02 T\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertEqual(waiting, 1)
         self.assertLess(text.index('Waits for you'), text.index('>G<'))
@@ -171,14 +171,14 @@ class BoardTest(unittest.TestCase):
 
     def test_a_value_it_cannot_read_gets_its_own_section(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 A\n\nStatus: sort of done\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: sort of done\nBlocked by: none\n')
         text, _ = self.html()
         self.assertIn('Not readable', text)
         self.assertIn('Status: sort of done', text)
 
     def test_a_missing_line_is_called_missing_not_a_valid_value(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 A\n\nStatus: ready-for-agent\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: ready-for-agent\n')
         ticket(self.scratch, 'e', '02-b.md', '# 02 B\n\nBlocked by: none\n')
         text, _ = self.html()
         self.assertIn('Blocked by: missing', text)
@@ -187,8 +187,8 @@ class BoardTest(unittest.TestCase):
 
     def test_two_open_tickets_with_one_number_both_show_as_not_readable(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-one.md', '# 01 Ticket one\n\nStatus: ready-for-human\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '01-two.md', '# 01 Ticket two\n\nStatus: ready-for-agent\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-one.md', '# 01 Ticket one\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-two.md', '# 01 Ticket two\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertIn('Not readable (2)', text)
         self.assertIn('Ticket one', text)
@@ -198,8 +198,8 @@ class BoardTest(unittest.TestCase):
 
     def test_two_closed_tickets_with_one_number_both_stay_closed(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-one.md', '# 01 Ticket one\n\nStatus: done\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '01-two.md', '# 01 Ticket two\n\nStatus: resolved\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-one.md', '# 01 Ticket one\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-two.md', '# 01 Ticket two\n\nType: task\nCategory: bug\nStatus: resolved\nBlocked by: none\n')
         text, _ = self.html()
         self.assertIn('Closed (2)', text)
         self.assertNotIn('Not readable', text)
@@ -207,18 +207,18 @@ class BoardTest(unittest.TestCase):
     def test_a_shared_number_blocks_until_every_ticket_with_it_is_closed(self):
         effort_map(self.scratch, 'e')
         effort_map(self.scratch, 'other')
-        ticket(self.scratch, 'e', '01-one.md', '# 01 One\n\nStatus: done\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '01-two.md', '# 01 Two\n\nStatus: claimed\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '02-next.md', '# 02 Next\n\nStatus: ready-for-agent\nBlocked by: 01\n')
-        ticket(self.scratch, 'other', '03-far.md', '# 03 Far\n\nStatus: ready-for-agent\nBlocked by: e/01\n')
+        ticket(self.scratch, 'e', '01-one.md', '# 01 One\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-two.md', '# 01 Two\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-next.md', '# 02 Next\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: 01\n')
+        ticket(self.scratch, 'other', '03-far.md', '# 03 Far\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: e/01\n')
         text, _ = self.html()
         self.assertIn('waits for 01', text)
         self.assertIn('waits for e/01', text)
 
     def test_a_postponed_effort_lists_both_tickets_with_one_number(self):
         effort_map(self.scratch, 'later', '# Map\n\n## Notes\n\n- Postponed for now.\n')
-        ticket(self.scratch, 'later', '01-one.md', '# 01 Ticket one\n\nStatus: open\nBlocked by: none\n')
-        ticket(self.scratch, 'later', '01-two.md', '# 01 Ticket two\n\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'later', '01-one.md', '# 01 Ticket one\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'later', '01-two.md', '# 01 Ticket two\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n')
         text, _ = self.html()
         self.assertIn('postponed (2)', text)
         self.assertIn('Ticket one', text)
@@ -227,15 +227,15 @@ class BoardTest(unittest.TestCase):
     def test_a_ticket_waits_for_an_open_ticket_of_another_effort(self):
         effort_map(self.scratch, 'one')
         effort_map(self.scratch, 'two')
-        ticket(self.scratch, 'one', '01-a.md', '# 01 A\n\nStatus: ready-for-agent\nBlocked by: two/03\n')
-        ticket(self.scratch, 'two', '03-b.md', '# 03 B\n\nStatus: claimed\nBlocked by: none\n')
+        ticket(self.scratch, 'one', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: two/03\n')
+        ticket(self.scratch, 'two', '03-b.md', '# 03 B\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n')
         self.assertIn('waits for two/03', self.html()[0])
-        ticket(self.scratch, 'two', '03-b.md', '# 03 B\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'two', '03-b.md', '# 03 B\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
         self.assertNotIn('waits for two/03', self.html()[0])
 
     def test_a_postponed_effort_is_listed_closed_and_counts_for_nothing(self):
         effort_map(self.scratch, 'later', '# Map\n\n## Destination\n\nx\n\n## Notes\n\n- This effort has been postponed since 2026-01-01.\n')
-        ticket(self.scratch, 'later', '01-a.md', '# 01 Parked\n\nStatus: ready-for-human\nBlocked by: none\n')
+        ticket(self.scratch, 'later', '01-a.md', '# 01 Parked\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertEqual(waiting, 0)
         self.assertIn('Later tickets, postponed (1)', text)
@@ -243,12 +243,12 @@ class BoardTest(unittest.TestCase):
 
     def test_a_note_that_only_mentions_postponing_changes_nothing(self):
         effort_map(self.scratch, 'e', '# Map\n\n## Notes\n\n- The review of ticket 3 was postponed once.\n')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 A\n\nStatus: ready-for-human\nBlocked by: none\n\n## Question for the maintainer\n\nWhich colour?\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n\n## Question for the maintainer\n\nWhich colour?\n')
         self.assertEqual(self.html()[1], 1)
 
     def test_a_running_session_is_found_by_the_prefix_the_map_names(self):
         effort_map(self.scratch, 'long-name', '# Map\n\nSessions: ln\n\n## Destination\n\nx\n')
-        ticket(self.scratch, 'long-name', '04-a.md', '# 04 A\n\nStatus: claimed\nBlocked by: none\n')
+        ticket(self.scratch, 'long-name', '04-a.md', '# 04 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n')
         self.agents.return_value = {'ln04': 'working'}
         self.assertIn('session working', self.html()[0])
 
@@ -259,7 +259,7 @@ class BoardTest(unittest.TestCase):
 
     def one_ticket_with_session(self, status, sessions, body=''):
         effort_map(self.scratch, 'effort', '# Map\n\nSessions: ef\n\n## Destination\n\nx\n')
-        ticket(self.scratch, 'effort', '04-a.md', f'# 04 The ticket\n\nStatus: {status}\nBlocked by: none\n{body}')
+        ticket(self.scratch, 'effort', '04-a.md', f'# 04 The ticket\n\nType: task\nCategory: bug\nStatus: {status}\nBlocked by: none\n{body}')
         self.agents.return_value = sessions
         return self.html()
 
@@ -298,8 +298,8 @@ class BoardTest(unittest.TestCase):
 
     def test_in_review_or_needs_info_with_nothing_asked_is_with_the_coordinator(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Audited\n\nStatus: in-review\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '02-b.md', '# 02 Reporter asked\n\nStatus: needs-info\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Audited\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-b.md', '# 02 Reporter asked\n\nType: task\nCategory: bug\nStatus: needs-info\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertEqual(self.section_of(text, 'Audited'), ['With the coordinator'])
         self.assertEqual(self.section_of(text, 'Reporter asked'), ['With the coordinator'])
@@ -308,7 +308,7 @@ class BoardTest(unittest.TestCase):
 
     def test_work_ready_for_a_person_with_nothing_asked_is_yours_to_start_and_does_not_count(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Grey instructions\n\nStatus: ready-for-human\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Grey instructions\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n')
         text, waiting = self.html()
         self.assertEqual(self.section_of(text, 'Grey instructions'), ['Yours to start'])
         self.assertEqual(waiting, 0)
@@ -317,7 +317,7 @@ class BoardTest(unittest.TestCase):
     def test_an_open_question_puts_any_open_ticket_under_waits_for_you(self):
         effort_map(self.scratch, 'e')
         for n, status in enumerate(('in-review', 'ready-for-human', 'claimed', 'ready-for-agent', 'needs-info'), 1):
-            ticket(self.scratch, 'e', f'0{n}-a.md', f'# 0{n} Asks {status}\n\nStatus: {status}\nBlocked by: none\n\n'
+            ticket(self.scratch, 'e', f'0{n}-a.md', f'# 0{n} Asks {status}\n\nType: task\nCategory: bug\nStatus: {status}\nBlocked by: none\n\n'
                                                     '## Question for the maintainer\n\nKeep the old name?\n\n## Comments\n')
         text, waiting = self.html()
         self.assertEqual(waiting, 5)
@@ -326,13 +326,13 @@ class BoardTest(unittest.TestCase):
 
     def test_a_question_deep_in_a_long_ticket_is_found(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Long\n\nStatus: in-review\nBlocked by: none\n\n' + 'Text.\n\n' * 40
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Long\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n' + 'Text.\n\n' * 40
                + '## Question for the maintainer\n\nWhich one?\n')
         self.assertEqual(self.section_of(self.html()[0], 'Long'), ['Waits for you'])
 
     def test_an_answered_question_asks_nothing(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Answered\n\nStatus: in-review\nBlocked by: none\n\n'
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Answered\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n'
                                              '## Question for the maintainer, answered 2026-11-05 14:30\n\nWhich one?\n')
         text, waiting = self.html()
         self.assertEqual(self.section_of(text, 'Answered'), ['With the coordinator'])
@@ -340,17 +340,17 @@ class BoardTest(unittest.TestCase):
 
     def test_a_closed_ticket_with_a_question_left_in_it_stays_closed(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Closed\n\nStatus: done\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Closed\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
         text, waiting = self.html()
         self.assertIn('Closed (1)', text)
         self.assertEqual(waiting, 0)
 
     def test_a_blocked_ticket_never_asks_by_its_question_or_its_review_page(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Blocker\n\nStatus: claimed\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '02-b.md', '# 02 Asks while blocked\n\nStatus: ready-for-agent\nBlocked by: 01\n\n'
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Blocker\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-b.md', '# 02 Asks while blocked\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: 01\n\n'
                                              '## Question for the maintainer\n\nWhich?\n')
-        ticket(self.scratch, 'e', '03-c.md', '# 03 Page while blocked\n\nStatus: in-review\nBlocked by: 01\nReview page: p\n')
+        ticket(self.scratch, 'e', '03-c.md', '# 03 Page while blocked\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: 01\nReview page: p\n')
         text, waiting = self.with_pages(p='waiting')
         self.assertEqual(self.section_of(text, 'Asks while blocked'), ['Blocked'])
         self.assertEqual(self.section_of(text, 'Page while blocked'), ['Blocked'])
@@ -360,7 +360,7 @@ class BoardTest(unittest.TestCase):
         effort_map(self.scratch, 'e')
         ticket(self.scratch, 'e', '01-a.md', '# 01 Research\n\nType: research\nStatus: open\nBlocked by: none\n\n'
                                              '## Question\n\nWhich parser library?\n')
-        ticket(self.scratch, 'e', '02-b.md', '# 02 Agent task\n\nType: task\nStatus: in-review\nBlocked by: none\n\n'
+        ticket(self.scratch, 'e', '02-b.md', '# 02 Agent task\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n'
                                              '## Question\n\nWhat does the reader take?\n')
         text, waiting = self.html()
         self.assertEqual(self.section_of(text, 'Research'), ['Ready for an agent'])
@@ -372,13 +372,13 @@ class BoardTest(unittest.TestCase):
         """The start page with these review pages, by title: their state as the server reads it."""
         def page(title):
             return (pages[title], '/' + title + '.html') if title in pages else None
-        text, waiting, entries = board.tickets_html(self.scratch, page)
+        text, waiting, entries, _ = board.tickets_html(self.scratch, page)
         self.page_entries = {e['name']: e for e in entries}
         return text, waiting
 
     def test_a_ticket_whose_review_page_waits_for_answers_waits_for_you_and_links_the_page(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Looked at\n\nStatus: in-review\nBlocked by: none\nReview page: audit e 01\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Looked at\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\nReview page: audit e 01\n')
         text, waiting = self.with_pages(**{'audit e 01': 'waiting'})
         self.assertEqual(self.section_of(text, 'Looked at'), ['Waits for you'])
         self.assertEqual(waiting, 0)          # the headline counts that page once, with the reviews
@@ -388,7 +388,7 @@ class BoardTest(unittest.TestCase):
 
     def test_a_review_page_answered_or_to_read_asks_nothing_but_stays_linked(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Looked at\n\nStatus: in-review\nBlocked by: none\nReview page: audit e 01\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Looked at\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\nReview page: audit e 01\n')
         for state in ('answered', 'to_read'):
             with self.subTest(state):
                 text, waiting = self.with_pages(**{'audit e 01': state})
@@ -398,16 +398,16 @@ class BoardTest(unittest.TestCase):
 
     def test_a_review_page_taken_down_leaves_neither_wait_nor_link(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Looked at\n\nStatus: in-review\nBlocked by: none\nReview page: audit e 01\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Looked at\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\nReview page: audit e 01\n')
         text, waiting = self.with_pages()
         self.assertEqual(self.section_of(text, 'Looked at'), ['With the coordinator'])
         self.assertNotIn('review page', text)
 
     def test_the_sections_come_in_the_order_of_who_has_to_act(self):
         effort_map(self.scratch, 'e')
-        ticket(self.scratch, 'e', '01-a.md', '# 01 Mine to start\n\nStatus: ready-for-human\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '02-a.md', '# 02 At audit\n\nStatus: in-review\nBlocked by: none\n')
-        ticket(self.scratch, 'e', '03-a.md', '# 03 Asking\n\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Mine to start\n\nType: task\nCategory: bug\nStatus: ready-for-human\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-a.md', '# 02 At audit\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '03-a.md', '# 03 Asking\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
         text = self.html()[0]
         self.assertLess(text.index('Waits for you'), text.index('With the coordinator'))
         self.assertLess(text.index('With the coordinator'), text.index('Yours to start'))
@@ -432,38 +432,165 @@ class BoardTest(unittest.TestCase):
 
     def test_the_line_to_tickets_writes_for_no_blockers_reads_as_none(self):
         effort_map(self.scratch, 'effort')
-        ticket(self.scratch, 'effort', '01-a.md', '# 01 The ticket\n\n**Blocked by:** None (can start immediately)\n\n**Status:** ready-for-agent\n')
+        ticket(self.scratch, 'effort', '01-a.md', '# 01 The ticket\n\n**Type:** task\n\n**Category:** chore\n\n**Blocked by:** None (can start immediately)\n\n'
+               '**Status:** ready-for-agent\n')
         self.assertEqual(self.section_of(self.html()[0], 'The ticket'), ['Ready for an agent'])
 
     def test_none_with_anything_else_behind_it_may_hide_a_blocker_and_is_not_readable(self):
         effort_map(self.scratch, 'effort')
-        ticket(self.scratch, 'effort', '01-a.md', '# 01 The ticket\n\nStatus: ready-for-agent\nBlocked by: None (needs 03 first)\n')
+        ticket(self.scratch, 'effort', '01-a.md', '# 01 The ticket\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: None (needs 03 first)\n')
         self.assertEqual(self.section_of(self.html()[0], 'The ticket'), ['Not readable'])
 
     def test_a_title_under_blocked_by_says_what_to_write_instead(self):
         effort_map(self.scratch, 'effort')
-        ticket(self.scratch, 'effort', '02-a.md', '# 02 The ticket\n\nStatus: ready-for-agent\nBlocked by: Read the old header\n')
+        ticket(self.scratch, 'effort', '02-a.md', '# 02 The ticket\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: Read the old header\n')
         text = self.html()[0]
         self.assertEqual(self.section_of(text, 'The ticket'), ['Not readable'])
         self.assertIn('Blocked by: Read the old header (write ticket numbers)', text)
 
     def test_without_a_sessions_line_the_prefix_is_the_folder_name(self):
         effort_map(self.scratch, 'alpha')
-        ticket(self.scratch, 'alpha', '04-a.md', '# 04 A\n\nStatus: claimed\nBlocked by: none\n')
+        ticket(self.scratch, 'alpha', '04-a.md', '# 04 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n')
         self.agents.return_value = {'auditalpha04': 'working'}
         self.assertIn('audit running', self.html()[0])
 
     def test_version_changes_when_a_ticket_or_a_map_does(self):
         effort_map(self.scratch, 'e')
         before = board.version(self.scratch)
-        ticket(self.scratch, 'e', '01-a.md', '# 01 A\n\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 A\n\nType: task\nCategory: bug\nStatus: open\nBlocked by: none\n')
         after_ticket = board.version(self.scratch)
         self.assertNotEqual(before, after_ticket)
         effort_map(self.scratch, 'f')
         self.assertNotEqual(after_ticket, board.version(self.scratch))
 
+    # What a ticket is for: its Category:, which an execution ticket needs and a decision ticket does not.
 
-ASKING = ('# 04 A ticket\n\nStatus: in-review\nBlocked by: none\n\nWhat was done.\n\n'
+    def row_of(self, text, title):
+        return re.search(r'<div class="row">(?:(?!</div>).)*>%s<(?:(?!</div>).)*</div>' % re.escape(title), text).group(0)
+
+    def test_a_ticket_s_category_is_a_tag_of_its_row(self):
+        effort_map(self.scratch, 'e')
+        for n, c in enumerate(board.CATEGORIES, 1):
+            ticket(self.scratch, 'e', f'0{n}-a.md', f'# 0{n} Is {c}\n\nType: task\nCategory: {c}\nStatus: ready-for-agent\nBlocked by: none\n')
+        text, _ = self.html()
+        for c in board.CATEGORIES:
+            with self.subTest(c):
+                self.assertIn(f'<span class="tag">{c}</span>', self.row_of(text, f'Is {c}'))
+                self.assertEqual(self.section_of(text, f'Is {c}'), ['Ready for an agent'])
+
+    def test_an_open_task_without_one_of_the_five_categories_is_not_readable_and_says_which_line(self):
+        effort_map(self.scratch, 'e')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 No category\n\nType: task\nStatus: ready-for-agent\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-a.md', '# 02 Other category\n\nType: task\nCategory: feature\nStatus: claimed\nBlocked by: none\n')
+        text, _ = self.html()
+        self.assertEqual(self.section_of(text, 'No category'), ['Not readable'])
+        self.assertIn('Category: missing', self.row_of(text, 'No category'))
+        self.assertEqual(self.section_of(text, 'Other category'), ['Not readable'])
+        self.assertIn('Category: feature (write bug, enhancement, test, docs, chore)', self.row_of(text, 'Other category'))
+        self.assertNotIn('class="tag"', self.row_of(text, 'Other category'))
+
+    def test_an_open_ticket_without_one_of_the_four_types_is_not_readable_and_says_which_line(self):
+        effort_map(self.scratch, 'e')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 No type\n\nCategory: bug\nStatus: ready-for-agent\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-a.md', '# 02 A category as type\n\nType: bug\nStatus: ready-for-agent\nBlocked by: none\n')
+        text, _ = self.html()
+        self.assertEqual(self.section_of(text, 'No type'), ['Not readable'])
+        self.assertIn('Type: missing', self.row_of(text, 'No type'))
+        self.assertEqual(self.section_of(text, 'A category as type'), ['Not readable'])
+        self.assertIn('Type: bug (write task, research, prototype, grilling)', self.row_of(text, 'A category as type'))
+
+    def test_a_decision_ticket_needs_no_category(self):
+        effort_map(self.scratch, 'e')
+        for n, kind in enumerate(('research', 'prototype', 'grilling'), 1):
+            ticket(self.scratch, 'e', f'0{n}-a.md', f'# 0{n} A {kind}\n\nType: {kind}\nStatus: claimed\nBlocked by: none\n')
+        text, _ = self.html()
+        for kind in ('research', 'prototype', 'grilling'):
+            with self.subTest(kind):
+                self.assertEqual(self.section_of(text, f'A {kind}'), ['Being worked on'])
+
+    def test_a_closed_ticket_needs_neither_and_shows_the_category_it_has(self):
+        effort_map(self.scratch, 'e')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Old one\n\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-a.md', '# 02 Old feature\n\nType: enhancement\nCategory: feature\nStatus: wontfix\nBlocked by: none\n')
+        text, _ = self.html()
+        self.assertNotIn('Not readable', text)
+        self.assertIn('Closed (2)', text)
+        self.assertNotIn('class="tag"', self.row_of(text, 'Old one'))
+        self.assertIn('<span class="tag">feature</span>', self.row_of(text, 'Old feature'))
+
+    def test_a_ticket_not_readable_for_its_category_stays_there_with_a_session_open(self):
+        effort_map(self.scratch, 'effort', '# Map\n\nSessions: ef\n\n## Destination\n\nx\n')
+        ticket(self.scratch, 'effort', '04-a.md', '# 04 The ticket\n\nType: task\nStatus: claimed\nBlocked by: none\n')
+        self.agents.return_value = {'ef04': 'working'}
+        text, _ = self.html()
+        self.assertEqual(self.section_of(text, 'The ticket'), ['Not readable'])
+        self.assertIn('Category: missing, session working', text)
+
+    def counted_effort(self):
+        effort_map(self.scratch, 'e')
+        ticket(self.scratch, 'e', '01-a.md', '# 01 Fix one\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '02-a.md', '# 02 Fix two\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '03-a.md', '# 03 Write it up\n\nType: task\nCategory: docs\nStatus: in-review\nBlocked by: none\n\n'
+                                              '## Question for the maintainer\n\nWhich words?\n')
+        ticket(self.scratch, 'e', '04-a.md', '# 04 Look into it\n\nType: research\nStatus: open\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '05-a.md', '# 05 Fixed long ago\n\nType: task\nCategory: bug\nStatus: done\nBlocked by: none\n')
+        ticket(self.scratch, 'e', '06-a.md', '# 06 Clean up\n\nType: task\nCategory: chore\nStatus: done\nBlocked by: none\n')
+
+    def test_each_effort_counts_its_open_tickets_by_category(self):
+        self.counted_effort()
+        text, _ = self.html()
+        self.assertIn('<p class="categories">Open: <span class="tag">bug</span> 2, <span class="tag">docs</span> 1, no category 1</p>',
+                      text)
+        self.assertEqual(board.tickets_html(self.scratch)[3], {'bug': 2, 'docs': 1, 'none': 1})
+
+    def test_the_filter_shows_one_category_and_the_headline_still_counts_every_ticket(self):
+        self.counted_effort()
+        text, waiting, entries, counts = board.tickets_html(self.scratch, only='bug')
+        self.assertIn('Fix one', text)
+        self.assertIn('Fix two', text)
+        self.assertIn('Fixed long ago', text)
+        for other in ('Write it up', 'Look into it', 'Clean up'):
+            self.assertNotIn(other, text)
+        self.assertEqual(waiting, 1)                    # the docs ticket's question, hidden by the filter
+        self.assertEqual((entries[0]['waiting'], entries[0]['open']), (0, 2))
+        self.assertIn('Open: <span class="tag">bug</span> 2, <span class="tag">docs</span> 1', text)
+        self.assertEqual(counts, {'bug': 2, 'docs': 1, 'none': 1})
+
+    def test_the_filter_by_no_category_shows_the_tickets_with_none_of_the_five(self):
+        self.counted_effort()
+        ticket(self.scratch, 'e', '07-a.md', '# 07 Unsorted\n\nType: task\nStatus: ready-for-agent\nBlocked by: none\n')
+        text = board.tickets_html(self.scratch, only='none')[0]
+        self.assertIn('Look into it', text)
+        self.assertIn('Unsorted', text)
+        self.assertNotIn('Fix one', text)
+
+    def test_a_topic_with_nothing_of_the_category_says_so(self):
+        self.counted_effort()
+        text, _, entries, _ = board.tickets_html(self.scratch, only='test')
+        self.assertIn('No tickets of this category.', text)
+        self.assertEqual(entries[0]['open'], 0)
+
+    def test_the_filter_links_every_category_with_its_count_and_marks_the_one_shown(self):
+        self.counted_effort()
+        counts = board.tickets_html(self.scratch)[3]
+        bar = board.filter_html(counts, 'docs')
+        links = re.findall(r'<a href="([^"]*)"( aria-current="true")?>([^<]*)</a>', bar)
+        self.assertEqual([(href, name) for href, _, name in links],
+                         [('/', 'all 4'), ('/?category=bug', 'bug 2'), ('/?category=enhancement', 'enhancement 0'),
+                          ('/?category=test', 'test 0'), ('/?category=docs', 'docs 1'), ('/?category=chore', 'chore 0'),
+                          ('/?category=none', 'no category 1')])
+        self.assertEqual([name for _, on, name in links if on], ['docs 1'])
+        self.assertIn('aria-current="true">all', board.filter_html(counts, None))
+
+    def test_a_postponed_effort_counts_for_no_category(self):
+        effort_map(self.scratch, 'later', '# Map\n\n## Notes\n\n- Postponed for now.\n')
+        ticket(self.scratch, 'later', '01-a.md', '# 01 Parked\n\nType: task\nCategory: bug\nStatus: ready-for-agent\nBlocked by: none\n')
+        text, _, _, counts = board.tickets_html(self.scratch)
+        self.assertEqual(counts, {})
+        self.assertIn('<span class="tag">bug</span>', self.row_of(text, 'Parked'))
+
+
+ASKING = ('# 04 A ticket\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\nWhat was done.\n\n'
           '## Question for the maintainer\n\nKeep the old name?\n\n## Comments\n\n- audit, 2026-11-05: passed.\n')
 
 
@@ -475,7 +602,7 @@ class AnswerTest(unittest.TestCase):
 
     def test_the_answer_is_the_newest_comment_with_who_and_when_and_the_question_is_closed(self):
         self.assertEqual(self.answered(), (
-            '# 04 A ticket\n\nStatus: in-review\nBlocked by: none\n\nWhat was done.\n\n'
+            '# 04 A ticket\n\nType: task\nCategory: bug\nStatus: in-review\nBlocked by: none\n\nWhat was done.\n\n'
             '## Question for the maintainer, answered 2026-11-05 14:30\n\nKeep the old name?\n\n## Comments\n\n- audit, 2026-11-05: passed.\n'
             '- Sam, 2026-11-05 14:30, answer on the dashboard: Yes, keep it.\n'))
 
@@ -494,21 +621,21 @@ class AnswerTest(unittest.TestCase):
         self.assertTrue(text.endswith('answer on the dashboard: C:\\docsoo    and more\n'))
 
     def test_a_ticket_without_comments_gets_them(self):
-        text = self.answered('# 04 A\n\nStatus: claimed\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
+        text = self.answered('# 04 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n')
         self.assertTrue(text.endswith('## Question for the maintainer, answered 2026-11-05 14:30\n\nWhich?\n\n## Comments\n\n'
                                       '- Sam, 2026-11-05 14:30, answer on the dashboard: Yes, keep it.\n'))
 
     def test_the_answer_goes_under_comments_when_a_section_follows_them(self):
-        text = self.answered('# 04 A\n\nStatus: claimed\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n\n'
+        text = self.answered('# 04 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n\n## Question for the maintainer\n\nWhich?\n\n'
                              '## Comments\n\n- one.\n\n## Answer\n\nThe decision.\n')
         self.assertIn('- one.\n- Sam, 2026-11-05 14:30, answer on the dashboard: Yes, keep it.\n\n## Answer\n\nThe decision.\n', text)
 
     def test_with_two_questions_the_first_is_answered_and_the_second_stays_open(self):
-        text = self.answered('# 04 A\n\nStatus: claimed\nBlocked by: none\n\n## Question for the maintainer\n\nFirst?\n\n## Question for the maintainer\n\nSecond?\n')
+        text = self.answered('# 04 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n\n## Question for the maintainer\n\nFirst?\n\n## Question for the maintainer\n\nSecond?\n')
         self.assertEqual(board.question(text), 'Second?')
 
     def test_a_question_heading_inside_a_code_block_asks_nothing(self):
-        text = ('# 04 A\n\nStatus: claimed\nBlocked by: none\n\nHow a ticket asks:\n\n```\n## Question for the maintainer\n\nWhich?\n```\n\n'
+        text = ('# 04 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n\nHow a ticket asks:\n\n```\n## Question for the maintainer\n\nWhich?\n```\n\n'
                 '~~~\n## Question for the maintainer\n~~~\n')
         self.assertEqual(board.question(text), '')
         with self.assertRaises(ValueError):
@@ -517,7 +644,7 @@ class AnswerTest(unittest.TestCase):
         self.assertIn('```\n## Question for the maintainer\n', self.answered(text + '\n## Question for the maintainer\n\nReally this?\n'))
 
     def test_a_comments_heading_inside_a_code_block_does_not_take_the_answer(self):
-        text = ('# 04 A\n\nStatus: claimed\nBlocked by: none\n\nA ticket as it was quoted:\n\n```\n## Comments\n\n- old.\n```\n\n'
+        text = ('# 04 A\n\nType: task\nCategory: bug\nStatus: claimed\nBlocked by: none\n\nA ticket as it was quoted:\n\n```\n## Comments\n\n- old.\n```\n\n'
                 '## Question for the maintainer\n\nWhich?\n\n## Comments\n\n- one.\n')
         self.assertEqual(self.answered(text), text.replace('## Question for the maintainer\n', '## Question for the maintainer, '
                          'answered 2026-11-05 14:30\n') + '- Sam, 2026-11-05 14:30, answer on the dashboard: Yes, keep it.\n')

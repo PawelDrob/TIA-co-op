@@ -116,9 +116,10 @@ function dashboardLive(url, onUpdate, stopWhenHidden) {
 // Start page: swaps only the parts that changed, so scroll position stays as it is. A folded list stays open by its id:
 // every <details> on a live page needs an id that is its own and does not change. One not seen before starts closed.
 // An area with data-scroll and an id keeps its place, and focus stays on what has an id, also when a part around them is
-// swapped. after, when given, runs after each update.
-function dashboardBoard(after) {
-  dashboardLive('/events?start=1', function (data) {
+// swapped. after, when given, runs after each update. query, when given, goes on the address of the connection ("&name=value"):
+// what the page's own address chose, such as a filter, so an update shows the same choice.
+function dashboardBoard(after, query) {
+  dashboardLive('/events?start=1' + (query || ''), function (data) {
     var scroll = {}, focus = document.activeElement && document.activeElement.id;
     Array.prototype.forEach.call(document.querySelectorAll('[data-scroll][id]'), function (s) { scroll[s.id] = s.scrollTop; });
     Object.keys(data.parts).forEach(function (id) {

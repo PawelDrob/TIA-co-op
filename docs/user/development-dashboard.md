@@ -4,7 +4,7 @@ title: Development dashboard
 description: How to see what waits for you while agents change this repo, answer their questions on review pages and on a ticket's page, take a page down, and reach the dashboard from another machine through tailscale serve.
 tags: [dashboard, agents, tickets, review-pages]
 status: draft
-generated: { by: claude-code/claude-fable-5-2, at: 2026-11-09T17:53:05-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T18:47:02-05:00 }
 sources:
   - id: code
     resource: ../../tools/dashboard/
@@ -37,19 +37,22 @@ REVIEWS
 ● WAITING FOR YOUR ANSWERS (1)
   Parser audit                                                        2 questions
 
+Category: all 8  bug 1  enhancement 3  test 0  docs 1  chore 0  no category 3
+
 PARSER TICKETS
 Files in the old format open without an error.
+Open: [bug] 1, [enhancement] 3, [docs] 1, no category 1
 ● WAITS FOR YOU (2)
-  03  Audit the reader review page                              review page waits
-  06  Version of the old header                                          question
+  03  Audit the reader review page [docs]                       review page waits
+  06  Version of the old header                                          grilling
 ▸ BEING WORKED ON (1)
-  04  Read the old header
+  04  Read the old header [enhancement]
 … WITH THE COORDINATOR (1)
-  07  Error messages                                                    in-review
+  07  Error messages [bug]                                              in-review
 ◇ YOURS TO START (1)
-  08  Try it on a real file                                       ready-for-human
+  08  Try it on a real file [enhancement]                         ready-for-human
 × BLOCKED (1)
-  05  Write the old header                                           waits for 04
+  05  Write the old header [enhancement]                             waits for 04
 ✓ CLOSED (2)
 
 NO MAP
@@ -61,7 +64,7 @@ old-reader
 
 The list of topics starts with Reviews and has an entry per effort. Each entry jumps to its topic and shows how many of its tickets
 wait for you and how many are open. On a wide screen it is a column on the left that stays in view; on a narrow one, a compact list
-under the headline.
+under the headline. A word in a box after a ticket's title, `[bug]` above, is its category.
 
 A fresh clone shows "Nothing waits for you." and says what to add.
 
@@ -102,7 +105,8 @@ it from a ticket that lost that line, and that one must not go silent. Keep note
 | first `#` line | the title, which opens the ticket's file |
 | `Status:` | the section: see below |
 | `Blocked by:` | `none` or ticket numbers (`03, 07`, `other-effort/03`); Blocked while one is not closed. `None (can start immediately)`, as `to-tickets` writes it, reads as `none`; a ticket's title goes under Not readable, saying to write numbers |
-| `Type:` | an open `grilling` or `prototype` waits for you once nothing blocks it |
+| `Type:` | one of `task`, `research`, `prototype`, `grilling`, on every open ticket. An open `grilling` or `prototype` waits for you once nothing blocks it |
+| `Category:` | what a `task` is for, one of `bug`, `enhancement`, `test`, `docs`, `chore` ([what each means](../agents/issue-tracker.md#ticket-head)), on every open `task`; the tag after its title. A `research`, `prototype` or `grilling` needs none. A closed ticket needs none and shows the one it has |
 | `Review page:` | the title of the review page about the ticket: while it waits for your answers, so does the ticket; while it is up, the ticket's row and page link to it |
 | `Doc:` | a small link to a document under `docs\` or in the effort's folder (for a folder with no map, directly in it or in `issues\`) |
 
@@ -121,7 +125,10 @@ page counts once in the headline, as that review. A ticket that asks nothing goe
 | `ready-for-agent`, `open` | Ready for an agent |
 | `needs-triage` | Needs triage |
 | `done`, `resolved`, `wontfix` | Closed |
-| anything else, a `Blocked by:` it cannot read, or a number an open ticket shares with another ticket | Not readable |
+| anything else, a `Type:` or `Category:` missing or not one of the values above, a `Blocked by:` it cannot read, or a number an open ticket shares with another ticket | Not readable |
+
+A ticket under Not readable names the line it could not read, such as `Category: missing` or `Type: bug (write task, research,
+prototype, grilling)`, in its row and at the top of its page.
 
 In `map.md`:
 
@@ -133,6 +140,15 @@ In `map.md`:
   Without herdr the section stays away. What needs a person stays where it is, and its row names the session: a ticket under Waits
   for you or Not readable, session or not. A ticket With the coordinator stays there while its session is only open, and moves while
   an agent works on it, an audit mostly.
+
+### By category
+
+Under each effort's heading, and each folder's under No map, a line counts its open tickets by category; a ticket without one of the
+five, a `research`, `prototype` or `grilling` mostly, counts as no category. Above the tickets, **Category:** links each category
+with how many open tickets the page holds of it. A link shows only the tickets of its category, closed ones too, and **all** shows
+every ticket again. The filter is in the page's address (`/?category=bug`), so a reload and the live updates keep it. The headline
+and the counts by category still count every ticket: a ticket that waits for you stays in the headline when the filter hides it.
+The list of topics counts what the filter shows. The tickets of a postponed effort count in none of these numbers.
 
 ## Answer a ticket
 

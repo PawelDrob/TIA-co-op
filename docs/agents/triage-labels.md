@@ -3,7 +3,7 @@ type: Standard
 title: Triage labels for agent skills
 description: Maps the canonical triage roles of the engineering skills to the strings this repo's issue tracker records.
 tags: [agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-03T15:43:12-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T18:47:02-05:00 }
 ---
 
 # Triage Labels
@@ -20,6 +20,6 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table. "Apply" means setting the ticket's `Status:` line: a ticket holds one state at a time.
 
-The category roles `bug` and `enhancement` go on a `Category:` line in the ticket head.
+The skills' two category roles, `bug` and `enhancement`, keep their strings and go on the `Category:` line of the ticket head. This repo adds three more, `test`, `docs` and `chore`, for work that is neither: the five and what each means are in the [Ticket head](issue-tracker.md#ticket-head). Triage confirms the category the ticket's author set.
 
 The states beyond these roles (`claimed`, `in-review`, `done`, and the wayfinder ones) are in [issue-tracker.md](issue-tracker.md).

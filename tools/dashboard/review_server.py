@@ -41,7 +41,7 @@ FORM_SCRIPT = Path(__file__).with_name('review_form.js')
 
 _lock = threading.Lock()
 _ticket_lock = threading.Lock()     # one answer into a ticket at a time
-_start = (None, None)     # (version, what the start page shows)
+_start = {}     # filter of the start page -> (version, what it shows)
 
 
 def version():
@@ -183,25 +183,33 @@ def reviews_html():
     return ''.join(parts), len(rows['waiting']), sum(map(len, rows.values()))
 
 
-def start_page():
-    """What the start page shows, built again only when version() changes. One lock: herdr is asked once."""
-    global _start
+def only_category(query):
+    """The category the start page's address filters by (?category=), None for all: a value of board.FILTERS, else None."""
+    value = (query.get('category') or [''])[0]
+    return value if value in board.FILTERS else None
+
+
+def start_page(only=None):
+    """What the start page shows, with the tickets of category only alone (None: all), built again only when version()
+    changes. One lock: herdr is asked once."""
     with _lock:
         v = version()
-        if v != _start[0]:
+        if _start.get(only, (None,))[0] != v:
             reviews, waiting, pages = reviews_html()
             try:
-                tickets, wait_tickets, topics = board.tickets_html(SCRATCH, review_of)
+                tickets, wait_tickets, topics, counts = board.tickets_html(SCRATCH, review_of, only)
+                choice = board.filter_html(counts, only)
             except Exception as e:  # a fault there never takes the questions down
                 tickets = f'<h2>Tickets</h2><p class="fail">The tickets could not be read: {html.escape(str(e))}</p>'
-                wait_tickets = None
+                wait_tickets, choice = None, ''
                 topics = [{'id': 'tickets', 'name': 'Tickets', 'waiting': 0, 'open': 0, 'note': 'could not be read'}]
             total = waiting + (wait_tickets or 0)
             contents = board.contents_html([{'id': 'reviews', 'name': 'Reviews', 'waiting': waiting, 'open': pages, 'note': ''}] + topics)
-            _start = (v, {'parts': {'summary': summary_html(waiting, wait_tickets), 'topics': contents, 'reviews': reviews, 'tickets': tickets},
-                          'title': f'({total}) {TITLE}' if total else TITLE,
-                          'updated': datetime.now().strftime('%H:%M:%S')})
-        return _start[1]
+            _start[only] = (v, {'parts': {'summary': summary_html(waiting, wait_tickets), 'topics': contents, 'reviews': reviews,
+                                          'filter': choice, 'tickets': tickets},
+                                'title': f'({total}) {TITLE}' if total else TITLE,
+                                'updated': datetime.now().strftime('%H:%M:%S')})
+        return _start[only][1]
 
 
 FORM = '<script src="/review_form.js"></script><script>reviewForm(__STAMP__);</script>'
@@ -231,7 +239,7 @@ class Handler(live.Handler):
         url = urllib.parse.urlparse(self.path)
         path = urllib.parse.unquote(url.path)
         if path == '/':
-            return self.send_text(200, index(), 'text/html; charset=utf-8')
+            return self.send_text(200, index(only_category(urllib.parse.parse_qs(url.query))), 'text/html; charset=utf-8')
         if path == '/events':
             return self._events(urllib.parse.parse_qs(url.query))
         if path == live.ABOUT:
@@ -254,7 +262,8 @@ class Handler(live.Handler):
 
     def _events(self, query):
         if 'start' in query:
-            return self.stream(start_page)
+            only = only_category(query)
+            return self.stream(lambda: start_page(only))
         if 'page' in query and page_name(query['page'][0]):
             f = ROOT / query['page'][0]
         elif 'doc' in query and doc_file(query['doc'][0]):
@@ -288,14 +297,16 @@ class Handler(live.Handler):
             return self.send_text(500, json.dumps({'ok': False, 'error': str(e)}), 'application/json')
 
 
-def index():
-    """The start page. Each part carries its own text in data-html, so the first update changes nothing it need not."""
-    b = start_page()
+def index(only=None):
+    """The start page, its tickets those of category only (None: all). Each part carries its own text in data-html, so the
+    first update changes nothing it need not; its live connection asks for the same filter."""
+    b = start_page(only)
     part = lambda i: f'<div id="{i}" data-html="{html.escape(b["parts"][i], quote=True)}">{b["parts"][i]}</div>'
+    query = json.dumps('&category=' + only if only else '')
     return (live.head(b['title']) +
             f'<body><main class="board"><header class="top"><h1>{TITLE}</h1><span class="live" id="live"></span></header>'
             + part('summary') + '<nav class="topics" aria-label="Topics">' + part('topics') + '</nav>'
-            + part('reviews') + part('tickets') + '</main><script>dashboardBoard();</script></body></html>')
+            + part('reviews') + part('filter') + part('tickets') + f'</main><script>dashboardBoard(null, {query});</script></body></html>')
 
 
 def doc_file(rel):
@@ -390,18 +401,24 @@ def answer_ticket(rel, asked, answer):
 
 
 def ticket_panel(f, rel, text, safe):
-    """(html above a ticket, script that runs it) of a ticket's page: its open question with an answer box, its review page
-    when it is up, and for an open grilling or prototype that waits for you, that it waits in its session. ('', '') for a ticket
-    that asks nothing and has none."""
+    """(html above a ticket, script that runs it) of a ticket's page: its category, the line the start page could not read when
+    it is under Not readable, its open question with an answer box, its review page when it is up, and for an open grilling or
+    prototype that waits for you, that it waits in its session. ('', '') for a ticket with none of these."""
     parts, script = [], ''
-    review = board.read_ticket(f, f.parents[2])['review']      # the head, as the start page reads it
+    head = board.read_ticket(f, f.parents[2])      # the head, as the start page reads it
+    if board.shown_category(head):
+        parts.append(f'<p class="ticket-page">Category: {board.tag(board.shown_category(head))}</p>')
+    where = board.placed(f, f.parents[2])
+    if where and where[0] == 'Not readable':
+        parts.append(f'<p class="ticket-page fail">{board.MARKS["Not readable"][0]} Not readable on the start page: '
+                     f'{html.escape(where[1])}</p>')
+    review = head['review']
     page = review and review_of(review)
     if page:
-        where, url = page
-        says = 'This ticket waits for your answers on its review page' if where == 'waiting' else 'Its review page'
-        parts.append(f'<p class="ticket-page{" you" if where == "waiting" else ""}">{says}: '
+        state, url = page
+        says = 'This ticket waits for your answers on its review page' if state == 'waiting' else 'Its review page'
+        parts.append(f'<p class="ticket-page{" you" if state == "waiting" else ""}">{says}: '
                      f'<a href="{html.escape(url)}">{html.escape(review)}</a></p>')
-    where = board.placed(f, f.parents[2])
     if where and where[0] == 'Waits for you' and where[1] in board.HUMAN_TYPES:    # talked through with its agent, not answered here
         session = board.open_session(f, f.parents[2])
         parts.append(f'<p class="ticket-page you">This {html.escape(where[1])} waits for you in its session'
