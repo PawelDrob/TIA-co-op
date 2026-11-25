@@ -2,10 +2,11 @@
 static\\tia-theme.css): no colour of what the report draws stands outside the palette's block (NoColourOutsideThePalette);
 every name is used and can take a host's value (TheNames); a theme of the user's own changes every colour of the page,
 the fragment and the viewer, and nothing the renderer writes (ATrialPalette, in Edge), but an HMI screen and what the
-browser draws of its own (a placeholder, a focus ring, the scrollbars); a faulty theme file is refused with its line,
-or why it cannot be read (ThemeFiles, TheOptions); a theme takes what the browser takes of its forms
-(TheFormsOfColour), and the page holds each colour in one form the browser reads as the colour read (TheWrittenForm).
-The trial palette, every name a colour of its own, lives here only."""
+browser draws of its own (a placeholder, a focus ring, the scrollbars); a faulty theme file is refused with its file and
+line, or why it cannot be read (TheOptions, TheDefaultTheme); a theme takes what the browser takes of VS Code's hex
+forms (TheFormsOfColour), and the page holds each colour in one form the browser reads as the colour read
+(TheWrittenForm). The trial palette, every name a colour of its own given as its tia.<name> in a VS Code theme, lives
+here only. How a VS Code theme becomes the palette: test_vscode_theme."""
 import ast
 import contextlib
 import io
@@ -196,11 +197,19 @@ def trial_values():
     return out
 
 
-def theme_file(folder, values, name='trial.css', head='--theme-format: 1;'):
+def theme_file(folder, values, name='trial.json', label='Trial'):
+    """A VS Code color theme that gives each name of values {name: colour} as its tia.<name>; a colour's line is its
+    place in values plus 3."""
     path = os.path.join(folder, name)
     with open(path, 'w', encoding='utf-8') as f:
-        f.write('.ldiff {\n  %s\n%s}\n' % (head, ''.join('  %s: %s;\n' % kv for kv in values.items())))
+        json.dump({'name': label, 'colors': {'tia.' + n[2:]: v for n, v in values.items()}}, f, indent=2)
     return path
+
+
+def screen_block(html):
+    """The declarations of the theme's block for the screen in a page or fragment, {name: value}."""
+    m = re.search(r'@media screen\{:where\((?::root|\.ldiff)\)\{([^}]*)\}\}', html)
+    return dict(d.split(':', 1) for d in m.group(1).split(';')) if m else {}
 
 
 class NoColourOutsideThePalette(unittest.TestCase):
@@ -305,11 +314,24 @@ class TheNames(unittest.TestCase):
         return (page.CSS + page.RAIL_CSS + page.FOCUS_CSS + hmipart.css() + view.PAGE_CSS +
                 page.render([], 'b', 'a'))
 
-    def test_the_palette_reads_as_a_theme(self):
-        self.assertEqual(theme.read(theme.rail.THEME_CSS, 'tia-theme.css', theme.NAMES), theme.NATIVE)
+    def test_the_palette_reads(self):
+        """Every line of the palette's file a name and a colour, read into numbers the page writes back as they
+        were."""
+        self.assertEqual(len(re.findall(r'^ +--[a-z0-9-]+:', theme.rail.THEME_CSS, re.M)), len(theme.NAMES))
         self.assertGreater(len(theme.NAMES), 100)
         for name, c in theme.NATIVE.items():
-            self.assertEqual(theme.colour(theme.written(c)), c, name)
+            m = re.fullmatch(r'rgba\(([0-9]+),([0-9]+),([0-9]+),([0-9.]+)\)', theme.written(c))
+            self.assertEqual((int(m[1]), int(m[2]), int(m[3]), float(m[4])), c, name)
+        self.assertEqual(theme.NATIVE['--shadow'], (0, 0, 0, .25))
+
+    def test_the_pairs(self):
+        """The head's lines of pairs, read: a glob is each name it starts, and every pair is of two names."""
+        self.assertIn(('--scl-operator', '--removed-word'), theme.PAIRS)
+        self.assertIn(('--lad-number', '--box-head'), theme.PAIRS)
+        self.assertIn(('--added-word', '--added-fill'), theme.PAIRS)
+        self.assertEqual(len(theme.PAIRS), len(set(theme.PAIRS)))
+        with self.assertRaises(ValueError):
+            theme.read_pairs('/*' + chr(10) + '   - --text over --nope' + chr(10) + '*/', theme.NAMES)
 
     def test_each_name_is_used_and_each_used_name_is_one(self):
         used = set(re.findall(r'var\((--[a-z0-9-]+)\)', self.css()))
@@ -324,12 +346,6 @@ class TheNames(unittest.TestCase):
             for m in re.finditer(re.escape(f), css):
                 self.assertNotRegex(css[m.start():css.find(')', m.start()) + 1], r'var\(--(?!fw|fh|mb|width)', f)
 
-    def test_the_dev_docs_table_has_each_name_once(self):
-        """docs\\dev\\tools\\tia-change-reports.md: the names against VS Code's colours, in the palette's order."""
-        with open(os.path.join(ROOT, 'docs', 'dev', 'tools', 'tia-change-reports.md'), encoding='utf-8') as f:
-            rows = re.findall(r'^\| `(--[a-z0-9-]+)` \| (?:`[a-zA-Z.]+`|\*per kind\*) \|$', f.read(), re.M)
-        self.assertEqual(rows, theme.NAMES)
-
     def test_the_marks_are_one_set(self):
         """A ladder's four marks are drawn in the palette's --added-fill, --removed-fill, --changed-fill and --moved-fill,
         and render_lad keeps no FILL of its own."""
@@ -338,131 +354,27 @@ class TheNames(unittest.TestCase):
         self.assertFalse(hasattr(render_lad, 'FILL'))
 
 
-class ThemeFiles(unittest.TestCase):
-    """A theme file: one block .ldiff { ... }, --theme-format: 1; first, then --name: colour; lines. What it leaves out
-    keeps TIA's value; anything else is refused with the line, nothing drawn."""
-
-    def read(self, text):
-        return theme.read(text, 'my.css', theme.NAMES)
-
-    def refused(self, text, line, what):
-        with self.assertRaises(theme.ThemeError) as e:
-            self.read(text)
-        self.assertTrue(str(e.exception).startswith('my.css:%d: ' % line), str(e.exception))
-        self.assertIn(what, str(e.exception))
-
-    def test_a_theme_gives_some_names(self):
-        text = '/* mine */\n.ldiff {\n  --theme-format: 1;\n  --wire: #00ff00;   /* green wires */\n  --page:rgb(10, 20, 30)\n}\n'
-        self.assertEqual(self.read(text), {'--wire': (0, 255, 0, 1.0), '--page': (10, 20, 30, 1.0)})
-
-    def test_what_it_leaves_out_keeps_tias_value(self):
-        css = theme.css(theme.Theme('my.css', {'--wire': (0, 255, 0, 1.0)}))
-        native, screen = theme.css().splitlines(keepends=True)                 # TIA's whole block, a screen's own
-        self.assertEqual(css, native + '@media screen{:where(.ldiff){--wire:rgba(0,255,0,1)}}\n' + screen)
-        self.assertEqual(screen, '.ldiff svg.hs{color:rgba(0,0,0,1);fill:rgba(0,0,0,1);'
-                                 'background-color:rgba(255,255,255,1)}\n')
-
-    def test_each_form_of_colour(self):
-        """Each read into numbers as the browser reads it: a percentage of 255, rounded half up, none 0, the alpha in
-        full."""
-        for value, c in (('#abc', (170, 187, 204, 1.0)), ('#abcd', (170, 187, 204, 221 / 255)),
-                         ('#a1b2c3', (161, 178, 195, 1.0)), ('#A1B2C3D4', (161, 178, 195, 212 / 255)),
-                         ('rgb(1,2,3)', (1, 2, 3, 1.0)), ('rgba(1, 2, 3, .5)', (1, 2, 3, .5)),
-                         ('rgb(1 2 3 / 50%)', (1, 2, 3, .5)), ('RGB(10%, 20%, 50%)', (26, 51, 128, 1.0)),
-                         ('rgb(none 2% 3 / none)', (0, 5, 3, 0.0)), ('rgb(1.5 -1 300 / 2)', (2, 0, 255, 1.0)),
-                         ('rgba(0,0,0,.18)', (0, 0, 0, .18)), ('transparent', (0, 0, 0, 0.0)),
-                         ('TRANSPARENT', (0, 0, 0, 0.0))):
-            self.assertEqual(self.read('.ldiff{--theme-format:1;--wire:%s}' % value), {'--wire': c}, value)
-
-    def test_the_page_holds_numbers_only(self):
-        """What the page holds of a theme's value is written from its numbers, not the file's text."""
-        for value, out in (('#ABC', 'rgba(170,187,204,1)'), ('rgba( 0 , 0 , 0 , .25 )', 'rgba(0,0,0,0.25)'),
-                           ('rgb(1e2 50% none / 1e-7)', 'rgba(100,128,0,0.0000001)'), ('transparent', 'rgba(0,0,0,0)')):
-            self.assertEqual(theme.written(theme.colour(value)), out, value)
-        self.assertIn('--shadow:rgba(0,0,0,0.25);--backdrop:rgba(0,0,0,0.18);', theme.css())
-
-    def test_another_form_is_refused(self):
-        """Values of no form a theme takes (var(), url(), markup, !important, a malformed rgb()), OTHER_SCRIPTS, which
-        TheFormsOfColour holds to the browser, and NOT_TAKEN: the forms of CSS Color the browser takes and a theme does
-        not, a colour's name, hsl() and the rest."""
-        for value in ('var(--vscode-editor-foreground)', '#12', 'rgb(1,2)', 'url(x.png)', '#fff</style>', 'rgb(a,b,c)',
-                      '#ff00ff !important', 'hsl(1,2,3)', 'rgb(1%,2,3)', 'rgb(1 2,3)', 'rgb(10deg,2,3)', 'rgb(1/2/3)',
-                      'rgb(1 2 3 4)', 'rgb(1., 2, 3)') + OTHER_SCRIPTS + NOT_TAKEN:
-            self.refused('.ldiff {\n --theme-format: 1;\n --wire: %s;\n}' % value, 3,
-                         '--wire: %r is not a form of colour a theme takes; those are #rgb, #rgba, #rrggbb, #rrggbbaa, '
-                         'rgb(), rgba() or transparent, no colour names, no hsl() or var()' % value)
-        self.refused('.ldiff {\n --theme-format: 1;\n --wire: ;\n}', 3, "--wire: '' is not a form of colour")
-
-    def test_a_name_it_does_not_know(self):
-        self.refused('.ldiff {\n --theme-format: 1;\n\n --wires: #000;\n}', 4, '--wires is no name of the palette')
-
-    def test_a_name_twice(self):
-        self.refused('.ldiff {\n --theme-format: 1;\n --wire: #000;\n --wire: #111;\n}', 4, 'given twice (line 3)')
-
-    def test_the_format_first(self):
-        self.refused('.ldiff {\n --wire: #000;\n}', 2, 'starts with --theme-format: 1;')
-        self.refused('.ldiff {\n}', 1, 'starts with --theme-format: 1;')
-        self.refused('.ldiff {\n --theme-format: 2;\n}', 2, 'not one this report reads')
-
-    def test_one_block_and_nothing_else(self):
-        self.refused('\n\nbody {\n --theme-format: 1;\n}', 3, 'a theme is one block')
-        self.refused('.ldiff {\n --theme-format: 1;\n}\n.x { color: red }', 4, 'nothing may follow')
-        self.refused('.ldiff {\n --theme-format: 1;\n', 1, 'not closed')
-        self.refused('.ldiff {\n --theme-format: 1;\n color: red;\n}', 3, 'not a line of a theme')
-        self.refused('.ldiff {\n --theme-format: 1;\n /* open\n}', 3, 'comment /* is not closed')
-
-    def test_load(self):
-        self.assertEqual((theme.load().name, theme.load().values), ('tia', {}))
-        self.assertEqual(theme.load('tia').values, {})
-        with tempfile.TemporaryDirectory() as d:
-            path = theme_file(d, {'--wire': '#123456'})
-            self.assertEqual(theme.load(path).values, {'--wire': (0x12, 0x34, 0x56, 1.0)})
-            with self.assertRaises(theme.ThemeError) as e:
-                theme.load(os.path.join(d, 'none.css'))
-            self.assertIn('no theme of that name (tia) and no theme file there', str(e.exception))
-            latin = os.path.join(d, 'latin.css')
-            with open(latin, 'wb') as f:
-                f.write(b'.ldiff {\n  --theme-format: 1;\n  --wire: #f\xe9f;\n}\n')
-            for path, why in ((latin, 'it is not UTF-8'), (d, 'it is a folder')):
-                with self.assertRaises(theme.ThemeError) as e:
-                    theme.load(path)
-                self.assertIn('%s: the theme file cannot be read: %s' % (path, why), str(e.exception))
-                self.assertNotIn('no theme file there', str(e.exception))
+# Values of forms of CSS Color a theme does not take, each one the browser takes: VS Code writes a colour in hex alone.
+NOT_TAKEN = ('green', 'white', 'currentColor', 'transparent', 'rgb(1, 2, 3)', 'rgba(1,2,3,.5)', 'hsl(120, 50%, 50%)',
+             'hwb(1 2% 3%)', 'color-mix(in srgb, red, blue)', ' #fff', '#fff ')
 
 
-# Values of forms of CSS Color a theme does not take, each one the browser takes: a theme refuses them by their form.
-NOT_TAKEN = ('green', 'white', 'currentColor', 'hsl(120, 50%, 50%)', 'hsl(120deg 50% 50%)', 'hwb(1 2% 3%)',
-             'color-mix(in srgb, red, blue)', 'rgb(calc(1) 2 3)', 'rgb(from red r g b)')
-
-
-# Values with a digit, a letter or a white space CSS does not have: CSS's are ASCII, its white space has no vertical tab.
-# Neither the browser nor a theme takes them; Python's \d, \s and re.I would take some, float() the digits.
-OTHER_SCRIPTS = ('rgb(\u0661,2,3)', 'rgb(\uff11 2 3)', 'rgb(1,\u07c2,3)', 'rgba(1,2,3,.\u0665)', 'rgb(1e\uff12 2 3)',
-                 '#\uff46\uff46\uff46', '#ab\uff43', 'rgb(1\u00a02\u00a03)', 'rgb(1\u30002 3)', 'rgb(1\x0b2\x0b3)',
-                 'rgb(1,2,3)\u2028', 'tran\u017fparent', 'rgb(1 2 3 \uff0f 1)')
+# Values with a digit or a letter CSS does not have: CSS's are ASCII. Neither the browser nor a theme takes them;
+# Python's re.I without re.A would take some.
+OTHER_SCRIPTS = ('#\uff46\uff46\uff46', '#ab\uff43', '#\u0661\u0662\u0663', '#abc\u212a', '#\u0130bc')
 
 
 def generated_values():
-    """Values near the forms a theme takes, many a little off: hex of each length and with a letter that is no digit;
-    rgb() and rgba() with numbers as CSS writes them and as it does not, percentages, an angle and none, in the comma
-    form and the space form, their separators mixed, with an alpha and without; OTHER_SCRIPTS."""
+    """Values near VS Code's hex forms, many a little off: hex of each length, with a letter that is no digit, a sign,
+    two #, OTHER_SCRIPTS."""
     out = ['#' + '0aF9b1C2e'[:n] for n in range(10)] + ['#' + 'aF9b1C2e'[:n] + 'g' for n in (2, 3, 5, 7)]
-    out += ['##fff', '#-12', 'transparent', 'Transparent', 'transparen', 'transparent0']
-    first = ['1', '255', '300', '-1', '+1', '1.5', '.5', '1.', '1e2', '1E-1', '1e', '1%', '1.5%', '1deg', 'none', 'a']
-    rest = ['2', '2%', 'none']
-    gaps = [',', ' , ', ' ']
-    alphas = ['', ',.5', ', 50%', ',none', ' / .5', '/50%', ' / none', ',', ' /', ', .5, 1', ' / 1.']
-    out += ['%s(%s%s%s%s%s%s)' % (fn, a, g1, b, g2, c, alpha) for fn in ('rgb', 'rgba') for a in first for b in rest
-            for c in rest for g1 in gaps for g2 in gaps for alpha in alphas]
-    out += ['RGB(1, 2, 3)', 'Rgba(1 2 3 / 1)', 'rgb (1, 2, 3)', 'rgb( 1 , 2 , 3 )', 'rgb(1,2)', 'rgb(1,2,3,4,5)',
-            'rgb()', 'rgb(1 2 3 4)', 'rgb(1 / 2 / 3)', 'rgba(1, 2, 3, 4%)', 'rgba(1%, 2%, 3%, .5)']
-    out += [' rgb(1,2,3) ', '\t#fff\n', '\ftransparent\r', ' rgb(1,2,3)\n\n']
+    out += ['##fff', '#-12', '#+123', 'fff', '#FfFfFf', '#0000', '#00000000', '#abcdef0', '#abcdef012']
     return out + list(OTHER_SCRIPTS)
 
 
 def tias_values():
     """The values of TIA's native theme as its file writes them."""
-    return re.findall(r'^ *--(?!theme-format)[a-z0-9-]+: *([^;]+);', theme.rail.THEME_CSS, re.M)
+    return re.findall(r'^ *--[a-z0-9-]+: *([^;]+);', theme.rail.THEME_CSS, re.M)
 
 
 class InEdge(unittest.TestCase):
@@ -505,21 +417,27 @@ class InEdge(unittest.TestCase):
 
 
 class TheFormsOfColour(InEdge):
-    """What a theme takes is what the browser takes, over values near the forms a theme takes (generated_values()),
-    by Edge's CSS.supports('color', ...): a theme never refuses a value of its forms that the browser draws. NOT_TAKEN
-    the browser takes and a theme refuses, by their form."""
+    """A theme takes VS Code's forms of a colour, #RGB, #RGBA, #RRGGBB and #RRGGBBAA, and among values near them
+    (generated_values()) exactly what the browser takes as hex, by Edge's CSS.supports('color', ...). NOT_TAKEN the
+    browser takes and a theme refuses, by their form."""
 
     def test_a_theme_takes_what_the_browser_takes(self):
         values = generated_values()
         got = self.supported(values)
-        differ = [(v, b) for v, b in zip(values, got) if theme.is_colour(v) != b]
-        self.assertEqual(differ[:20], [], '%d of %d differ: (value, the browser takes it)' % (len(differ), len(values)))
-        self.assertGreater(sum(got), 500)                                       # many taken, many refused
-        self.assertGreater(len(got) - sum(got), 500)
+        differ = [(v, b) for v, b in zip(values, got) if (theme.colour(v) is not None) != b]
+        self.assertEqual(differ, [], '(value, the browser takes it)')
+        self.assertGreater(sum(got), 6)
+        self.assertGreater(len(got) - sum(got), 10)
 
     def test_the_forms_a_theme_does_not_take(self):
-        self.assertEqual(self.supported(list(NOT_TAKEN)), [True] * len(NOT_TAKEN))
-        self.assertEqual([v for v in NOT_TAKEN if theme.is_colour(v)], [])
+        self.assertEqual(self.supported([v.strip() for v in NOT_TAKEN]), [True] * len(NOT_TAKEN))
+        self.assertEqual([v for v in NOT_TAKEN if theme.colour(v) is not None], [])
+
+    def test_each_form(self):
+        for value, c in (('#abc', (170, 187, 204, 1.0)), ('#abcd', (170, 187, 204, 221 / 255)),
+                         ('#a1b2c3', (161, 178, 195, 1.0)), ('#A1B2C3D4', (161, 178, 195, 212 / 255)),
+                         ('#00000000', (0, 0, 0, 0.0))):
+            self.assertEqual(theme.colour(value), c, value)
 
     def test_tias_values(self):
         values = tias_values()
@@ -529,36 +447,35 @@ class TheFormsOfColour(InEdge):
 
 class TheWrittenForm(InEdge):
     """The page holds a theme's colour as theme.written() writes it from the numbers read, never the file's text: so a
-    value the browser would not draw cannot reach the page, whatever the reading lets through. The written form the
-    browser takes in each case (red, green and blue each 0 to 255, an alpha of each of the browser's 256 steps, 0 and 1,
-    one of many digits) and reads as the colour the value was: the same computed colour, or where the value has none
-    (which the browser keeps as none in the computed colour) the same pixel drawn."""
+    value the browser would not draw cannot reach the page. The written form the browser takes in each case (red, green
+    and blue each 0 to 255, an alpha of each of the browser's 256 steps, 0 and 1, TIA's .25 and .18) and reads as the
+    colour the value was."""
 
     def values(self):
         """Every value of generated_values() a theme takes, TIA's own as its file writes them, and sweeps: hex of each
-        red, green, blue and alpha 0 to 255, percentages in steps of .5, alphas of many digits."""
-        out = [v for v in generated_values() if theme.is_colour(v)] + tias_values()
-        out += ['#%02x%02x%02x%02x' % (k, 255 - k, (k * 7) % 256, k) for k in range(256)]
-        out += ['rgb(%s%% %s%% 0%%)' % (k / 2, 100 - k / 2) for k in range(201)]
-        out += ['rgba(1,2,3,%s)' % a for a in ('.25', '.18', '.08', '.123456', '.5019', '.0019', '.002', '1e-7', '5e-324',
-                                               '.99999', '0', '1', '25%', '.5%')]
-        return out
+        red, green, blue and alpha 0 to 255."""
+        out = [v for v in generated_values() if theme.colour(v) is not None] + tias_values()
+        return out + ['#%02x%02x%02x%02x' % (k, 255 - k, (k * 7) % 256, k) for k in range(256)]
 
     def test_it_reads_as_the_colour_read(self):
         values = self.values()
-        written = [theme.written(theme.colour(v)) for v in values]
+        written = [theme.written(theme.palette_colour(v)) for v in values]
         self.assertEqual({re.sub(r'[0-9.]+', 'n', w) for w in written}, {'rgba(n,n,n,n)'})
         got = self.read_by_edge(values + written)
         given, held = got[:len(values)], got[len(values):]
         self.assertEqual([w for w, (ok, _, _) in zip(written, held) if not ok], [])
-        differ = [(v, w, a[1:], b[1:]) for v, w, a, b in zip(values, written, given, held)
-                  if (a[2] != b[2] if 'none' in v.lower() else a[1] != b[1])]
+        differ = [(v, w, a[1:], b[1:]) for v, w, a, b in zip(values, written, given, held) if a[1] != b[1]]
         self.assertEqual(differ[:20], [], '%d of %d differ' % (len(differ), len(values)))
-        self.assertGreater(sum('none' in v.lower() for v in values), 100)
+        self.assertIn('rgba(0,0,0,0.25)', written)
+
+
+# What a theme_file of {'--wire': 'green'} is refused with, after its path.
+GREEN = ':4: "colors": "tia.wire": "green" is not a colour; VS Code writes one as #RGB, #RGBA, #RRGGBB or #RRGGBBAA'
+WIRE = '--wire:rgba(18,52,86,1)'          # how the page holds a theme_file's {'--wire': '#123456'}
 
 
 class TheOptions(unittest.TestCase):
-    """--theme on the report and the viewer: a faulty file is a usage error with its line, nothing written."""
+    """--theme on the report and the viewer: a faulty file is a usage error with its file and line, nothing written."""
 
     def test_the_report(self):
         with tempfile.TemporaryDirectory() as d:
@@ -567,10 +484,10 @@ class TheOptions(unittest.TestCase):
             with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
                 code = cli.main([os.path.join(PLANT, 'v1'), os.path.join(PLANT, 'v2'), '-o', out, '--theme', bad])
             self.assertEqual(code, 2)
-            self.assertIn('--theme %s:3: --wire: ' % bad, err.getvalue())
+            self.assertIn('--theme %s%s' % (os.path.abspath(bad), GREEN), err.getvalue())
             self.assertFalse(os.path.exists(out))
-            good = report(d, '--theme', theme_file(d, {'--wire': '#123456'}, 'good.css'))
-            self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', good)
+            good = report(d, '--theme', theme_file(d, {'--wire': '#123456'}, 'good.json'))
+            self.assertIn(WIRE, ';'.join('%s:%s' % kv for kv in screen_block(good).items()))
 
     def test_an_empty_theme(self):
         """--theme "" is a usage error of --theme, not a faulty default theme."""
@@ -593,7 +510,7 @@ class TheOptions(unittest.TestCase):
             text = io.StringIO()
             with contextlib.redirect_stdout(text), self.assertRaises(SystemExit):
                 main(['--help'])
-            self.assertIn(r'default: your theme file %LOCALAPPDATA%\tia-co-op\theme.css when there, else tia',
+            self.assertIn(r'default: your theme file %LOCALAPPDATA%\tia-co-op\theme.json when there, else tia',
                           ' '.join(text.getvalue().split()))
 
     def test_the_viewer(self):
@@ -601,25 +518,25 @@ class TheOptions(unittest.TestCase):
             out = os.path.join(d, 'v.html')
             quiet(viewer_cli.main, [JUMPS, '--html', out, '--theme', theme_file(d, {'--wire': '#123456'})])
             with open(out, encoding='utf-8') as f:
-                self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', f.read())
+                self.assertEqual(screen_block(f.read())['--wire'], 'rgba(18,52,86,1)')
             err = io.StringIO()
             bad_out = os.path.join(d, 'bad.html')
             with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as e:
-                viewer_cli.main([JUMPS, '--html', bad_out, '--theme', theme_file(d, {'--nope': '#000'}, 'bad.css')])
+                viewer_cli.main([JUMPS, '--html', bad_out, '--theme', theme_file(d, {'--nope': '#000'}, 'bad.json')])
             self.assertEqual(e.exception.code, 2)
-            self.assertIn('bad.css:3: --nope is no name of the palette', err.getvalue())
+            self.assertIn('bad.json:4: "colors": "tia.nope" is no name of the palette', err.getvalue())
             self.assertFalse(os.path.exists(bad_out))
 
 
 class TheDefaultTheme(unittest.TestCase):
-    """%LOCALAPPDATA%\\tia-co-op\\theme.css (theme.user_theme(); the tests point it at a folder of their own through
+    """%LOCALAPPDATA%\\tia-co-op\\theme.json (theme.user_theme(); the tests point it at a folder of their own through
     theme.ENV): the report and the viewer given no --theme draw in it when it is there; --theme tia draws without it;
     a faulty one stops them, named."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.kept = os.environ[theme.ENV]
-        self.path = os.environ[theme.ENV] = os.path.join(self.tmp.name, 'tia-co-op', 'theme.css')
+        self.path = os.environ[theme.ENV] = os.path.join(self.tmp.name, 'tia-co-op', 'theme.json')
 
     def tearDown(self):
         os.environ[theme.ENV] = self.kept
@@ -627,13 +544,13 @@ class TheDefaultTheme(unittest.TestCase):
 
     def put(self, values):
         os.makedirs(os.path.dirname(self.path))
-        theme_file(os.path.dirname(self.path), values, 'theme.css')
+        theme_file(os.path.dirname(self.path), values, 'theme.json')
 
     def test_the_place(self):
         self.assertEqual(theme.user_theme({'LOCALAPPDATA': r'C:\Users\u\AppData\Local'}),
-                         r'C:\Users\u\AppData\Local\tia-co-op\theme.css')
-        self.assertEqual(theme.user_theme({'LOCALAPPDATA': r'C:\Users\u\AppData\Local', theme.ENV: r'C:\t\theme.css'}),
-                         r'C:\t\theme.css')
+                         r'C:\Users\u\AppData\Local\tia-co-op\theme.json')
+        self.assertEqual(theme.user_theme({'LOCALAPPDATA': r'C:\Users\u\AppData\Local', theme.ENV: r'C:\t\theme.json'}),
+                         r'C:\t\theme.json')
         self.assertEqual(theme.load().name, 'tia')                                   # not there: TIA's
 
     def test_a_child_process_reads_not_the_users_file(self):
@@ -653,11 +570,11 @@ class TheDefaultTheme(unittest.TestCase):
             self.assertNotIn('@media screen', f.read())
         r = run({k: v for k, v in os.environ.items() if k != theme.ENV})
         self.assertEqual(r.returncode, 2, r.stderr)
-        self.assertIn(os.path.join(local, 'tia-co-op', 'theme.css') + ':3: --wire: ', r.stderr)
+        self.assertIn(os.path.join(local, 'tia-co-op', 'theme.json') + GREEN, r.stderr)
 
     def test_the_report(self):
         self.put({'--wire': '#123456'})
-        self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', report(self.tmp.name))
+        self.assertEqual(screen_block(report(self.tmp.name))['--wire'], 'rgba(18,52,86,1)')
         self.assertNotIn('@media screen', report(self.tmp.name, '--theme', 'tia', name='tia.html'))
 
     def test_the_viewer(self):
@@ -665,7 +582,7 @@ class TheDefaultTheme(unittest.TestCase):
         out = os.path.join(self.tmp.name, 'v.html')
         quiet(viewer_cli.main, [JUMPS, '--html', out])
         with open(out, encoding='utf-8') as f:
-            self.assertIn('@media screen{:where(:root){--wire:rgba(18,52,86,1)}}', f.read())
+            self.assertEqual(screen_block(f.read())['--wire'], 'rgba(18,52,86,1)')
 
     def test_a_faulty_one(self):
         self.put({'--wire': 'green'})
@@ -673,12 +590,12 @@ class TheDefaultTheme(unittest.TestCase):
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
             code = cli.main([os.path.join(PLANT, 'v1'), os.path.join(PLANT, 'v2'), '-o', out])
         self.assertEqual(code, 2)
-        self.assertIn('the default theme %s:3: --wire: ' % self.path, err.getvalue())
+        self.assertIn('the default theme %s%s' % (self.path, GREEN), err.getvalue())
         self.assertIn('--theme tia draws without it', err.getvalue())
         self.assertFalse(os.path.exists(out))
         said = []
         self.assertEqual(viewer_cli.main([JUMPS], open_page=lambda p: self.fail('opened'), message=said.append), 2)
-        self.assertIn('%s:3: --wire: ' % self.path, said[0])
+        self.assertIn(self.path + GREEN, said[0])
 
     def test_a_faulty_one_with_html(self):
         """--html opens nothing, so the viewer runs from a console: a usage error on stderr, no message box."""
@@ -687,7 +604,7 @@ class TheDefaultTheme(unittest.TestCase):
         with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as e:
             viewer_cli.main([JUMPS, '--html', out], message=lambda m: self.fail('a message box: %s' % m))
         self.assertEqual(e.exception.code, 2)
-        self.assertIn('cannot read the default theme %s:3: --wire: ' % self.path, err.getvalue())
+        self.assertIn('cannot read the default theme %s%s' % (self.path, GREEN), err.getvalue())
         self.assertIn('--theme tia draws without it', err.getvalue())
         self.assertFalse(os.path.exists(out))
 
@@ -737,7 +654,9 @@ def rgb(hex_):
 class ATrialPalette(unittest.TestCase):
     """The same report under a theme that gives every name a colour of its own: every colour of every element of the
     page, the fragment and the viewer's page is one of the theme's, so nothing does not follow; and what the renderer
-    wrote is the same but for the theme's block. A host's stylesheet wins over the report's own values."""
+    wrote is the same but for the theme's block and, on a page of its own, the line that names the theme. A host's
+    stylesheet wins over the report's own values, and the theme's block alone laid over a fragment drawn in TIA's
+    theme draws it in the theme."""
 
     @classmethod
     def setUpClass(cls):
@@ -766,7 +685,10 @@ class ATrialPalette(unittest.TestCase):
         html = report(self.tmp.name, '--theme', self.trial.name, name='trial.html')
         self.assert_follows(html, 'trial-page.html')
         default = report(self.tmp.name, name='default.html')
-        self.assertEqual(html.replace(theme.css(self.trial, page=True), ''), default.replace(theme.css(page=True), ''))
+        note = '<p class="theme-note">Colours of the VS Code theme Trial, not TIA\'s</p>'
+        self.assertEqual(html.count(note), 1)
+        self.assertEqual(html.replace(theme.css(self.trial, page=True), '').replace(note, ''),
+                         default.replace(theme.css(page=True), ''))
 
     def test_an_hmi_page(self):
         """The HMI part's own chrome: the toolbar, the panes, the change list, the outlines on a screen."""
@@ -824,15 +746,32 @@ class ATrialPalette(unittest.TestCase):
         self.assert_follows(host_styles.bare(html, 1300), 'trial-fragment.html', '.ldiff')
         default = report(self.tmp.name, '--fragment', name='default.fragment.html')
         self.assertEqual(html.replace(theme.css(self.trial), ''), default.replace(theme.css(), ''))
+        self.assertNotIn('theme-note"', html)                                  # the host shows its colours
+
+    def test_the_block_over_a_fragment_in_tias_theme(self):
+        """What a host that caches fragments drawn in --theme tia does (python -m TiaChangeReports.vscode_theme):
+        the theme's block alone after the fragment, and the fragment follows the theme."""
+        frag = report(self.tmp.name, '--fragment', '--theme', 'tia', name='tia.fragment.html')
+        r = subprocess.run([sys.executable, '-X', 'utf8', '-m', 'TiaChangeReports.vscode_theme', self.trial.name],
+                           cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, theme.block(self.trial))
+        self.assertTrue(r.stdout.startswith('@media screen{.ldiff{--page:'))
+        self.assert_follows(host_styles.bare(frag + '<style>%s</style>' % r.stdout, 1300), 'trial-block.html', '.ldiff')
 
     def test_the_viewer(self):
         html = view.page(JUMPS, self.trial)[0]
         self.assert_follows(html, 'trial-viewer.html')
-        self.assertEqual(html.replace(theme.css(self.trial, page=True), ''),
+        note = '<span class="theme-note">Colours of the VS Code theme Trial, not TIA\'s</span>'
+        self.assertEqual(html.count(note), 1)
+        self.assertEqual(html.replace(theme.css(self.trial, page=True), '').replace(note, ''),
                          view.page(JUMPS)[0].replace(theme.css(page=True), ''))
 
     def test_print_takes_tias_values(self):
+        """A theme's block is for the screen; print takes TIA's values, and the line that names the theme is not
+        printed."""
         self.assertIn('@media screen{', theme.css(self.trial))
+        self.assertEqual(theme.NOTE_CSS, '.theme-note{color:var(--muted)}@media print{.theme-note{display:none}}')
 
     def test_a_hosts_stylesheet_wins(self):
         """A host page that sets the names on .ldiff, before the fragment's own <style> as a webview's head does,

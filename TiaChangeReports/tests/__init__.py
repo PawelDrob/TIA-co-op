@@ -18,8 +18,8 @@ else:
     for _name in _listed.stdout.split():
         os.environ.pop(_name, None)
 
-# No test reads the user's own default theme (%LOCALAPPDATA%\tia-co-op\theme.css): every report a test makes without
+# No test reads the user's own default theme (%LOCALAPPDATA%\tia-co-op\theme.json): every report a test makes without
 # --theme, in this process or a child's (the environment variable), draws in TIA's native theme, whatever the PC
 # holds. test_theme points it at a file of its own.
 from TiaChangeReports import theme as _theme  # noqa: E402
-os.environ[_theme.ENV] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'no-user-theme', 'theme.css')
+os.environ[_theme.ENV] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'no-user-theme', 'theme.json')

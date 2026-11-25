@@ -40,19 +40,14 @@ Yourself, from the clone's folder, after [first setup](../docs/user/setup.md):
 
 `--help` lists the rest. It needs `TiaHmiGenerator` beside it, which the clone holds, and Edge or Chrome only for `--png`.
 
-**Colours of your own.** The report draws in TIA's colours. For your own, write `%LOCALAPPDATA%\tia-co-op\theme.css`
-with the `--theme-format` line and only the lines you change; the names and TIA's values are in
-`TiaHmiGenerator\hmipreview\static\tia-theme.css`:
-
-```css
-.ldiff {
-  --theme-format: 1;
-  --wire: #0057b8;
-}
-```
-
-A colour is `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()` or `transparent`, not a name such as `white`.
-A name you leave out keeps TIA's value, also when that value changes in a later version. Every report and the block
-viewer then draw in your colours, also the reports the agent and Archive Compare make.
+**Colours of your own.** The report draws in TIA's colours. For others, take a VS Code color theme: write
+`%LOCALAPPDATA%\tia-co-op\theme.json` as `{ "include": "C:/path/to/the-theme.json" }` (in JSON a path takes `/` or
+`\\`), or copy the theme's file there if it includes no other. A theme extension's files are under
+`%USERPROFILE%\.vscode\extensions\`, VS Code's own themes under its folder's `resources\app\extensions\`. Every report
+and the block viewer then draw in the theme, also the reports the agent and Archive Compare make, and a page says under
+its title which theme it is drawn in. What a VS Code theme has no colour for, a LAD box or a change mark, the report
+makes from the theme's own colours, and it keeps every text as easy to read as in TIA's colours. To set one of the
+report's colours yourself, add `"tia.<name>"` to the theme's `"colors"`, as `"tia.wire": "#0057b8"`; the names are in
+[the developer notes](../docs/dev/tools/tia-change-reports.md#from-a-vs-code-theme-to-the-palette).
 `--theme <file>` takes another theme for one report, `--theme tia` TIA's colours. A faulty file stops the report and
 names its line, or says why it cannot be read.

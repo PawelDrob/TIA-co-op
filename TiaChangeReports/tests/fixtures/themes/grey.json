@@ -1,0 +1,7 @@
+{
+  "name": "Grey (test)",
+  "colors": {
+    "editor.background": "#808080",
+    "editor.foreground": "#000000"
+  }
+}

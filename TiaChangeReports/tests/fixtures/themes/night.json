@@ -1,0 +1,35 @@
+// A dark theme written for the tests: comments, trailing commas, an include, colours with an alpha, a border set to
+// nothing (#00000000), a light selection a dark theme's text cannot stand on.
+{
+  "$schema": "vscode://schemas/color-theme",
+  "name": "Night (test)",
+  "type": "dark",
+  "include": "./night-base.json",
+  "colors": {
+    "editor.foreground": "#c8c8c8",       /* over the base's */
+    "descriptionForeground": "#6a6a6a",
+    "editorLineNumber.foreground": "#4a4a4a",
+    "diffEditor.insertedLineBackground": "#2ea04326",
+    "diffEditor.insertedTextBackground": "#2ea04366",
+    "diffEditor.removedLineBackground": "#f8514926",
+    "diffEditor.removedTextBackground": "#f8514966",
+    "gitDecoration.addedResourceForeground": "#3fb950",
+    "gitDecoration.deletedResourceForeground": "#f85149",
+    "gitDecoration.modifiedResourceForeground": "#d29922",
+    "list.activeSelectionBackground": "#9fc5f8",
+    "list.hoverBackground": "#ffffff10",
+    "editorWidget.border": "#00000000",
+    "widget.border": "#3a3a3a",
+    "widget.shadow": "#00000080",
+    "button.secondaryBackground": "#00000000",
+    "textLink.foreground": "#2f5fa0",
+    "editor.lineHighlightBackground": null,
+  },
+  "tokenColors": [
+    {"scope": "comment", "settings": {"foreground": "#4f6f4f", "fontStyle": "italic"}},
+    {"scope": ["keyword.control", "keyword.operator"], "settings": {"foreground": "#c586c0"}},
+    {"scope": "keyword.control.directive", "settings": {"fontStyle": "bold"}},
+    {"scope": "variable.parameter", "settings": {"foreground": "#5a5a90"}},
+  ],
+  "semanticTokenColors": {"variable.readonly": "#ff0000"},
+}

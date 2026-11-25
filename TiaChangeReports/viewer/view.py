@@ -256,8 +256,8 @@ def page(path, theme=None):
               % (button % ('drawing', 'true' if drawing else 'false', 'The block drawn', 'D', '' if drawing else ' disabled',
                            'Drawing'),
                  button % ('source', 'false' if drawing else 'true', 'The text of the file', 'S', '', 'Source')))
-    bar = '<header class="vbar"><b>%s</b><span class="file">%s</span>%s</header>' % (
-        escape(title), escape(path), switch)
+    bar = '<header class="vbar"><b>%s</b><span class="file">%s</span>%s%s</header>' % (
+        escape(title), escape(path), themes.note(theme, 'span'), switch)
     shown = ('<div class="view" data-view="drawing"><div class="ldiff" data-page>%s%s<script>%s</script></div></div>'
              % (drawing, read, JS) if drawing else '')
     source = ('<div class="view" data-view="source"%s><div class="ldiff src">%s%s</div></div>'
@@ -266,5 +266,6 @@ def page(path, theme=None):
     html = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, '
             'initial-scale=1"><title>%s</title><style>%s</style><style>%s</style></head><body>%s<main>%s%s</main>'
             '<script>%s</script></body></html>'
-            % (escape(title), themes.css(theme, page=True) + CSS, PAGE_CSS, bar, shown, source, SWITCH_JS))
+            % (escape(title), themes.css(theme, page=True) + CSS, PAGE_CSS + themes.NOTE_CSS, bar, shown, source,
+               SWITCH_JS))
     return html, title

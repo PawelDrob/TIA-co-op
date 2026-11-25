@@ -1,0 +1,9 @@
+{
+  "name": "contrast-themes",
+  "contributes": {
+    "themes": [
+      {"label": "Contrast Dark (test)", "uiTheme": "hc-black", "path": "./themes/contrast-dark.json"},
+      {"label": "Contrast Light (test)", "uiTheme": "hc-light", "path": "./themes/contrast-light.json"}
+    ]
+  }
+}

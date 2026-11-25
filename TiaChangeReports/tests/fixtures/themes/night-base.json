@@ -1,0 +1,15 @@
+{
+  "name": "Night base (test)",
+  "colors": {
+    "editor.background": "#16181d",
+    "editor.foreground": "#ffffff",
+    "focusBorder": "#3d7fd0"
+  },
+  "tokenColors": [
+    {"scope": "comment", "settings": {"foreground": "#ff0000"}},
+    {"scope": "constant.numeric", "settings": {"foreground": "#b5cea8"}},
+    {"scope": "variable", "settings": {"foreground": "#9cdcfe"}},
+    {"scope": "entity.name.function, support.function", "settings": {"foreground": "#dcdcaa"}},
+    {"scope": "source.scl variable.other", "settings": {"foreground": "#ff00ff"}}
+  ]
+}

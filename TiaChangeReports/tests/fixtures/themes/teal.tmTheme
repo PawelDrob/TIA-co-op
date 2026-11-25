@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>name</key>
+  <string>Teal (test)</string>
+  <key>settings</key>
+  <array>
+    <dict>
+      <key>settings</key>
+      <dict>
+        <key>background</key>
+        <string>#002b36</string>
+        <key>foreground</key>
+        <string>#839496</string>
+      </dict>
+    </dict>
+    <dict>
+      <key>scope</key>
+      <string>comment</string>
+      <key>settings</key>
+      <dict>
+        <key>foreground</key>
+        <string>#586e75</string>
+      </dict>
+    </dict>
+    <dict>
+      <key>scope</key>
+      <string>keyword, storage</string>
+      <key>settings</key>
+      <dict>
+        <key>foreground</key>
+        <string>#859900</string>
+      </dict>
+    </dict>
+    <dict>
+      <key>scope</key>
+      <string>constant.numeric</string>
+      <key>settings</key>
+      <dict>
+        <key>foreground</key>
+        <string>#d33682</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>

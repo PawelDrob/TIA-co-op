@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T19:20:21-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T22:18:00-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -97,7 +97,8 @@ Each cause prints with its kind: a reader that reads a format otherwise, a field
 | `render_lad.py`, `verify.py` | The drawing and its self-check |
 | `page.py` | The page or fragment: summary, block sections, project tree, script |
 | `scl_colours.py` | The words of an SCL line in the colours of TIA's SCL editor |
-| `theme.py` | The palette's block for a page, a theme file read and checked |
+| `theme.py` | The palette, its pairs and its block for a page; the theme a page is drawn in |
+| `vscode_theme.py` | A VS Code color theme read onto the palette, and its pairs held readable |
 | `hmi.py`, `hmi.js`, `hmi.css` | The HMI part |
 | `twoformats.py` | The two formats against each other: facts of a report, the two checks, their causes |
 
@@ -107,134 +108,162 @@ A self-contained HTML file: nothing is fetched. A summary table and a project tr
 
 ## Colours and themes
 
-Every colour the page, the fragment, the PNG and the block viewer draw is a name of one palette, a CSS custom property on `.ldiff`, but what *What takes no theme* below names. The palette and TIA's native theme, the value of each name no theme gives, are one file, `TiaHmiGenerator\hmipreview\static\tia-theme.css`, beside `ldiff.css` and `rail.css` that the report shares with the HMI preview. It has a line for each name, saying what the name colours and which pairs a theme must keep readable. `theme.py` reads it and a theme of the user's own in its format, and writes the palette's block into a page's `<style>`. `test_theme.py` holds the rest to it: no colour stands outside that block, in any style, in the SVG or in what a script gives an element's style. A property that takes only a colour (`color`, each `*-color`, `bgcolor`, `fill`, `stroke`) is found by its value, anything but a name of the palette, `none`, `transparent`, `currentColor` and `inherit`; a colour inside a shorthand or a gradient by its hex, its function or CSS Color 4's lists of named and system colours. A script's `style.backgroundColor = ...`, `setAttribute('fill', ...)`, `setProperty(...)` or `cssText` is read as the declaration it makes and checked the same way.
+Every colour the page, the fragment, the PNG and the block viewer draw is a name of one palette, a CSS custom property on `.ldiff`, but what *What takes no theme* below names. The palette and TIA's native theme, the value of each name no theme gives, are one file, `TiaHmiGenerator\hmipreview\static\tia-theme.css`, beside `ldiff.css` and `rail.css` that the report shares with the HMI preview. It has a line for each name, saying what the name colours, and at its head the pairs a theme must keep readable, as lines `theme.PAIRS` reads. `theme.py` reads it and writes the palette's block into a page's `<style>`; `vscode_theme.py` reads a theme of the user's own, a VS Code color theme, onto the names. `test_theme.py` holds the rest to it: no colour stands outside that block, in any style, in the SVG or in what a script gives an element's style. A property that takes only a colour (`color`, each `*-color`, `bgcolor`, `fill`, `stroke`) is found by its value, anything but a name of the palette, `none`, `transparent`, `currentColor` and `inherit`; a colour inside a shorthand or a gradient by its hex, its function or CSS Color 4's lists of named and system colours. A script's `style.backgroundColor = ...`, `setAttribute('fill', ...)`, `setProperty(...)` or `cssText` is read as the declaration it makes and checked the same way.
 
 - **What the renderer writes holds names and no colour.** A ladder's parts carry classes (`l-wire`, `l-box`, `hl added`, ...), and `render_lad.CSS` gives each its `fill` or `stroke` from a name. So a theme changes only the palette's block: the same rendering serves every theme, and a cache of what the renderer draws needs no theme in its key. A fragment as written holds the block of the theme it was given in its `<style>`. An SVG copied out of the page alone has no colours: its shapes and text fill black, its lines do not show. `--png` is the way to a picture.
 - **The report's own values are written `:where(.ldiff)`,** specificity 0. In a page of its own they go on `:root` instead, so that the page's head and body take them too.
-- **A theme of the user's own** (how it is given: the README and `--help`) is read in `theme.py` alone, so that every report draws in it, those the bridge, the dashboard and Archive Compare start too. Its values come after TIA's, inside `@media screen`: print takes TIA's values, paper being white. Its format and what is refused are at the head of `tia-theme.css`. A standalone page keeps the theme it was made with. The environment variable `TIA_CR_USER_THEME`, when set, is the path read in place of the user's file: the test packages of the report and of Archive Compare's runner set it, and so do the bridge's `Report.Tests.ps1` and `BackgroundSmoke.ps1` and Archive Compare's window `check.py`, so that no report a test or check starts, as a child process too, reads the user's file.
-- **A host gives a theme** in its own stylesheet: `.ldiff { --name: value; ... }`. It wins over the report's values wherever it stands, the fragment's `<style>` included. A value in a host's stylesheet may be any CSS colour, `var(--vscode-...)` among them, as no name is mixed or computed from another (`test_theme.TheNames`). A theme file is such a stylesheet as it stands, but it takes plain colours only: `theme.py` refuses `var()` there.
-- **The forms a theme file takes** are `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()` and `transparent`, as CSS Color 4 writes them, in its ASCII digits, letters and white space. Colour names, `hsl()` and the rest of CSS Color are refused by their form.
-- **No character of a theme file reaches the page.** A value the browser refused would leave the property that uses it unset, a wire's stroke `none`, and the drawing would lose the wire with nothing said. So `theme.py` reads each value into numbers (red, green, blue, alpha), as the browser reads it, and writes the page's block from them in one form, `rgba(r,g,b,alpha)`: red, green and blue whole numbers, the alpha kept in full and not rounded to 8 bits as a hex pair would be, so that TIA's `.25` is `0.25`. `test_theme.TheWrittenForm` holds that form to Edge: Edge takes each case of it and reads it as the colour the value was. `TheFormsOfColour` holds what a theme takes to Edge's `CSS.supports('color', ...)` over generated values near those forms, so that a theme refuses no value of those forms that the browser draws. A form added later wants its reading and both tests widened together.
+- **A theme of the user's own** (how it is given: the README and `--help`) is read in `theme.py` alone, so that every report draws in it, those the bridge, the dashboard and Archive Compare start too. Its values, every name, come after TIA's, inside `@media screen`: print takes TIA's values, paper being white. A standalone page keeps the theme it was made with, and says under its title, and the viewer in its bar, which theme it is drawn in (`theme.note`): "Colours of the VS Code theme <name>, not TIA's", the file's name where the theme has none. Print does not show that line, and a fragment does not hold it: its host chooses and shows its colours, and a fragment in any theme differs from one in TIA's only by its block. The environment variable `TIA_CR_USER_THEME`, when set, is the path read in place of the user's file: the test packages of the report and of Archive Compare's runner set it, and so do the bridge's `Report.Tests.ps1` and `BackgroundSmoke.ps1` and Archive Compare's window `check.py`, so that no report a test or check starts, as a child process too, reads the user's file.
+- **A host gives a theme** in its own stylesheet: `.ldiff { --name: value; ... }`. It wins over the report's values wherever it stands, the fragment's `<style>` included. A value in a host's stylesheet may be any CSS colour, `var(--vscode-...)` among them, as no name is mixed or computed from another (`test_theme.TheNames`).
+- **No character of a theme file reaches the page.** A value the browser refused would leave the property that uses it unset, a wire's stroke `none`, and the drawing would lose the wire with nothing said. So a theme takes VS Code's four forms of a colour, `#RGB`, `#RGBA`, `#RRGGBB` and `#RRGGBBAA`, in ASCII; `theme.py` reads each into numbers (red, green, blue, alpha) and writes the page's block from them in one form, `rgba(r,g,b,alpha)`: red, green and blue whole numbers, the alpha kept in full and not rounded to 8 bits as a hex pair would be, so that TIA's `.25` is `0.25` (the palette's own file writes its shadows as `rgba()`). `test_theme.TheWrittenForm` holds that form to Edge: Edge takes each case of it and reads it as the colour the value was. `TheFormsOfColour` holds what a theme takes to Edge's `CSS.supports('color', ...)` over values near the hex forms.
 - **What takes no theme.** The palette holds the report's own chrome, the project tree (`rail.css`) and the HMI part's (`hmi.css`) among it. An HMI screen and a value's colour swatch (`hmi.js`, `render.js`) take no theme but their frames: a screen, as the HMI preview's `render.js` draws it, is in the project's colours, with the preview's own marks on them in fixed colours (flashing, a pattern, the frames of a clock, a picture and a faceplate, the hatch of what is not drawn, a visibility animation). What a screen would take from the page, the fill and colour of its labels and the background of a screen with no `BackColor`, `theme.css()` holds in TIA's values after the theme's (`theme.SCREEN`), so neither a theme nor a host's values for the names reach it; only the line round it (`--screen-edge`), the outlines of its changes and the frame of the object picked take the theme (`ATrialPalette.test_a_screen_takes_no_theme`). A swatch is in the value's colour, its frame in `--swatch-line`. The HMI preview's own panels (`app.css`, `props.css`), which the report does not draw, keep their colours and take the palette's names only where they shared `ldiff.css`'s. Archive Compare's window (Qt) takes none. Nor does what the browser draws of its own, as no style of the report sets it: the placeholder of the tree's search box and of the lookup, the focus ring of a button or a link (`--focus` frames only a text box with the focus, the tree's open object and a pressed toggle), and the scrollbars. Whether a scrollbar follows a theme (`color-scheme`, `scrollbar-color`) is the host's to decide, the VS Code extension's among them.
 
-### Following a VS Code theme
+### A VS Code theme
 
-Following a VS Code theme is the VS Code extension's job; this table is what it maps from. A webview gets the running theme's colours as `var(--vscode-<id>)`, where `<id>` is a theme colour id with `.` as `-`, and a class on `body`: `vscode-light`, `vscode-dark` or `vscode-high-contrast`. That much is in [VS Code's webview guide](https://code.visualstudio.com/api/extension-guides/webview). The guide does not name `vscode-high-contrast-light`, which element carries the variables, or whether they change when the user switches theme. Those want checking in a running VS Code.
+A theme file is a VS Code color theme as its extension publishes it, read by `vscode_theme.read`: JSON with `//` and `/* */` comments and trailing commas, as VS Code's own files are written. Of it the report reads `name`, `type`, `colors`, `tokenColors` and `include`:
 
-A webview gets no syntax colours: a theme's token colours are not among those variables. So LAD's and SCL's word colours have stand-ins at best (`symbolIcon.*`, `debugTokenExpression.*`). Where the table says *per kind*, no VS Code colour fits, and the extension needs a value of its own for light, dark and high contrast themes.
+- **`include`** names another theme file, from the including file's folder or by a full path, followed through any depth: the including file's `colors` win over the included ones, its `tokenColors` come after theirs. A user's `theme.json` may so be `{ "include": "<the theme's file>" }` and add `tia.*` colours of its own.
+- **`tokenColors`** is a list of rules, or the path of a `.tmTheme` (a plist, read with `plistlib`). A rule with no scope gives `editor.background` and `editor.foreground` where `colors` does not, as an old TextMate theme writes them.
+- **Not read:** `semanticTokenColors` and `semanticHighlighting` (the report has no semantic tokens), `$schema`, and anything else. `null` in `colors` is no colour given.
+- **Refused,** with the file and the line (`ThemeError`): what is not JSON, a top level that is no object, a file with none of `colors`, `tokenColors` and `include`, a value in `colors` or a token rule's `foreground` or `background` that is not one of the four hex forms, an include that is not there or includes itself, a `.tmTheme` that does not read, a `tia.*` id that is no name, and a `tia.*` value of alpha 0 for a name that draws a line, a text or a change mark (`vscode_theme.VISIBLE`). A theme is never drawn in part.
 
-| Name | VS Code colour id |
+**The kind** (light, dark, high contrast dark, high contrast light) is the `type` of the file or of a file it includes (`light`, `dark`, `hc`, `hcLight`, and `uiTheme`'s `vs`, `vs-dark`, `hc-black`, `hc-light`), else the `uiTheme` that a `package.json` beside one of those files, or up to two folders above it, gives that file under `contributes.themes`, as an installed theme has it: most of VS Code's own files say no `type`. Else it is light or dark by the page's luminance. The kind gives the page and the text when the theme gives none (white and black, for dark `#1e1e1e` and `#d4d4d4`, Dark (Visual Studio)'s own, for high contrast dark black and white), and in high contrast the lines take `contrastBorder`, else the text, as VS Code's high contrast themes frame every part.
+
+**Each name** takes, in order: the theme's own `tia.<name>` in `colors`, drawn as written; else the first id of `colors` or token scope of the table below that the theme gives, a value of alpha 0 passed over (themes set borders to `#00000000`); else the table's rule. A token scope (a source ending in `.scl`) is the one a TextMate grammar of SCL would give the word, and it is matched as VS Code matches: a rule's selector matches a scope it equals or is a dot-prefix of, the one of most parts wins, a later rule over an earlier one of as many; a selector of a parent and a child scope is not matched. The rules:
+
+| Rule | What it gives |
 |---|---|
-| `--page` | `editor.background` |
-| `--text` | `editor.foreground` |
-| `--muted` | `descriptionForeground` |
-| `--faint` | `editorLineNumber.foreground` |
-| `--empty-field-text` | `input.placeholderForeground` |
-| `--viewer-note` | `descriptionForeground` |
-| `--link` | `textLink.foreground` |
-| `--link-underline` | `textLink.foreground` |
-| `--match` | `list.highlightForeground` |
-| `--page-head` | `editorGroupHeader.tabsBackground` |
-| `--page-head-line` | `editorGroupHeader.tabsBorder` |
-| `--band` | `sideBarSectionHeader.background` |
-| `--field` | `input.background` |
-| `--row` | `editorWidget.background` |
-| `--network-number` | `badge.background` |
-| `--line` | `panel.border` |
-| `--grid` | `tree.indentGuidesStroke` |
-| `--edge` | `widget.border` |
-| `--divider` | `panel.border` |
-| `--no-line` | `diffEditor.diagonalFill` |
-| `--opened-member` | `tree.tableOddRowsBackground` |
-| `--added` | `gitDecoration.addedResourceForeground` |
-| `--added-fill` | `diffEditor.insertedLineBackground` |
-| `--added-word` | `diffEditor.insertedTextBackground` |
-| `--removed` | `gitDecoration.deletedResourceForeground` |
-| `--removed-fill` | `diffEditor.removedLineBackground` |
-| `--removed-word` | `diffEditor.removedTextBackground` |
-| `--changed` | `gitDecoration.modifiedResourceForeground` |
-| `--changed-fill` | *per kind* |
-| `--changed-row` | *per kind* |
-| `--moved` | `gitDecoration.renamedResourceForeground` |
-| `--moved-fill` | *per kind* |
-| `--moved-row` | *per kind* |
-| `--same` | `disabledForeground` |
-| `--same-mark` | `editor.background` |
-| `--version` | `descriptionForeground` |
-| `--badge-text` | `badge.foreground` |
-| `--mark-line` | `widget.border` |
-| `--off-over-mark` | *per kind* |
-| `--button` | `button.secondaryBackground` |
-| `--button-hover` | `button.secondaryHoverBackground` |
-| `--button-line` | `button.border` |
-| `--button-text` | `button.secondaryForeground` |
-| `--button-off-text` | `disabledForeground` |
-| `--switch` | `button.secondaryBackground` |
-| `--switch-on` | `inputOption.activeBackground` |
-| `--input` | `input.background` |
-| `--input-text` | `input.foreground` |
-| `--focus` | `focusBorder` |
-| `--hover` | `list.hoverBackground` |
-| `--selected` | `list.activeSelectionBackground` |
-| `--change-hover` | `list.hoverBackground` |
-| `--icon` | `icon.foreground` |
-| `--tree-icon` | `icon.foreground` |
-| `--window-line` | `editorWidget.border` |
-| `--shadow` | `widget.shadow` |
-| `--backdrop` | *per kind* |
-| `--minimap-view` | `minimapSlider.background` |
-| `--minimap-view-line` | `minimapSlider.activeBackground` |
-| `--error-fill` | `inputValidation.errorBackground` |
-| `--error-line` | `inputValidation.errorBorder` |
-| `--checkbox` | `checkbox.background` |
-| `--checkbox-line` | `checkbox.border` |
-| `--checkbox-on` | `button.background` |
-| `--checkbox-on-line` | `button.background` |
-| `--checkbox-tick` | `button.foreground` |
-| `--checkbox-off` | `checkbox.disabled.background` |
-| `--checkbox-off-line` | `checkbox.border` |
-| `--checkbox-off-on` | `checkbox.disabled.background` |
-| `--checkbox-off-on-line` | `checkbox.border` |
-| `--checkbox-off-tick` | `checkbox.disabled.foreground` |
-| `--wire` | `editor.foreground` |
-| `--lad-text` | `editor.foreground` |
-| `--lad-comment` | *per kind* |
-| `--lad-value` | `debugTokenExpression.value` |
-| `--lad-constant` | `debugTokenExpression.number` |
-| `--lad-default` | `editorInlayHint.foreground` |
-| `--lad-number` | `debugTokenExpression.number` |
-| `--eno-off` | `disabledForeground` |
-| `--pin-open` | `editorLineNumber.foreground` |
-| `--box` | `editorWidget.background` |
-| `--box-line` | `editorWidget.border` |
-| `--box-head` | `sideBarSectionHeader.background` |
-| `--box-cell-line` | `editorWidget.border` |
-| `--compare-type` | `sideBarSectionHeader.background` |
-| `--expression` | `input.background` |
-| `--calculator` | `button.secondaryBackground` |
-| `--calculator-line` | `icon.foreground` |
-| `--conversion` | *per kind* |
-| `--conversion-light` | *per kind* |
-| `--jump-label` | *per kind* |
-| `--jump-label-line` | `editor.foreground` |
-| `--scl-keyword` | `symbolIcon.keywordForeground` |
-| `--scl-region` | *per kind* |
-| `--scl-constant` | `symbolIcon.constantForeground` |
-| `--scl-comment` | *per kind* |
-| `--scl-operand` | `symbolIcon.variableForeground` |
-| `--scl-local-constant` | `symbolIcon.constantForeground` |
-| `--scl-block-call` | `symbolIcon.functionForeground` |
-| `--scl-instruction` | `symbolIcon.methodForeground` |
-| `--scl-parameter` | `debugTokenExpression.name` |
-| `--scl-operator` | `symbolIcon.operatorForeground` |
-| `--screen-surround` | *per kind* |
-| `--screen-edge` | `widget.border` |
-| `--object-selected` | `focusBorder` |
-| `--checker` | *per kind* |
-| `--checker-light` | *per kind* |
-| `--swatch-line` | `widget.border` |
+| `axis` | TIA's value moved onto the theme's axis from its page to its text (`on_axis`): a value at OKLab lightness L in TIA, whose page is white and text black, goes `1 - L` of the way from the theme's page towards its text, with TIA's own hue and chroma added. A band, a box and its head, a field and the grid keep their place between page and text in any theme, light, dark or tinted, and TIA's greens, reds, yellows and blues stay what they are |
+| `line` | in a high contrast theme `contrastBorder`, else the theme's text; in another, `axis` |
+| `text` | the theme's text: what VS Code draws a word in that no token rule colours |
+| `kind` | the kind's page and text |
+| `tia` | TIA's value as it is: a shadow is dark in any theme |
 
-The `diffEditor.*` backgrounds are translucent by VS Code's own description. Drawn over `--page`, as the report draws them, they read as VS Code's diff editor does.
+**Colours with an alpha.** Every name but `--shadow`, `--backdrop`, `--minimap-view` and `--off-over-mark` is drawn opaque: a value with an alpha, as VS Code themes write `diffEditor.*` and `list.*` backgrounds, is laid over the ground it stands on in the report (`vscode_theme.over`), a changed word's mark over its line's mark and the rest over the page, as VS Code lays `diffEditor.insertedTextBackground` over the line's background and the editor. So what is drawn is what VS Code shows, and its contrast is known.
+
+**Easy to read.** After the table and the rules, each pair at the head of `tia-theme.css` is held to a bound: TIA's own WCAG contrast for that pair, at most 4.5 to 1. 4.5 is WCAG's floor for text; the pairs TIA itself draws under it (faint text, a mark's fill beside the page, a frame beside a fill) are as hard to read in TIA, and a theme need be no harder. A pair under its bound is moved by lightness alone in OKLab, its hue kept (`_hold_pairs`): first the parts that are no text, a mark's fill, a box, a band or a line, away from what they lie on; then every pair, by the move that is smallest and breaks the fewest of the moved name's pairs that held, a rule's value before a value the theme gave. The page and a `tia.*` value never move. `test_vscode_theme.EasyToRead` holds every pair over fixture themes of each kind, written for the tests (`tests\fixtures\themes\`: a dark one with an include, comments and colours with an alpha, a light one with faint words and a dark selection, both high contrasts as an extension installs them, a tinted one whose colours are a `.tmTheme`, a mid-grey page), and shows the pairs failing with the moves or the axis rule taken out.
+
+### From a VS Code theme to the palette
+
+The table `vscode_theme.TABLE`, one row a name, in the palette's order; `test_vscode_theme.TheTable` holds this one to it. A user who sets a colour of the report writes the name's id, `tia.<name>`, in the theme's `colors`.
+
+| Name | Its id | TIA's value | The theme's ids or scopes, in order | Rule |
+|---|---|---|---|---|
+| `--page` | `tia.page` | `#fff` | `editor.background` | kind |
+| `--text` | `tia.text` | `#000` | `editor.foreground`, `foreground` | kind |
+| `--muted` | `tia.muted` | `#5a5a5a` | `descriptionForeground` | axis |
+| `--faint` | `tia.faint` | `#8c8c8c` | `editorLineNumber.foreground` | axis |
+| `--empty-field-text` | `tia.empty-field-text` | `#808080` | `input.placeholderForeground` | axis |
+| `--viewer-note` | `tia.viewer-note` | `#595959` | `descriptionForeground` | axis |
+| `--link` | `tia.link` | `#0a4f9e` | `textLink.foreground` | axis |
+| `--link-underline` | `tia.link-underline` | `#8c8c8c` | - | axis |
+| `--match` | `tia.match` | `#0a4f9e` | `list.highlightForeground` | axis |
+| `--page-head` | `tia.page-head` | `#f0f0f0` | - | axis |
+| `--page-head-line` | `tia.page-head-line` | `#c8c8c8` | - | line |
+| `--band` | `tia.band` | `#d9d9d9` | - | axis |
+| `--field` | `tia.field` | `#e1e1e1` | - | axis |
+| `--row` | `tia.row` | `#f0f0f0` | - | axis |
+| `--network-number` | `tia.network-number` | `#c3c3c3` | - | axis |
+| `--line` | `tia.line` | `#c8c8c8` | - | line |
+| `--grid` | `tia.grid` | `#e1e1e1` | - | line |
+| `--edge` | `tia.edge` | `#b2b2b2` | - | line |
+| `--divider` | `tia.divider` | `#d9d9d9` | - | line |
+| `--no-line` | `tia.no-line` | `#f5f5f5` | - | axis |
+| `--opened-member` | `tia.opened-member` | `#f4f4f4` | - | axis |
+| `--added` | `tia.added` | `#3a9a4f` | `gitDecoration.addedResourceForeground`, `editorGutter.addedBackground` | axis |
+| `--added-fill` | `tia.added-fill` | `#e3f4e6` | `diffEditor.insertedLineBackground` | axis |
+| `--added-word` | `tia.added-word` | `#b5e2bf` | `diffEditor.insertedTextBackground` | axis |
+| `--removed` | `tia.removed` | `#c0392b` | `gitDecoration.deletedResourceForeground`, `editorGutter.deletedBackground` | axis |
+| `--removed-fill` | `tia.removed-fill` | `#f9e3e7` | `diffEditor.removedLineBackground` | axis |
+| `--removed-word` | `tia.removed-word` | `#f0b9c4` | `diffEditor.removedTextBackground` | axis |
+| `--changed` | `tia.changed` | `#c99700` | `gitDecoration.modifiedResourceForeground`, `editorGutter.modifiedBackground` | axis |
+| `--changed-fill` | `tia.changed-fill` | `#fff3c2` | - | axis |
+| `--changed-row` | `tia.changed-row` | `#fffbe8` | - | axis |
+| `--moved` | `tia.moved` | `#7a9cc6` | `gitDecoration.renamedResourceForeground` | axis |
+| `--moved-fill` | `tia.moved-fill` | `#dfe9f5` | - | axis |
+| `--moved-row` | `tia.moved-row` | `#eef4fa` | - | axis |
+| `--same` | `tia.same` | `#8c8c8c` | - | axis |
+| `--same-mark` | `tia.same-mark` | `#fff` | - | axis |
+| `--version` | `tia.version` | `#6b6b6b` | - | axis |
+| `--badge-text` | `tia.badge-text` | `#fff` | - | axis |
+| `--mark-line` | `tia.mark-line` | `#8c8c8c` | - | line |
+| `--off-over-mark` | `tia.off-over-mark` | `#0000000f` | - | axis |
+| `--button` | `tia.button` | `#f0f0f0` | `button.secondaryBackground` | axis |
+| `--button-hover` | `tia.button-hover` | `#e5e5e5` | `button.secondaryHoverBackground` | axis |
+| `--button-line` | `tia.button-line` | `#adadad` | `button.border` | line |
+| `--button-text` | `tia.button-text` | `#000` | `button.secondaryForeground` | axis |
+| `--button-off-text` | `tia.button-off-text` | `#a0a0a0` | `disabledForeground` | axis |
+| `--switch` | `tia.switch` | `#fbfbfb` | - | axis |
+| `--switch-on` | `tia.switch-on` | `#d9d9d9` | - | axis |
+| `--input` | `tia.input` | `#fff` | `input.background` | axis |
+| `--input-text` | `tia.input-text` | `#000` | `input.foreground` | axis |
+| `--focus` | `tia.focus` | `#3d8ee0` | `focusBorder` | axis |
+| `--hover` | `tia.hover` | `#e5f1fb` | `list.hoverBackground` | axis |
+| `--selected` | `tia.selected` | `#cce4f7` | `list.activeSelectionBackground` | axis |
+| `--change-hover` | `tia.change-hover` | `#f3f8fd` | `list.hoverBackground` | axis |
+| `--icon` | `tia.icon` | `#222` | `icon.foreground` | axis |
+| `--tree-icon` | `tia.tree-icon` | `#444` | `icon.foreground` | axis |
+| `--window-line` | `tia.window-line` | `#8c8c8c` | `editorWidget.border`, `widget.border` | line |
+| `--shadow` | `tia.shadow` | `rgba(0,0,0,.25)` | `widget.shadow` | tia |
+| `--backdrop` | `tia.backdrop` | `rgba(0,0,0,.18)` | - | tia |
+| `--minimap-view` | `tia.minimap-view` | `rgba(0,0,0,.08)` | `minimapSlider.background` | axis |
+| `--minimap-view-line` | `tia.minimap-view-line` | `#3c3c3c` | - | axis |
+| `--error-fill` | `tia.error-fill` | `#fde7e9` | `inputValidation.errorBackground` | axis |
+| `--error-line` | `tia.error-line` | `#c42b1c` | `inputValidation.errorBorder` | axis |
+| `--checkbox` | `tia.checkbox` | `#fff` | `checkbox.background` | axis |
+| `--checkbox-line` | `tia.checkbox-line` | `#8c8c8c` | `checkbox.border` | line |
+| `--checkbox-on` | `tia.checkbox-on` | `#2f7fd0` | `button.background` | axis |
+| `--checkbox-on-line` | `tia.checkbox-on-line` | `#1d5fa3` | `button.background` | axis |
+| `--checkbox-tick` | `tia.checkbox-tick` | `#fff` | `button.foreground` | axis |
+| `--checkbox-off` | `tia.checkbox-off` | `#e7e8e8` | - | axis |
+| `--checkbox-off-line` | `tia.checkbox-off-line` | `#b5b5b5` | - | line |
+| `--checkbox-off-on` | `tia.checkbox-off-on` | `#f7f9fb` | - | axis |
+| `--checkbox-off-on-line` | `tia.checkbox-off-on-line` | `#7e7e7e` | - | line |
+| `--checkbox-off-tick` | `tia.checkbox-off-tick` | `#666` | - | axis |
+| `--wire` | `tia.wire` | `#1a1a1a` | - | axis |
+| `--lad-text` | `tia.lad-text` | `#1a1a1a` | `editor.foreground`, `foreground` | axis |
+| `--lad-comment` | `tia.lad-comment` | `#7b1e6b` | `comment.line.double-slash.scl` | text |
+| `--lad-value` | `tia.lad-value` | `#13866f` | `constant.numeric.scl` | text |
+| `--lad-constant` | `tia.lad-constant` | `#2b6cb0` | `constant.language.scl` | text |
+| `--lad-default` | `tia.lad-default` | `#8c8c8c` | `editorInlayHint.foreground` | axis |
+| `--lad-number` | `tia.lad-number` | `#16a0a0` | `entity.name.type.scl` | text |
+| `--eno-off` | `tia.eno-off` | `#a0a0a0` | `disabledForeground` | axis |
+| `--pin-open` | `tia.pin-open` | `#888` | - | axis |
+| `--box` | `tia.box` | `#e6e8eb` | - | axis |
+| `--box-line` | `tia.box-line` | `#9aa3ad` | - | line |
+| `--box-head` | `tia.box-head` | `#d3d7dc` | - | axis |
+| `--box-cell-line` | `tia.box-cell-line` | `#b5bcc4` | - | line |
+| `--compare-type` | `tia.compare-type` | `#d9dde2` | - | axis |
+| `--expression` | `tia.expression` | `#eef0f2` | - | axis |
+| `--calculator` | `tia.calculator` | `#f4f5f6` | - | axis |
+| `--calculator-line` | `tia.calculator-line` | `#555` | - | axis |
+| `--conversion` | `tia.conversion` | `#a9a9a9` | - | axis |
+| `--conversion-light` | `tia.conversion-light` | `#d3d3d3` | - | axis |
+| `--jump-label` | `tia.jump-label` | `#dfe0e8` | - | axis |
+| `--jump-label-line` | `tia.jump-label-line` | `#000` | - | axis |
+| `--scl-keyword` | `tia.scl-keyword` | `#0000ff` | `keyword.control.scl` | text |
+| `--scl-region` | `tia.scl-region` | `#c91ffe` | `meta.preprocessor.region.scl` | text |
+| `--scl-constant` | `tia.scl-constant` | `#005989` | `constant.numeric.scl` | text |
+| `--scl-comment` | `tia.scl-comment` | `#187e2b` | `comment.line.double-slash.scl` | text |
+| `--scl-operand` | `tia.scl-operand` | `#4c3f88` | `variable.other.scl` | text |
+| `--scl-local-constant` | `tia.scl-local-constant` | `#02284e` | `variable.other.constant.scl` | text |
+| `--scl-block-call` | `tia.scl-block-call` | `#670667` | `entity.name.function.scl` | text |
+| `--scl-instruction` | `tia.scl-instruction` | `#51120f` | `support.function.scl` | text |
+| `--scl-parameter` | `tia.scl-parameter` | `#350034` | `variable.parameter.scl` | text |
+| `--scl-operator` | `tia.scl-operator` | `#414141` | `keyword.operator.scl` | text |
+| `--screen-surround` | `tia.screen-surround` | `#7f7f7f` | - | axis |
+| `--screen-edge` | `tia.screen-edge` | `#555` | - | line |
+| `--object-selected` | `tia.object-selected` | `#0a64d2` | `focusBorder` | axis |
+| `--checker` | `tia.checker` | `#e6e6e6` | - | axis |
+| `--checker-light` | `tia.checker-light` | `#fff` | - | axis |
+| `--swatch-line` | `tia.swatch-line` | `#666` | - | line |
+
+### For the VS Code extension
+
+What the extension (tia-vscode 01 and 02) builds on, none of it built here:
+
+- **The theme VS Code runs** is a file: the setting `workbench.colorTheme` holds a theme's `id`, else its `label`, from some extension's `contributes.themes`, whose `path`, from the extension's folder, is the file, and whose `uiTheme` is its kind. VS Code's own are in its folder's `resources\app\extensions\theme-*`. The user's `workbench.colorCustomizations` are not in that file: the extension can write a theme that includes it and adds them in `colors`, `tia.*` ones too.
+- **A cache of fragments free of the theme:** the extension draws fragments in `--theme tia` and lays a theme's block alone after them. `python -m TiaChangeReports.vscode_theme <file>` writes that block, `@media screen{.ldiff{...}}` (`theme.block`), every name, specificity 0,1,0, so that it wins wherever it stands. `test_theme.ATrialPalette.test_the_block_over_a_fragment_in_tias_theme` holds that a fragment so drawn follows the theme in Edge.
+- **Its own stylesheet** may instead set the names from `var(--vscode-...)` as before (*A host gives a theme*); that takes no token colours, which a webview is not given.
 
 ## Who calls it
 

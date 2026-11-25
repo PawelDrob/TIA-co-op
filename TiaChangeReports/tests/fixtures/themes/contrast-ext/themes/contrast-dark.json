@@ -1,0 +1,12 @@
+{
+  "name": "Contrast Dark (test)",
+  "colors": {
+    "editor.background": "#000000",
+    "editor.foreground": "#ffffff",
+    "contrastBorder": "#6fc3df"
+  },
+  "tokenColors": [
+    {"scope": "comment", "settings": {"foreground": "#7ca668"}},
+    {"scope": "keyword", "settings": {"foreground": "#569cd6"}}
+  ]
+}

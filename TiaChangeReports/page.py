@@ -1124,7 +1124,8 @@ def render(diffs, before_label, after_label, fragment=False, title=None, full=Fa
     under the page's title, what a report of a git repo cannot see. other_files: the changed files it does not read
     (otherfiles.py), the same as not_compared. across: the names of the blocks read from .s7dcl on one side and
     SimaticML on the other (across_names), after "No changes." where nothing changed. theme: a theme.Theme, None
-    TIA's native one; its block of the palette goes into the <style>, on :root for a page of its own."""
+    TIA's native one; its block of the palette goes into the <style>, on :root for a page of its own, and a page of its
+    own not in TIA's colours says so under its title (theme.note)."""
     from . import hmi as hmipart
     others = (plc_tags.items if plc_tags else []) + (hmi.items if hmi else [])
     n = len(diffs) + len(others)
@@ -1166,5 +1167,6 @@ def render(diffs, before_label, after_label, fragment=False, title=None, full=Fa
             'h1{font-size:17px;margin:0}header p{margin:2px 0 0}'
             'main:has(>.ldiff>.rail){margin-left:260px}main:has(>.ldiff.rail-off){margin-left:28px}'
             'main:has(>.ldiff.flat){margin-left:0}@media print{main{margin-left:0!important}}@page{size:A4 landscape}'
-            '</style></head><body><main><header><h1>%s</h1>%s</header>%s</main></body></html>'
-            % (escape(title), escape(title), '<p>%s</p>' % source_note if source_note else '', frag))
+            '%s</style></head><body><main><header><h1>%s</h1>%s%s</header>%s</main></body></html>'
+            % (escape(title), themes.NOTE_CSS, escape(title), '<p>%s</p>' % source_note if source_note else '',
+               themes.note(theme), frag))

@@ -1,0 +1,10 @@
+{
+  "name": "Contrast Light (test)",
+  "colors": {
+    "focusBorder": "#006bbd"
+  },
+  "tokenColors": [
+    {"scope": "comment", "settings": {"foreground": "#515151"}},
+    {"scope": "keyword.control", "settings": {"foreground": "#b5200d"}}
+  ]
+}

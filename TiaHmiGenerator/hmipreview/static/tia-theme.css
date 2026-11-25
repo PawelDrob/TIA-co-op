@@ -8,43 +8,50 @@
    line round it, the outlines of its changes and the frame of the object picked take the theme. Nor do the HMI
    preview's own panels and Archive Compare's window. Whether a scrollbar follows a theme is the host's to say.
 
-   A theme of your own: a file %LOCALAPPDATA%\tia-co-op\theme.css with this block's --theme-format line and only the
-   lines you change, not a copy of the whole file; every report and the block viewer given no --theme draw in it.
-   --theme <file> takes another for one report.
-   - One block, .ldiff { ... }; first --theme-format: 1; then one --name: colour; a line. Comments as here.
-   - A name you leave out keeps the value below. A name not below, a value of another form or anything else
-     is refused, with the line; nothing is drawn then.
-   - A colour: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba() or transparent; no colour names, no hsl() or var().
-   - A theme is for the screen: print takes these values.
-   - A host page (a VS Code webview) may set the names itself, in its own stylesheet on .ldiff: that wins over
-     the report's values, and a file in this format is such a stylesheet as it stands.
+   A theme of your own is a VS Code color theme (TiaChangeReports\vscode_theme.py reads it onto these names; the
+   table of what it takes for each: docs\dev\tools\tia-change-reports.md). A host page (a VS Code webview) may also
+   set the names itself, in its own stylesheet on .ldiff: that wins over the report's values.
 
-   Pairs a theme must keep readable, one over the other (every rule that sets a text's colour, gone over once):
-   - --text and each --scl-* over --page, --added-fill, --removed-fill, --added-word, --removed-word
-   - --text over --changed-fill and --moved-fill: a network's badge, a "differs" note, a mark in the lookup
-   - each --lad-* text and --wire over --page, --added-fill, --removed-fill, --changed-fill, --moved-fill;
-     --lad-text and --eno-off over --box; --lad-text and --lad-number over --box-head; --lad-text over --jump-label,
-     --compare-type and --expression
-   - --conversion beside --conversion-light, both over --box
-   - --text over --band, --field, --row, --network-number, --changed-row, --moved-row, --opened-member, --hover,
-     --selected, --change-hover, --page-head and --error-fill (the viewer's "cannot be drawn", an instance it
-     cannot read); --input-text over --input
-   - --button-text over --button, --button-hover, --selected (an HMI toolbar's button that is on), --switch and
-     --switch-on; --button-off-text over --button and --switch
+   Pairs a theme must keep readable, each line the names drawn over the names they stand on (theme.PAIRS reads these
+   lines; --x-* is each name that starts so; what is in brackets says where). A VS Code theme's values are moved until
+   each pair has TIA's own contrast, at most 4.5 to 1:
+   - --text, --scl-* over --page, --added-fill, --removed-fill, --added-word, --removed-word
+   - --text over --changed-fill, --moved-fill (a network's badge, a "differs" note, a mark in the lookup)
+   - --lad-*, --wire over --page, --added-fill, --removed-fill, --changed-fill, --moved-fill
+   - --lad-text, --eno-off over --box
+   - --lad-text, --lad-number over --box-head
+   - --lad-text over --jump-label, --compare-type, --expression
+   - --conversion over --conversion-light, --box
+   - --conversion-light over --box
+   - --text over --band, --field, --row, --network-number, --changed-row, --moved-row, --opened-member, --hover, --selected, --change-hover, --page-head, --error-fill (the viewer's "cannot be drawn", an instance it cannot read)
+   - --input-text over --input
+   - --button-text over --button, --button-hover, --selected, --switch, --switch-on (an HMI toolbar's button that is on: --selected)
+   - --button-off-text over --button, --switch
    - --badge-text over --added, --removed, --moved, --same, --version
-   - --changed and --added as text (a library version "in work", "released") over --page, --band and
-     --changed-fill (a "differs" note); --removed as text (an HMI warning) over --page, --change-hover and
-     --selected
-   - --muted over --page, --row, --band, --hover, --selected and --change-hover; --muted and --faint over
-     the interface's rows too: --added-fill, --removed-fill, --changed-row, --moved-row, --opened-member;
-     --faint over --page; --empty-field-text over --field; --viewer-note over --page and --page-head
-   - --checkbox-tick over --checkbox-on, --checkbox-off-tick over --checkbox-off-on
-   - --link over --page, --change-hover and --selected; --match over --page, --hover and --selected; --icon over
-     --band, --button and an HMI change's --page, --change-hover and --selected; --tree-icon over --page and
-     --hover */
-.ldiff {
-  --theme-format: 1;
+   - --changed, --added over --page, --band, --changed-fill (as text: a library version "in work", "released", a "differs" note)
+   - --removed over --page, --change-hover, --selected (as text: an HMI warning)
+   - --muted over --page, --row, --band, --hover, --selected, --change-hover
+   - --muted, --faint over --added-fill, --removed-fill, --changed-row, --moved-row, --opened-member (the interface's rows)
+   - --faint over --page
+   - --empty-field-text over --field
+   - --viewer-note over --page, --page-head
+   - --checkbox-tick over --checkbox-on
+   - --checkbox-off-tick over --checkbox-off-on
+   - --link over --page, --change-hover, --selected
+   - --match over --page, --hover, --selected
+   - --icon over --band, --button, --page, --change-hover, --selected (an HMI change's --page, --change-hover and --selected)
+   - --tree-icon over --page, --hover
 
+   And the parts that must stand out from what they lie on, though no text:
+   - --added-fill, --removed-fill, --changed-fill, --moved-fill, --changed-row, --moved-row over --page (a change's mark)
+   - --added-word over --added-fill (a changed word in its line's mark)
+   - --removed-word over --removed-fill
+   - --box, --band, --field, --network-number over --page
+   - --box-head over --box
+   - --box-line over --page, --box
+   - --line, --grid, --edge over --page
+*/
+.ldiff {
   /* the page and its text */
   --page: #fff;                    /* the page's and a pane's background, the tree's, the focus view's, a window's */
   --text: #000;                    /* text, and SCL's semicolons and jump labels */

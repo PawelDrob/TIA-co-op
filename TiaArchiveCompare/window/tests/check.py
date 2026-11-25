@@ -44,10 +44,10 @@ if _problem:
 else:
     for _name in _listed.stdout.split():
         os.environ.pop(_name, None)
-# The reports the real runner starts read no default theme of the user's (%LOCALAPPDATA%\tia-co-op\theme.css): they draw
+# The reports the real runner starts read no default theme of the user's (%LOCALAPPDATA%\tia-co-op\theme.json): they draw
 # in TIA's native theme, whatever the PC holds.
 from TiaChangeReports import theme as _theme  # noqa: E402
-os.environ[_theme.ENV] = os.path.join(HERE, 'no-user-theme', 'theme.css')
+os.environ[_theme.ENV] = os.path.join(HERE, 'no-user-theme', 'theme.json')
 
 failed = 0
 

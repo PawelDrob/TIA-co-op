@@ -28,9 +28,9 @@ $psi.UseShellExecute = $false
 $psi.RedirectStandardInput = $true
 $psi.RedirectStandardOutput = $true
 $psi.StandardOutputEncoding = New-Object System.Text.UTF8Encoding $false
-# change_report reads no default theme of the user's (%LOCALAPPDATA%\tia-co-op\theme.css): a path that is not there
+# change_report reads no default theme of the user's (%LOCALAPPDATA%\tia-co-op\theme.json): a path that is not there
 # takes its place (TiaChangeReports\theme.py), so the report draws in TIA's native theme whatever the PC holds.
-$psi.EnvironmentVariables['TIA_CR_USER_THEME'] = Join-Path $PSScriptRoot 'no-user-theme\theme.css'
+$psi.EnvironmentVariables['TIA_CR_USER_THEME'] = Join-Path $PSScriptRoot 'no-user-theme\theme.json'
 $p = [System.Diagnostics.Process]::Start($psi)
 $utf8 = New-Object System.Text.UTF8Encoding $false
 $script:id = 0

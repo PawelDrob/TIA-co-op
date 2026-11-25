@@ -7,8 +7,8 @@ python TiaChangeReports\\viewer --register | --unregister | --register-xml | --u
 browser with the block drawn as the change report draws it, and a switch to the file's text. A file it cannot draw
 opens on its text, with why. --html: writes the page to out.html instead, nothing opened. --lang: the language of
 titles and comments (default en-US, else the first language with a text). --theme: the colours, as the change
-report's --theme (tia, TIA's native look, or a theme file; without it the user's default theme,
-%LOCALAPPDATA%\\tia-co-op\\theme.css, when that file is there); a faulty theme file is a usage error, and so is a
+report's --theme (tia, TIA's native look, or a VS Code color theme file; without it the user's default theme,
+%LOCALAPPDATA%\\tia-co-op\\theme.json, when that file is there); a faulty theme file is a usage error, and so is a
 faulty default theme with --html; without --html it is said in a message box, exit code 2.
 --register: a double-click on an .s7dcl opens it here, for the current user; --unregister takes that back.
 --register-xml: "Open with" on an .xml file lists the viewer, for the current user, and what a double-click on one opens
