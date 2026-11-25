@@ -4,7 +4,7 @@ title: TiaChangeReports internals
 description: How the change report reads two states of a project (SIMATIC SD, SimaticML, HMI XML), what it compares, how LAD is diffed and drawn, and what the page holds.
 tags: [dev, change-reports, plc, hmi]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T22:18:00-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-24T22:30:00-05:00 }
 ---
 
 # TiaChangeReports internals
@@ -132,7 +132,7 @@ A theme file is a VS Code color theme as its extension publishes it, read by `vs
 
 | Rule | What it gives |
 |---|---|
-| `axis` | TIA's value moved onto the theme's axis from its page to its text (`on_axis`): a value at OKLab lightness L in TIA, whose page is white and text black, goes `1 - L` of the way from the theme's page towards its text, with TIA's own hue and chroma added. A band, a box and its head, a field and the grid keep their place between page and text in any theme, light, dark or tinted, and TIA's greens, reds, yellows and blues stay what they are |
+| `axis` | TIA's value moved onto the theme's axis from its page to its text (`on_axis`): a value at OKLab lightness L in TIA, whose page is white and text black, goes `1 - L` of the way from the theme's page towards its text, with TIA's own hue and chroma added. Where sRGB holds not half that chroma there (a yellow near black), it goes further towards the text, by 0.1 of lightness at most, and the rest is taken off TIA's chroma. A band, a box and its head, a field and the grid keep their place between page and text in any theme, light, dark or tinted, and TIA's greens, reds, yellows and blues stay what they are (`EasyToRead.test_the_marks_keep_their_hue`) |
 | `line` | in a high contrast theme `contrastBorder`, else the theme's text; in another, `axis` |
 | `text` | the theme's text: what VS Code draws a word in that no token rule colours |
 | `kind` | the kind's page and text |
@@ -140,7 +140,7 @@ A theme file is a VS Code color theme as its extension publishes it, read by `vs
 
 **Colours with an alpha.** Every name but `--shadow`, `--backdrop`, `--minimap-view` and `--off-over-mark` is drawn opaque: a value with an alpha, as VS Code themes write `diffEditor.*` and `list.*` backgrounds, is laid over the ground it stands on in the report (`vscode_theme.over`), a changed word's mark over its line's mark and the rest over the page, as VS Code lays `diffEditor.insertedTextBackground` over the line's background and the editor. So what is drawn is what VS Code shows, and its contrast is known.
 
-**Easy to read.** After the table and the rules, each pair at the head of `tia-theme.css` is held to a bound: TIA's own WCAG contrast for that pair, at most 4.5 to 1. 4.5 is WCAG's floor for text; the pairs TIA itself draws under it (faint text, a mark's fill beside the page, a frame beside a fill) are as hard to read in TIA, and a theme need be no harder. A pair under its bound is moved by lightness alone in OKLab, its hue kept (`_hold_pairs`): first the parts that are no text, a mark's fill, a box, a band or a line, away from what they lie on; then every pair, by the move that is smallest and breaks the fewest of the moved name's pairs that held, a rule's value before a value the theme gave. The page and a `tia.*` value never move. `test_vscode_theme.EasyToRead` holds every pair over fixture themes of each kind, written for the tests (`tests\fixtures\themes\`: a dark one with an include, comments and colours with an alpha, a light one with faint words and a dark selection, both high contrasts as an extension installs them, a tinted one whose colours are a `.tmTheme`, a mid-grey page), and shows the pairs failing with the moves or the axis rule taken out.
+**Easy to read.** After the table and the rules, each pair at the head of `tia-theme.css` is held to a bound: TIA's own WCAG contrast for that pair, at most 4.5 to 1. 4.5 is WCAG's floor for text; the pairs TIA itself draws under it (faint text, a mark's fill beside the page, a frame beside a fill) are as hard to read in TIA, and a theme need be no harder. A pair under its bound is moved by lightness alone in OKLab, its hue kept, and only away from the other side, so that which of the two is the lighter stays as the theme and the rules gave it, dark text over light badges in a dark theme (`_hold_pairs`). First the parts of the head's last list, which must stand out though no text (`theme.PARTS`: a mark's fill, a box, a band, a line), move away from what they lie on, so that the grounds stand; then every pair: the drawn side by its smallest move that breaks none of its pairs that held, else the move of either side that breaks the fewest, then the smallest, a rule's value before a value the theme gave. The page and a `tia.*` value never move. `test_vscode_theme.EasyToRead` holds every pair over fixture themes of each kind, written for the tests (`tests\fixtures\themes\`: a dark one with an include, comments and colours with an alpha, a light one with faint words and a dark selection, both high contrasts as an extension installs them, a tinted one whose colours are a `.tmTheme`, a mid-grey page), and shows the pairs failing with the moves or the axis rule taken out.
 
 ### From a VS Code theme to the palette
 
@@ -175,10 +175,10 @@ The table `vscode_theme.TABLE`, one row a name, in the palette's order; `test_vs
 | `--removed` | `tia.removed` | `#c0392b` | `gitDecoration.deletedResourceForeground`, `editorGutter.deletedBackground` | axis |
 | `--removed-fill` | `tia.removed-fill` | `#f9e3e7` | `diffEditor.removedLineBackground` | axis |
 | `--removed-word` | `tia.removed-word` | `#f0b9c4` | `diffEditor.removedTextBackground` | axis |
-| `--changed` | `tia.changed` | `#c99700` | `gitDecoration.modifiedResourceForeground`, `editorGutter.modifiedBackground` | axis |
+| `--changed` | `tia.changed` | `#c99700` | `gitDecoration.modifiedResourceForeground` | axis |
 | `--changed-fill` | `tia.changed-fill` | `#fff3c2` | - | axis |
 | `--changed-row` | `tia.changed-row` | `#fffbe8` | - | axis |
-| `--moved` | `tia.moved` | `#7a9cc6` | `gitDecoration.renamedResourceForeground` | axis |
+| `--moved` | `tia.moved` | `#7a9cc6` | - | axis |
 | `--moved-fill` | `tia.moved-fill` | `#dfe9f5` | - | axis |
 | `--moved-row` | `tia.moved-row` | `#eef4fa` | - | axis |
 | `--same` | `tia.same` | `#8c8c8c` | - | axis |

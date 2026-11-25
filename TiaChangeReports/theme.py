@@ -23,7 +23,7 @@ and one that is not there or cannot be read raises it saying why, so a theme is 
                            drawn in TIA's
   note(theme, tag)      -> the line a page not drawn in TIA's colours says so in; '' for TIA's
   NATIVE, NAMES, PAIRS  -> {name: TIA's colour (red, green, blue, alpha)}, the names in the file's order, the pairs to
-                           keep readable [(drawn, ground)] from the file's head
+                           keep readable [(drawn, ground)] from the file's head; PARTS those of them no text
 
 What the renderer writes holds names and no colour, so the theme is only this block. It is written :where(.ldiff),
 specificity 0: a host page's own .ldiff { --name: ... } (a VS Code webview's) wins wherever its stylesheet stands.
@@ -111,6 +111,9 @@ def read_palette(text):
     return out
 
 
+PARTS_HEAD = 'And the parts that must stand out'
+
+
 def read_pairs(text, names):
     """[(drawn, ground)] of the head's lines '- --a, --b over --c, --d (where)'; --x-* is every name that starts
     --x-."""
@@ -133,6 +136,8 @@ def read_pairs(text, names):
 NATIVE = read_palette(rail.THEME_CSS)
 NAMES = list(NATIVE)
 PAIRS = read_pairs(rail.THEME_CSS, NAMES)
+# The pairs of the head's last list: parts that must stand out from what they lie on, though no text.
+PARTS = read_pairs(rail.THEME_CSS[rail.THEME_CSS.index(PARTS_HEAD):], NAMES)
 
 
 def load(spec=None):

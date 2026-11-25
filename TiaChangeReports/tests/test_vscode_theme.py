@@ -5,6 +5,7 @@ doc (TheTable); a colour with an alpha laid over its ground, alpha 0 passed over
 tia.<name> ids (TiaIds); and every pair to keep readable over the fixture themes, each kind, which fail with a rule
 taken out (EasyToRead). The fixture themes (fixtures\\themes\\) are written for the tests."""
 import json
+import math
 import os
 import re
 import tempfile
@@ -285,12 +286,17 @@ class EasyToRead(unittest.TestCase):
         self.assertEqual(values['--band'], theme.NATIVE['--band'])
 
     def test_the_marks_keep_their_hue(self):
-        """The axis rule keeps TIA's hue: an added mark is green, a removed one red, in a dark theme too."""
-        values, _ = vt.palette(self.src['night'])
-        for name, channel in (('--added', 1), ('--removed', 0), ('--changed-fill', 0)):
-            c = values[name]
-            self.assertEqual(max(range(3), key=lambda k: c[k]), channel, (name, c))
-
+        """The four marks stay apart in every theme, as in TIA's: each mark's colour and fill stands from the page in
+        TIA's hue (OKLab, within 45 degrees), green, red, yellow and blue, in a dark or tinted theme too."""
+        def hue(c, page):
+            (_, a, b), (_, a0, b0) = vt.oklab(c), vt.oklab(page)
+            return math.degrees(math.atan2(b - b0, a - a0))
+        for k, s in self.src.items():
+            values, _ = vt.palette(s)
+            for name in ('--added', '--added-fill', '--removed', '--removed-fill', '--changed', '--changed-fill',
+                         '--moved', '--moved-fill'):
+                d = hue(values[name], values['--page']) - hue(theme.NATIVE[name], theme.NATIVE['--page'])
+                self.assertLess(abs((d + 180) % 360 - 180), 45, (k, name, values[name]))
 
 if __name__ == '__main__':
     unittest.main()

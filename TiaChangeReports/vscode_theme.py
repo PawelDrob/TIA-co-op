@@ -82,10 +82,12 @@ TABLE = {
     '--removed': (('gitDecoration.deletedResourceForeground', 'editorGutter.deletedBackground'), 'axis'),
     '--removed-fill': (('diffEditor.removedLineBackground',), 'axis'),
     '--removed-word': (('diffEditor.removedTextBackground',), 'axis'),
-    '--changed': (('gitDecoration.modifiedResourceForeground', 'editorGutter.modifiedBackground'), 'axis'),
+    # Not editorGutter.modifiedBackground, blue in VS Code's own themes: the report's moved is blue. Nor for moved
+    # gitDecoration.renamedResourceForeground, green in many: the report's added is green.
+    '--changed': (('gitDecoration.modifiedResourceForeground',), 'axis'),
     '--changed-fill': ((), 'axis'),
     '--changed-row': ((), 'axis'),
-    '--moved': (('gitDecoration.renamedResourceForeground',), 'axis'),
+    '--moved': ((), 'axis'),
     '--moved-fill': ((), 'axis'),
     '--moved-row': ((), 'axis'),
     '--same': ((), 'axis'),
@@ -526,11 +528,29 @@ def from_oklab(L, a, b, alpha=1.0):
 def on_axis(tia, page, text):
     """TIA's colour tia moved onto the theme's axis from page to text: TIA's page is white (lightness 1), its text
     black (0); a colour at lightness L stands 1 - L of the way from page to text, and goes as far from the theme's
-    page towards its text, with TIA's own hue and chroma added. Its alpha is kept."""
+    page towards its text, with TIA's own hue and chroma added. Where sRGB holds not half that chroma at such a
+    lightness (a yellow near black), the colour goes further towards the text until it does, by 0.1 of lightness at
+    most, so that a mark keeps its hue; what still does not fit is taken off TIA's chroma, not the theme's tint. Its
+    alpha is kept."""
     c, p, t = oklab(tia), oklab(page), oklab(text)
     k = 1 - c[0]
-    return from_oklab(p[0] + k * (t[0] - p[0]), p[1] + k * (t[1] - p[1]) + c[1], p[2] + k * (t[2] - p[2]) + c[2],
-                      tia[3])
+    L, a, b = p[0] + k * (t[0] - p[0]), p[1] + k * (t[1] - p[1]), p[2] + k * (t[2] - p[2])
+    step = math.copysign(0.01, t[0] - p[0])
+    for _ in range(10):
+        if _in_gamut((L, a + c[1] / 2, b + c[2] / 2)) or not 0 <= L + step <= 1:
+            break
+        L += step
+    lo, hi = 0.0, 1.0
+    if not _in_gamut((L, a + c[1], b + c[2])):
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if _in_gamut((L, a + c[1] * mid, b + c[2] * mid)) else (lo, mid)
+        c = (c[0], c[1] * lo, c[2] * lo)
+    return from_oklab(L, a + c[1], b + c[2], tia[3])
+
+
+def _in_gamut(lab):
+    return all(-1e-6 <= v <= 1 + 1e-6 for v in _srgb_linear(lab))
 
 
 def over(c, ground):
@@ -609,7 +629,6 @@ def _rule(rule, name, kind, values, src, page0, text0):
     return tia
 
 
-TEXTS = VISIBLE[:VISIBLE.index('--link-underline')]
 STEP = 0.005                    # OKLab lightness: one step of a move
 
 
@@ -618,12 +637,12 @@ def _holds(pair, b, values):
 
 
 def _hold_pairs(values, origin, fixed):
-    """Moves names, by lightness alone, until each pair holds its bound. First the parts that are no text (a mark's
-    fill, a box, a band, a line) away from what they lie on, so that the grounds stand; then every pair, by the move
-    that is smallest, a rule's value weighed before a value the theme gave, and breaks none of the name's pairs that
-    held; where no move breaks none, the drawn side moves. fixed: never moved."""
+    """Moves names, by lightness alone, until each pair holds its bound. First the parts that are no text (theme.PARTS:
+    a mark's fill, a box, a band, a line) away from what they lie on, so that the grounds stand; then every pair: the drawn
+    side, by its smallest move that breaks none of its pairs that held; where it has none, the move of either side that
+    breaks the fewest, then the smallest, a rule's value weighed before a value the theme gave. fixed: never moved."""
     pairs = [(p, bound(p)) for p in theme.PAIRS]
-    parts = [(p, b) for p, b in pairs if p[0] not in TEXTS]
+    parts = [(p, b) for p, b in pairs if p in theme.PARTS]
     for group, sides in ((parts, 1), (pairs, 2)):
         of = {}                 # a name's pairs a move of it keeps: first where it is drawn, then all
         for p, b in group:
@@ -644,6 +663,8 @@ def _hold_pairs(values, origin, fixed):
                         key = (found[0], found[1] * (1 if origin[n] in RULES else 3))
                         if best is None or key < best[0]:
                             best = (key, n, found[2])
+                        if n == p[0] and found[0] == 0:
+                            break                                     # the drawn side moves, breaking nothing
                 if best:
                     values[best[1]] = best[2]
                     moved = True
@@ -652,15 +673,18 @@ def _hold_pairs(values, origin, fixed):
 
 
 def _move(n, pair, b, values, kept):
-    """(how many of kept it breaks, how far, the colour) of the move of n's lightness that makes pair hold b and breaks
-    the fewest of kept, the smallest of those; None when no move makes pair hold."""
+    """(how many of kept it breaks, how far, the colour) of the move of n's lightness away from the other side of pair
+    that makes pair hold b and breaks the fewest of kept, the smallest of those; None when none does. Away only: a move
+    keeps which side is the lighter, as the theme and the rules gave it (dark text over its fills in a dark theme)."""
     def holds(q, bq, c):
         return contrast(c if q[0] == n else values[q[0]], c if q[1] == n else values[q[1]]) >= bq - 1e-9
-    best, (L, a, bb) = None, oklab(values[n])
-    for step in range(1, int(1 / STEP) + 1):
-        for sign in (1, -1):
+    L, a, bb = oklab(values[n])
+    other = oklab(values[pair[1] if pair[0] == n else pair[0]])[0]
+    best = None
+    for sign in ((1,) if L >= other else (-1,)):
+        for step in range(1, int(1 / STEP) + 1):
             if not 0 <= L + sign * (step - 1) * STEP <= 1:
-                continue                                              # this way is at black or white already
+                break                                                 # this way is at black or white
             c = from_oklab(L + sign * step * STEP, a, bb)
             if not holds(pair, b, c):
                 continue
