@@ -85,7 +85,7 @@ class TheFile(Files):
         src = vt.read(self.put('t.json', json.dumps({'include': tm, 'colors': {'editor.background': '#102030'}})))
         self.assertEqual((src.name, src.files), ('Teal (test)', [os.path.join(self.tmp.name, 't.json'), tm]))
         self.assertEqual(vt.token_colour(src.rules, 'keyword.control.scl'), (0x85, 0x99, 0x00, 1.0))
-        self.assertEqual(vt.given(src)['editor.background'], (0x10, 0x20, 0x30, 1.0))   # the includer's colors win
+        self.assertEqual(src.colors['editor.background'], (0x10, 0x20, 0x30, 1.0))      # the includer's colors win
 
     def test_the_old_form(self):
         """A .json of a top-level list settings, a .tmTheme's rules as JSON: read as VS Code reads it, with no colors
@@ -94,12 +94,48 @@ class TheFile(Files):
             'settings': [{'scope': '', 'settings': {'background': '#202020', 'foreground': '#e0e0e0'}},
                          {'scope': 'keyword', 'settings': {'foreground': '#ff8000'}}],
             'colors': {'editor.background': '#ffffff'}, 'tokenColors': [{'settings': {'foreground': '#000000'}}]})))
-        self.assertEqual(vt.given(src)['editor.background'], (0x20, 0x20, 0x20, 1.0))
-        self.assertEqual(vt.given(src)['editor.foreground'], (0xe0, 0xe0, 0xe0, 1.0))
+        self.assertEqual(src.colors['editor.background'], (0x20, 0x20, 0x20, 1.0))
+        self.assertEqual(src.colors['editor.foreground'], (0xe0, 0xe0, 0xe0, 1.0))
         self.assertEqual(vt.token_colour(src.rules, 'keyword.control.scl'), (0xff, 0x80, 0x00, 1.0))
         self.assertEqual(vt.kind_of(src), 'dark')
         self.refused('{\n  "settings": [\n    {"scope": "a",\n     "settings": {"foreground": "red"}}\n  ]\n}', 4,
                      '"settings" [0]: "foreground": "red" is not a colour')
+
+    def test_the_old_form_over_its_include(self):
+        """VS Code loads the include first; a rule with no scope then sets the page and the text over its colors."""
+        base = self.put('base.json', '{"colors": {"editor.background": "#00ff00", "editor.foreground": "#000000"}}')
+        src = vt.read(self.put('old.json', json.dumps({'include': base, 'settings': [
+            {'settings': {'background': '#ff0000', 'foreground': '#ffffff'}}]})))
+        self.assertEqual((src.colors['editor.background'], src.colors['editor.foreground']),
+                         ((0xff, 0, 0, 1.0), (0xff, 0xff, 0xff, 1.0)))
+        self.assertEqual(vt.palette(src, move=False)[0]['--page'], (0xff, 0, 0, 1.0))
+
+    def test_a_rule_with_no_scope(self):
+        """As VS Code's convertSettings: in a .tmTheme it sets the page and the text, over the same file's colors
+        where the .tmTheme is its tokenColors; in a tokenColors list it sets nothing, the page is the kind's."""
+        self.put('t.tmTheme', '<?xml version="1.0"?><plist version="1.0"><dict><key>settings</key><array><dict>'
+                 '<key>settings</key><dict><key>background</key><string>#302010</string></dict></dict>'
+                 '</array></dict></plist>')
+        src = vt.read(self.put('t.json', '{"colors": {"editor.background": "#ffffff"}, "tokenColors": "./t.tmTheme"}'))
+        self.assertEqual(src.colors['editor.background'], (0x30, 0x20, 0x10, 1.0))
+        src = vt.read(self.put('t.json', json.dumps({'type': 'dark', 'tokenColors': [
+            {'settings': {'background': '#ff0000', 'foreground': '#00ff00'}}]})))
+        self.assertNotIn('editor.background', src.colors)
+        self.assertEqual(vt.palette(src, move=False)[1]['--page'], 'kind')
+
+    def test_default_undoes_the_included_colour(self):
+        """"default" as a colour, VS Code's DEFAULT_COLOR_CONFIG_VALUE: the included theme's colour is not taken."""
+        base = self.put('base.json', '{"colors": {"editor.background": "#00ff00", "focusBorder": "#123456"}}')
+        src = vt.read(self.put('t.json', json.dumps({'include': base, 'colors': {'focusBorder': 'default'}})))
+        self.assertNotIn('focusBorder', src.colors)
+        self.assertEqual(src.colors['editor.background'], (0, 0xff, 0, 1.0))
+
+    def test_what_vs_code_takes_as_none(self):
+        """An include, colors and tokenColors that are "", null, false or 0 are not there, as VS Code's if takes
+        them."""
+        for empty in ('""', 'null', 'false', '0'):
+            src = vt.read(self.put('t.json', '{"include": %s, "colors": %s, "tokenColors": %s}' % ((empty,) * 3)))
+            self.assertEqual((src.colors, src.rules, src.files), ({}, [], [os.path.join(self.tmp.name, 't.json')]))
 
     def test_a_tm_themes_fault_names_its_entry(self):
         tm = self.put('t.tmTheme', '<?xml version="1.0"?><plist version="1.0"><dict><key>settings</key><array>'
@@ -158,7 +194,72 @@ class TheFile(Files):
     def test_the_rest_is_not_read(self):
         """semanticTokenColors, $schema and an unknown type are no fault."""
         src = vt.read(self.put('t.json', '{"type": "neon", "semanticTokenColors": {"x": 1}, "colors": {}}'))
-        self.assertIsNone(src.kind)
+        self.assertEqual(src.types, {})
+
+
+class EveryRefusal(Files):
+    """Every way the report refuses a theme file, each with its message, that TheFile does not hold: what theme.load
+    refuses before the file is read, then vscode_theme.read and parse. The refusals of a tia.* id are in Alpha and
+    TiaIds."""
+
+    def load_refused(self, spec, message):
+        with self.assertRaises(theme.ThemeError) as e:
+            theme.load(spec)
+        self.assertEqual(str(e.exception), message)
+
+    def test_by_load(self):
+        nope = os.path.join(self.tmp.name, 'nope.tmTheme')
+        self.load_refused(nope, '%s: no theme of that name (tia) and no theme file there' % nope)
+        self.load_refused(self.tmp.name, '%s: the theme file cannot be read: it is a folder' % self.tmp.name)
+
+    def test_a_file_that_does_not_read(self):
+        path = os.path.join(self.tmp.name, 't.json')
+        with open(path, 'wb') as f:
+            f.write(b'{"colors": {"a": "\xff"}}')
+        with self.assertRaises(theme.ThemeError) as e:
+            vt.read(path)
+        self.assertTrue(str(e.exception).startswith('%s: the theme file cannot be read: it is not UTF-8 (' % path))
+        for name in ('nope.json', 'nope.tmTheme'):
+            nope = os.path.join(self.tmp.name, name)
+            with self.assertRaises(theme.ThemeError) as e:
+                vt.read(nope)
+            self.assertTrue(str(e.exception).startswith('%s: the theme file cannot be read: ' % nope), name)
+
+    def test_what_is_no_json(self):
+        for text, line, what in (('{\n  "colors": ', 2, 'not JSON: the text ends where a value should be'),
+                                 ('{\n  "colors"\n}', 3, "not JSON: : expected after 'colors'"),
+                                 ('{\n  "colors": {}\n  "name": "x"\n}', 3, 'not JSON: , or } expected'),
+                                 ('{"tokenColors": [\n  {} {}\n]}', 2, 'not JSON: , or ] expected'),
+                                 ('{\n  "colors": }', 2, "not JSON: '}' where a value should be")):
+            self.refused(text, line, what)
+
+    def test_a_tm_theme_that_does_not_read(self):
+        """Given as the file, as an include and as tokenColors: a .tmTheme that is no plist, or holds no list
+        settings."""
+        bad = self.put('bad.tmTheme', '{"settings": []}')
+        empty = self.put('empty.tmTheme', '<?xml version="1.0"?><plist version="1.0"><dict><key>name</key>'
+                         '<string>x</string></dict></plist>')
+        for tm, message in ((bad, '%s: the .tmTheme cannot be read: ' % bad),
+                            (empty, '%s: not a .tmTheme: no list "settings"' % empty)):
+            for spec in (tm, self.put('i.json', json.dumps({'include': tm})),
+                         self.put('t.json', json.dumps({'tokenColors': tm}))):
+                with self.assertRaises(theme.ThemeError) as e:
+                    theme.load(spec)
+                self.assertTrue(str(e.exception).startswith(message), (spec, str(e.exception)))
+
+    def test_a_token_colors_path_that_is_no_file(self):
+        nope = os.path.join(self.tmp.name, 'nope.tmTheme')
+        self.refused('{\n  "tokenColors": "./nope.tmTheme"\n}', 2, '"tokenColors": %s is no file' % nope)
+
+    def test_an_include_that_is_no_file(self):
+        nope = os.path.join(self.tmp.name, 'nope.json')
+        self.refused('{\n  "include": "./nope.json"\n}', 2, '"include": %s is no file' % nope)
+
+    def test_a_rule_that_is_no_object(self):
+        self.refused('{\n  "tokenColors": [\n    "comment"\n  ]\n}', 2,
+                     '"tokenColors" [0] is not a rule {"scope": ..., "settings": {...}}')
+        self.refused('{\n  "tokenColors": [\n    {"scope": "a",\n     "settings": {"background": 3}}\n  ]\n}', 4,
+                     '"tokenColors" [0]: "background": 3 is not a colour')
 
 
 class TheKind(Files):
@@ -185,6 +286,23 @@ class TheKind(Files):
         with open(path, 'w', encoding='utf-8') as f:
             f.write('{"colors": {"editor.background": "#ffffff"}}')
         self.assertEqual(vt.kind_of(vt.read(path)), 'hcDark')
+
+    def test_a_package_json_over_the_files_type(self):
+        """VS Code takes an installed theme's kind from its extension's uiTheme alone: it wins over the file's type.
+        The type of the user's own file wins over what an included one says, which VS Code would not see; a file
+        that says none takes the included one's, its package.json's before its type."""
+        ext = os.path.join(self.tmp.name, 'ext')
+        os.makedirs(ext)
+        path = os.path.join(ext, 't.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('{"type": "light", "colors": {"editor.background": "#ffffff"}}')
+        with open(os.path.join(ext, 'package.json'), 'w', encoding='utf-8') as f:
+            json.dump({'contributes': {'themes': [{'uiTheme': 'hc-black', 'path': './t.json'}]}}, f)
+        self.assertEqual(vt.kind_of(vt.read(path)), 'hcDark')
+        mine = self.put('mine.json', json.dumps({'include': path, 'type': 'dark'}))
+        self.assertEqual(vt.kind_of(vt.read(mine)), 'dark')
+        mine = self.put('mine.json', json.dumps({'include': path}))
+        self.assertEqual(vt.kind_of(vt.read(mine)), 'hcDark')
 
     def test_a_package_json_of_another_form(self):
         """A uiTheme that is no string, as a package.json that is no theme's may hold, gives no kind: by the page."""

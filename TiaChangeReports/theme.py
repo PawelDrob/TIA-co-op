@@ -43,7 +43,7 @@ if WINCC not in sys.path:
 from hmipreview import rail   # noqa: E402  the palette's file, shared with the HMI preview
 
 NATIVE_FILE = os.path.join(rail.STATIC, 'tia-theme.css')
-HELP = ("the colours: tia, TIA's native look, or a VS Code color theme file (.json); "     # argparse: %% is %
+HELP = ("the colours: tia, TIA's native look, or a VS Code color theme file (.json or .tmTheme); "  # argparse: %% is %
         "default: your theme file %%LOCALAPPDATA%%\\tia-co-op\\theme.json when there, else tia")
 
 

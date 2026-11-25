@@ -13,16 +13,18 @@ moved until it has TIA's own contrast, at most 4.5 to 1.
   python -m TiaChangeReports.vscode_theme <tia|file>   writes the theme's block alone (theme.block), for a host that
                                                       lays it over fragments drawn in --theme tia
 
-The file: JSON with // and /* */ comments and trailing commas. Read of it: name, type, colors, tokenColors (a list, or
-the path of a .tmTheme), include (a theme file, from this one's folder or by a full path: its colors under this
-one's, its tokenColors before this one's). A token rule with no scope, or the scope "", gives editor.background and
-editor.foreground where colors does not. A .tmTheme, given as the file or as an include, gives its name and its
-settings as token rules; so does a .json of the old form, a top-level list settings, whose colors and tokenColors are
-then not read, as in VS Code. semanticTokenColors and the rest are not read: the report has no semantic tokens.
+The file, read as VS Code's loader reads it: JSON with // and /* */ comments and trailing commas. Read of it: name,
+type, colors (an id set to "default" undoes the included one's), tokenColors (a list, or the path of a .tmTheme),
+include (a theme file, from this one's folder or by a full path: its colors under this one's, its tokenColors before
+this one's). A .tmTheme, given as the file, as an include or as tokenColors, gives its settings as token rules, and
+its name where it is the file or the include and an including file gives none; so does a .json of the old form, a
+top-level list settings, whose colors and tokenColors are then not read. In those two, as in VS Code, a rule with no
+scope, or the scope "", sets editor.background and editor.foreground over what came before; in a tokenColors list it
+sets nothing. semanticTokenColors and the rest are not read: the report has no semantic tokens.
 
-The kind (KINDS): the type of the file or of a file it includes, else uiTheme of the first package.json, beside one
-of those files or up to two folders above it, that names that file (an installed theme's), else light or dark by the
-page's luminance.
+The kind (KINDS): of the file, else of the first file it includes that says one, the uiTheme of the first
+package.json, beside that file or up to two folders above it, that names it with a kind (an installed theme's, as VS
+Code takes it), else its type; else light or dark by the page's luminance.
 
 A name takes, in order: the theme's own tia.<name> (refused with alpha 0 for a line, a text or a mark, VISIBLE; never
 moved), else the first of TABLE's ids or token scopes (a source ending in .scl) the theme gives, a value of the
@@ -282,12 +284,12 @@ def parse(text, where):
 # --- what a theme gives
 
 class Source:
-    """A theme as read: name (or None), kind (or None), colors {id: colour}, where {id: 'file:line'} of each, rules
-    [(selectors, foreground, background)] of tokenColors in order, path, files: path and the files it includes, in
-    order."""
+    """A theme as read: name (or None), types {file: the kind its type says}, colors {id: colour}, where
+    {id: 'file:line'} of each, rules [(selectors, foreground, background)] of tokenColors in order, path, files: path
+    and the files it includes, in order."""
 
     def __init__(self, path):
-        self.path, self.name, self.kind, self.colors, self.where, self.rules = path, None, None, {}, {}, []
+        self.path, self.name, self.types, self.colors, self.where, self.rules = path, None, {}, {}, {}, []
         self.files = [path]
 
 
@@ -300,14 +302,15 @@ def _colour(value, where, what):
 
 
 def read(path, _seen=()):
-    """The theme of the file at path, its include followed: a .tmTheme (by its name) as a TextMate theme, as VS Code
-    reads one as a theme's path and as an include; another file as JSON, a top-level list "settings" as a .tmTheme's.
-    Raises ThemeError for a file that does not read, is no color theme, holds a value that is no colour, includes a
-    file that is not there or itself."""
+    """The theme of the file at path, its include followed, as VS Code's loader reads it: a .tmTheme (by its name) as
+    a TextMate theme, given as the file or as an include; another file as JSON, a top-level list "settings" as a
+    .tmTheme's. Raises ThemeError for a file that does not read, is no color theme, holds a value that is no colour,
+    includes a file that is not there or itself."""
     path = os.path.abspath(path)
     if path.lower().endswith('.tmtheme'):
         src = Source(path)
-        src.name, src.rules = _tm_theme(path)
+        src.name, rules = _tm_theme(path)
+        _settings(src, rules, path)
         return src
     try:
         with open(path, encoding='utf-8-sig') as f:
@@ -323,8 +326,8 @@ def read(path, _seen=()):
                          'list "settings"' % (path, j.line if isinstance(j, JsonObject) else 1))
     at = lambda key: '%s:%d' % (path, j.lines[key])                      # noqa: E731
     src = Source(path)
-    if 'include' in j:
-        inc = j['include']
+    inc = j.get('include')
+    if inc:                                                 # "", null, false and 0 are none, as VS Code takes them
         if not isinstance(inc, str):
             raise ThemeError('%s: "include": %s is not the path of a theme file' % (at('include'), json.dumps(inc)))
         full = os.path.abspath(os.path.join(os.path.dirname(path), inc))
@@ -335,40 +338,57 @@ def read(path, _seen=()):
             raise ThemeError('%s: "include": %s is read already on the way here: the includes go round'
                              % (at('include'), full))
         base = read(full, seen)
-        src.name, src.kind, src.colors, src.where, src.rules = (base.name, base.kind, dict(base.colors),
-                                                                dict(base.where), list(base.rules))
+        src.name, src.types, src.colors, src.where, src.rules = (base.name, dict(base.types), dict(base.colors),
+                                                                 dict(base.where), list(base.rules))
         src.files += base.files
     if isinstance(j.get('name'), str):
         src.name = j['name']
     if isinstance(j.get('type'), str) and j['type'] in KINDS:
-        src.kind = KINDS[j['type']]
+        src.types[path] = KINDS[j['type']]
     place = lambda key: lambda obj, k: '%s:%d' % (                       # noqa: E731
         path, obj.lines.get(k, obj.line) if isinstance(obj, JsonObject) else j.lines[key])
     if old:
-        # The old form: a .tmTheme's rules as JSON. VS Code reads no colors and no tokenColors beside them.
-        src.rules += _token_rules(j['settings'], '"settings"', place('settings'))
+        # The old form: a .tmTheme's rules as JSON, over the include's. VS Code reads no colors and no tokenColors
+        # beside them.
+        _settings(src, _token_rules(j['settings'], '"settings"', place('settings')), at('settings'))
         return src
     colors = j.get('colors')
-    if colors is not None:
+    if colors:
         if not isinstance(colors, JsonObject):
             raise ThemeError('%s: "colors" is not an object of colour ids' % at('colors'))
         for key, value in colors.items():
             if value is None:
                 continue
+            if value == 'default':                                      # VS Code's: the included theme's is undone
+                src.colors.pop(key, None)
+                src.where.pop(key, None)
+                continue
             where = '%s:%d' % (path, colors.lines[key])
             src.colors[key] = _colour(value, where, '"colors": "%s"' % key)
             src.where[key] = where
     tokens = j.get('tokenColors')
-    if isinstance(tokens, str):
+    if isinstance(tokens, str) and tokens:
         tm = os.path.abspath(os.path.join(os.path.dirname(path), tokens))
         if not os.path.isfile(tm):
             raise ThemeError('%s: "tokenColors": %s is no file' % (at('tokenColors'), tm))
-        src.rules += _tm_theme(tm)[1]
+        _settings(src, _tm_theme(tm)[1], tm)
     elif isinstance(tokens, list):
         src.rules += _token_rules(tokens, '"tokenColors"', place('tokenColors'))
-    elif tokens is not None:
+    elif tokens:
         raise ThemeError('%s: "tokenColors" is neither a list of rules nor the path of a .tmTheme' % at('tokenColors'))
     return src
+
+
+def _settings(src, rules, where):
+    """Add a .tmTheme's rules, or the old form's, to src as VS Code's convertSettings does: a rule with no scope sets
+    editor.background and editor.foreground over what src holds. where: the place they are written, for the messages.
+    A rule with no scope in a tokenColors list sets nothing, as in VS Code."""
+    for sels, fg, bg in rules:
+        if sels is None:
+            for key, c in (('editor.background', bg), ('editor.foreground', fg)):
+                if c is not None:
+                    src.colors[key], src.where[key] = c, where
+    src.rules += rules
 
 
 def _token_rules(entries, what, place):
@@ -429,20 +449,27 @@ def token_colour(rules, scope):
 
 
 def kind_of(src):
-    """light, dark, hcDark or hcLight: a type in the file or a file it includes, else the uiTheme a package.json gives
-    one of those files, else by the page."""
-    if src.kind:
-        return src.kind
+    """light, dark, hcDark or hcLight: of the file, else of the first file it includes that says one, the uiTheme a
+    package.json gives it, as VS Code takes an installed theme's kind, else its type; else by the page."""
     for path in src.files:
-        folder = os.path.dirname(path)
-        for _ in range(3):
-            pkg = os.path.join(folder, 'package.json')
-            k = os.path.isfile(pkg) and _ui_theme(pkg, path)
-            if k:
-                return k
-            folder = os.path.dirname(folder)
-    page = given(src).get('editor.background')
+        k = _package_kind(path) or src.types.get(path)
+        if k:
+            return k
+    page = src.colors.get('editor.background')
     return 'dark' if page and luminance(page) < DARK_BELOW else 'light'
+
+
+def _package_kind(path):
+    """The kind of the first package.json, beside path or up to two folders above it, that names path with one;
+    else None."""
+    folder = os.path.dirname(path)
+    for _ in range(3):
+        pkg = os.path.join(folder, 'package.json')
+        k = os.path.isfile(pkg) and _ui_theme(pkg, path)
+        if k:
+            return k
+        folder = os.path.dirname(folder)
+    return None
 
 
 # The luminance under which a page is dark: black and white stand out from it equally (WCAG's contrast).
@@ -464,18 +491,6 @@ def _ui_theme(pkg, path):
             ui = t.get('uiTheme')
             return KINDS.get(ui) if isinstance(ui, str) else None
     return None
-
-
-def given(src):
-    """The theme's colors, editor.background and editor.foreground taken from a token rule with no scope where colors
-    gives none, as an old TextMate theme writes them."""
-    out = dict(src.colors)
-    for sels, fg, bg in src.rules:
-        if sels is None:
-            for key, c in (('editor.background', bg), ('editor.foreground', fg)):
-                if c is not None and key not in src.colors:
-                    out[key] = c
-    return out
 
 
 # --- colours: WCAG's luminance and contrast, OKLab for moving a colour
@@ -587,7 +602,7 @@ def palette(src, rules=RULES, move=True):
                              % (src.where[key], key, NAMES_DOC))
     kind = kind_of(src)
     kind_page, kind_text = (theme.colour(v) for v in KIND_PAGE[kind])
-    colors = given(src)
+    colors = src.colors
     values, origin, fixed = {}, {}, set()
     for name in ['--page', '--text'] + [n for n in theme.NAMES if n not in ('--page', '--text')]:
         sources, rule = TABLE[name]
