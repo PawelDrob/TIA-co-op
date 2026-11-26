@@ -4,7 +4,7 @@ title: Development dashboard
 description: How to see what waits for you while agents change this repo, answer their questions on review pages and on a ticket's page, take a page down, and reach the dashboard from another machine through tailscale serve.
 tags: [dashboard, agents, tickets, review-pages]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T18:52:01-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T19:07:55-05:00 }
 sources:
   - id: code
     resource: ../../tools/dashboard/
@@ -37,7 +37,7 @@ REVIEWS
 ● WAITING FOR YOUR ANSWERS (1)
   Parser audit                                                        2 questions
 
-Category: all 8  bug 1  enhancement 3  test 0  docs 1  chore 0  no category 3
+Category: all 8  bug 2  enhancement 3  test 1  docs 1  chore 0  no category 1
 
 PARSER TICKETS
 Files in the old format open without an error.
@@ -58,9 +58,10 @@ Open: [bug] 1, [enhancement] 3, [docs] 1, no category 1
 NO MAP
 Folders with tickets and no map.md.
 old-reader
-Open: no category 2
+Open: [bug] 1, [test] 1
 ○ READY FOR AN AGENT (2)
-  ...
+  01  Old files lose their dates [bug]
+  02  A test file of each old version [test]
 ```
 
 The list of topics starts with Reviews and has an entry per effort. Each entry jumps to its topic and shows how many of its tickets
@@ -149,7 +150,8 @@ has none of; a ticket without one of the five, a `research`, `prototype` or `gri
 tickets, **Category:** links each category with how many open tickets the page holds of it, 0 too. A link shows only the tickets of its category, closed ones too, and **all** shows
 every ticket again. The filter is in the page's address (`/?category=bug`), so a reload and the live updates keep it. The headline
 and the counts by category still count every ticket: a ticket that waits for you stays in the headline when the filter hides it.
-The list of topics counts what the filter shows. The tickets of a postponed effort count in none of these numbers.
+The list of topics counts what the filter shows. The tickets of a postponed effort count in none of these numbers. With no
+ticket open, as on a fresh clone, the filter does not show.
 
 ## Answer a ticket
 

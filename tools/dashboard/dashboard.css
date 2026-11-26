@@ -23,7 +23,7 @@
      ‖  Postponed            muted
    No other colours. A new status takes a mark, not a colour. Images and frames keep white behind them in both themes:
    what they show was made for a white page.
-   A ticket's category (bug, enhancement, test, docs, chore) is no status: its word in a hairline box (.tag), muted, no colour. */
+   A ticket's category is no status: its word in a hairline box (.tag), muted, no colour. */
 @font-face { font-family: 'Inter'; font-weight: 400; font-display: swap; src: url('/vendor/inter-latin-400-normal.woff2') format('woff2'); }
 @font-face { font-family: 'Inter'; font-weight: 600; font-display: swap; src: url('/vendor/inter-latin-600-normal.woff2') format('woff2'); }
 @font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-display: swap; src: url('/vendor/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }

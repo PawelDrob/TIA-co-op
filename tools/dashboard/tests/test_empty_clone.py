@@ -17,6 +17,7 @@ class EmptyCloneTest(unittest.TestCase):
         self.assertIn('Nothing waits for you.', text)
         self.assertIn('No review pages are open.', text)
         self.assertIn('No tickets yet.', text)
+        self.assertNotIn('class="filter"', text)            # nothing to filter
         self.assertIn('map.md', text)
         self.assertIn('href="#reviews"', text)
 

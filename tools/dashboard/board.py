@@ -397,7 +397,10 @@ def filter_name(value):
 
 def filter_html(counts, only):
     """The filter by category of the start page: a link per category with how many open tickets the page holds of it, the one
-    shown marked. Links, so a reload keeps the filter; the live update keeps it as the page's address does."""
+    shown marked. Links, so a reload keeps the filter; the live update keeps it as the page's address does. '' when no ticket
+    is open and none is shown, as on a fresh clone: there is nothing to filter."""
+    if not counts and only is None:
+        return ''
     links = [('/', 'all', sum(counts.values()), only is None)] + [
         ('/?category=' + c, filter_name(c), counts[c], only == c) for c in FILTERS]
     return ('<nav class="filter" aria-label="Filter by category">Category: %s</nav>'

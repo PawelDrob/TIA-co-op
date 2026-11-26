@@ -1,4 +1,5 @@
 """What the board reads from a .scratch folder: any map, its tickets, in the issue tracker's format."""
+from collections import Counter
 import os
 import re
 import subprocess
@@ -581,6 +582,10 @@ class BoardTest(unittest.TestCase):
                           ('/?category=none', 'no category 1')])
         self.assertEqual([name for _, on, name in links if on], ['docs 1'])
         self.assertIn('aria-current="true">all', board.filter_html(counts, None))
+
+    def test_the_filter_shows_only_when_a_ticket_is_open_or_a_category_is_shown(self):
+        self.assertEqual(board.filter_html(Counter(), None), '')
+        self.assertIn('aria-current="true">bug 0</a>', board.filter_html(Counter(), 'bug'))      # the way back to all stays
 
     def test_a_postponed_effort_counts_for_no_category(self):
         effort_map(self.scratch, 'later', '# Map\n\n## Notes\n\n- Postponed for now.\n')

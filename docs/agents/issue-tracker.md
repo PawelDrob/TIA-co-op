@@ -3,7 +3,7 @@ type: Standard
 title: Issue tracker for agent skills
 description: Where the engineering skills keep issues, specs and wayfinder maps in this repo, as markdown files under .scratch/, the status values and ticket head those files use, and how a ticket asks the maintainer a question.
 tags: [agents]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T18:47:02-05:00 }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T19:07:55-05:00 }
 sources:
   - id: dashboard
     resource: ../../tools/dashboard/board.py
@@ -77,7 +77,7 @@ Nothing else asks: an `in-review` or `needs-info` ticket that does none of these
 
 ## When a skill says "publish to the issue tracker"
 
-Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed), its head by the [Ticket head](#ticket-head): an execution ticket takes its `Category:` there.
 
 ## When a skill says "fetch the relevant ticket"
 
